@@ -1,4 +1,4 @@
-# AI Agent Vision & Strategy
+# AI Agent Vision & Strategy [PLACEHOLDER]
 
 ## Purpose
 This document captures the long-term mission, design philosophy, and future evolution of the AI agent. It’s meant to align contributors on *why* this project exists and where it’s headed.
