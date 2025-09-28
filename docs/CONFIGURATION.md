@@ -12,14 +12,78 @@ This document centralizes all environment variables, configuration knobs, and ru
 | `DISCORD_BOT_TOKEN` | ✅ Yes | – | Discord bot authentication token |
 | `GUILD_ID` | ✅ Yes | – | Discord server ID for auto-join |
 | `VOICE_CHANNEL_ID` | ✅ Yes | – | Voice channel ID for auto-join |
-| `OPENAI_BASE_URL` | ✅ Yes | – | LLM endpoint base URL |
-| `OPENAI_API_KEY` | ✅ Yes | – | API key for LLM |
-| `OPENAI_MODEL` | ✅ Yes | – | Model name |
+| `OPENAI_BASE_URL` | ✅ Yes | – | LLM endpoint base URL (OpenAI-compatible; e.g. local llama.cpp server or remote API) |
+| `OPENAI_API_KEY` | ✅ Yes | – | API key for LLM or service token for local OpenAI-shaped servers |
+| `OPENAI_MODEL` | ✅ Yes | `gpt-5` | Model name. To enable GPT-5 for all clients set this to `gpt-5`. Keep a fallback model for development (see `OPENAI_FALLBACK_MODEL`). |
+| `OPENAI_FALLBACK_MODEL` | Optional | `local` | Fallback model name to use when `gpt-5` is unavailable (development/local inference). |
+| `GPT5_ENABLED` | Optional | `true` | Toggle to explicitly enable GPT-5 for all clients. Set to `false` to disable and force fallbacks. |
 | `WHISPER_URL` | ✅ Yes | – | STT service endpoint |
 | `TTS_URL` | ✅ Yes | – | TTS service endpoint |
 | `RECORD_SECONDS` | Optional | `8` | Audio chunk size before transcription |
 
-> ✅ TODO: Fill in details for all config fields and describe their impact.
+> ✅ Completed: Added GPT-5 guidance and safety/rollout variables.
+
+---
+
+## 2. Enabling GPT-5 for all clients
+
+Recommendation: to make GPT-5 the default model used by the bot and all internal clients, set `OPENAI_MODEL=gpt-5` in your `.env.local` (or environment) and ensure `GPT5_ENABLED=true`.
+
+Minimal example `.env.local` snippet:
+
+```env
+# LLM / model
+OPENAI_BASE_URL=http://127.0.0.1:8000/v1
+OPENAI_API_KEY=changeme
+OPENAI_MODEL=gpt-5
+OPENAI_FALLBACK_MODEL=local
+GPT5_ENABLED=true
+
+# Rate/cost guardrails (optional)
+LLM_MAX_TOKENS=4000
+LLM_MAX_COST_PER_MINUTE_USD=1.00
+LLM_USE_FUNCTION_CALLS=true
+```
+
+Notes:
+- `OPENAI_BASE_URL` must expose an OpenAI-compatible REST shape (`/v1/chat/completions`).
+- `OPENAI_MODEL` may be a remote provider model name (e.g., `gpt-5`) or a local server alias that resolves to `gpt-5` semantics.
+- `OPENAI_FALLBACK_MODEL` should point to a smaller local model to reduce cost and latency when GPT-5 is unavailable.
+
+## 3. Guardrails & Cost Controls
+
+Enabling GPT-5 universally increases cost and may impact latency. Add runtime guardrails:
+
+- Token limits: `LLM_MAX_TOKENS` (default 4k) and per-request `max_tokens` enforced by the client.
+- Rate limiting: enforce `LLM_MAX_COST_PER_MINUTE_USD` and deny or queue requests when exceeded.
+- Usage tiers: allow non-critical or dev sessions to automatically use `OPENAI_FALLBACK_MODEL`.
+- Confirmation gates: for expensive multi-step plans (e.g., large repo-wide refactors), require explicit human confirmation before running full GPT-5 plan.
+
+## 4. Secrets Management
+
+- Keep `OPENAI_API_KEY` and any provider keys out of source control. Use `git-crypt`, `sops`, or your cloud secret manager in prod.
+- For local dev, use `.env.local` that is gitignored. Example `.gitignore` entry:
+
+```
+.env.local
+```
+
+- Avoid logging full request payloads that contain sensitive prompts or tokens. Mask keys and redact PII in logs.
+
+## 5. Rollout Strategy
+
+1. Start by setting `OPENAI_MODEL=gpt-5` in a non-production environment with `OPENAI_FALLBACK_MODEL` configured.
+2. Run smoke tests and measure cost/latency for common flows (transcribe -> plan -> edits).
+3. Add CI checks to ensure `GPT5_ENABLED` and rate-limit env vars are present in production deploy manifests.
+4. Gradually enable GPT-5 for more sessions once confidence and cost controls are in place.
+
+---
+
+## 6. Advanced / Optional Settings
+
+- `LLM_DEFAULT_TEMPERATURE` — default temperature for chat completions (e.g., `0.2` for deterministic edits).
+- `LLM_LOG_PROMPTS` — whether to persist prompts (default `false`). Only enable with strict access controls.
+- `LLM_METRICS_EXPORT` — push usage metrics to Prometheus or external billing monitor.
 
 ---
 

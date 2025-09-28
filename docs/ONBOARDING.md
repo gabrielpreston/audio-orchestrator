@@ -110,15 +110,21 @@ DISCORD_BOT_TOKEN=...
 GUILD_ID=...                 # voice auto-join
 VOICE_CHANNEL_ID=...
 
+# LLM / model - set to `gpt-5` to enable GPT-5 for all clients (see CONFIGURATION.md for guardrails)
 OPENAI_BASE_URL=http://127.0.0.1:8000/v1
 OPENAI_API_KEY=local-key
-OPENAI_MODEL=local
+OPENAI_MODEL=gpt-5
+OPENAI_FALLBACK_MODEL=local
 
 WHISPER_URL=http://127.0.0.1:9000/asr
 TTS_URL=http://127.0.0.1:8080/api/tts
 
 RECORD_SECONDS=8
 ```
+
+Notes:
+- If you do not have access to a `gpt-5` backend in your environment, set `OPENAI_MODEL` to `OPENAI_FALLBACK_MODEL` and run a local OpenAI-compatible LLM for testing (see `DEVELOPMENT_GUIDE.md`).
+- Refer to `CONFIGURATION.md` for production rollout steps and cost/usage guardrails.
 
 ## Docker / Synology
 
