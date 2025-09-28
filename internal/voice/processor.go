@@ -1,6 +1,3 @@
-//go:build opus
-// +build opus
-
 package voice
 
 import (
@@ -32,19 +29,20 @@ func NewProcessor() (*Processor, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Processor{ssrcMap: make(map[uint32]string), dec: dec, httpClient: &http.Client{Timeout: 15 * time.Second}}, nil
+	p := &Processor{ssrcMap: make(map[uint32]string), dec: dec, httpClient: &http.Client{Timeout: 15 * time.Second}}
+	log.Println("Processor: initialized opus decoder and http client")
+	return p, nil
 }
 
 func (p *Processor) Close() error {
-	// nothing yet
+	log.Println("Processor: Close called")
+	// nothing to close yet; if we add goroutines, cancel them here
 	return nil
 }
 
 // HandleVoiceState listens for voice state updates to map userID <-> SSRC (best-effort)
 func (p *Processor) HandleVoiceState(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
-	// no-op for now
-	_ = s
-	_ = vs
+	log.Printf("Processor: HandleVoiceState: user=%s channel=%v session_update=%+v", vs.UserID, vs.ChannelID, vs)
 }
 
 // HandleSpeakingUpdate receives discordgo speaking updates and is used to map ssrc->user
@@ -53,16 +51,18 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ssrcMap[uint32(su.SSRC)] = su.UserID
+	log.Printf("Processor: HandleSpeakingUpdate: mapped SSRC=%d -> user=%s", su.SSRC, su.UserID)
 }
 
 // This function would be called by the discord voice receive loop with raw opus frames.
 // For simplicity in this scaffold, we'll expose a method to accept encoded opus frames and process them.
 func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	// decode opusPayload (assuming it's an encoded frame) into PCM16
+	log.Printf("Processor: ProcessOpusFrame: ssrc=%d payload_bytes=%d", ssrc, len(opusPayload))
 	pcm := make([]int16, 48000*2/50) // allocate for 20ms at 48k, stereo
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
-		log.Printf("opus decode error: %v", err)
+		log.Printf("Processor: opus decode error: %v", err)
 		return
 	}
 	// convert pcm (int16) into WAV bytes (16kHz mono is typical for STT, but we'll send 48k stereo)
@@ -79,15 +79,16 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	// POST to WHISPER_URL
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
-		log.Printf("WHISPER_URL not set, dropping audio")
+		log.Printf("Processor: WHISPER_URL not set, dropping audio")
 		return
 	}
 	// build request
 	req, _ := http.NewRequestWithContext(context.Background(), "POST", whisper, bytes.NewReader(buf.Bytes()))
 	req.Header.Set("Content-Type", "audio/pcm")
+	log.Printf("Processor: sending audio to WHISPER_URL=%s bytes=%d", whisper, buf.Len())
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		log.Printf("whisper post error: %v", err)
+		log.Printf("Processor: whisper post error: %v", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -108,5 +109,5 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	if t, ok := out["text"].(string); ok {
 		transcript = t
 	}
-	log.Printf("[%s] => %s", username, transcript)
+	log.Printf("Processor: transcription result user=%s ssrc=%d transcript=%s", username, ssrc, transcript)
 }
