@@ -10,4 +10,4 @@ bot-build:
 	go build -tags opus -o bin/bot ./cmd/bot
 
 bot-run: bot-build
-	./bin/bot
+	./scripts/run_bot.sh
