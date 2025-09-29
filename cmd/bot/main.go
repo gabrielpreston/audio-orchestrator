@@ -151,6 +151,10 @@ func main() {
 		}
 	}
 
+	// We only really care about receiving voice state updates
+	sugar.Infow("MakeIntent: IntentsGuildVoiceStates")
+	dg.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsGuildVoiceStates)
+
 	// Register a single generic handler to log every incoming event payload
 	sugar.Infow("registering generic event handler: all event types")
 	dg.AddHandler(func(s *discordgo.Session, evt interface{}) {
