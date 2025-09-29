@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot
+.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot docker-clean
 .PHONY: stt
 
 # --- colors & helpers ----------------------------------------------------
@@ -78,6 +78,26 @@ stop: ## Stop and remove containers for the compose stack
 	@# Ensure we have a compose command available
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --remove-orphans
+
+docker-clean: ## Bring down compose stack (if any) and prune unused containers/images/volumes/networks (non-interactive)
+	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
+	@# Try to bring down compose stack if a compose command is available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then \
+		echo "No docker compose command found; skipping compose down."; \
+	else \
+		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --rmi all -v --remove-orphans || true; \
+	fi
+	@# If docker itself is missing, skip pruning steps
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
+	@echo "Pruning stopped containers..."
+	@docker container prune -f || true
+	@echo "Pruning unused images (this will remove dangling and unused images)..."
+	@docker image prune -a -f || true
+	@echo "Pruning unused volumes..."
+	@docker volume prune -f || true
+	@echo "Pruning unused networks..."
+	@docker network prune -f || true
+	@echo -e "$(COLOR_GREEN)→ docker-clean complete$(COLOR_OFF)"
 
 logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
 	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"
