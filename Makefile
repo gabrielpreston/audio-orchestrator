@@ -37,14 +37,6 @@ COMPOSE_DOCKER_CLI_BUILD ?= 1
 # back to the legacy 'docker-compose' binary.
 DOCKER_COMPOSE := $(shell if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 2>/dev/null; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo ""; fi)
 
-# If a .env.local file exists in the repo root, pass it to docker compose so
-# containers get the local environment values (avoids committing secrets).
-ifneq (,$(wildcard ./.env.local))
-ENV_FILE_FLAG=--env-file ./.env.local
-else
-ENV_FILE_FLAG=
-endif
-
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
 	@echo
@@ -67,17 +59,17 @@ run: ## Run all services via docker compose
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@# Prefer BuildKit with buildx when requested; otherwise run a plain compose up
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then \
-		DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
+		DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans; \
 	else \
 		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but 'docker buildx' is missing; running without BuildKit."; fi; \
-		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
+		$(DOCKER_COMPOSE) up -d --build --remove-orphans; \
 	fi
 
 stop: ## Stop and remove containers for the compose stack
 	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
 	@# Ensure we have a compose command available
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
-	@$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --remove-orphans
+	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
 	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"

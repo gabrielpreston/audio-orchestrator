@@ -7,9 +7,8 @@ services:
     image: discord-voice-stt:latest
     ports:
       - "9000:9000"
-    environment:
-      - FW_MODEL=${FW_MODEL:-small}
-      - FW_DEVICE=${FW_DEVICE:-cpu}
+    env_file:
+      - ./.env.local
     restart: unless-stopped
 
   bot:
@@ -19,12 +18,8 @@ services:
     image: discord-voice-bot:latest
     depends_on:
       - stt
-    environment:
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - WHISPER_URL=http://stt:9000/asr
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - GUILD_ID=${GUILD_ID}
-      - VOICE_CHANNEL_ID=${VOICE_CHANNEL_ID}
+    env_file:
+      - ./.env.local
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
