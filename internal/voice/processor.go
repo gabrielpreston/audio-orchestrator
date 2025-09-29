@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -36,11 +37,25 @@ type Processor struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 	opusCh chan opusPacket
+
+	// accumulation state: per-SSRC decoded PCM waiting to be sent as a
+	// larger chunk. Protected by accumMu.
+	accumMu      sync.Mutex
+	accums       map[uint32]*pcmAccum
+	minFlushMs   int // minimum accumulated milliseconds before flush
+	flushTimeout int // ms of inactivity before forcing a flush
+	maxAccumMs   int // maximum accumulation duration per chunk
 }
 
 type opusPacket struct {
 	ssrc uint32
 	data []byte
+}
+
+// pcmAccum holds accumulated PCM samples for an SSRC and timestamp of last append
+type pcmAccum struct {
+	samples []int16
+	last    time.Time
 }
 
 func NewProcessor() (*Processor, error) {
@@ -56,7 +71,10 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	if parent == nil {
 		parent = context.Background()
 	}
-	dec, err := opus.NewDecoder(48000, 2)
+	// Use mono (1 channel) decoder: Discord voice uses 48kHz but audio
+	// frames are typically mono. Using 2 channels caused mis-interleaving
+	// and corrupted audio when we wrote a stereo WAV later.
+	dec, err := opus.NewDecoder(48000, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +88,27 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 		ctx:        ctx,
 		cancel:     cancel,
 		opusCh:     make(chan opusPacket, 32),
+		accums:     make(map[uint32]*pcmAccum),
+	}
+
+	// Configure accumulation thresholds from env or defaults
+	p.minFlushMs = 300
+	if v := os.Getenv("MIN_FLUSH_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			p.minFlushMs = n
+		}
+	}
+	p.flushTimeout = 200
+	if v := os.Getenv("FLUSH_TIMEOUT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			p.flushTimeout = n
+		}
+	}
+	p.maxAccumMs = 5000
+	if v := os.Getenv("MAX_ACCUM_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			p.maxAccumMs = n
+		}
 	}
 
 	// start background worker to process opus frames
@@ -85,6 +124,23 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 					return
 				}
 				p.handleOpusPacket(pkt)
+			}
+		}
+	}()
+
+	// start background flusher which periodically checks for inactive
+	// accumulators and flushes them
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-ticker.C:
+				p.flushExpiredAccums()
 			}
 		}
 	}()
@@ -182,7 +238,9 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	ssrc := pkt.ssrc
 	opusPayload := pkt.data
 	logging.Sugar().Infow("Processor: handling opus packet", "ssrc", ssrc, "payload_bytes", len(opusPayload))
-	pcm := make([]int16, 48000*2/50)
+	// Allocate a buffer large enough for a single frame. 20ms at 48kHz is
+	// 960 samples per channel. Use a small multiple to be safe.
+	pcm := make([]int16, 48000/50)
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
 		logging.Sugar().Warnf("Processor: opus decode error: %v", err)
@@ -194,12 +252,75 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 		binary.Write(pcmBytes, binary.LittleEndian, pcm[i])
 	}
 
-	// Send the assembled PCM to the configured WHISPER_URL. The helper will
-	// wrap bytes into a WAV container and perform retries/backoff. The helper
-	// handles logging of the transcription result.
+	// Append decoded samples to the accumulator for this SSRC. We'll flush
+	// when the accumulator reaches a minimum duration or when it times out.
+	samples := make([]int16, n)
+	copy(samples, pcm[:n])
+	p.appendAccum(ssrc, samples)
+}
+
+// appendAccum adds decoded samples to the per-SSRC accumulator.
+func (p *Processor) appendAccum(ssrc uint32, samples []int16) {
+	p.accumMu.Lock()
+	defer p.accumMu.Unlock()
+	a, ok := p.accums[ssrc]
+	if !ok {
+		a = &pcmAccum{samples: make([]int16, 0, len(samples)*4), last: time.Now()}
+		p.accums[ssrc] = a
+	}
+	a.samples = append(a.samples, samples...)
+	a.last = time.Now()
+
+	// If we've reached the minFlushMs threshold, flush immediately (async)
+	// Calculate duration in ms: samples / sampleRate * 1000 (sampleRate=48000)
+	durMs := (len(a.samples) * 1000) / 48000
+	if durMs >= p.minFlushMs || durMs*2 >= p.maxAccumMs {
+		// flush in a goroutine to avoid holding locks during HTTP
+		go func(ssrc uint32) {
+			p.flushAccum(ssrc)
+		}(ssrc)
+	}
+}
+
+// flushAccum flushes an accumulator by sending its PCM to the STT service.
+// It removes the accumulator entry.
+func (p *Processor) flushAccum(ssrc uint32) {
+	p.accumMu.Lock()
+	a, ok := p.accums[ssrc]
+	if !ok || len(a.samples) == 0 {
+		p.accumMu.Unlock()
+		return
+	}
+	samples := a.samples
+	delete(p.accums, ssrc)
+	p.accumMu.Unlock()
+
+	// Convert samples to bytes and send
+	pcmBytes := &bytes.Buffer{}
+	for _, s := range samples {
+		binary.Write(pcmBytes, binary.LittleEndian, s)
+	}
 	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes()); err != nil {
 		logging.Sugar().Warnf("Processor: send to whisper failed: %v", err)
 		return
+	}
+}
+
+// flushExpiredAccums checks accumulators and flushes ones that have been
+// inactive longer than flushTimeout or exceed maxAccumMs.
+func (p *Processor) flushExpiredAccums() {
+	now := time.Now()
+	var toFlush []uint32
+	p.accumMu.Lock()
+	for ssrc, a := range p.accums {
+		durMs := (len(a.samples) * 1000) / 48000
+		if durMs >= p.maxAccumMs || now.Sub(a.last) >= time.Duration(p.flushTimeout)*time.Millisecond {
+			toFlush = append(toFlush, ssrc)
+		}
+	}
+	p.accumMu.Unlock()
+	for _, s := range toFlush {
+		p.flushAccum(s)
 	}
 }
 
@@ -230,7 +351,9 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 
 	// Build WAV bytes (48kHz, 2 channels, 16-bit samples) to be broadly compatible
 	// with common transcription servers and tools.
-	wav := buildWAV(pcmBytes, 48000, 2, 16)
+	// Build WAV bytes (48kHz, 1 channel, 16-bit samples). We decode as
+	// mono and therefore produce a mono WAV to avoid channel mismatch.
+	wav := buildWAV(pcmBytes, 48000, 1, 16)
 
 	// Attempt up to 3 tries with exponential backoff on transient errors.
 	var lastErr error
@@ -284,7 +407,8 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		}
 		transcript := ""
 		if t, ok := out["text"].(string); ok {
-			transcript = t
+			// Trim whitespace the STT service may include (leading/trailing).
+			transcript = strings.TrimSpace(t)
 		}
 		// Optionally forward recognized text to another service for downstream
 		// integrations. This is a best-effort POST; failures are logged but do

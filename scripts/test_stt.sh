@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Quick smoke test to POST test.wav to local STT server
-# Usage: ./scripts/test_stt.sh [translate]
+# Quick smoke test to POST a WAV to local STT server
+# Usage: ./scripts/test_stt.sh [translate] or set FILE env to override
 
 HOST=${STT_HOST:-http://127.0.0.1:9000}
-FILE=test.wav
+# Default to the generated human speech test file. Can be overridden by
+# setting FILE env var or passing a different file path.
+FILE=${FILE:-test_speech_16k.wav}
 
 # If docker-compose is available and the stt service isn't running, attempt to start it
 start_stt_with_compose() {
