@@ -23,6 +23,16 @@ type Processor struct {
 	// opus decoder (one per stream)
 	dec        *opus.Decoder
 	httpClient *http.Client
+	// background processing
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	opusCh chan opusPacket
+}
+
+type opusPacket struct {
+	ssrc uint32
+	data []byte
 }
 
 func NewProcessor() (*Processor, error) {
@@ -30,14 +40,44 @@ func NewProcessor() (*Processor, error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Processor{ssrcMap: make(map[uint32]string), dec: dec, httpClient: &http.Client{Timeout: 15 * time.Second}}
+	ctx, cancel := context.WithCancel(context.Background())
+	p := &Processor{
+		ssrcMap:    make(map[uint32]string),
+		dec:        dec,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
+		ctx:        ctx,
+		cancel:     cancel,
+		opusCh:     make(chan opusPacket, 32),
+	}
+
+	// start background worker to process opus frames
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case pkt, ok := <-p.opusCh:
+				if !ok {
+					return
+				}
+				p.handleOpusPacket(pkt)
+			}
+		}
+	}()
+
 	logging.Sugar().Info("Processor: initialized opus decoder and http client")
 	return p, nil
 }
 
 func (p *Processor) Close() error {
 	logging.Sugar().Info("Processor: Close called")
-	// nothing to close yet; if we add goroutines, cancel them here
+	// stop background workers
+	p.cancel()
+	// close channel to unblock worker if it's waiting
+	close(p.opusCh)
+	p.wg.Wait()
 	return nil
 }
 
@@ -58,33 +98,40 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 // This function would be called by the discord voice receive loop with raw opus frames.
 // For simplicity in this scaffold, we'll expose a method to accept encoded opus frames and process them.
 func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
-	// decode opusPayload (assuming it's an encoded frame) into PCM16
-	logging.Sugar().Infof("Processor: ProcessOpusFrame: ssrc=%d payload_bytes=%d", ssrc, len(opusPayload))
-	pcm := make([]int16, 48000*2/50) // allocate for 20ms at 48k, stereo
+	// enqueue for background processing; drop if queue full to avoid blocking
+	select {
+	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...)}:
+	default:
+		logging.Sugar().Warnf("Processor: dropping opus frame ssrc=%d; queue full", ssrc)
+	}
+}
+
+// handleOpusPacket performs the actual decode and HTTP POST. It uses the
+// processor context to cancel in-flight requests when Close is called.
+func (p *Processor) handleOpusPacket(pkt opusPacket) {
+	ssrc := pkt.ssrc
+	opusPayload := pkt.data
+	logging.Sugar().Infof("Processor: handling opus packet: ssrc=%d payload_bytes=%d", ssrc, len(opusPayload))
+	pcm := make([]int16, 48000*2/50)
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
 		logging.Sugar().Warnf("Processor: opus decode error: %v", err)
 		return
 	}
-	// convert pcm (int16) into WAV bytes (16kHz mono is typical for STT, but we'll send 48k stereo)
 	buf := &bytes.Buffer{}
-	// write a simple WAV header + pcm little endian
-	// RIFF header
-	// For brevity: use raw PCM POST body and rely on WHISPER_URL accepting raw PCM16LE 48k stereo
-	// create body
-	// pack ints
 	for i := 0; i < n; i++ {
 		binary.Write(buf, binary.LittleEndian, pcm[i])
 	}
-
-	// POST to WHISPER_URL
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
 		logging.Sugar().Warn("Processor: WHISPER_URL not set, dropping audio")
 		return
 	}
-	// build request
-	req, _ := http.NewRequestWithContext(context.Background(), "POST", whisper, bytes.NewReader(buf.Bytes()))
+
+	// create a cancellable request tied to processor context
+	reqCtx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
+	defer cancel()
+	req, _ := http.NewRequestWithContext(reqCtx, "POST", whisper, bytes.NewReader(buf.Bytes()))
 	req.Header.Set("Content-Type", "audio/pcm")
 	logging.Sugar().Infof("Processor: sending audio to WHISPER_URL=%s bytes=%d", whisper, buf.Len())
 	resp, err := p.httpClient.Do(req)
@@ -98,7 +145,6 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 		logging.Sugar().Warnf("whisper decode: %v", err)
 		return
 	}
-	// map ssrc -> username
 	p.mu.Lock()
 	uid := p.ssrcMap[ssrc]
 	p.mu.Unlock()

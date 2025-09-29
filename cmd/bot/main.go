@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -189,7 +190,10 @@ func main() {
 		case *discordgo.VoiceStateUpdate:
 			vp.HandleVoiceState(s, e)
 		case *discordgo.VoiceSpeakingUpdate:
+			// Log speaking updates at INFO so they are visible even without debug
+			sugar.Infow("speaking_update", "ssrc", e.SSRC, "user", e.UserID, "speaking", e.Speaking)
 			vp.HandleSpeakingUpdate(s, e)
+
 		default:
 			// Only produce detailed output when debugging or when the event
 			// type is explicitly requested in DETAILED_EVENTS.
@@ -239,21 +243,45 @@ func main() {
 		} else {
 			vc = vconn
 			sugar.Infof("joined voice channel %s in guild %s", cid, gid)
+			// Diagnostic: log whether we have an OpusRecv channel and basic vc info
+			if vc == nil {
+				sugar.Warn("voice connection is nil after ChannelVoiceJoin")
+			} else {
+				sugar.Infow("voice connection details", "opus_recv_nil", vc.OpusRecv == nil)
+			}
 			// start a goroutine to receive opus packets from the VoiceConnection
 			if vc.OpusRecv == nil {
 				sugar.Warn("voice connection OpusRecv channel is nil; incoming audio will not be received")
 			} else {
+				// Log channel buffer stats to help diagnose whether packets are
+				// being enqueued by the voice subsystem.
+				// Note: reflect the current length and capacity at startup.
+				sugar.Infow("opus receive loop: starting", "chan_len", len(vc.OpusRecv), "chan_cap", cap(vc.OpusRecv))
 				go func() {
 					sugar.Info("opus receive loop: started")
 					for pkt := range vc.OpusRecv {
 						if pkt == nil {
 							continue
 						}
+
 						sugar.Infof("opus receive loop: pkt SSRC=%d seq=%d ts=%d opus_bytes=%d", pkt.SSRC, pkt.Sequence, pkt.Timestamp, len(pkt.Opus))
 						// hand off to processor
 						vp.ProcessOpusFrame(pkt.SSRC, pkt.Opus)
 					}
 					sugar.Info("opus receive loop: ended")
+				}()
+				// Start a background goroutine to emit a periodic heartbeat log
+				// so the operator can see the receive loop is alive even when
+				// no packets arrive.
+				go func() {
+					// only run while vc is not nil
+					for vc != nil {
+						sugar.Debugw("opus receive loop: heartbeat", "chan_len", len(vc.OpusRecv), "chan_cap", cap(vc.OpusRecv))
+						// sleep 5s between heartbeats
+						// use time.Sleep inline to avoid importing additional packages at top
+						// the overhead is minimal
+						time.Sleep(5 * time.Second)
+					}
 				}()
 			}
 		}
