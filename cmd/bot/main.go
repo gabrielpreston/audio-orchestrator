@@ -294,7 +294,24 @@ func main() {
 		sugar.Fatalf("discordgo.New: %v", err)
 	}
 
-	// dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildVoiceStates | discordgo.IntentsGuildMessages | discordgo.IntentsGuildMessageReactions | discordgo.IntentsGuildMessageTyping | discordgo.IntentsGuildPresences | discordgo.IntentsGuildMembers
+	// By default set a conservative intent mask needed for voice functionality.
+	// Guilds + GuildVoiceStates allow receiving GUILD_CREATE and VoiceStateUpdate
+	// events which are sufficient for mapping join/leave and mute state.
+	defaultIntents := discordgo.IntentsGuilds | discordgo.IntentsGuildVoiceStates
+	// If user has not configured Identify.Intents, apply our conservative default.
+	if dg.Identify.Intents == 0 {
+		dg.Identify = discordgo.Identify{Intents: defaultIntents}
+	}
+
+	// Warn if privileged intents are present in the mask so operators remember
+	// to enable them in the Developer Portal. Privileged intents include
+	// IntentsGuildMembers and IntentsGuildPresences.
+	privileged := discordgo.IntentsGuildMembers | discordgo.IntentsGuildPresences
+	if dg.Identify.Intents&privileged != 0 {
+		sugar.Warnw("bot is requesting privileged gateway intents; ensure these are enabled in the Discord Developer Portal", "intents", dg.Identify.Intents)
+	}
+
+	sugar.Infow("using gateway intents", "intents", dg.Identify.Intents)
 
 	// Open the Discord session so the bot connects and can receive events.
 	sugar.Infow("opening discord session")
