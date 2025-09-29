@@ -24,6 +24,8 @@ type Processor struct {
 	// opus decoder (one per stream)
 	dec        *opus.Decoder
 	httpClient *http.Client
+	// optional resolver for human-friendly names
+	resolver NameResolver
 	// background processing
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -37,6 +39,12 @@ type opusPacket struct {
 }
 
 func NewProcessor() (*Processor, error) {
+	return NewProcessorWithResolver(nil)
+}
+
+// NewProcessorWithResolver creates a Processor and accepts an optional
+// NameResolver which will be used to populate human-friendly names in logs.
+func NewProcessorWithResolver(resolver NameResolver) (*Processor, error) {
 	dec, err := opus.NewDecoder(48000, 2)
 	if err != nil {
 		return nil, err
@@ -46,6 +54,7 @@ func NewProcessor() (*Processor, error) {
 		ssrcMap:    make(map[uint32]string),
 		dec:        dec,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
+		resolver:   resolver,
 		ctx:        ctx,
 		cancel:     cancel,
 		opusCh:     make(chan opusPacket, 32),
@@ -84,8 +93,13 @@ func (p *Processor) Close() error {
 
 // HandleVoiceState listens for voice state updates to map userID <-> SSRC (best-effort)
 func (p *Processor) HandleVoiceState(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
-	// Include human-friendly fields when available; here we only have IDs.
-	fields := append(logging.UserFields(vs.UserID, ""), logging.ChannelFields(fmt.Sprintf("%v", vs.ChannelID), "")...)
+	// Include human-friendly fields when available; try resolver first.
+	var userName, channelName string
+	if p.resolver != nil {
+		userName = p.resolver.UserName(vs.UserID)
+		channelName = p.resolver.ChannelName(fmt.Sprintf("%v", vs.ChannelID))
+	}
+	fields := append(logging.UserFields(vs.UserID, userName), logging.ChannelFields(fmt.Sprintf("%v", vs.ChannelID), channelName)...)
 	fields = append(fields, "session_update", vs)
 	logging.Sugar().Infow("Processor: HandleVoiceState", fields...)
 }
@@ -96,8 +110,12 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ssrcMap[uint32(su.SSRC)] = su.UserID
+	var userName string
+	if p.resolver != nil {
+		userName = p.resolver.UserName(su.UserID)
+	}
 	fields := []interface{}{"ssrc", su.SSRC}
-	fields = append(fields, logging.UserFields(su.UserID, "")...)
+	fields = append(fields, logging.UserFields(su.UserID, userName)...)
 	logging.Sugar().Infow("Processor: HandleSpeakingUpdate: mapped SSRC -> user", fields...)
 }
 
@@ -157,6 +175,12 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	uid := p.ssrcMap[ssrc]
 	p.mu.Unlock()
 	username := uid
+	if p.resolver != nil {
+		// If the resolver can provide a nicer display name, prefer that.
+		if n := p.resolver.UserName(uid); n != "" {
+			username = n
+		}
+	}
 	if username == "" {
 		username = "unknown"
 	}
