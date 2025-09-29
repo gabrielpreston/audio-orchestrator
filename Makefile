@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help test build bot fmt vet lint run clean ci version
+.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot
 .PHONY: stt
 
 # --- colors & helpers ----------------------------------------------------
@@ -28,6 +28,14 @@ GO := go
 BINARY := bin/bot
 PKG := ./...
 
+# If a .env.local file exists in the repo root, pass it to docker compose so
+# containers get the local environment values (avoids committing secrets).
+ifeq ($(wildcard .env.local),.env.local)
+ENV_FILE_FLAG=--env-file .env.local
+else
+ENV_FILE_FLAG=
+endif
+
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
 	@echo
@@ -43,13 +51,91 @@ build: ## Build the bot binary
 	@echo -e "$(COLOR_YELLOW)→ Building $(BINARY)$(COLOR_OFF)"
 	$(GO) build -o $(BINARY) ./cmd/bot
 
-run: build ## Build then run the bot via script
-	@echo -e "$(COLOR_GREEN)🚀 Launching bot (press Ctrl+C to stop)$(COLOR_OFF)"
-	./scripts/run_bot.sh
+run: build ## Build then run all services via docker compose
+	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers via docker compose (press Ctrl+C to stop)$(COLOR_OFF)"
+	@if command -v docker >/dev/null 2>&1; then \
+		if docker compose version >/dev/null 2>&1; then \
+			docker compose $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
+		else \
+			if command -v docker-compose >/dev/null 2>&1; then \
+				docker-compose $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
+			else \
+				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
+			fi; \
+		fi; \
+	else \
+		echo "docker not found; please install Docker."; exit 1; \
+	fi
 
-stt: ## Run local STT server (FastAPI + faster-whisper via uvicorn)
-	@echo -e "$(COLOR_GREEN)→ Starting local STT server (press Ctrl+C to stop)$(COLOR_OFF)"
-	./scripts/run_stt.sh
+stop: ## Stop and remove containers for the compose stack
+	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
+	@if command -v docker >/dev/null 2>&1; then \
+		if docker compose version >/dev/null 2>&1; then \
+			docker compose $(ENV_FILE_FLAG) down --remove-orphans; \
+		else \
+			if command -v docker-compose >/dev/null 2>&1; then \
+				docker-compose $(ENV_FILE_FLAG) down --remove-orphans; \
+			else \
+				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
+			fi; \
+		fi; \
+	else \
+		echo "docker not found; please install Docker."; exit 1; \
+	fi
+
+logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
+	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"
+	@if command -v docker >/dev/null 2>&1; then \
+		if docker compose version >/dev/null 2>&1; then \
+			if [ -z "$(SERVICE)" ]; then \
+				docker compose $(ENV_FILE_FLAG) logs -f --tail=100; \
+			else \
+				docker compose $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
+			fi; \
+		else \
+			if command -v docker-compose >/dev/null 2>&1; then \
+				if [ -z "$(SERVICE)" ]; then \
+					docker-compose $(ENV_FILE_FLAG) logs -f --tail=100; \
+				else \
+					docker-compose $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
+				fi; \
+			else \
+				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
+			fi; \
+		fi; \
+	else \
+		echo "docker not found; please install Docker."; exit 1; \
+	fi
+
+dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh (sources .env.local if present)
+	@echo -e "$(COLOR_GREEN)→ Starting STT (local dev)$(COLOR_OFF)"
+	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec ./scripts/run_stt.sh'
+
+dev-bot: ## Run the bot binary locally and log to file via scripts/run_bot.sh (use DAEMON=1 to background)
+	@echo -e "$(COLOR_GREEN)→ Starting bot (local dev)$(COLOR_OFF)"
+	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; '
+		'if [ "$(DAEMON)" = "1" ]; then mkdir -p logs; nohup ./scripts/run_bot.sh >> logs/bot.log 2>&1 & echo $$! > logs/dev-bot.pid; echo "dev-bot started (background)"; else exec ./scripts/run_bot.sh; fi'
+
+dev-bot-daemon: ## Convenience: start bot locally in background (alias for dev-bot DAEMON=1)
+	@$(MAKE) dev-bot DAEMON=1
+
+dev-stop-bot: ## Stop a backgrounded dev-bot started by dev-bot (uses logs/dev-bot.pid)
+	@echo -e "$(COLOR_BLUE)→ Stopping background dev-bot (if running)$(COLOR_OFF)"
+	@if [ -f logs/dev-bot.pid ]; then \
+		PID=`cat logs/dev-bot.pid`; \
+		echo "Found PID $$PID, sending SIGINT..."; \
+		kill -INT $$PID 2>/dev/null || true; \
+		COUNT=0; while kill -0 $$PID 2>/dev/null; do \
+			sleep 1; COUNT=$$((COUNT+1)); if [ $$COUNT -ge 10 ]; then break; fi; done; \
+		if kill -0 $$PID 2>/dev/null; then \
+			echo "Process still running after SIGINT, sending SIGTERM..."; \
+			kill -TERM $$PID 2>/dev/null || true; \
+			COUNT=0; while kill -0 $$PID 2>/dev/null; do sleep 1; COUNT=$$((COUNT+1)); if [ $$COUNT -ge 5 ]; then break; fi; done; \
+		fi; \
+		if ! kill -0 $$PID 2>/dev/null; then rm -f logs/dev-bot.pid; echo "dev-bot stopped"; else echo "Failed to stop dev-bot (PID $$PID is still running)"; fi; \
+	else \
+		echo "No logs/dev-bot.pid found; is the bot running in background?"; exit 1; \
+	fi
 
 fmt: ## Run gofmt and goimports (best-effort)
 	@echo -e "$(COLOR_YELLOW)→ Formatting Go code...$(COLOR_OFF)"
