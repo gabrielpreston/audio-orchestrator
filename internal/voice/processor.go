@@ -101,6 +101,8 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	// enqueue for background processing; drop if queue full to avoid blocking
 	select {
 	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...)}:
+		// Log enqueue for diagnostics. We use len(opusCh) to approximate queue depth.
+		logging.Sugar().Infow("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh))
 	default:
 		logging.Sugar().Warnf("Processor: dropping opus frame ssrc=%d; queue full", ssrc)
 	}

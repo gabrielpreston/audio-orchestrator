@@ -411,8 +411,10 @@ func main() {
 			// Register voice-level handler for speaking updates which provides
 			// the VoiceConnection and a *discordgo.VoiceSpeakingUpdate.
 			vc.AddHandler(func(v *discordgo.VoiceConnection, su *discordgo.VoiceSpeakingUpdate) {
-				// Forward to processor. The processor expects session-style args;
-				// pass nil for session and let it use the speaking update.
+				// Log speaking updates observed on the voice websocket so we
+				// can confirm they arrive here. Then forward to the processor
+				// which will map SSRC -> user.
+				sugar.Infow("voice connection speaking update received", "user", su.UserID, "ssrc", su.SSRC, "speaking", su.Speaking)
 				vp.HandleSpeakingUpdate(nil, su)
 			})
 			sugar.Infow("voice joined", "guild", guildID, "channel", voiceChannelID)
