@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -38,4 +39,34 @@ func Sugar() *zap.SugaredLogger { return sugar }
 
 func init() {
 	Init()
+}
+
+// Helper functions that return sugared logger key/value pairs for common
+// Discord entities. They include both the numeric ID and an optional human
+// readable name. Callers can use them with the SugaredLogger's structured
+// logging helpers, for example:
+//
+//	logging.Sugar().Infow("joined voice", logging.UserFields("12345", "alice")...)
+//
+// These helpers are intentionally small and return []interface{} so they
+// can be spliced into the variadic key/value list that Infow/Debugw expect.
+func UserFields(userID, userName string) []interface{} {
+	if userName == "" {
+		return []interface{}{"user_id", userID}
+	}
+	return []interface{}{"user_id", userID, "user_name", userName, "user", fmt.Sprintf("%s (%s)", userName, userID)}
+}
+
+func GuildFields(guildID, guildName string) []interface{} {
+	if guildName == "" {
+		return []interface{}{"guild_id", guildID}
+	}
+	return []interface{}{"guild_id", guildID, "guild_name", guildName, "guild", fmt.Sprintf("%s (%s)", guildName, guildID)}
+}
+
+func ChannelFields(channelID, channelName string) []interface{} {
+	if channelName == "" {
+		return []interface{}{"channel_id", channelID}
+	}
+	return []interface{}{"channel_id", channelID, "channel_name", channelName, "channel", fmt.Sprintf("%s (%s)", channelName, channelID)}
 }

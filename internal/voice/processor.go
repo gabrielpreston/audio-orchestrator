@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"sync"
@@ -83,7 +84,10 @@ func (p *Processor) Close() error {
 
 // HandleVoiceState listens for voice state updates to map userID <-> SSRC (best-effort)
 func (p *Processor) HandleVoiceState(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
-	logging.Sugar().Infof("Processor: HandleVoiceState: user=%s channel=%v session_update=%+v", vs.UserID, vs.ChannelID, vs)
+	// Include human-friendly fields when available; here we only have IDs.
+	fields := append(logging.UserFields(vs.UserID, ""), logging.ChannelFields(fmt.Sprintf("%v", vs.ChannelID), "")...)
+	fields = append(fields, "session_update", vs)
+	logging.Sugar().Infow("Processor: HandleVoiceState", fields...)
 }
 
 // HandleSpeakingUpdate receives discordgo speaking updates and is used to map ssrc->user
@@ -92,7 +96,9 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ssrcMap[uint32(su.SSRC)] = su.UserID
-	logging.Sugar().Infof("Processor: HandleSpeakingUpdate: mapped SSRC=%d -> user=%s", su.SSRC, su.UserID)
+	fields := []interface{}{"ssrc", su.SSRC}
+	fields = append(fields, logging.UserFields(su.UserID, "")...)
+	logging.Sugar().Infow("Processor: HandleSpeakingUpdate: mapped SSRC -> user", fields...)
 }
 
 // This function would be called by the discord voice receive loop with raw opus frames.
@@ -113,7 +119,7 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	ssrc := pkt.ssrc
 	opusPayload := pkt.data
-	logging.Sugar().Infof("Processor: handling opus packet: ssrc=%d payload_bytes=%d", ssrc, len(opusPayload))
+	logging.Sugar().Infow("Processor: handling opus packet", "ssrc", ssrc, "payload_bytes", len(opusPayload))
 	pcm := make([]int16, 48000*2/50)
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
@@ -158,5 +164,9 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	if t, ok := out["text"].(string); ok {
 		transcript = t
 	}
-	logging.Sugar().Infof("Processor: transcription result user=%s ssrc=%d transcript=%s", username, ssrc, transcript)
+	// If we know a username, include human-friendly fields; otherwise the ID-only fields will show.
+	// username here is the user ID when we couldn't resolve a name in this scaffold.
+	fields := logging.UserFields(username, "")
+	fields = append(fields, "ssrc", ssrc, "transcript", transcript)
+	logging.Sugar().Infow("Processor: transcription result", fields...)
 }

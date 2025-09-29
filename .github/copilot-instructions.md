@@ -10,10 +10,10 @@ files, commands, and patterns found in the tree.
   The core pieces to inspect are `cmd/bot/main.go`, `internal/voice/processor.go`,
   `llm/client.go`, and `internal/logging/logging.go`.
 
-- Build & dev commands: use `Makefile` targets. Common commands:
+- Build & dev commands: Always use `Makefile` targets, always. Common commands:
   - `make bot` (builds and runs the bot via `./scripts/run_bot.sh`)
   - `make test` (runs `go test ./...`)
-  - `go build -tags opus -o bin/bot ./cmd/bot` if building manually (see `run_bot.sh`).
+  - `go build -o bin/bot ./cmd/bot` if building manually (see `run_bot.sh`).
 
 - Configuration: env vars control runtime behavior. Important ones:
   - `DISCORD_BOT_TOKEN`, `GUILD_ID`, `VOICE_CHANNEL_ID` for Discord connectivity.
