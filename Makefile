@@ -1,6 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot docker-clean
-.PHONY: stt
+.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot
 
 # --- colors & helpers ----------------------------------------------------
 # Detect terminal color support via tput. If tput is missing or reports 0,
@@ -28,14 +27,6 @@ GO := go
 BINARY := bin/bot
 PKG := ./...
 
-# If a .env.local file exists in the repo root, pass it to docker compose so
-# containers get the local environment values (avoids committing secrets).
-ifeq ($(wildcard .env.local),.env.local)
-ENV_FILE_FLAG=--env-file .env.local
-else
-ENV_FILE_FLAG=
-endif
-
 # Enable BuildKit by default for faster, modern builds. Set to 0 to disable.
 DOCKER_BUILDKIT ?= 1
 # For legacy docker-compose, enable Docker CLI build integration so BuildKit is used
@@ -45,6 +36,14 @@ COMPOSE_DOCKER_CLI_BUILD ?= 1
 # use a simple variable. Prefer the new 'docker compose' subcommand, fall
 # back to the legacy 'docker-compose' binary.
 DOCKER_COMPOSE := $(shell if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 2>/dev/null; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo ""; fi)
+
+# If a .env.local file exists in the repo root, pass it to docker compose so
+# containers get the local environment values (avoids committing secrets).
+ifneq (,$(wildcard ./.env.local))
+ENV_FILE_FLAG=--env-file ./.env.local
+else
+ENV_FILE_FLAG=
+endif
 
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
@@ -60,6 +59,7 @@ test: ## Run unit tests (verbose)
 build: ## Build the bot binary
 	@echo -e "$(COLOR_YELLOW)→ Building $(BINARY)$(COLOR_OFF)"
 	$(GO) build -o $(BINARY) ./cmd/bot
+
 
 run: ## Run all services via docker compose
 	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers via docker compose (press Ctrl+C to stop)$(COLOR_OFF)"
@@ -79,48 +79,25 @@ stop: ## Stop and remove containers for the compose stack
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --remove-orphans
 
-docker-clean: ## Bring down compose stack (if any) and prune unused containers/images/volumes/networks (non-interactive)
-	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
-	@# Try to bring down compose stack if a compose command is available
-	@if [ -z "$(DOCKER_COMPOSE)" ]; then \
-		echo "No docker compose command found; skipping compose down."; \
-	else \
-		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --rmi all -v --remove-orphans || true; \
-	fi
-	@# If docker itself is missing, skip pruning steps
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
-	@echo "Pruning stopped containers..."
-	@docker container prune -f || true
-	@echo "Pruning unused images (this will remove dangling and unused images)..."
-	@docker image prune -a -f || true
-	@echo "Pruning unused volumes..."
-	@docker volume prune -f || true
-	@echo "Pruning unused networks..."
-	@docker network prune -f || true
-	@echo -e "$(COLOR_GREEN)→ docker-clean complete$(COLOR_OFF)"
-
 logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
 	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"
 	@# Ensure we have a compose command available
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
-		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) logs -f --tail=100; \
+		$(DOCKER_COMPOSE) logs -f --tail=100; \
 	else \
-		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
+		$(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
 	fi
 
 dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh (sources .env.local if present)
 	@echo -e "$(COLOR_GREEN)→ Starting STT (local dev)$(COLOR_OFF)"
 	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec ./scripts/run_stt.sh'
 
-dev-bot: ## Run the bot binary locally and log to file via scripts/run_bot.sh (use DAEMON=1 to background)
+dev-bot: ## Run the bot binary locally and log to file via scripts/run_bot.sh
 	@echo -e "$(COLOR_GREEN)→ Starting bot (local dev)$(COLOR_OFF)"
-	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; if [ "$(DAEMON)" = "1" ]; then mkdir -p logs; nohup ./scripts/run_bot.sh >> logs/bot.log 2>&1 & echo $$! > logs/dev-bot.pid; echo "dev-bot started (background)"; else exec ./scripts/run_bot.sh; fi'
+	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; mkdir -p logs; nohup ./scripts/run_bot.sh >> logs/bot.log 2>&1 & echo $$! > logs/dev-bot.pid; echo "dev-bot started (background)";'
 
-dev-bot-daemon: ## Convenience: start bot locally in background (alias for dev-bot DAEMON=1)
-	@$(MAKE) dev-bot DAEMON=1
-
-dev-stop-bot: ## Stop a backgrounded dev-bot started by dev-bot (uses logs/dev-bot.pid)
+dev-bot-stop: ## Stop a backgrounded dev-bot started by dev-bot (uses logs/dev-bot.pid)
 	@echo -e "$(COLOR_BLUE)→ Stopping background dev-bot (if running)$(COLOR_OFF)"
 	@if [ -f logs/dev-bot.pid ]; then \
 		PID=`cat logs/dev-bot.pid`; \
@@ -174,7 +151,7 @@ version: ## Show Go version and module info
 IMAGE_NAME := discord-voice-bot
 IMAGE_TAG ?= latest
 
-.PHONY: build-image push-image buildx-ensure
+.PHONY: build-image push-image buildx-ensure docker-clean
 
 # Ensure a buildx builder exists (no-op if already present)
 buildx-ensure:
@@ -205,3 +182,23 @@ push-image: ## Push the docker image via buildx (requires login)
 	else \
 		echo "docker buildx not available; run 'docker login' and push manually"; \
 	fi
+
+docker-clean: ## Bring down compose stack (if any) and prune unused containers/images/volumes/networks (non-interactive)
+	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
+	@# Try to bring down compose stack if a compose command is available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then \
+		echo "No docker compose command found; skipping compose down."; \
+	else \
+		$(DOCKER_COMPOSE) down --rmi all -v --remove-orphans || true; \
+	fi
+	@# If docker itself is missing, skip pruning steps
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
+	@echo "Pruning stopped containers..."
+	@docker container prune -f || true
+	@echo "Pruning unused images (this will remove dangling and unused images)..."
+	@docker image prune -a -f || true
+	@echo "Pruning unused volumes..."
+	@docker volume prune -f || true
+	@echo "Pruning unused networks..."
+	@docker network prune -f || true
+	@echo -e "$(COLOR_GREEN)→ docker-clean complete$(COLOR_OFF)"
