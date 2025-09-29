@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -45,6 +46,8 @@ type Processor struct {
 	minFlushMs   int // minimum accumulated milliseconds before flush
 	flushTimeout int // ms of inactivity before forcing a flush
 	maxAccumMs   int // maximum accumulation duration per chunk
+	// simple RMS-based VAD: if computed RMS < vadRmsThreshold we drop the chunk
+	vadRmsThreshold int
 }
 
 type opusPacket struct {
@@ -108,6 +111,16 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	if v := os.Getenv("MAX_ACCUM_MS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			p.maxAccumMs = n
+		}
+	}
+
+	// RMS VAD threshold: if accumulated audio RMS is below this (int16 units)
+	// we will drop the chunk instead of sending it to STT. Allows filtering
+	// of low-energy noise. Default is 500 (adjustable via VAD_RMS_THRESHOLD).
+	p.vadRmsThreshold = 500
+	if v := os.Getenv("VAD_RMS_THRESHOLD"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			p.vadRmsThreshold = n
 		}
 	}
 
@@ -300,6 +313,24 @@ func (p *Processor) flushAccum(ssrc uint32) {
 	for _, s := range samples {
 		binary.Write(pcmBytes, binary.LittleEndian, s)
 	}
+	// Compute RMS and apply simple VAD: if RMS is below threshold, drop
+	// the chunk. RMS computed in int32 space to avoid overflow.
+	if p.vadRmsThreshold > 0 {
+		var sumSq int64
+		for _, s := range samples {
+			v := int64(s)
+			sumSq += v * v
+		}
+		if len(samples) > 0 {
+			meanSq := sumSq / int64(len(samples))
+			rms := int(math.Sqrt(float64(meanSq)))
+			if rms < p.vadRmsThreshold {
+				logging.Sugar().Infow("Processor: VAD dropped near-silence chunk", "ssrc", ssrc, "rms", rms, "threshold", p.vadRmsThreshold)
+				return
+			}
+		}
+	}
+
 	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes()); err != nil {
 		logging.Sugar().Warnf("Processor: send to whisper failed: %v", err)
 		return

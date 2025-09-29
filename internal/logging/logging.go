@@ -70,3 +70,10 @@ func ChannelFields(channelID, channelName string) []interface{} {
 	}
 	return []interface{}{"channel_id", channelID, "channel_name", channelName, "channel", fmt.Sprintf("%s (%s)", channelName, channelID)}
 }
+
+// AccumFields returns structured fields useful when logging accumulator state
+// for a given SSRC. samples is the number of int16 samples in the accumulator
+// and durationMs is the computed duration of those samples in milliseconds.
+func AccumFields(ssrc uint32, samples int, durationMs int) []interface{} {
+	return []interface{}{"ssrc", ssrc, "samples", samples, "duration_ms", durationMs}
+}
