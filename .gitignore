@@ -4,4 +4,3 @@ bin/
 .venv-*/
 __pycache__/
 logs/
-*.wav

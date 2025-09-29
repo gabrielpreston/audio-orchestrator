@@ -58,11 +58,21 @@ async def asr(request: Request):
 
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
+    # Allow clients to optionally request a translation task by passing
+    # the `task=translate` query parameter. If absent, default to normal
+    # transcription (language detection disabled so model can detect).
+    task = request.query_params.get('task')
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(body)
             tmp_path = tmp.name
-        segments, info = model.transcribe(tmp_path, beam_size=5, language=None)
+        # faster-whisper's transcribe takes task and language. When task is
+        # 'translate' we let the model translate to English. Otherwise leave
+        # language=None to perform language detection and output in-source language.
+        if task == 'translate':
+            segments, info = model.transcribe(tmp_path, beam_size=5, task='translate', language=None)
+        else:
+            segments, info = model.transcribe(tmp_path, beam_size=5, language=None)
         text = " ".join([seg.text for seg in segments])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
@@ -72,4 +82,7 @@ async def asr(request: Request):
         except Exception:
             pass
 
-    return JSONResponse({"text": text, "duration": info.duration})
+    resp = {"text": text, "duration": info.duration}
+    if task:
+        resp["task"] = task
+    return JSONResponse(resp)

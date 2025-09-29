@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -210,6 +212,22 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		return fmt.Errorf("WHISPER_URL not set")
 	}
 
+	// If configured, request translation by adding a query param. This keeps
+	// compatibility with simple STT endpoints while allowing the STT service
+	// to perform translate tasks when supported (e.g., faster-whisper task=translate).
+	whisperURL := whisper
+	if v := os.Getenv("WHISPER_TRANSLATE"); v != "" {
+		lv := strings.ToLower(strings.TrimSpace(v))
+		if lv == "1" || lv == "true" || lv == "yes" {
+			if u, err := url.Parse(whisper); err == nil {
+				q := u.Query()
+				q.Set("task", "translate")
+				u.RawQuery = q.Encode()
+				whisperURL = u.String()
+			}
+		}
+	}
+
 	// Build WAV bytes (48kHz, 2 channels, 16-bit samples) to be broadly compatible
 	// with common transcription servers and tools.
 	wav := buildWAV(pcmBytes, 48000, 2, 16)
@@ -218,7 +236,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 	var lastErr error
 	for attempt := 0; attempt < 3; attempt++ {
 		reqCtx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
-		req, err := http.NewRequestWithContext(reqCtx, "POST", whisper, bytes.NewReader(wav))
+		req, err := http.NewRequestWithContext(reqCtx, "POST", whisperURL, bytes.NewReader(wav))
 		if err != nil {
 			cancel()
 			lastErr = err
@@ -267,6 +285,38 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		transcript := ""
 		if t, ok := out["text"].(string); ok {
 			transcript = t
+		}
+		// Optionally forward recognized text to another service for downstream
+		// integrations. This is a best-effort POST; failures are logged but do
+		// not affect the main transcription success path.
+		if fw := os.Getenv("TEXT_FORWARD_URL"); fw != "" && transcript != "" {
+			go func(forwardURL string, uid string, ssrc uint32, text string) {
+				payload := map[string]interface{}{
+					"user_id":    uid,
+					"ssrc":       ssrc,
+					"transcript": text,
+				}
+				b, _ := json.Marshal(payload)
+				req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
+				if err != nil {
+					logging.Sugar().Warnf("Processor: text forward new request error: %v", err)
+					return
+				}
+				req.Header.Set("Content-Type", "application/json")
+				// Do not reuse processor httpClient to avoid interfering with timeouts
+				c := &http.Client{Timeout: 5 * time.Second}
+				resp, err := c.Do(req)
+				if err != nil {
+					logging.Sugar().Warnf("Processor: text forward POST failed: %v", err)
+					return
+				}
+				defer resp.Body.Close()
+				if resp.StatusCode >= 300 {
+					logging.Sugar().Warnf("Processor: text forward returned status=%d", resp.StatusCode)
+				} else {
+					logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc)
+				}
+			}(fw, uid, ssrc, transcript)
 		}
 		fields := logging.UserFields(username, "")
 		fields = append(fields, "ssrc", ssrc, "transcript", transcript)

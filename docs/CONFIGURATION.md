@@ -18,6 +18,8 @@ This document centralizes all environment variables, configuration knobs, and ru
 | `OPENAI_FALLBACK_MODEL` | Optional | `local` | Fallback model name to use when `gpt-5` is unavailable (development/local inference). |
 | `GPT5_ENABLED` | Optional | `true` | Toggle to explicitly enable GPT-5 for all clients. Set to `false` to disable and force fallbacks. |
 | `WHISPER_URL` | ✅ Yes | – | STT service endpoint |
+| `WHISPER_TRANSLATE` | Optional | `false` | When set to `true` (or `1`), the audio sent to `WHISPER_URL` will include a `task=translate` query parameter requesting translation into English when supported by the STT service. |
+| `TEXT_FORWARD_URL` | Optional | – | If set, recognized text (JSON) will be POSTed to this URL for downstream processing (best-effort). Payload: {"user_id","ssrc","transcript"}. |
 | `TTS_URL` | ✅ Yes | – | TTS service endpoint |
 | `RECORD_SECONDS` | Optional | `8` | Audio chunk size before transcription |
 
