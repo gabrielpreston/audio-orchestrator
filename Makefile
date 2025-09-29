@@ -1,5 +1,6 @@
 SHELL := /bin/bash
 .PHONY: help test build bot fmt vet lint run clean ci version
+.PHONY: stt
 
 # --- colors & helpers ----------------------------------------------------
 # Detect terminal color support via tput. If tput is missing or reports 0,
@@ -46,6 +47,10 @@ run: build ## Build then run the bot via script
 	@echo -e "$(COLOR_GREEN)🚀 Launching bot (press Ctrl+C to stop)$(COLOR_OFF)"
 	./scripts/run_bot.sh
 
+stt: ## Run local STT server (FastAPI + faster-whisper via uvicorn)
+	@echo -e "$(COLOR_GREEN)→ Starting local STT server (press Ctrl+C to stop)$(COLOR_OFF)"
+	./scripts/run_stt.sh
+
 fmt: ## Run gofmt and goimports (best-effort)
 	@echo -e "$(COLOR_YELLOW)→ Formatting Go code...$(COLOR_OFF)"
 	@find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 gofmt -s -w || true
@@ -77,3 +82,38 @@ version: ## Show Go version and module info
 # end of file
 
 .DEFAULT_GOAL := help
+
+# --- docker buildx helpers -----------------------------------------------
+IMAGE_NAME := discord-voice-bot
+IMAGE_TAG ?= latest
+
+.PHONY: build-image push-image buildx-ensure
+
+# Ensure a buildx builder exists (no-op if already present)
+buildx-ensure:
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found"; exit 1; }
+	@if docker buildx inspect mybuilder >/dev/null 2>&1; then \
+		echo "buildx builder 'mybuilder' already exists"; \
+	else \
+		echo "creating buildx builder 'mybuilder'"; \
+		docker buildx create --use --name mybuilder || true; \
+	fi
+
+# Build image with buildx (multi-platform optional). Falls back to docker build
+build-image: ## Build the docker image using buildx if available
+	@echo -e "$(COLOR_YELLOW)→ Building docker image $(IMAGE_NAME):$(IMAGE_TAG)$(COLOR_OFF)"
+	@if command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1; then \
+		$(MAKE) buildx-ensure >/dev/null; \
+		docker buildx build --tag $(IMAGE_NAME):$(IMAGE_TAG) --load .; \
+	else \
+		docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .; \
+	fi
+
+# Push image using buildx (useful for multi-arch builds)
+push-image: ## Push the docker image via buildx (requires login)
+	@echo -e "$(COLOR_YELLOW)→ Pushing docker image $(IMAGE_NAME):$(IMAGE_TAG)$(COLOR_OFF)"
+	@if docker buildx version >/dev/null 2>&1; then \
+		docker buildx build --tag $(IMAGE_NAME):$(IMAGE_TAG) --push .; \
+	else \
+		echo "docker buildx not available; run 'docker login' and push manually"; \
+	fi

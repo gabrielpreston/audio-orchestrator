@@ -186,53 +186,123 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 		logging.Sugar().Warnf("Processor: opus decode error: %v", err)
 		return
 	}
-	buf := &bytes.Buffer{}
+	// assemble raw PCM bytes (little-endian int16)
+	pcmBytes := &bytes.Buffer{}
 	for i := 0; i < n; i++ {
-		binary.Write(buf, binary.LittleEndian, pcm[i])
+		binary.Write(pcmBytes, binary.LittleEndian, pcm[i])
 	}
+
+	// Send the assembled PCM to the configured WHISPER_URL. The helper will
+	// wrap bytes into a WAV container and perform retries/backoff. The helper
+	// handles logging of the transcription result.
+	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes()); err != nil {
+		logging.Sugar().Warnf("Processor: send to whisper failed: %v", err)
+		return
+	}
+}
+
+// sendPCMToWhisper wraps raw PCM16LE bytes into a WAV and POSTs to WHISPER_URL.
+// It performs a small retry/backoff loop for transient failures.
+func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
 		logging.Sugar().Warn("Processor: WHISPER_URL not set, dropping audio")
-		return
+		return fmt.Errorf("WHISPER_URL not set")
 	}
 
-	// create a cancellable request tied to processor context
-	reqCtx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
-	defer cancel()
-	req, _ := http.NewRequestWithContext(reqCtx, "POST", whisper, bytes.NewReader(buf.Bytes()))
-	req.Header.Set("Content-Type", "audio/pcm")
-	logging.Sugar().Infof("Processor: sending audio to WHISPER_URL=%s bytes=%d", whisper, buf.Len())
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		logging.Sugar().Warnf("Processor: whisper post error: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-	var out map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		logging.Sugar().Warnf("whisper decode: %v", err)
-		return
-	}
-	p.mu.Lock()
-	uid := p.ssrcMap[ssrc]
-	p.mu.Unlock()
-	username := uid
-	if p.resolver != nil {
-		// If the resolver can provide a nicer display name, prefer that.
-		if n := p.resolver.UserName(uid); n != "" {
-			username = n
+	// Build WAV bytes (48kHz, 2 channels, 16-bit samples) to be broadly compatible
+	// with common transcription servers and tools.
+	wav := buildWAV(pcmBytes, 48000, 2, 16)
+
+	// Attempt up to 3 tries with exponential backoff on transient errors.
+	var lastErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		reqCtx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
+		req, err := http.NewRequestWithContext(reqCtx, "POST", whisper, bytes.NewReader(wav))
+		if err != nil {
+			cancel()
+			lastErr = err
+			break
 		}
+		req.Header.Set("Content-Type", "audio/wav")
+		logging.Sugar().Infof("Processor: sending audio to WHISPER_URL=%s bytes=%d (attempt=%d)", whisper, len(wav), attempt+1)
+
+		resp, err := p.httpClient.Do(req)
+		cancel()
+		if err != nil {
+			lastErr = err
+			// transient network error -> retry
+			backoff := time.Duration(1<<attempt) * time.Second
+			time.Sleep(backoff)
+			continue
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode >= 500 {
+			lastErr = fmt.Errorf("server error status=%d", resp.StatusCode)
+			backoff := time.Duration(1<<attempt) * time.Second
+			time.Sleep(backoff)
+			continue
+		}
+
+		var out map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			lastErr = err
+			return err
+		}
+
+		// Successful response - log transcript if present and return nil.
+		p.mu.Lock()
+		uid := p.ssrcMap[ssrc]
+		p.mu.Unlock()
+		username := uid
+		if p.resolver != nil {
+			if n := p.resolver.UserName(uid); n != "" {
+				username = n
+			}
+		}
+		if username == "" {
+			username = "unknown"
+		}
+		transcript := ""
+		if t, ok := out["text"].(string); ok {
+			transcript = t
+		}
+		fields := logging.UserFields(username, "")
+		fields = append(fields, "ssrc", ssrc, "transcript", transcript)
+		logging.Sugar().Infow("Processor: transcription result", fields...)
+		return nil
 	}
-	if username == "" {
-		username = "unknown"
-	}
-	transcript := ""
-	if t, ok := out["text"].(string); ok {
-		transcript = t
-	}
-	// If we know a username, include human-friendly fields; otherwise the ID-only fields will show.
-	// username here is the user ID when we couldn't resolve a name in this scaffold.
-	fields := logging.UserFields(username, "")
-	fields = append(fields, "ssrc", ssrc, "transcript", transcript)
-	logging.Sugar().Infow("Processor: transcription result", fields...)
+	return lastErr
+}
+
+// buildWAV creates a simple RIFF/WAVE header for 16-bit PCM and returns the
+// concatenated bytes (header + data). sampleRate in Hz, channels, bitsPerSample
+// (commonly 16) are used to populate the header.
+func buildWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
+	byteRate := uint32(sampleRate * channels * bitsPerSample / 8)
+	blockAlign := uint16(channels * bitsPerSample / 8)
+	dataLen := uint32(len(pcm))
+	// RIFF chunk size = 4 ("WAVE") + (8+fmtLen) + (8+dataLen) where fmtLen=16
+	riffSize := uint32(4 + (8 + 16) + (8 + dataLen))
+
+	buf := &bytes.Buffer{}
+	// RIFF header
+	buf.WriteString("RIFF")
+	binary.Write(buf, binary.LittleEndian, riffSize)
+	buf.WriteString("WAVE")
+	// fmt chunk
+	buf.WriteString("fmt ")
+	binary.Write(buf, binary.LittleEndian, uint32(16))            // Subchunk1Size for PCM
+	binary.Write(buf, binary.LittleEndian, uint16(1))             // AudioFormat = 1 (PCM)
+	binary.Write(buf, binary.LittleEndian, uint16(channels))      // NumChannels
+	binary.Write(buf, binary.LittleEndian, uint32(sampleRate))    // SampleRate
+	binary.Write(buf, binary.LittleEndian, uint32(byteRate))      // ByteRate
+	binary.Write(buf, binary.LittleEndian, blockAlign)            // BlockAlign
+	binary.Write(buf, binary.LittleEndian, uint16(bitsPerSample)) // BitsPerSample
+	// data chunk
+	buf.WriteString("data")
+	binary.Write(buf, binary.LittleEndian, uint32(dataLen))
+	buf.Write(pcm)
+	return buf.Bytes()
 }

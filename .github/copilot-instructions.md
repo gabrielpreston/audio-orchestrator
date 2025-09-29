@@ -5,45 +5,65 @@ files, commands, and patterns found in the tree.
 -->
 # Copilot instructions for this repo
 
-- Big picture: this repo is a minimal Go scaffold for a voice-driven "agent". The
-  Discord bot in `cmd/bot` is a client: audio -> STT -> Orchestrator/LLM -> TTS.
-  The core pieces to inspect are `cmd/bot/main.go`, `internal/voice/processor.go`,
-  `llm/client.go`, and `internal/logging/logging.go`.
+This repository is a minimal Go scaffold for a voice-driven agent. The Discord bot
+in `cmd/bot` is a client: audio -> STT (Whisper) -> LLM/Orchestrator -> TTS. Keep
+guidance short and concrete so contributors (and AI agents) can be productive.
 
-- Build & dev commands: Always use `Makefile` targets, always. Common commands:
-  - `make bot-build` if building manually (see `run_bot.sh`).
-  - `make bot` (builds and runs the bot)
-  - `make test` (runs `go test -v ./...`)
+Core files to read first:
+- `cmd/bot/main.go` — application entry: logging, env-driven config, Discord session
+  setup, event handlers, and voice join/recv wiring.
+- `internal/voice/processor.go` — audio pipeline, SSRC <-> user mapping, opus decode,
+  and HTTP POSTs to `WHISPER_URL`.
+- `internal/logging/logging.go` — centralized zap logger helpers (User/Guild/Channel
+  fields) used pervasively in structured logs.
 
-- Configuration: env vars control runtime behavior. Important ones:
-  - `DISCORD_BOT_TOKEN`, `GUILD_ID`, `VOICE_CHANNEL_ID` for Discord connectivity.
-  - `WHISPER_URL` for STT; `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_FALLBACK_MODEL` for LLMs.
-  - `LOG_LEVEL`, `PAYLOAD_MAX_BYTES`, `REDACT_LARGE_BYTES`, `DETAILED_EVENTS` affect logging details.
+Build / run / test (use Makefile):
+- `make build` — build the `bin/bot` binary.
+- `make run` — build + run with environment variables.
+- `make test` — run Go tests (small repo; prefer targeted tests when iterating).
 
-- Code patterns and conventions to follow:
-  - Centralized logging via `internal/logging.Init()` and `logging.Sugar()`; use structured
-    `Sugar().Infow/Debugw/Warnf` calls. See `cmd/bot/main.go` and `internal/voice/processor.go`.
-  - Voice pipeline: `discordgo` events are logged generically in `cmd/bot/main.go`, then
-    voice-specific events forwarded to `voice.Processor` (see `voice.NewProcessor()` and `ProcessOpusFrame`).
-  - External service calls (STT, LLM) are synchronous HTTP requests with timeouts; prefer
-    context-aware requests and guarded retries (see `llm.Client` and `Processor.handleOpusPacket`).
+Important env vars (concrete usage found in `cmd/bot/main.go` and `processor.go`):
+- `DISCORD_BOT_TOKEN` (required)
+- `GUILD_ID`, `VOICE_CHANNEL_ID` — optional auto-join parameters used at startup
+- `WHISPER_URL` — HTTP endpoint that receives PCM audio (Processor POSTs audio here)
+- `LOG_LEVEL`, `PAYLOAD_MAX_BYTES`, `REDACT_LARGE_BYTES`, `DETAILED_EVENTS` — logging
+  and debug dump controls
+- `ALLOWED_USER_IDS` — comma-separated allow-list used by `Processor.SetAllowedUsers`
 
-- Testing and safety notes for edits:
-  - Preserve allow-list semantics when adding shell/git runners (discussed in docs/ARCHITECTURE.md).
-  - Avoid introducing uncontrolled external writes; repo assumes sandboxing and explicit
-    confirmation for destructive operations.
+Project conventions and patterns to follow (examples):
+- Centralized logging: call `logging.Init()` early and use `logging.Sugar()` helpers.
+  Include `logging.UserFields`, `GuildFields`, `ChannelFields` in structured logs
+  (see `cmd/bot/main.go` event logger and `processor.go` handlers).
+- Event handling: register small wrapper functions with `discordgo` (e.g.,
+  `dg.AddHandler(func(s *discordgo.Session, evt *discordgo.Event) { ... })`) so
+  discordgo's reflection validation accepts them.
+- Audio processing: enqueue Opus frames via `Processor.ProcessOpusFrame(ssrc, data)`
+  and rely on `Processor.Close()` for clean shutdown. Avoid blocking sends; the
+  processor uses a bounded channel and drops frames when full.
+- External calls: use context-aware HTTP requests with timeouts (see
+  `NewProcessorWithResolver` and `handleOpusPacket`) and fail-safe behavior when
+  `WHISPER_URL` is not configured.
+- Documentation for guidance on multiple topics can be found in `docs/` and should be
+  consulted when making changes, and kept updated as needed.
 
-- Examples to reference when producing code or patches:
-  - Add logging: follow `logging.Init()` usage and include fields like `sessionId` or `ssrc`.
-  - LLM call: use `llm.NewClientFromEnv()` and `CreateChatCompletion(ctx, ChatRequest{...})`.
-  - Processor flow: enqueue frames with `ProcessOpusFrame(ssrc, opusBytes)` and honor `Close()`.
+Integration points to be aware of:
+- `discordgo` session state is used by `internal/voice/discord_resolver.go` (resolver)
+  to map IDs -> human-friendly names; many logs consult the resolver for nicer output.
+- The Processor decodes Opus (via `hraban/opus`) into PCM and posts to `WHISPER_URL`.
+- Sensitive data handling is implemented in `cmd/bot/main.go`: event payloads are
+  redacted (`sensitiveKeys`) and large strings truncated (`REDACT_LARGE_BYTES`).
 
-- When suggesting edits that change architecture or add services, link to `docs/ARCHITECTURE.md`
-  and `docs/DEVELOPMENT_GUIDE.md` for rationale and developer commands.
+Editing guidance for AI agents (do this, not generic items):
+- When adding new env vars: document defaults in `cmd/bot/main.go` and update README
+  if the var affects runtime behavior.
+- Preserve allow-list semantics: `Processor.SetAllowedUsers` and early-drop logic in
+  `ProcessOpusFrame` must remain intact.
+- Add logs with `logging.Sugar().Infow/Debugw/Warnf` and include entity fields using
+  the helper functions to maintain consistent structured logs.
+- For any change that touches external integrations (Discord, Whisper, OpenAI), link
+  the rationale to `docs/ARCHITECTURE.md` and `docs/DEVELOPMENT_GUIDE.md`.
+- Agent should make small, incremental changes and run `make build` and `make test`
+  after each change to ensure correctness.
 
-- Avoid generic instructions: prefer concrete file edits and provide exact code snippets
-  or unified diffs. If proposing a new env var, include a default and where it is consumed. Be concise in 
-  your responses to save on processing time and bytes over the band.
-
-If anything here is unclear or you want the file expanded with more examples (patchs, tests,
-or CI guidance), ask and I'll iterate.
+If something's unclear or you want more examples (patches, tests, CI guidance), tell
+me which area to expand and I will iterate.
