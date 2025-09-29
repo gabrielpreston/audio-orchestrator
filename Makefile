@@ -9,5 +9,5 @@ build:
 bot-build:
 	go build -o bin/bot ./cmd/bot
 
-bot-run: bot-build
+bot: bot-build
 	./scripts/run_bot.sh
