@@ -1,0 +1,40 @@
+# VCS and local system files
+.git
+.gitignore
+
+# Local build artifacts and logs
+bin
+logs
+*.log
+*.pid
+
+# Local virtualenvs, caches
+.venv
+.venv-*
+venv
+__pycache__
+*.pyc
+
+# Model / data files (treat large model dirs as large)
+models
+models/*
+data
+data/*
+
+# STT model cache / HuggingFace caches
+~/.cache
+stt/.cache
+stt/models
+
+# Temp files
+*.tmp
+*.swp
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Env files (do not copy secrets into images)
+.env
+.env.local
+.env.*.local

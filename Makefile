@@ -36,6 +36,16 @@ else
 ENV_FILE_FLAG=
 endif
 
+# Enable BuildKit by default for faster, modern builds. Set to 0 to disable.
+DOCKER_BUILDKIT ?= 1
+# For legacy docker-compose, enable Docker CLI build integration so BuildKit is used
+COMPOSE_DOCKER_CLI_BUILD ?= 1
+
+# Choose the docker compose command at Makefile parse time so recipes can
+# use a simple variable. Prefer the new 'docker compose' subcommand, fall
+# back to the legacy 'docker-compose' binary.
+DOCKER_COMPOSE := $(shell if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 2>/dev/null; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo ""; fi)
+
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
 	@echo
@@ -51,60 +61,32 @@ build: ## Build the bot binary
 	@echo -e "$(COLOR_YELLOW)→ Building $(BINARY)$(COLOR_OFF)"
 	$(GO) build -o $(BINARY) ./cmd/bot
 
-run: build ## Build then run all services via docker compose
+run: ## Run all services via docker compose
 	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers via docker compose (press Ctrl+C to stop)$(COLOR_OFF)"
-	@if command -v docker >/dev/null 2>&1; then \
-		if docker compose version >/dev/null 2>&1; then \
-			docker compose $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
-		else \
-			if command -v docker-compose >/dev/null 2>&1; then \
-				docker-compose $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
-			else \
-				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
-			fi; \
-		fi; \
+	@# Fail early if no compose command is available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+	@# Prefer BuildKit with buildx when requested; otherwise run a plain compose up
+	@if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then \
+		DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
 	else \
-		echo "docker not found; please install Docker."; exit 1; \
+		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but 'docker buildx' is missing; running without BuildKit."; fi; \
+		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) up -d --build --remove-orphans; \
 	fi
 
 stop: ## Stop and remove containers for the compose stack
 	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
-	@if command -v docker >/dev/null 2>&1; then \
-		if docker compose version >/dev/null 2>&1; then \
-			docker compose $(ENV_FILE_FLAG) down --remove-orphans; \
-		else \
-			if command -v docker-compose >/dev/null 2>&1; then \
-				docker-compose $(ENV_FILE_FLAG) down --remove-orphans; \
-			else \
-				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
-			fi; \
-		fi; \
-	else \
-		echo "docker not found; please install Docker."; exit 1; \
-	fi
+	@# Ensure we have a compose command available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+	@$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) down --remove-orphans
 
 logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
 	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"
-	@if command -v docker >/dev/null 2>&1; then \
-		if docker compose version >/dev/null 2>&1; then \
-			if [ -z "$(SERVICE)" ]; then \
-				docker compose $(ENV_FILE_FLAG) logs -f --tail=100; \
-			else \
-				docker compose $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
-			fi; \
-		else \
-			if command -v docker-compose >/dev/null 2>&1; then \
-				if [ -z "$(SERVICE)" ]; then \
-					docker-compose $(ENV_FILE_FLAG) logs -f --tail=100; \
-				else \
-					docker-compose $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
-				fi; \
-			else \
-				echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; \
-			fi; \
-		fi; \
+	@# Ensure we have a compose command available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+	@if [ -z "$(SERVICE)" ]; then \
+		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) logs -f --tail=100; \
 	else \
-		echo "docker not found; please install Docker."; exit 1; \
+		$(DOCKER_COMPOSE) $(ENV_FILE_FLAG) logs -f --tail=100 $(SERVICE); \
 	fi
 
 dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh (sources .env.local if present)
@@ -113,8 +95,7 @@ dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh (sources .env.lo
 
 dev-bot: ## Run the bot binary locally and log to file via scripts/run_bot.sh (use DAEMON=1 to background)
 	@echo -e "$(COLOR_GREEN)→ Starting bot (local dev)$(COLOR_OFF)"
-	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; '
-		'if [ "$(DAEMON)" = "1" ]; then mkdir -p logs; nohup ./scripts/run_bot.sh >> logs/bot.log 2>&1 & echo $$! > logs/dev-bot.pid; echo "dev-bot started (background)"; else exec ./scripts/run_bot.sh; fi'
+	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; if [ "$(DAEMON)" = "1" ]; then mkdir -p logs; nohup ./scripts/run_bot.sh >> logs/bot.log 2>&1 & echo $$! > logs/dev-bot.pid; echo "dev-bot started (background)"; else exec ./scripts/run_bot.sh; fi'
 
 dev-bot-daemon: ## Convenience: start bot locally in background (alias for dev-bot DAEMON=1)
 	@$(MAKE) dev-bot DAEMON=1
@@ -190,9 +171,10 @@ build-image: ## Build the docker image using buildx if available
 	@echo -e "$(COLOR_YELLOW)→ Building docker image $(IMAGE_NAME):$(IMAGE_TAG)$(COLOR_OFF)"
 	@if command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1; then \
 		$(MAKE) buildx-ensure >/dev/null; \
-		docker buildx build --tag $(IMAGE_NAME):$(IMAGE_TAG) --load .; \
+		DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) docker buildx build --tag $(IMAGE_NAME):$(IMAGE_TAG) --load .; \
 	else \
-		docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .; \
+		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but 'docker buildx' is missing; using legacy docker build."; fi; \
+		DOCKER_BUILDKIT=0 COMPOSE_DOCKER_CLI_BUILD=0 docker build -t $(IMAGE_NAME):$(IMAGE_TAG) .; \
 	fi
 
 # Push image using buildx (useful for multi-arch builds)
