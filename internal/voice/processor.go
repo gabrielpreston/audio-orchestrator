@@ -21,6 +21,9 @@ type Processor struct {
 	mu sync.Mutex
 	// ssrc -> userID
 	ssrcMap map[uint32]string
+	// optional set of allowed user IDs; when non-empty, frames from mapped
+	// users not in this set will be dropped early.
+	allowlist map[string]struct{}
 	// opus decoder (one per stream)
 	dec        *opus.Decoder
 	httpClient *http.Client
@@ -52,6 +55,7 @@ func NewProcessorWithResolver(resolver NameResolver) (*Processor, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	p := &Processor{
 		ssrcMap:    make(map[uint32]string),
+		allowlist:  make(map[string]struct{}),
 		dec:        dec,
 		httpClient: &http.Client{Timeout: 15 * time.Second},
 		resolver:   resolver,
@@ -79,6 +83,23 @@ func NewProcessorWithResolver(resolver NameResolver) (*Processor, error) {
 
 	logging.Sugar().Info("Processor: initialized opus decoder and http client")
 	return p, nil
+}
+
+// SetAllowedUsers configures an explicit allow-list of user IDs. When the
+// allowlist is non-empty, ProcessOpusFrame will drop frames whose mapped
+// user ID is known and not present in the allowlist. Passing an empty slice
+// clears the allowlist and restores normal behavior.
+func (p *Processor) SetAllowedUsers(ids []string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.allowlist = make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		p.allowlist[id] = struct{}{}
+	}
+	logging.Sugar().Infow("Processor: SetAllowedUsers", "count", len(p.allowlist))
 }
 
 func (p *Processor) Close() error {
@@ -122,6 +143,21 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 // This function would be called by the discord voice receive loop with raw opus frames.
 // For simplicity in this scaffold, we'll expose a method to accept encoded opus frames and process them.
 func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
+	// If an allowlist is configured and we already know which user this SSRC
+	// maps to, drop frames from non-allowed users early to avoid unnecessary
+	// decoding and HTTP requests.
+	p.mu.Lock()
+	uid := p.ssrcMap[ssrc]
+	// copy allowlist reference for check
+	allowCount := len(p.allowlist)
+	_, allowed := p.allowlist[uid]
+	p.mu.Unlock()
+
+	if allowCount > 0 && uid != "" && !allowed {
+		logging.Sugar().Debugw("Processor: dropping frame from non-allowed user", "ssrc", ssrc, "user_id", uid)
+		return
+	}
+
 	// enqueue for background processing; drop if queue full to avoid blocking
 	select {
 	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...)}:

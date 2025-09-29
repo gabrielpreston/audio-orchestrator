@@ -490,6 +490,21 @@ func main() {
 	}
 	sugar.Infow("voice processor created")
 
+	// If ALLOWED_USER_IDS is set, parse it as a comma-separated list and
+	// configure the processor to only accept audio from those users.
+	if v := os.Getenv("ALLOWED_USER_IDS"); v != "" {
+		parts := []string{}
+		for _, p := range strings.Split(v, ",") {
+			if t := strings.TrimSpace(p); t != "" {
+				parts = append(parts, t)
+			}
+		}
+		if len(parts) > 0 {
+			vp.SetAllowedUsers(parts)
+			sugar.Infow("configured allowed users", "count", len(parts))
+		}
+	}
+
 	// PAYLOAD_MAX_BYTES controls how many bytes of payload we log
 	maxPayload := int64(8 * 1024)
 	if v := os.Getenv("PAYLOAD_MAX_BYTES"); v != "" {
@@ -661,6 +676,27 @@ func main() {
 				sugar.Infow("voice connection speaking update received", speaktFields...)
 				vp.HandleSpeakingUpdate(dg, su)
 			})
+
+			// If OpusRecv is non-nil, start a goroutine to read incoming opus
+			// packets and forward them to the Processor. This keeps audio capture
+			// logic out of the main event loop and allows the Processor to decode
+			// and dispatch to STT asynchronously.
+			if vc.OpusRecv != nil {
+				go func(vc *discordgo.VoiceConnection) {
+					// Loop until OpusRecv channel is closed or the VoiceConnection ends.
+					for pkt := range vc.OpusRecv {
+						// pkt is of type *discordgo.Packet which contains SSRC and Opus
+						if pkt == nil {
+							continue
+						}
+						// Forward the raw opus payload to the processor. Processor
+						// makes a copy of the bytes when enqueueing.
+						vp.ProcessOpusFrame(uint32(pkt.SSRC), pkt.Opus)
+					}
+				}(vc)
+			} else {
+				sugar.Warn("voice connection has no OpusRecv; ensure bot is not deafened and discordgo supports opus receive on this build")
+			}
 			joinedFields := []interface{}{}
 			joinedFields = append(joinedFields, logging.GuildFields(guildID, guildName)...)
 			joinedFields = append(joinedFields, logging.ChannelFields(voiceChannelID, channelName)...)
