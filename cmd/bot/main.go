@@ -480,9 +480,11 @@ func main() {
 	}
 	sugar.Infow("discord session opened")
 
-	// Create voice processor with a resolver that uses the discord session state
+	// Create a single resolver backed by the discord session state and
+	// reuse it for the voice processor and local logging so caches are shared.
+	resolver := newDiscordResolver(dg)
 	sugar.Infow("creating voice processor")
-	vp, err := voice.NewProcessorWithResolver(newDiscordResolver(dg))
+	vp, err := voice.NewProcessorWithResolver(resolver)
 	if err != nil {
 		sugar.Fatalf("voice.NewProcessor: %v", err)
 	}
@@ -600,6 +602,18 @@ func main() {
 			}
 		}
 
+		// If names weren't discovered in the typed event payload, consult the
+		// resolver which may have cached values from Session.State or REST.
+		if guildName == "" && guildID != "" {
+			guildName = resolver.GuildName(guildID)
+		}
+		if channelName == "" && channelID != "" {
+			channelName = resolver.ChannelName(channelID)
+		}
+		if userName == "" && userID != "" {
+			userName = resolver.UserName(userID)
+		}
+
 		// Build structured fields using the logging helpers so names are included when available
 		fields := []interface{}{"type", evtType}
 		if guildID != "" {
@@ -620,7 +634,13 @@ func main() {
 	guildID := os.Getenv("GUILD_ID")
 	voiceChannelID := os.Getenv("VOICE_CHANNEL_ID")
 	if guildID != "" && voiceChannelID != "" {
-		sugar.Infow("joining voice channel", "guild", guildID, "channel", voiceChannelID)
+		// Try to resolve human-friendly names for the guild and channel
+		guildName := resolver.GuildName(guildID)
+		channelName := resolver.ChannelName(voiceChannelID)
+		joinFields := []interface{}{}
+		joinFields = append(joinFields, logging.GuildFields(guildID, guildName)...)
+		joinFields = append(joinFields, logging.ChannelFields(voiceChannelID, channelName)...)
+		sugar.Infow("joining voice channel", joinFields...)
 		vconn, err := dg.ChannelVoiceJoin(guildID, voiceChannelID, false, false)
 		if err != nil {
 			sugar.Warnf("voice join failed: %v", err)
@@ -633,10 +653,18 @@ func main() {
 				// can confirm they arrive here. Then forward to the processor
 				// which will map SSRC -> user. Pass the session so the
 				// processor has access to session-based helpers if needed.
-				sugar.Infow("voice connection speaking update received", "user", su.UserID, "ssrc", su.SSRC, "speaking", su.Speaking)
+				// Resolve the speaking user's name for friendlier logs
+				userName := resolver.UserName(su.UserID)
+				speaktFields := []interface{}{}
+				speaktFields = append(speaktFields, logging.UserFields(su.UserID, userName)...)
+				speaktFields = append(speaktFields, "ssrc", su.SSRC, "speaking", su.Speaking)
+				sugar.Infow("voice connection speaking update received", speaktFields...)
 				vp.HandleSpeakingUpdate(dg, su)
 			})
-			sugar.Infow("voice joined", "guild", guildID, "channel", voiceChannelID)
+			joinedFields := []interface{}{}
+			joinedFields = append(joinedFields, logging.GuildFields(guildID, guildName)...)
+			joinedFields = append(joinedFields, logging.ChannelFields(voiceChannelID, channelName)...)
+			sugar.Infow("voice joined", joinedFields...)
 		}
 	}
 
