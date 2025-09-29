@@ -8,9 +8,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
-	"time"
 
 	"go.uber.org/zap"
 
@@ -19,132 +17,7 @@ import (
 	"github.com/discord-voice-lab/internal/voice"
 )
 
-// discordResolver implements voice.NameResolver by consulting a discordgo.Session.
-// discordResolver implements voice.NameResolver using the session State and
-// a small in-memory cache to avoid REST calls on misses.
-type discordResolver struct {
-	s  *discordgo.Session
-	mu sync.Mutex
-	// simple caches for users/guilds/channels: id -> (value, expiry)
-	userCache    map[string]cacheEntry
-	guildCache   map[string]cacheEntry
-	channelCache map[string]cacheEntry
-}
-
-type cacheEntry struct {
-	val    string
-	expiry time.Time
-}
-
-func newDiscordResolver(s *discordgo.Session) *discordResolver {
-	return &discordResolver{
-		s:            s,
-		userCache:    make(map[string]cacheEntry),
-		guildCache:   make(map[string]cacheEntry),
-		channelCache: make(map[string]cacheEntry),
-	}
-}
-
-// cacheTTL controls how long a cached name is valid.
-var cacheTTL = 5 * time.Minute
-
-func (d *discordResolver) lookupCache(m map[string]cacheEntry, id string) (string, bool) {
-	if id == "" {
-		return "", false
-	}
-	if e, ok := m[id]; ok {
-		if time.Now().Before(e.expiry) {
-			return e.val, true
-		}
-		delete(m, id)
-	}
-	return "", false
-}
-
-func (d *discordResolver) setCache(m map[string]cacheEntry, id, val string) {
-	m[id] = cacheEntry{val: val, expiry: time.Now().Add(cacheTTL)}
-}
-
-func (d *discordResolver) UserName(userID string) string {
-	if d.s == nil || userID == "" {
-		return ""
-	}
-	d.mu.Lock()
-	if v, ok := d.lookupCache(d.userCache, userID); ok {
-		d.mu.Unlock()
-		return v
-	}
-	d.mu.Unlock()
-	// Fall back to REST call; set cache if successful. We avoid using
-	// d.s.State.User(...) here because some discordgo versions expose a
-	// User field rather than a lookup method.
-	if u, err := d.s.User(userID); err == nil && u != nil {
-		name := u.Username
-		d.mu.Lock()
-		d.setCache(d.userCache, userID, name)
-		d.mu.Unlock()
-		return name
-	}
-	return ""
-}
-
-func (d *discordResolver) GuildName(guildID string) string {
-	if d.s == nil || guildID == "" {
-		return ""
-	}
-	d.mu.Lock()
-	if v, ok := d.lookupCache(d.guildCache, guildID); ok {
-		d.mu.Unlock()
-		return v
-	}
-	d.mu.Unlock()
-	if d.s.State != nil {
-		if g, err := d.s.State.Guild(guildID); err == nil && g != nil {
-			name := g.Name
-			d.mu.Lock()
-			d.setCache(d.guildCache, guildID, name)
-			d.mu.Unlock()
-			return name
-		}
-	}
-	if g, err := d.s.Guild(guildID); err == nil && g != nil {
-		name := g.Name
-		d.mu.Lock()
-		d.setCache(d.guildCache, guildID, name)
-		d.mu.Unlock()
-		return name
-	}
-	return ""
-}
-
-func (d *discordResolver) ChannelName(channelID string) string {
-	if d.s == nil || channelID == "" {
-		return ""
-	}
-	d.mu.Lock()
-	if v, ok := d.lookupCache(d.channelCache, channelID); ok {
-		d.mu.Unlock()
-		return v
-	}
-	d.mu.Unlock()
-	if d.s.State != nil {
-		if c, err := d.s.State.Channel(channelID); err == nil && c != nil {
-			name := c.Name
-			d.mu.Lock()
-			d.setCache(d.channelCache, channelID, name)
-			d.mu.Unlock()
-			return name
-		}
-	}
-	if c, err := d.s.Channel(channelID); err == nil && c != nil {
-		name := c.Name
-		d.mu.Lock()
-		d.setCache(d.channelCache, channelID, name)
-		d.mu.Unlock()
-		return name
-	}
-	return ""
-}
+// discordResolver implementation moved to internal/voice/discord_resolver.go
 
 // sensitiveKeys lists JSON keys which should never be logged in plaintext.
 var sensitiveKeys = map[string]struct{}{
@@ -177,7 +50,6 @@ func redactAny(v any) any {
 	}
 }
 
-// extractMeta pulls common searchable fields from known event types.
 // extractMeta pulls common searchable fields from known event types and
 // also returns a flexible metadata map built from typed fields, JSON
 // payloads, or reflection. The returned meta map contains stringified
@@ -417,8 +289,6 @@ func redactLargeValues(raw []byte, redactBytes int64) []byte {
 	return out
 }
 
-// (safeMarshal removed; safeMarshalIndent is used where indentation is needed)
-
 // safeMarshalIndent behaves like json.MarshalIndent but falls back to
 // fmt.Sprintf on error or panic.
 func safeMarshalIndent(v any) []byte {
@@ -482,7 +352,7 @@ func main() {
 
 	// Create a single resolver backed by the discord session state and
 	// reuse it for the voice processor and local logging so caches are shared.
-	resolver := newDiscordResolver(dg)
+	resolver := voice.NewDiscordResolver(dg)
 	sugar.Infow("creating voice processor")
 	vp, err := voice.NewProcessorWithResolver(resolver)
 	if err != nil {
@@ -537,17 +407,12 @@ func main() {
 		}
 	}
 
-	// Wait for termination signal (Ctrl+C, Docker stop) and shutdown gracefully.
 	// Register the processor handlers for voice state and speaking updates so
 	// it can map SSRC <-> user IDs. Wrap the method calls in explicit
 	// functions so discordgo's reflection validation accepts them.
 	dg.AddHandler(func(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
 		vp.HandleVoiceState(s, vs)
 	})
-	// Note: voice speaking updates are delivered on the VoiceConnection
-	// websocket. We'll register a voice-level handler after joining so
-	// the handler has access to the VoiceConnection. For now we omit a
-	// session-level VoiceSpeakingUpdate handler which would be invalid.
 
 	// Generic event logger: logs every event that comes across the wire.
 	// Use *discordgo.Event as the handler signature so discordgo's
