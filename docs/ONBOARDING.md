@@ -146,7 +146,10 @@ Notes:
   Use the typed registration:
 
   ```go
-  sess.AddHandler(discordgo.VoiceSpeakingUpdateHandler(vp.HandleSpeakingUpdate))
+    // Prefer a typed closure which forwards the session and event explicitly.
+    sess.AddHandler(func(s *discordgo.Session, su *discordgo.VoiceSpeakingUpdate) {
+      vp.HandleSpeakingUpdate(s, su)
+    })
   ```
 * **No audio in:** ensure `deaf=false` on `ChannelVoiceJoin`, and `vc.OpusRecv != nil`.
 * **No audio out:** check `vc.Speaking(true)` succeeds; ensure TTS returns a valid WAV.

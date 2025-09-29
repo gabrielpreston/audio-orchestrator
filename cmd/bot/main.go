@@ -17,6 +17,37 @@ import (
 	"github.com/discord-voice-lab/internal/voice"
 )
 
+// sensitiveKeys lists JSON keys which should never be logged in plaintext.
+var sensitiveKeys = map[string]struct{}{
+	"token": {}, "session_id": {}, "access_token": {}, "refresh_token": {},
+	"authorization": {}, "password": {}, "email": {}, "client_secret": {},
+}
+
+// redactAny walks a decoded JSON value (map[string]any / []any) and replaces
+// values for sensitive keys with a placeholder. It modifies maps/slices in place.
+func redactAny(v any) any {
+	switch vv := v.(type) {
+	case map[string]any:
+		for k, val := range vv {
+			lk := strings.ToLower(k)
+			if _, ok := sensitiveKeys[lk]; ok {
+				vv[k] = "<redacted>"
+				continue
+			}
+			// Recurse into nested structures
+			vv[k] = redactAny(val)
+		}
+		return vv
+	case []any:
+		for i, it := range vv {
+			vv[i] = redactAny(it)
+		}
+		return vv
+	default:
+		return v
+	}
+}
+
 // extractMeta pulls common searchable fields from known event types.
 // extractMeta pulls common searchable fields from known event types and
 // also returns a flexible metadata map built from typed fields, JSON
@@ -384,10 +415,12 @@ func main() {
 			// fallback to decoding RawData into a generic structure
 			var v any
 			if err := json.Unmarshal(evt.RawData, &v); err == nil {
-				obj = v
+				// redact sensitive fields before using the decoded object
+				obj = redactAny(v)
 			} else {
-				// as a last resort, keep raw bytes as a string
-				obj = string(evt.RawData)
+				// as a last resort, keep raw bytes as a string (not ideal)
+				// avoid logging raw bytes that might include tokens
+				obj = "<raw data omitted>"
 			}
 		}
 
@@ -430,9 +463,10 @@ func main() {
 			vc.AddHandler(func(v *discordgo.VoiceConnection, su *discordgo.VoiceSpeakingUpdate) {
 				// Log speaking updates observed on the voice websocket so we
 				// can confirm they arrive here. Then forward to the processor
-				// which will map SSRC -> user.
+				// which will map SSRC -> user. Pass the session so the
+				// processor has access to session-based helpers if needed.
 				sugar.Infow("voice connection speaking update received", "user", su.UserID, "ssrc", su.SSRC, "speaking", su.Speaking)
-				vp.HandleSpeakingUpdate(nil, su)
+				vp.HandleSpeakingUpdate(dg, su)
 			})
 			sugar.Infow("voice joined", "guild", guildID, "channel", voiceChannelID)
 		}
