@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot
+.PHONY: help test build bot fmt vet lint run clean ci version stop logs dev-bot dev-stt dev-bot-daemon dev-stop-bot docker-status
 
 # --- colors & helpers ----------------------------------------------------
 # Detect terminal color support via tput. If tput is missing or reports 0,
@@ -202,3 +202,30 @@ docker-clean: ## Bring down compose stack (if any) and prune unused containers/i
 	@echo "Pruning unused networks..."
 	@docker network prune -f || true
 	@echo -e "$(COLOR_GREEN)→ docker-clean complete$(COLOR_OFF)"
+
+docker-status: ## Check whether compose services (stt, bot) are up and running
+	@echo -e "$(COLOR_CYAN)→ Checking docker-compose service status$(COLOR_OFF)"
+	@# Ensure we have a compose command available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+	@SERVICES="stt bot"; \
+	FAILED=0; \
+	for svc in $$SERVICES; do \
+		CID=`$(DOCKER_COMPOSE) ps -q $$svc 2>/dev/null || true`; \
+		if [ -z "$$CID" ]; then \
+			echo "$$svc: no container"; \
+			FAILED=1; \
+			continue; \
+		fi; \
+		STATUS=`docker inspect -f '{{.State.Status}}' $$CID 2>/dev/null || echo unknown`; \
+		if [ "$$STATUS" != "running" ]; then \
+			echo "$$svc: $$STATUS"; \
+			FAILED=1; \
+		else \
+			echo "$$svc: running"; \
+		fi; \
+	done; \
+	if [ $$FAILED -eq 0 ]; then \
+		echo -e "$(COLOR_GREEN)→ All services running$(COLOR_OFF)"; exit 0; \
+	else \
+		echo -e "$(COLOR_RED)→ Some services not running$(COLOR_OFF)"; exit 2; \
+	fi
