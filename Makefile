@@ -42,7 +42,7 @@ build: ## Build the bot binary
 	@echo -e "$(COLOR_YELLOW)→ Building $(BINARY)$(COLOR_OFF)"
 	$(GO) build -o $(BINARY) ./cmd/bot
 
-bot: build ## Build then run the bot via script
+run: build ## Build then run the bot via script
 	@echo -e "$(COLOR_GREEN)🚀 Launching bot (press Ctrl+C to stop)$(COLOR_OFF)"
 	./scripts/run_bot.sh
 
@@ -62,11 +62,6 @@ lint: ## Run golangci-lint if available (else print hint)
 		echo -e "$(COLOR_RED)golangci-lint not found. Install from https://github.com/golangci/golangci-lint#install $(COLOR_OFF)"; \
 		false; \
 	fi
-
-run: ## Build and run the binary directly (shortcut)
-	@$(MAKE) build
-	@echo -e "$(COLOR_GREEN)▶ Running $(BINARY)$(COLOR_OFF)"
-	@$(BINARY)
 
 clean: ## Remove build artifacts
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
