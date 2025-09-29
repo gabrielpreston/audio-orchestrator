@@ -14,10 +14,6 @@ LOGFILE="${LOGFILE:-logs/bot.log}"
 # Ensure logs dir exists
 mkdir -p "$(dirname "$LOGFILE")"
 
-# Build the bot
-echo "Building bot..."
-go build -o bin/bot ./cmd/bot
-
 echo "Starting bot (logging to $LOGFILE)"
 
 # Start the bot pipeline in its own session/process-group so we can target it
@@ -39,7 +35,7 @@ fi
 stop_child() {
   echo "Stopping..."
   # try to terminate the whole process group for the child session
-  kill -TERM -- -$child 2>/dev/null || kill -TERM $child 2>/dev/null || true
+  kill -INT -- -$child 2>/dev/null || kill -INT $child 2>/dev/null || true
   # wait for child to exit, but don't let wait propagate non-zero
   wait $child 2>/dev/null || true
   # exit success so make doesn't treat Ctrl+C as a build failure
