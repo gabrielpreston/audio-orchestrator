@@ -8,8 +8,8 @@ if [ -f .env.local ]; then
   set +a
 fi
 
-echo "Building bot (with opus)..."
-go build -tags opus -o bin/bot ./cmd/bot
+echo "Building bot..."
+go build -o bin/bot ./cmd/bot
 
 echo "Starting bot"
 ./bin/bot
