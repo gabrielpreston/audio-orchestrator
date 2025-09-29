@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -48,6 +49,13 @@ type Processor struct {
 	maxAccumMs   int // maximum accumulation duration per chunk
 	// simple RMS-based VAD: if computed RMS < vadRmsThreshold we drop the chunk
 	vadRmsThreshold int
+	// monitoring counters
+	enqueueCount   int64 // total frames enqueued
+	dropQueueCount int64 // frames dropped due to full queue
+	decodeErrCount int64 // opus decode errors
+	vadDropCount   int64 // VAD drop count
+	sendCount      int64 // successful sends to WHISPER_URL
+	sendFailCount  int64 // failed sends
 }
 
 type opusPacket struct {
@@ -158,6 +166,35 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 		}
 	}()
 
+	// monitoring ticker: emit periodic stats so we can observe rates over time
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		statsTicker := time.NewTicker(15 * time.Second)
+		defer statsTicker.Stop()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-statsTicker.C:
+				enq := atomic.LoadInt64(&p.enqueueCount)
+				dq := atomic.LoadInt64(&p.dropQueueCount)
+				dec := atomic.LoadInt64(&p.decodeErrCount)
+				vad := atomic.LoadInt64(&p.vadDropCount)
+				sOK := atomic.LoadInt64(&p.sendCount)
+				sFail := atomic.LoadInt64(&p.sendFailCount)
+				logging.Sugar().Infow("Processor stats",
+					"enqueued_frames", enq,
+					"dropped_queue", dq,
+					"decode_errors", dec,
+					"vad_drops", vad,
+					"sends_ok", sOK,
+					"sends_failed", sFail,
+				)
+			}
+		}
+	}()
+
 	logging.Sugar().Info("Processor: initialized opus decoder and http client")
 	return p, nil
 }
@@ -238,10 +275,12 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	// enqueue for background processing; drop if queue full to avoid blocking
 	select {
 	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...)}:
-		// Log enqueue for diagnostics. We use len(opusCh) to approximate queue depth.
+		// increment enqueue counter and log enqueue for diagnostics
+		atomic.AddInt64(&p.enqueueCount, 1)
 		logging.Sugar().Infow("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh))
 	default:
-		logging.Sugar().Warnf("Processor: dropping opus frame ssrc=%d; queue full", ssrc)
+		atomic.AddInt64(&p.dropQueueCount, 1)
+		logging.Sugar().Warnw("Processor: dropping opus frame; queue full", "ssrc", ssrc)
 	}
 }
 
@@ -256,7 +295,8 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	pcm := make([]int16, 48000/50)
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
-		logging.Sugar().Warnf("Processor: opus decode error: %v", err)
+		atomic.AddInt64(&p.decodeErrCount, 1)
+		logging.Sugar().Warnw("Processor: opus decode error", "err", err, "ssrc", ssrc, "payload_bytes", len(opusPayload))
 		return
 	}
 	// assemble raw PCM bytes (little-endian int16)
@@ -325,7 +365,9 @@ func (p *Processor) flushAccum(ssrc uint32) {
 			meanSq := sumSq / int64(len(samples))
 			rms := int(math.Sqrt(float64(meanSq)))
 			if rms < p.vadRmsThreshold {
-				logging.Sugar().Infow("Processor: VAD dropped near-silence chunk", "ssrc", ssrc, "rms", rms, "threshold", p.vadRmsThreshold)
+				atomic.AddInt64(&p.vadDropCount, 1)
+				logging.Sugar().Infow("Processor: VAD dropped near-silence chunk", logging.AccumFields(ssrc, len(samples), (len(samples)*1000)/48000)...)
+				logging.Sugar().Infow("Processor: VAD drop details", "ssrc", ssrc, "rms", rms, "threshold", p.vadRmsThreshold)
 				return
 			}
 		}
@@ -397,12 +439,18 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 			break
 		}
 		req.Header.Set("Content-Type", "audio/wav")
-		logging.Sugar().Infof("Processor: sending audio to WHISPER_URL=%s bytes=%d (attempt=%d)", whisper, len(wav), attempt+1)
+		logging.Sugar().Infow("Processor: sending audio",
+			"whisper_url", whisper,
+			"bytes", len(wav),
+			"attempt", attempt+1,
+		)
 
 		resp, err := p.httpClient.Do(req)
 		cancel()
 		if err != nil {
+			atomic.AddInt64(&p.sendFailCount, 1)
 			lastErr = err
+			logging.Sugar().Warnw("Processor: HTTP send error", "err", err, "attempt", attempt+1, "whisper_url", whisper)
 			// transient network error -> retry
 			backoff := time.Duration(1<<attempt) * time.Second
 			time.Sleep(backoff)
@@ -411,7 +459,9 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		defer resp.Body.Close()
 
 		if resp.StatusCode >= 500 {
+			atomic.AddInt64(&p.sendFailCount, 1)
 			lastErr = fmt.Errorf("server error status=%d", resp.StatusCode)
+			logging.Sugar().Warnw("Processor: STT server error", "status", resp.StatusCode, "attempt", attempt+1)
 			backoff := time.Duration(1<<attempt) * time.Second
 			time.Sleep(backoff)
 			continue
@@ -424,6 +474,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		}
 
 		// Successful response - log transcript if present and return nil.
+		atomic.AddInt64(&p.sendCount, 1)
 		p.mu.Lock()
 		uid := p.ssrcMap[ssrc]
 		p.mu.Unlock()
@@ -454,7 +505,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 				b, _ := json.Marshal(payload)
 				req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
 				if err != nil {
-					logging.Sugar().Warnf("Processor: text forward new request error: %v", err)
+					logging.Sugar().Warnw("Processor: text forward new request error", "err", err)
 					return
 				}
 				req.Header.Set("Content-Type", "application/json")
@@ -462,12 +513,12 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 				c := &http.Client{Timeout: 5 * time.Second}
 				resp, err := c.Do(req)
 				if err != nil {
-					logging.Sugar().Warnf("Processor: text forward POST failed: %v", err)
+					logging.Sugar().Warnw("Processor: text forward POST failed", "err", err)
 					return
 				}
 				defer resp.Body.Close()
 				if resp.StatusCode >= 300 {
-					logging.Sugar().Warnf("Processor: text forward returned status=%d", resp.StatusCode)
+					logging.Sugar().Warnw("Processor: text forward returned non-2xx", "status", resp.StatusCode, "forward_url", forwardURL, "ssrc", ssrc)
 				} else {
 					logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc)
 				}
