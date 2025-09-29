@@ -42,17 +42,23 @@ type opusPacket struct {
 }
 
 func NewProcessor() (*Processor, error) {
-	return NewProcessorWithResolver(nil)
+	return NewProcessorWithResolver(context.Background(), nil)
 }
 
 // NewProcessorWithResolver creates a Processor and accepts an optional
-// NameResolver which will be used to populate human-friendly names in logs.
-func NewProcessorWithResolver(resolver NameResolver) (*Processor, error) {
+// parent context and NameResolver which will be used to populate human-friendly names in logs.
+// If parent is nil the background context is used. The returned Processor's
+// internal context is a child of the provided parent so callers can cancel
+// the parent to request shutdown of processor workers.
+func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*Processor, error) {
+	if parent == nil {
+		parent = context.Background()
+	}
 	dec, err := opus.NewDecoder(48000, 2)
 	if err != nil {
 		return nil, err
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(parent)
 	p := &Processor{
 		ssrcMap:    make(map[uint32]string),
 		allowlist:  make(map[string]struct{}),

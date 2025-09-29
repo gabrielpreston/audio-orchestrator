@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -354,7 +356,13 @@ func main() {
 	// reuse it for the voice processor and local logging so caches are shared.
 	resolver := voice.NewDiscordResolver(dg)
 	sugar.Infow("creating voice processor")
-	vp, err := voice.NewProcessorWithResolver(resolver)
+	// Create a root context for the application so subsystems can observe
+	// cancellation during shutdown. This context will be cancelled below
+	// when we receive an OS signal.
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
+
+	vp, err := voice.NewProcessorWithResolver(rootCtx, resolver)
 	if err != nil {
 		sugar.Fatalf("voice.NewProcessor: %v", err)
 	}
@@ -548,15 +556,22 @@ func main() {
 			// and dispatch to STT asynchronously.
 			if vc.OpusRecv != nil {
 				go func(vc *discordgo.VoiceConnection) {
-					// Loop until OpusRecv channel is closed or the VoiceConnection ends.
-					for pkt := range vc.OpusRecv {
-						// pkt is of type *discordgo.Packet which contains SSRC and Opus
-						if pkt == nil {
-							continue
+					// Loop until OpusRecv channel is closed, the VoiceConnection ends,
+					// or the root context is cancelled. This ensures the application
+					// can shut down promptly when requested.
+					for {
+						select {
+						case <-rootCtx.Done():
+							return
+						case pkt, ok := <-vc.OpusRecv:
+							if !ok {
+								return
+							}
+							if pkt == nil {
+								continue
+							}
+							vp.ProcessOpusFrame(uint32(pkt.SSRC), pkt.Opus)
 						}
-						// Forward the raw opus payload to the processor. Processor
-						// makes a copy of the bytes when enqueueing.
-						vp.ProcessOpusFrame(uint32(pkt.SSRC), pkt.Opus)
 					}
 				}(vc)
 			} else {
@@ -575,18 +590,33 @@ func main() {
 	<-stop
 	sugar.Infow("shutdown signal received, closing resources")
 
-	if err := vp.Close(); err != nil {
-		sugar.Warnf("processor close error: %v", err)
-	}
-	// If we joined a voice channel, disconnect cleanly first.
-	if vc != nil {
-		if err := vc.Disconnect(); err != nil {
-			sugar.Warnf("voice disconnect error: %v", err)
-		}
-	}
+	// Cancel the root context so all subsystems observing it can begin
+	// cooperative shutdown (Processor, opus reader goroutine, etc.).
+	rootCancel()
 
-	if err := dg.Close(); err != nil {
-		sugar.Warnf("discord session close error: %v", err)
+	// Perform cleanup with a timeout so shutdown cannot hang indefinitely.
+	done := make(chan struct{})
+	go func() {
+		if err := vp.Close(); err != nil {
+			sugar.Warnf("processor close error: %v", err)
+		}
+		// If we joined a voice channel, disconnect cleanly first.
+		if vc != nil {
+			if err := vc.Disconnect(); err != nil {
+				sugar.Warnf("voice disconnect error: %v", err)
+			}
+		}
+		if err := dg.Close(); err != nil {
+			sugar.Warnf("discord session close error: %v", err)
+		}
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// normal shutdown finished
+	case <-time.After(10 * time.Second):
+		sugar.Warn("shutdown timed out after 10s; forcing exit")
 	}
 
 	// ensure any logging buffers are flushed
