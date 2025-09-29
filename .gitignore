@@ -1,3 +1,5 @@
 .env.local
 bin/
 ./bot
+.venv-*/
+__pycache__/
