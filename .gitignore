@@ -1,6 +1,8 @@
 .env.local
+.env.docker
 bin/
 ./bot
 .venv-*/
 __pycache__/
 logs/
+.wavs/

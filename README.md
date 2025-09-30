@@ -8,6 +8,18 @@ Quickstart:
 make test
 ```
 
+Troubleshooting: saving audio to disk
+-----------------------------------
+
+You can optionally save decoded audio WAV files to disk for troubleshooting STT mismatches by setting the `SAVE_AUDIO_DIR` environment variable before running the bot. Example:
+
+```bash
+export SAVE_AUDIO_DIR="/tmp/discord-voice-audio"
+make run
+```
+
+The processor will write per-flush WAV files named like `20250101T123456.000Z_ssrc12345_username.wav` so you can replay them locally and compare against your STT service.
+
 BuildKit / buildx
 ------------------
 

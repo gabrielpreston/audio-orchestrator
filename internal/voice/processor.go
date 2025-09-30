@@ -56,6 +56,15 @@ type Processor struct {
 	vadDropCount   int64 // VAD drop count
 	sendCount      int64 // successful sends to WHISPER_URL
 	sendFailCount  int64 // failed sends
+
+	// transcript aggregation: buffer successive transcripts per-SSRC and
+	// emit a joined transcript when no new partial arrives within aggMs.
+	aggMu sync.Mutex
+	aggs  map[uint32]*transcriptAgg
+	aggMs int // aggregation window in milliseconds
+	// optional directory to save raw/wav audio for troubleshooting. If empty,
+	// audio is not saved to disk.
+	saveAudioDir string
 }
 
 type opusPacket struct {
@@ -67,6 +76,12 @@ type opusPacket struct {
 type pcmAccum struct {
 	samples []int16
 	last    time.Time
+}
+
+// transcriptAgg holds an aggregated transcript for an SSRC and timestamp of last update
+type transcriptAgg struct {
+	text string
+	last time.Time
 }
 
 func NewProcessor() (*Processor, error) {
@@ -91,15 +106,17 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	}
 	ctx, cancel := context.WithCancel(parent)
 	p := &Processor{
-		ssrcMap:    make(map[uint32]string),
-		allowlist:  make(map[string]struct{}),
-		dec:        dec,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
-		resolver:   resolver,
-		ctx:        ctx,
-		cancel:     cancel,
-		opusCh:     make(chan opusPacket, 32),
-		accums:     make(map[uint32]*pcmAccum),
+		ssrcMap:      make(map[uint32]string),
+		allowlist:    make(map[string]struct{}),
+		dec:          dec,
+		httpClient:   &http.Client{Timeout: 15 * time.Second},
+		resolver:     resolver,
+		ctx:          ctx,
+		cancel:       cancel,
+		opusCh:       make(chan opusPacket, 32),
+		accums:       make(map[uint32]*pcmAccum),
+		aggs:         make(map[uint32]*transcriptAgg),
+		saveAudioDir: strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR")),
 	}
 
 	// Configure accumulation thresholds from env or defaults
@@ -196,6 +213,31 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	}()
 
 	logging.Sugar().Info("Processor: initialized opus decoder and http client")
+
+	// transcript aggregation window (ms)
+	p.aggMs = 1500
+	if v := os.Getenv("TRANSCRIPT_AGG_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			p.aggMs = n
+		}
+	}
+
+	// start flusher for transcript aggregation
+	p.wg.Add(1)
+	go func() {
+		defer p.wg.Done()
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-ticker.C:
+				p.flushExpiredAggs()
+			}
+		}
+	}()
+
 	return p, nil
 }
 
@@ -353,6 +395,47 @@ func (p *Processor) flushAccum(ssrc uint32) {
 	for _, s := range samples {
 		binary.Write(pcmBytes, binary.LittleEndian, s)
 	}
+	// If configured, save WAV to disk for troubleshooting before sending
+	if p.saveAudioDir != "" {
+		go func(ssrc uint32, pcm []byte) {
+			// ensure dir exists
+			if err := os.MkdirAll(p.saveAudioDir, 0o755); err != nil {
+				logging.Sugar().Warnw("Processor: failed to create save audio dir", "dir", p.saveAudioDir, "err", err)
+				return
+			}
+			// resolve username if available
+			p.mu.Lock()
+			uid := p.ssrcMap[ssrc]
+			p.mu.Unlock()
+			username := "unknown"
+			if uid != "" {
+				username = uid
+				if p.resolver != nil {
+					if n := p.resolver.UserName(uid); n != "" {
+						// sanitize username to be filesystem-friendly: replace spaces with _
+						username = strings.ReplaceAll(n, " ", "_")
+					}
+				}
+			}
+			ts := time.Now().UTC().Format("20060102T150405.000Z")
+			fname := fmt.Sprintf("%s/%s_ssrc%d_%s.wav", strings.TrimRight(p.saveAudioDir, "/"), ts, ssrc, username)
+			// build wav
+			wav := buildWAV(pcm, 48000, 1, 16)
+			// write atomically to tmp then rename
+			tmp := fname + ".tmp"
+			if err := os.WriteFile(tmp, wav, 0o644); err != nil {
+				logging.Sugar().Warnw("Processor: failed to write wav tmp file", "tmp", tmp, "err", err)
+				return
+			}
+			if err := os.Rename(tmp, fname); err != nil {
+				logging.Sugar().Warnw("Processor: failed to rename wav tmp", "tmp", tmp, "final", fname, "err", err)
+				// best-effort: try to remove tmp
+				_ = os.Remove(tmp)
+				return
+			}
+			logging.Sugar().Infow("Processor: saved audio to disk", "path", fname, "ssrc", ssrc)
+		}(ssrc, pcmBytes.Bytes())
+	}
 	// Compute RMS and apply simple VAD: if RMS is below threshold, drop
 	// the chunk. RMS computed in int32 space to avoid overflow.
 	if p.vadRmsThreshold > 0 {
@@ -406,20 +489,38 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		return fmt.Errorf("WHISPER_URL not set")
 	}
 
-	// If configured, request translation by adding a query param. This keeps
-	// compatibility with simple STT endpoints while allowing the STT service
-	// to perform translate tasks when supported (e.g., faster-whisper task=translate).
+	// Build base whisper URL and optionally add query params to control
+	// server-side transcription knobs. This keeps compatibility while
+	// allowing runtime tuning via environment variables.
 	whisperURL := whisper
-	if v := os.Getenv("WHISPER_TRANSLATE"); v != "" {
-		lv := strings.ToLower(strings.TrimSpace(v))
-		if lv == "1" || lv == "true" || lv == "yes" {
-			if u, err := url.Parse(whisper); err == nil {
-				q := u.Query()
+	if u, err := url.Parse(whisper); err == nil {
+		q := u.Query()
+		// translation toggle
+		if v := os.Getenv("WHISPER_TRANSLATE"); v != "" {
+			lv := strings.ToLower(strings.TrimSpace(v))
+			if lv == "1" || lv == "true" || lv == "yes" {
 				q.Set("task", "translate")
-				u.RawQuery = q.Encode()
-				whisperURL = u.String()
 			}
 		}
+		// optional beam size override for faster-whisper (int)
+		if v := os.Getenv("STT_BEAM_SIZE"); v != "" {
+			if _, err := strconv.Atoi(v); err == nil {
+				q.Set("beam_size", v)
+			}
+		}
+		// optional language override (e.g., "en", "es")
+		if v := os.Getenv("STT_LANGUAGE"); v != "" {
+			q.Set("language", v)
+		}
+		// optional word timestamps toggle for faster-whisper
+		if v := os.Getenv("STT_WORD_TIMESTAMPS"); v != "" {
+			lv := strings.ToLower(strings.TrimSpace(v))
+			if lv == "1" || lv == "true" || lv == "yes" {
+				q.Set("word_timestamps", "1")
+			}
+		}
+		u.RawQuery = q.Encode()
+		whisperURL = u.String()
 	}
 
 	// Build WAV bytes (48kHz, 2 channels, 16-bit samples) to be broadly compatible
@@ -524,12 +625,113 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 				}
 			}(fw, uid, ssrc, transcript)
 		}
-		fields := logging.UserFields(username, "")
-		fields = append(fields, "ssrc", ssrc, "transcript", transcript)
-		logging.Sugar().Infow("Processor: transcription result", fields...)
+		// Use aggregation: add the transcript to the per-SSRC aggregator and
+		// defer emitting until aggregation window passes.
+		if transcript != "" {
+			p.addAggregatedTranscript(ssrc, username, transcript)
+		}
 		return nil
 	}
 	return lastErr
+}
+
+// addAggregatedTranscript appends/inserts a transcript into the per-SSRC
+// aggregation buffer and updates the timestamp. The flusher will emit
+// combined transcripts after aggMs of inactivity.
+func (p *Processor) addAggregatedTranscript(ssrc uint32, username, text string) {
+	p.aggMu.Lock()
+	defer p.aggMu.Unlock()
+	a, ok := p.aggs[ssrc]
+	if !ok {
+		a = &transcriptAgg{text: text, last: time.Now()}
+		p.aggs[ssrc] = a
+		return
+	}
+	// Append with a space separator if existing text is non-empty
+	if a.text != "" {
+		a.text = strings.TrimSpace(a.text) + " " + strings.TrimSpace(text)
+	} else {
+		a.text = strings.TrimSpace(text)
+	}
+	a.last = time.Now()
+}
+
+// flushExpiredAggs checks aggregation buffers and flushes ones that have
+// been inactive longer than aggMs.
+func (p *Processor) flushExpiredAggs() {
+	now := time.Now()
+	var toFlush []uint32
+	p.aggMu.Lock()
+	for ssrc, a := range p.aggs {
+		if now.Sub(a.last) >= time.Duration(p.aggMs)*time.Millisecond {
+			toFlush = append(toFlush, ssrc)
+		}
+	}
+	p.aggMu.Unlock()
+	for _, s := range toFlush {
+		p.flushAgg(s)
+	}
+}
+
+// flushAgg emits the aggregated transcript for an SSRC (logs + optional forward)
+func (p *Processor) flushAgg(ssrc uint32) {
+	p.aggMu.Lock()
+	a, ok := p.aggs[ssrc]
+	if !ok {
+		p.aggMu.Unlock()
+		return
+	}
+	text := a.text
+	delete(p.aggs, ssrc)
+	p.aggMu.Unlock()
+	if text == "" {
+		return
+	}
+	// Resolve username for logging/forwarding
+	p.mu.Lock()
+	uid := p.ssrcMap[ssrc]
+	p.mu.Unlock()
+	username := uid
+	if p.resolver != nil {
+		if n := p.resolver.UserName(uid); n != "" {
+			username = n
+		}
+	}
+	if username == "" {
+		username = "unknown"
+	}
+	fields := logging.UserFields(username, "")
+	fields = append(fields, "ssrc", ssrc, "transcript", strings.TrimSpace(text))
+	logging.Sugar().Infow("Processor: transcription result", fields...)
+	// Also forward to TEXT_FORWARD_URL if configured (reuse same payload logic)
+	if fw := os.Getenv("TEXT_FORWARD_URL"); fw != "" {
+		go func(forwardURL string, uid string, ssrc uint32, text string) {
+			payload := map[string]interface{}{
+				"user_id":    uid,
+				"ssrc":       ssrc,
+				"transcript": text,
+			}
+			b, _ := json.Marshal(payload)
+			req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
+			if err != nil {
+				logging.Sugar().Warnw("Processor: text forward new request error", "err", err)
+				return
+			}
+			req.Header.Set("Content-Type", "application/json")
+			c := &http.Client{Timeout: 5 * time.Second}
+			resp, err := c.Do(req)
+			if err != nil {
+				logging.Sugar().Warnw("Processor: text forward POST failed", "err", err)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode >= 300 {
+				logging.Sugar().Warnw("Processor: text forward returned non-2xx", "status", resp.StatusCode, "forward_url", forwardURL, "ssrc", ssrc)
+			} else {
+				logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc)
+			}
+		}(fw, uid, ssrc, strings.TrimSpace(text))
+	}
 }
 
 // buildWAV creates a simple RIFF/WAVE header for 16-bit PCM and returns the

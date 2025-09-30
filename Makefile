@@ -53,7 +53,13 @@ build: ## Build the bot binary
 	$(GO) build -o $(BINARY) ./cmd/bot
 
 
-run: ## Run all services via docker compose
+stop: ## Stop and remove containers for the compose stack
+	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
+	@# Ensure we have a compose command available
+	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+	@$(DOCKER_COMPOSE) down --remove-orphans
+
+run: stop ## Stop all running services before starting all services
 	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers via docker compose (press Ctrl+C to stop)$(COLOR_OFF)"
 	@# Fail early if no compose command is available
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
@@ -64,12 +70,6 @@ run: ## Run all services via docker compose
 		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but 'docker buildx' is missing; running without BuildKit."; fi; \
 		$(DOCKER_COMPOSE) up -d --build --remove-orphans; \
 	fi
-
-stop: ## Stop and remove containers for the compose stack
-	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
-	@# Ensure we have a compose command available
-	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
-	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (live). Optionally set SERVICE=bot to tail a single service
 	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"

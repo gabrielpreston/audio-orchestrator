@@ -8,7 +8,7 @@ services:
     ports:
       - "9000:9000"
     env_file:
-      - ./.env.local
+      - ./.env.docker
     restart: unless-stopped
 
   bot:
@@ -19,7 +19,8 @@ services:
     depends_on:
       - stt
     env_file:
-      - ./.env.local
+      - ./.env.docker
     volumes:
       - ./logs:/app/logs
+      - ./.wavs:/app/wavs
     restart: unless-stopped

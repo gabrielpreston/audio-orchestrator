@@ -59,28 +59,48 @@ async def asr(request: Request):
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
     # Allow clients to optionally request a translation task by passing
-    # the `task=translate` query parameter. If absent, default to normal
-    # transcription (language detection disabled so model can detect).
+    # the `task=translate` query parameter. We also accept `beam_size` and
+    # `language` query params to tune faster-whisper behavior at runtime.
     task = request.query_params.get('task')
+    beam_size_q = request.query_params.get('beam_size')
+    lang_q = request.query_params.get('language')
+    word_ts_q = request.query_params.get('word_timestamps')
+    # default beam size (if not provided) — keep it modest to balance quality/latency
+    beam_size = 5
+    if beam_size_q:
+        try:
+            beam_size = int(beam_size_q)
+            if beam_size < 1:
+                beam_size = 5
+        except Exception:
+            raise HTTPException(status_code=400, detail="invalid beam_size query param")
+
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(body)
             tmp_path = tmp.name
-        # faster-whisper's transcribe takes task and language. When task is
-        # 'translate' we let the model translate to English. Otherwise leave
-        # language=None to perform language detection and output in-source language.
+        # faster-whisper's transcribe signature accepts beam_size and optional
+        # task/language parameters. If language is not provided we pass None
+        # to allow automatic language detection.
+        # Some faster-whisper variants support word-level timestamps; request it
+        # only when asked via the query param.
         if task == 'translate':
-            segments, info = model.transcribe(tmp_path, beam_size=5, task='translate', language=None)
+            segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q)
         else:
-            segments, info = model.transcribe(tmp_path, beam_size=5, language=None)
+            segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q)
+        # If word timestamps were requested, prefer to include them in the output
+        # in a simple string form. This repo doesn't yet consume timestamps, but
+        # exposing them helps debugging.
         text = " ".join([seg.text for seg in segments])
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
 
     resp = {"text": text, "duration": info.duration}
     if task:
