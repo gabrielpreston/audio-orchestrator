@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/google/uuid"
 	"github.com/hraban/opus"
 
 	"github.com/discord-voice-lab/internal/logging"
@@ -62,6 +64,14 @@ type Processor struct {
 	aggMu sync.Mutex
 	aggs  map[uint32]*transcriptAgg
 	aggMs int // aggregation window in milliseconds
+	// If true, flush immediately once minFlushMs is reached. When false,
+	// only flush on maxAccumMs or inactivity timeout to avoid premature
+	// chunking of long utterances.
+	flushOnMin bool
+	// silenceTimeoutMs controls how long (ms) of observed silence after the
+	// last above-threshold RMS we'll wait before flushing an accumulator.
+	// This allows us to dynamically extend buffering while speech continues.
+	silenceTimeoutMs int
 	// optional directory to save raw/wav audio for troubleshooting. If empty,
 	// audio is not saved to disk.
 	saveAudioDir string
@@ -70,12 +80,30 @@ type Processor struct {
 type opusPacket struct {
 	ssrc uint32
 	data []byte
+	// optional correlation ID propagated from enqueue time so logs and
+	// accumulators can be correlated from the earliest point in the
+	// pipeline.
+	correlationID string
 }
 
 // pcmAccum holds accumulated PCM samples for an SSRC and timestamp of last append
 type pcmAccum struct {
 	samples []int16
 	last    time.Time
+	// correlationID is a per-accumulator UUID used to correlate saved WAVs,
+	// STT requests and logs for a single accumulated chunk.
+	correlationID string
+	// lastAboveRms records the last time the accumulator saw a sample with
+	// RMS above the VAD threshold. Used to enforce a silence period before
+	// flushing to avoid chopping mid-utterance.
+	lastAboveRms time.Time
+	// createdAt marks when this accumulator was first created (used to
+	// compute end-to-end time from accumulation start -> STT response).
+	createdAt time.Time
+	// user info captured from SSRC mapping when available. This avoids a
+	// race where speaking updates arrive after accumulator creation.
+	userID   string
+	username string
 }
 
 // transcriptAgg holds an aggregated transcript for an SSRC and timestamp of last update
@@ -106,33 +134,165 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	}
 	ctx, cancel := context.WithCancel(parent)
 	p := &Processor{
-		ssrcMap:      make(map[uint32]string),
-		allowlist:    make(map[string]struct{}),
-		dec:          dec,
-		httpClient:   &http.Client{Timeout: 15 * time.Second},
-		resolver:     resolver,
-		ctx:          ctx,
-		cancel:       cancel,
-		opusCh:       make(chan opusPacket, 32),
-		accums:       make(map[uint32]*pcmAccum),
-		aggs:         make(map[uint32]*transcriptAgg),
-		saveAudioDir: strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR")),
+		ssrcMap:    make(map[uint32]string),
+		allowlist:  make(map[string]struct{}),
+		dec:        dec,
+		httpClient: &http.Client{Timeout: 15 * time.Second},
+		resolver:   resolver,
+		ctx:        ctx,
+		cancel:     cancel,
+		opusCh:     make(chan opusPacket, 32),
+		accums:     make(map[uint32]*pcmAccum),
+		aggs:       make(map[uint32]*transcriptAgg),
+		// read the container-local save path; fall back to legacy SAVE_AUDIO_DIR
+		saveAudioDir: func() string {
+			if v := strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR_CONTAINER")); v != "" {
+				return v
+			}
+			return strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR"))
+		}(),
+	}
+
+	// Retention settings for saved audio (optional)
+	retHours := 72
+	if v := os.Getenv("SAVE_AUDIO_RETENTION_HOURS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			retHours = n
+		}
+	}
+	cleanIntervalMin := 10
+	if v := os.Getenv("SAVE_AUDIO_CLEAN_INTERVAL_MIN"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cleanIntervalMin = n
+		}
+	}
+	maxFiles := 0
+	if v := os.Getenv("SAVE_AUDIO_MAX_FILES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			maxFiles = n
+		}
+	}
+
+	// If saveAudioDir is set, start a background cleanup goroutine to prune old files
+	if p.saveAudioDir != "" {
+		p.wg.Add(1)
+		go func(dir string, retention time.Duration, interval time.Duration, maxFiles int) {
+			defer p.wg.Done()
+			ticker := time.NewTicker(interval)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-p.ctx.Done():
+					return
+				case <-ticker.C:
+					// list files and remove sidecar pairs older than retention
+					files, err := os.ReadDir(dir)
+					if err != nil {
+						logging.Sugar().Warnw("Processor: cleanup readDir failed", "dir", dir, "err", err)
+						continue
+					}
+					// Collect sidecar JSON entries and associated WAVs, keyed by a base id
+					type pairInfo struct {
+						jsonPath string
+						wavPath  string
+						mod      time.Time
+					}
+					pairs := make(map[string]*pairInfo)
+					for _, fi := range files {
+						name := fi.Name()
+						if !strings.HasSuffix(name, ".json") {
+							continue
+						}
+						jsonPath := dir + "/" + name
+						b, err := os.ReadFile(jsonPath)
+						if err != nil {
+							continue
+						}
+						var sc map[string]interface{}
+						if err := json.Unmarshal(b, &sc); err != nil {
+							continue
+						}
+						wavPath := ""
+						if v, ok := sc["wav_path"].(string); ok && v != "" {
+							wavPath = v
+						} else {
+							// derive wav path by replacing .json with .wav
+							wavPath = strings.TrimSuffix(jsonPath, ".json") + ".wav"
+						}
+						st, err := os.Stat(jsonPath)
+						if err != nil {
+							continue
+						}
+						base := strings.TrimSuffix(name, ".json")
+						pairs[base] = &pairInfo{jsonPath: jsonPath, wavPath: wavPath, mod: st.ModTime()}
+					}
+					// convert to slice and sort by modtime ascending
+					var pairList []pairInfo
+					for _, p := range pairs {
+						pairList = append(pairList, *p)
+					}
+					sort.Slice(pairList, func(i, j int) bool { return pairList[i].mod.Before(pairList[j].mod) })
+					// Remove pairs older than retention
+					cutoff := time.Now().Add(-retention)
+					removed := 0
+					for _, pi := range pairList {
+						if pi.mod.Before(cutoff) {
+							// remove json and wav if present
+							_ = os.Remove(pi.jsonPath)
+							if pi.wavPath != "" {
+								_ = os.Remove(pi.wavPath)
+							}
+							removed++
+						}
+					}
+					if removed > 0 {
+						logging.Sugar().Infow("Processor: cleanup removed old saved audio pairs", "dir", dir, "removed_pairs", removed)
+					}
+					// If maxFiles > 0, enforce it in terms of pairs (oldest first)
+					if maxFiles > 0 {
+						filesLeft := len(pairList) - removed
+						if filesLeft > maxFiles {
+							toRemove := filesLeft - maxFiles
+							count := 0
+							for _, pi := range pairList {
+								if count >= toRemove {
+									break
+								}
+								// skip pairs that were already removed above
+								if _, err := os.Stat(pi.jsonPath); err == nil {
+									_ = os.Remove(pi.jsonPath)
+								}
+								if pi.wavPath != "" {
+									if _, err := os.Stat(pi.wavPath); err == nil {
+										_ = os.Remove(pi.wavPath)
+									}
+								}
+								count++
+							}
+							if count > 0 {
+								logging.Sugar().Infow("Processor: cleanup removed pairs to enforce max_files", "dir", dir, "removed_pairs", count, "max_pairs", maxFiles)
+							}
+						}
+					}
+				}
+			}
+		}(p.saveAudioDir, time.Duration(retHours)*time.Hour, time.Duration(cleanIntervalMin)*time.Minute, maxFiles)
 	}
 
 	// Configure accumulation thresholds from env or defaults
-	p.minFlushMs = 300
+	p.minFlushMs = 800
 	if v := os.Getenv("MIN_FLUSH_MS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			p.minFlushMs = n
 		}
 	}
-	p.flushTimeout = 200
+	p.flushTimeout = 1200
 	if v := os.Getenv("FLUSH_TIMEOUT_MS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			p.flushTimeout = n
 		}
 	}
-	p.maxAccumMs = 5000
+	p.maxAccumMs = 12000
 	if v := os.Getenv("MAX_ACCUM_MS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			p.maxAccumMs = n
@@ -142,10 +302,27 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	// RMS VAD threshold: if accumulated audio RMS is below this (int16 units)
 	// we will drop the chunk instead of sending it to STT. Allows filtering
 	// of low-energy noise. Default is 500 (adjustable via VAD_RMS_THRESHOLD).
-	p.vadRmsThreshold = 500
+	p.vadRmsThreshold = 110
 	if v := os.Getenv("VAD_RMS_THRESHOLD"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			p.vadRmsThreshold = n
+		}
+	}
+
+	// Whether to flush as soon as minFlushMs is reached. When false, we will
+	// only flush when maxAccumMs is reached or when an inactivity timeout
+	// elapses; this avoids aggressive chunking for long utterances.
+	p.flushOnMin = false
+	if v := os.Getenv("FLUSH_ON_MIN"); v != "" {
+		lv := strings.ToLower(strings.TrimSpace(v))
+		if lv == "1" || lv == "true" || lv == "yes" {
+			p.flushOnMin = true
+		}
+	}
+	p.silenceTimeoutMs = 600
+	if v := os.Getenv("SILENCE_TIMEOUT_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			p.silenceTimeoutMs = n
 		}
 	}
 
@@ -287,6 +464,21 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.ssrcMap[uint32(su.SSRC)] = su.UserID
+	// Backfill any existing accumulator's user info to avoid unknown user in sidecars
+	p.accumMu.Lock()
+	if a, ok := p.accums[uint32(su.SSRC)]; ok {
+		a.userID = su.UserID
+		if p.resolver != nil {
+			if n := p.resolver.UserName(su.UserID); n != "" {
+				a.username = strings.ReplaceAll(n, " ", "_")
+			} else {
+				a.username = su.UserID
+			}
+		} else {
+			a.username = su.UserID
+		}
+	}
+	p.accumMu.Unlock()
 	var userName string
 	if p.resolver != nil {
 		userName = p.resolver.UserName(su.UserID)
@@ -314,12 +506,44 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 		return
 	}
 
+	// Determine a correlation ID to propagate with the packet so early logs
+	// (enqueue time) can include it. Prefer any existing accumulator's ID;
+	// otherwise generate one if we're configured to save audio.
+	var outgoingCID string
+	if p.saveAudioDir != "" {
+		p.accumMu.Lock()
+		if a, ok := p.accums[ssrc]; ok && a.correlationID != "" {
+			outgoingCID = a.correlationID
+		} else {
+			// generate and stash a placeholder accumulator so the ID exists
+			outgoingCID = uuid.NewString()
+			if !ok {
+				// capture known user mapping if present to avoid later lookup races
+				uid := p.ssrcMap[ssrc]
+				uname := "unknown"
+				if uid != "" && p.resolver != nil {
+					if n := p.resolver.UserName(uid); n != "" {
+						uname = strings.ReplaceAll(n, " ", "_")
+					}
+				}
+				p.accums[ssrc] = &pcmAccum{samples: nil, last: time.Now(), correlationID: outgoingCID, createdAt: time.Now(), userID: uid, username: uname}
+			} else {
+				p.accums[ssrc].correlationID = outgoingCID
+			}
+		}
+		p.accumMu.Unlock()
+	}
+
 	// enqueue for background processing; drop if queue full to avoid blocking
 	select {
-	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...)}:
+	case p.opusCh <- opusPacket{ssrc: ssrc, data: append([]byte(nil), opusPayload...), correlationID: outgoingCID}:
 		// increment enqueue counter and log enqueue for diagnostics
 		atomic.AddInt64(&p.enqueueCount, 1)
-		logging.Sugar().Infow("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh))
+		if outgoingCID != "" {
+			logging.Sugar().Infow("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh), "correlation_id", outgoingCID)
+		} else {
+			logging.Sugar().Infow("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh))
+		}
 	default:
 		atomic.AddInt64(&p.dropQueueCount, 1)
 		logging.Sugar().Warnw("Processor: dropping opus frame; queue full", "ssrc", ssrc)
@@ -331,7 +555,6 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	ssrc := pkt.ssrc
 	opusPayload := pkt.data
-	logging.Sugar().Infow("Processor: handling opus packet", "ssrc", ssrc, "payload_bytes", len(opusPayload))
 	// Allocate a buffer large enough for a single frame. 20ms at 48kHz is
 	// 960 samples per channel. Use a small multiple to be safe.
 	pcm := make([]int16, 48000/50)
@@ -351,30 +574,79 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	// when the accumulator reaches a minimum duration or when it times out.
 	samples := make([]int16, n)
 	copy(samples, pcm[:n])
-	p.appendAccum(ssrc, samples)
+	cid := p.appendAccum(ssrc, samples, pkt.correlationID)
+	// Log the correlation id associated with this accumulated chunk so it's
+	// visible early in the pipeline while frames are still arriving.
+	if cid != "" {
+		logging.Sugar().Infow("Processor: appended opus frame with correlation", "ssrc", ssrc, "correlation_id", cid, "payload_bytes", len(opusPayload))
+	} else {
+		logging.Sugar().Debugw("Processor: appended opus frame", "ssrc", ssrc, "payload_bytes", len(opusPayload))
+	}
 }
 
 // appendAccum adds decoded samples to the per-SSRC accumulator.
-func (p *Processor) appendAccum(ssrc uint32, samples []int16) {
+// appendAccum adds decoded samples to the per-SSRC accumulator and returns
+// the accumulator's correlation ID (if any). The returned correlation ID is
+// generated when a new accumulator is created and is used to correlate
+// saved WAVs and STT requests/logs for that chunk.
+// appendAccum adds decoded samples to the per-SSRC accumulator and returns
+// the accumulator's correlation ID (if any). If an incomingCID is provided
+// it will be preferred when creating or populating the accumulator.
+func (p *Processor) appendAccum(ssrc uint32, samples []int16, incomingCID string) string {
 	p.accumMu.Lock()
 	defer p.accumMu.Unlock()
 	a, ok := p.accums[ssrc]
 	if !ok {
-		a = &pcmAccum{samples: make([]int16, 0, len(samples)*4), last: time.Now()}
+		// If we have a user mapping already, capture it to avoid races where
+		// speaking updates arrive after accumulator creation.
+		uid := p.ssrcMap[ssrc]
+		uname := "unknown"
+		if uid != "" && p.resolver != nil {
+			if n := p.resolver.UserName(uid); n != "" {
+				uname = strings.ReplaceAll(n, " ", "_")
+			}
+		}
+		a = &pcmAccum{samples: make([]int16, 0, len(samples)*4), last: time.Now(), createdAt: time.Now(), userID: uid, username: uname}
+		// Prefer incomingCID if provided. Otherwise generate when we intend to
+		// save audio (SAVE_AUDIO_DIR set).
+		if incomingCID != "" {
+			a.correlationID = incomingCID
+		} else if p.saveAudioDir != "" {
+			a.correlationID = uuid.NewString()
+		}
 		p.accums[ssrc] = a
+	}
+	// If accumulator exists but lacks an ID, populate it from incomingCID.
+	if a.correlationID == "" && incomingCID != "" {
+		a.correlationID = incomingCID
 	}
 	a.samples = append(a.samples, samples...)
 	a.last = time.Now()
+	// Compute RMS for the newly appended samples to update lastAboveRms.
+	if p.vadRmsThreshold > 0 && len(samples) > 0 {
+		var sumSq int64
+		for _, s := range samples {
+			v := int64(s)
+			sumSq += v * v
+		}
+		meanSq := sumSq / int64(len(samples))
+		rms := int(math.Sqrt(float64(meanSq)))
+		if rms >= p.vadRmsThreshold {
+			a.lastAboveRms = time.Now()
+		}
+	}
 
-	// If we've reached the minFlushMs threshold, flush immediately (async)
 	// Calculate duration in ms: samples / sampleRate * 1000 (sampleRate=48000)
 	durMs := (len(a.samples) * 1000) / 48000
-	if durMs >= p.minFlushMs || durMs*2 >= p.maxAccumMs {
+	// Flush when we reach the max accumulation limit, or when the min flush
+	// threshold is reached and the FLUSH_ON_MIN policy is enabled.
+	if durMs >= p.maxAccumMs || (durMs >= p.minFlushMs && p.flushOnMin) {
 		// flush in a goroutine to avoid holding locks during HTTP
 		go func(ssrc uint32) {
 			p.flushAccum(ssrc)
 		}(ssrc)
 	}
+	return a.correlationID
 }
 
 // flushAccum flushes an accumulator by sending its PCM to the STT service.
@@ -387,6 +659,8 @@ func (p *Processor) flushAccum(ssrc uint32) {
 		return
 	}
 	samples := a.samples
+	// capture correlationID from accumulator (may be empty)
+	corrID := a.correlationID
 	delete(p.accums, ssrc)
 	p.accumMu.Unlock()
 
@@ -395,33 +669,60 @@ func (p *Processor) flushAccum(ssrc uint32) {
 	for _, s := range samples {
 		binary.Write(pcmBytes, binary.LittleEndian, s)
 	}
-	// If configured, save WAV to disk for troubleshooting before sending
+	// Compute RMS and duration (int16 samples)
+	var sumSq int64
+	for _, s := range samples {
+		v := int64(s)
+		sumSq += v * v
+	}
+	durationMs := 0
+	if len(samples) > 0 {
+		durationMs = (len(samples) * 1000) / 48000
+	}
+	rmsVal := 0
+	if len(samples) > 0 {
+		meanSq := sumSq / int64(len(samples))
+		rmsVal = int(math.Sqrt(float64(meanSq)))
+	}
+
+	vadDropped := false
+	if p.vadRmsThreshold > 0 && rmsVal < p.vadRmsThreshold {
+		vadDropped = true
+	}
+
+	cid := corrID
+	if cid == "" && p.saveAudioDir != "" {
+		// If we didn't pre-generate a correlation ID on append, generate one
+		// now because we're going to save the audio to disk.
+		cid = uuid.NewString()
+	}
 	if p.saveAudioDir != "" {
-		go func(ssrc uint32, pcm []byte) {
+		// capture accumulator createdAt and user info for end-to-end timing
+		createdAt := a.createdAt
+		uid := a.userID
+		uname := a.username
+		go func(ssrc uint32, pcm []byte, cid string, durationMs int, rmsVal int, vadDropped bool, createdAt time.Time, uid string, uname string) {
 			// ensure dir exists
 			if err := os.MkdirAll(p.saveAudioDir, 0o755); err != nil {
 				logging.Sugar().Warnw("Processor: failed to create save audio dir", "dir", p.saveAudioDir, "err", err)
 				return
 			}
-			// resolve username if available
-			p.mu.Lock()
-			uid := p.ssrcMap[ssrc]
-			p.mu.Unlock()
+			// prefer accumulator-captured user info to avoid races
 			username := "unknown"
 			if uid != "" {
 				username = uid
-				if p.resolver != nil {
+				if uname != "" {
+					username = uname
+				} else if p.resolver != nil {
 					if n := p.resolver.UserName(uid); n != "" {
-						// sanitize username to be filesystem-friendly: replace spaces with _
 						username = strings.ReplaceAll(n, " ", "_")
 					}
 				}
 			}
 			ts := time.Now().UTC().Format("20060102T150405.000Z")
-			fname := fmt.Sprintf("%s/%s_ssrc%d_%s.wav", strings.TrimRight(p.saveAudioDir, "/"), ts, ssrc, username)
-			// build wav
+			base := fmt.Sprintf("%s/%s_ssrc%d_%s_cid%s", strings.TrimRight(p.saveAudioDir, "/"), ts, ssrc, username, cid)
+			fname := base + ".wav"
 			wav := buildWAV(pcm, 48000, 1, 16)
-			// write atomically to tmp then rename
 			tmp := fname + ".tmp"
 			if err := os.WriteFile(tmp, wav, 0o644); err != nil {
 				logging.Sugar().Warnw("Processor: failed to write wav tmp file", "tmp", tmp, "err", err)
@@ -429,12 +730,29 @@ func (p *Processor) flushAccum(ssrc uint32) {
 			}
 			if err := os.Rename(tmp, fname); err != nil {
 				logging.Sugar().Warnw("Processor: failed to rename wav tmp", "tmp", tmp, "final", fname, "err", err)
-				// best-effort: try to remove tmp
 				_ = os.Remove(tmp)
 				return
 			}
-			logging.Sugar().Infow("Processor: saved audio to disk", "path", fname, "ssrc", ssrc)
-		}(ssrc, pcmBytes.Bytes())
+			sidecar := map[string]interface{}{
+				"correlation_id": cid,
+				"ssrc":           ssrc,
+				"user_id":        uid,
+				"username":       username,
+				// include the wav file path so consumers can locate the audio without a separate index
+				"wav_path":      fname,
+				"timestamp_utc": ts,
+				"duration_ms":   durationMs,
+				"rms":           rmsVal,
+				"vad_dropped":   vadDropped,
+				// placeholder timing fields filled after STT response
+				"accum_created_utc": createdAt.UTC().Format(time.RFC3339Nano),
+			}
+			sidecarBytes, _ := json.MarshalIndent(sidecar, "", "  ")
+			if err := os.WriteFile(base+".json.tmp", sidecarBytes, 0o644); err == nil {
+				_ = os.Rename(base+".json.tmp", base+".json")
+			}
+			logging.Sugar().Infow("Processor: saved audio to disk", "path", fname, "ssrc", ssrc, "correlation_id", cid, "rms", rmsVal, "vad_dropped", vadDropped)
+		}(ssrc, pcmBytes.Bytes(), cid, durationMs, rmsVal, vadDropped, createdAt, uid, uname)
 	}
 	// Compute RMS and apply simple VAD: if RMS is below threshold, drop
 	// the chunk. RMS computed in int32 space to avoid overflow.
@@ -456,7 +774,7 @@ func (p *Processor) flushAccum(ssrc uint32) {
 		}
 	}
 
-	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes()); err != nil {
+	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes(), cid); err != nil {
 		logging.Sugar().Warnf("Processor: send to whisper failed: %v", err)
 		return
 	}
@@ -470,7 +788,21 @@ func (p *Processor) flushExpiredAccums() {
 	p.accumMu.Lock()
 	for ssrc, a := range p.accums {
 		durMs := (len(a.samples) * 1000) / 48000
-		if durMs >= p.maxAccumMs || now.Sub(a.last) >= time.Duration(p.flushTimeout)*time.Millisecond {
+		// Flush if we hit the hard max accumulation window.
+		if durMs >= p.maxAccumMs {
+			toFlush = append(toFlush, ssrc)
+			continue
+		}
+		// If there's recent speech (lastAboveRms), wait for a silence period
+		// before flushing. Otherwise, if inactivity exceeded flushTimeout,
+		// flush as before.
+		if !a.lastAboveRms.IsZero() {
+			if now.Sub(a.lastAboveRms) >= time.Duration(p.silenceTimeoutMs)*time.Millisecond {
+				toFlush = append(toFlush, ssrc)
+			}
+			continue
+		}
+		if now.Sub(a.last) >= time.Duration(p.flushTimeout)*time.Millisecond {
 			toFlush = append(toFlush, ssrc)
 		}
 	}
@@ -482,7 +814,7 @@ func (p *Processor) flushExpiredAccums() {
 
 // sendPCMToWhisper wraps raw PCM16LE bytes into a WAV and POSTs to WHISPER_URL.
 // It performs a small retry/backoff loop for transient failures.
-func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
+func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID string) error {
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
 		logging.Sugar().Warn("Processor: WHISPER_URL not set, dropping audio")
@@ -540,10 +872,16 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 			break
 		}
 		req.Header.Set("Content-Type", "audio/wav")
+		if correlationID != "" {
+			req.Header.Set("X-Correlation-ID", correlationID)
+		}
+		// record send timestamp
+		sendTs := time.Now()
 		logging.Sugar().Infow("Processor: sending audio",
 			"whisper_url", whisper,
 			"bytes", len(wav),
 			"attempt", attempt+1,
+			"send_ts", sendTs.UTC().Format(time.RFC3339Nano),
 		)
 
 		resp, err := p.httpClient.Do(req)
@@ -557,6 +895,8 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 			time.Sleep(backoff)
 			continue
 		}
+		// record response receive timestamp
+		respReceivedTs := time.Now()
 		defer resp.Body.Close()
 
 		if resp.StatusCode >= 500 {
@@ -572,6 +912,50 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 			lastErr = err
 			return err
+		}
+
+		// compute client-observed STT latency and attempt to extract server processing time
+		sttLatencyMs := int(respReceivedTs.Sub(sendTs).Milliseconds())
+		sttServerMs := 0
+		// try header first
+		if v := resp.Header.Get("X-Processing-Time-ms"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil {
+				sttServerMs = n
+			}
+		}
+		// fallback: JSON field
+		if sttServerMs == 0 {
+			if sv, ok := out["processing_ms"]; ok {
+				switch t := sv.(type) {
+				case float64:
+					sttServerMs = int(t)
+				case int:
+					sttServerMs = t
+				case int64:
+					sttServerMs = int(t)
+				case string:
+					if n, err := strconv.Atoi(t); err == nil {
+						sttServerMs = n
+					}
+				}
+			}
+		}
+
+		// compute end-to-end latency if accumulator creation time was saved in sidecar
+		endToEndMs := 0
+		if p.saveAudioDir != "" && correlationID != "" {
+			if path := p.findSidecarPathForCID(correlationID); path != "" {
+				if b, err := os.ReadFile(path); err == nil {
+					var sc map[string]interface{}
+					if err := json.Unmarshal(b, &sc); err == nil {
+						if ac, ok := sc["accum_created_utc"].(string); ok && ac != "" {
+							if t, err := time.Parse(time.RFC3339Nano, ac); err == nil {
+								endToEndMs = int(respReceivedTs.Sub(t).Milliseconds())
+							}
+						}
+					}
+				}
+			}
 		}
 
 		// Successful response - log transcript if present and return nil.
@@ -597,11 +981,17 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 		// integrations. This is a best-effort POST; failures are logged but do
 		// not affect the main transcription success path.
 		if fw := os.Getenv("TEXT_FORWARD_URL"); fw != "" && transcript != "" {
-			go func(forwardURL string, uid string, ssrc uint32, text string) {
+			go func(forwardURL string, uid string, ssrc uint32, text string, cid string, sendTs, respTs time.Time, sttLatencyMs, sttServerMs, endToEndMs int) {
 				payload := map[string]interface{}{
-					"user_id":    uid,
-					"ssrc":       ssrc,
-					"transcript": text,
+					"user_id":                   uid,
+					"ssrc":                      ssrc,
+					"transcript":                text,
+					"correlation_id":            cid,
+					"stt_request_sent_utc":      sendTs.UTC().Format(time.RFC3339Nano),
+					"stt_response_received_utc": respTs.UTC().Format(time.RFC3339Nano),
+					"stt_latency_ms":            sttLatencyMs,
+					"stt_server_ms":             sttServerMs,
+					"end_to_end_ms":             endToEndMs,
 				}
 				b, _ := json.Marshal(payload)
 				req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
@@ -621,9 +1011,46 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte) error {
 				if resp.StatusCode >= 300 {
 					logging.Sugar().Warnw("Processor: text forward returned non-2xx", "status", resp.StatusCode, "forward_url", forwardURL, "ssrc", ssrc)
 				} else {
-					logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc)
+					logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc, "correlation_id", cid)
 				}
-			}(fw, uid, ssrc, transcript)
+			}(fw, uid, ssrc, transcript, correlationID, sendTs, respReceivedTs, sttLatencyMs, sttServerMs, endToEndMs)
+		}
+
+		// Best-effort: update sidecar JSON with timing fields so offline analysis
+		// can correlate times without hitting the server. This is tolerant to
+		// missing files and performs no critical work on failure.
+		if p.saveAudioDir != "" && correlationID != "" {
+			if path := p.findSidecarPathForCID(correlationID); path != "" {
+				b, err := os.ReadFile(path)
+				if err == nil {
+					var sc map[string]interface{}
+					if err := json.Unmarshal(b, &sc); err == nil {
+						sc["stt_request_sent_utc"] = sendTs.UTC().Format(time.RFC3339Nano)
+						sc["stt_response_received_utc"] = respReceivedTs.UTC().Format(time.RFC3339Nano)
+						sc["stt_latency_ms"] = sttLatencyMs
+						if sttServerMs > 0 {
+							sc["stt_server_ms"] = sttServerMs
+						}
+						if endToEndMs > 0 {
+							sc["end_to_end_ms"] = endToEndMs
+						}
+						sc["stt_status"] = resp.StatusCode
+						// optionally include transcript for convenience
+						if transcript != "" {
+							sc["transcript"] = transcript
+						}
+						// If the STT server returned timestamped segments (word timestamps),
+						// copy them into the sidecar so offline analysis can access them.
+						if segs, ok := out["segments"]; ok && segs != nil {
+							// store as-is (may be []interface{} or other json-compatible type)
+							sc["segments"] = segs
+						}
+						nb, _ := json.MarshalIndent(sc, "", "  ")
+						_ = os.WriteFile(path+".tmp", nb, 0o644)
+						_ = os.Rename(path+".tmp", path)
+					}
+				}
+			}
 		}
 		// Use aggregation: add the transcript to the per-SSRC aggregator and
 		// defer emitting until aggregation window passes.
@@ -763,4 +1190,42 @@ func buildWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
 	binary.Write(buf, binary.LittleEndian, uint32(dataLen))
 	buf.Write(pcm)
 	return buf.Bytes()
+}
+
+// findSidecarPathForCID returns the full path to the sidecar JSON for a given
+// correlation id. It first looks for an index file named `cid-<cid>.idx` in
+// the saveAudioDir which contains the exact JSON path. If not found, it
+// falls back to scanning the directory for a filename that contains
+// 'cid<cid>' and ends with .json (legacy behavior).
+func (p *Processor) findSidecarPathForCID(cid string) string {
+	if p.saveAudioDir == "" || cid == "" {
+		return ""
+	}
+	// Scan JSON files in saveAudioDir and try to find a sidecar whose
+	// correlation_id matches. Fall back to filename substring match if
+	// necessary. This avoids relying on a separate index file.
+	files, _ := os.ReadDir(p.saveAudioDir)
+	for _, fi := range files {
+		name := fi.Name()
+		if !strings.HasSuffix(name, ".json") {
+			continue
+		}
+		path := p.saveAudioDir + "/" + name
+		if b, err := os.ReadFile(path); err == nil {
+			var sc map[string]interface{}
+			if err := json.Unmarshal(b, &sc); err == nil {
+				if v, ok := sc["correlation_id"].(string); ok && v == cid {
+					return path
+				}
+			}
+		}
+	}
+	// fallback: filename contains cid
+	for _, fi := range files {
+		name := fi.Name()
+		if strings.Contains(name, "cid"+cid) && strings.HasSuffix(name, ".json") {
+			return p.saveAudioDir + "/" + name
+		}
+	}
+	return ""
 }

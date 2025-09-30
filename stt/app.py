@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+import time
 import io
 import wave
 import os
@@ -65,6 +66,9 @@ async def asr(request: Request):
     beam_size_q = request.query_params.get('beam_size')
     lang_q = request.query_params.get('language')
     word_ts_q = request.query_params.get('word_timestamps')
+    # Accept a correlation id from the client (header or query param) and
+    # echo it back in the response so callers can correlate requests.
+    correlation_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
     # default beam size (if not provided) — keep it modest to balance quality/latency
     beam_size = 5
     if beam_size_q:
@@ -85,14 +89,66 @@ async def asr(request: Request):
         # to allow automatic language detection.
         # Some faster-whisper variants support word-level timestamps; request it
         # only when asked via the query param.
+        # Determine whether caller requested word-level timestamps and pass
+        # that flag into the model.transcribe call (some faster-whisper
+        # implementations accept a word_timestamps=True parameter).
+        include_word_ts = False
+        if word_ts_q:
+            lv = str(word_ts_q).lower()
+            if lv in ('1', 'true', 'yes'):
+                include_word_ts = True
+
+        # measure server-side processing time
+        proc_start = time.time()
         if task == 'translate':
-            segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q)
+            if include_word_ts:
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q, word_timestamps=True)
+            else:
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q)
         else:
-            segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q)
-        # If word timestamps were requested, prefer to include them in the output
-        # in a simple string form. This repo doesn't yet consume timestamps, but
-        # exposing them helps debugging.
+            if include_word_ts:
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q, word_timestamps=True)
+            else:
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q)
+        # faster-whisper may return a generator/iterator for segments; convert
+        # to a list so we can iterate it multiple times (build text and
+        # optionally include word-level timestamps).
+        try:
+            segments = list(segments)
+        except TypeError:
+            # if segments is already a list, this will raise TypeError from list()
+            # in some unlikely cases; ignore and continue with the original object.
+            pass
+        proc_end = time.time()
+        processing_ms = int((proc_end - proc_start) * 1000)
+        # Build a combined text and (optionally) include timestamped segments/words
         text = " ".join([seg.text for seg in segments])
+        segments_out = []
+        include_word_ts = False
+        if word_ts_q:
+            lv = str(word_ts_q).lower()
+            if lv in ('1', 'true', 'yes'):
+                include_word_ts = True
+        if include_word_ts:
+            for seg in segments:
+                segdict = {
+                    "start": getattr(seg, 'start', None),
+                    "end": getattr(seg, 'end', None),
+                    "text": getattr(seg, 'text', ""),
+                }
+                # some faster-whisper variants expose `words` on segments when
+                # word timestamps are requested; include them if present.
+                words = getattr(seg, 'words', None)
+                if words:
+                    segdict['words'] = []
+                    for w in words:
+                        # word objects typically have text/start/end attributes
+                        segdict['words'].append({
+                            'word': getattr(w, 'word', None) or getattr(w, 'text', None),
+                            'start': getattr(w, 'start', None),
+                            'end': getattr(w, 'end', None),
+                        })
+                segments_out.append(segdict)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
@@ -105,4 +161,19 @@ async def asr(request: Request):
     resp = {"text": text, "duration": info.duration}
     if task:
         resp["task"] = task
-    return JSONResponse(resp)
+    # include correlation id if provided by client
+    if correlation_id:
+        resp["correlation_id"] = correlation_id
+    # include server-side processing time (ms)
+    try:
+        resp["processing_ms"] = processing_ms
+    except NameError:
+        # if for some reason processing_ms isn't set, ignore
+        pass
+    if include_word_ts and segments_out:
+        resp["segments"] = segments_out
+    # include header with processing time for callers that prefer headers
+    headers = {}
+    if "processing_ms" in resp:
+        headers["X-Processing-Time-ms"] = str(resp["processing_ms"])
+    return JSONResponse(resp, headers=headers)

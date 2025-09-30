@@ -11,10 +11,18 @@ make test
 Troubleshooting: saving audio to disk
 -----------------------------------
 
-You can optionally save decoded audio WAV files to disk for troubleshooting STT mismatches by setting the `SAVE_AUDIO_DIR` environment variable before running the bot. Example:
+You can optionally save decoded audio WAV files to disk for troubleshooting STT mismatches. To avoid confusion between container paths and host paths we provide two environment variables:
+
+- `SAVE_AUDIO_DIR_CONTAINER` — container-local directory where the bot writes WAVs (example: `/app/wavs`).
+- `SAVE_AUDIO_DIR_HOST` — host directory mounted into the container (example: `./.wavs`).
+
+Example (docker-compose already mounts `./.wavs` to `/app/wavs`):
 
 ```bash
-export SAVE_AUDIO_DIR="/tmp/discord-voice-audio"
+# set host path for convenience scripts
+export SAVE_AUDIO_DIR_HOST="/tmp/discord-voice-audio"
+# container path (when running in docker compose this should be /app/wavs)
+export SAVE_AUDIO_DIR_CONTAINER="/app/wavs"
 make run
 ```
 

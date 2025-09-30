@@ -127,10 +127,14 @@ lint: ## Run golangci-lint if available (else print hint)
 clean: ## Remove build artifacts
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
 	@rm -f $(BINARY)
-	@# Remove saved wavs/sidecars in ./.wavs when present (be conservative: remove files only)
+	@# Remove saved wavs/sidecars in ./.wavs when present and logs
+	@if [ -d "logs" ]; then \
+		echo "Removing logs in ./logs"; \
+		rm -rf logs/* || true; \
+	fi
 	@if [ -d ".wavs" ]; then \
 		echo "Removing saved wavs/sidecars in ./.wavs"; \
-		rm -f .wavs/* || true; \
+		rm -rf .wavs/* || true; \
 	fi
 
 ci: fmt vet test lint ## Run CI-like checks locally
