@@ -20,47 +20,53 @@ Build an AI agent that:
 
 ## 2. 14-Day Roadmap (Strategic Focus)
 
-### Phase 1 — Stabilize the Core Voice Layer (Days 1-3)
-**Objective:** Finalize the base voice ingestion pipeline so the agent can reliably hear and understand instructions.
+### Current status (codebase)
+- ✅ STT service available (`stt/app.py`) and configured via `WHISPER_URL`.
+- ✅ Audio pipeline / opus decode / POST to STT (`internal/voice/processor.go`).
+- ✅ Discord integration and resolver wired (`cmd/bot/main.go`, `internal/voice/discord_resolver.go`).
+- ✅ Centralized logging helpers (`internal/logging/logging.go`).
+- ✅ Local CI/dev targets (`Makefile`): `test`, `lint`, `ci` (used by "Action verification layer").
 
-| Milestone | Description | Outcome |
-|-----------|------------|----------|
-| ✅ Voice input pipeline | Finalize PCM → STT → text pipeline, ensuring stable transcription from microphone or Discord. | Agent reliably receives commands in text form. |
-| ✅ Command framing | Define a lightweight schema for “intent parsing” (e.g., `action: create_file`, `action: run_tests`). | Voice commands map to actionable tasks. |
-| ⚙️ Optional: Multi-channel input | Support local mic input *and* Discord voice input with identical downstream handling. | Voice source becomes interchangeable. |
+Additional implemented pieces discovered in the codebase:
+- ✅ Allow-listing of users via `ALLOWED_USER_IDS` and `Processor.SetAllowedUsers` (`cmd/bot/main.go`, `internal/voice/processor.go`).
+- ✅ Optional saving of WAVs + sidecar JSON for offline analysis (`SAVE_AUDIO_DIR_*` and saveAudioDir logic in `internal/voice/processor.go`).
+- ✅ Simple RMS-based VAD to drop low-energy chunks (`vadRmsThreshold` and related logic in `internal/voice/processor.go`).
+- ✅ Transcript aggregation + forwarding to `TEXT_FORWARD_URL` if configured (`internal/voice/processor.go`).
+- ✅ STT request retry/backoff + correlation IDs and instrumentation in `internal/voice/processor.go`.
+
+### Phase 1 — Stabilize the Core Voice Layer (Days 1-3)
+Objective: Finalize the base voice ingestion pipeline so the agent can reliably hear and understand instructions.
+
+- ✅ Voice input pipeline — Finalize PCM → STT → text pipeline, ensuring stable transcription from microphone or Discord. (Agent reliably receives commands in text form.)
+- ✅ Command framing — Define a lightweight schema for “intent parsing” (e.g., `action: create_file`, `action: run_tests`). (Voice commands map to actionable tasks.)
+- ⬜ Optional: Multi-channel input — Support local mic input *and* Discord voice input with identical downstream handling. (Voice source becomes interchangeable.)
 
 ---
 
 ### Phase 2 — Cursor Environment Integration (Days 4-7)
-**Objective:** Establish two-way communication between the voice agent and Cursor’s API / local environment.
+Objective: Establish two-way communication between the voice agent and Cursor’s API / local environment.
 
-| Milestone | Description | Outcome |
-|-----------|------------|----------|
-| 🔌 Cursor context access | Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. | Agent can “see” the project and reason about it. |
-| ✍️ Codegen orchestration | Define how agent proposals (from LLM) are written into files or suggested as diffs. | AI can write code directly into the repo. |
-| 🧪 Action verification layer | Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. | Agent can validate its work autonomously. |
+- ⬜ Cursor context access — Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. (Agent can “see” the project and reason about it.)
+- ⬜ Codegen orchestration — Define how agent proposals (from LLM) are written into files or suggested as diffs. (AI can write code directly into the repo.)
+- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `test`, `lint`, `ci`.)
 
 ---
 
 ### Phase 3 — Voice-Driven Dev Flows (Days 8-11)
-**Objective:** Prototype meaningful real-world use cases driven entirely by voice.
+Objective: Prototype meaningful real-world use cases driven entirely by voice.
 
-| Milestone | Description | Outcome |
-|-----------|------------|----------|
-| 🧑‍💻 Voice-to-feature workflow | Example: “Add a new `/healthz` endpoint” → design, generate code, run tests, commit. | End-to-end task completion by voice. |
-| 🧩 Task chaining | Allow multi-step workflows (e.g., “refactor this service and write tests for it”). | Agent executes chained commands without micromanagement. |
-| 📜 Feedback refinement loop | Add conversational refinement (“make that function generic”, “try a different error strategy”). | Voice iteration feels natural and productive. |
+- ⬜ Voice-to-feature workflow — Example: “Add a new `/healthz` endpoint” → design, generate code, run tests, commit. (End-to-end task completion by voice.)
+- ⬜ Task chaining — Allow multi-step workflows (e.g., “refactor this service and write tests for it”). (Agent executes chained commands without micromanagement.)
+- ⬜ Feedback refinement loop — Add conversational refinement (“make that function generic”, “try a different error strategy”). (Voice iteration feels natural and productive.)
 
 ---
 
 ### Phase 4 — Developer Workflow Integration (Days 12-14)
-**Objective:** Tighten the feedback loop so the agent operates as a “team member” inside the SDLC.
+Objective: Tighten the feedback loop so the agent operates as a “team member” inside the SDLC.
 
-| Milestone | Description | Outcome |
-|-----------|------------|----------|
-| 🔁 Git integration | Voice-triggered git actions (branch creation, commits, PR prep). | Agent contributes changes like a human developer. |
-| 📦 Build + deploy hooks | Voice commands trigger builds, CI runs, and deployment workflows. | AI can close the loop and ship code. |
-| 🧭 Onboarding doc + demo | Document current capabilities, limitations, and roadmap to next iteration. | Ready for next contributors or productization phase. |
+- ⬜ Git integration — Voice-triggered git actions (branch creation, commits, PR prep). (Agent contributes changes like a human developer.)
+- ⬜ Build + deploy hooks — Voice commands trigger builds, CI runs, and deployment workflows. (AI can close the loop and ship code.)
+- ⬜ Onboarding doc + demo — Document current capabilities, limitations, and roadmap to next iteration. (Ready for next contributors or productization phase.)
 
 ---
 
