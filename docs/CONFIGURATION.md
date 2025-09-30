@@ -20,6 +20,14 @@ This document centralizes all environment variables, configuration knobs, and ru
 | `WHISPER_URL` | ✅ Yes | – | STT service endpoint |
 | `WHISPER_TRANSLATE` | Optional | `false` | When set to `true` (or `1`), the audio sent to `WHISPER_URL` will include a `task=translate` query parameter requesting translation into English when supported by the STT service. |
 | `TEXT_FORWARD_URL` | Optional | – | If set, recognized text (JSON) will be POSTed to this URL for downstream processing (best-effort). Payload: {"user_id","ssrc","transcript"}. |
+| `ORCHESTRATOR_URL` | Optional | – | If set, aggregated transcripts will be POSTed to this URL for orchestration/planning. Payload: {"user_id","ssrc","transcript","source"}. |
+| `ORCH_AUTH_TOKEN` | Optional | – | Optional bearer token sent in the Authorization header when calling `ORCHESTRATOR_URL`. |
+| `TTS_URL` | Optional | – | If set, the orchestrator's `reply` field (if present) will be POSTed to this URL as {"text":"..."} and the returned audio will be saved to `SAVE_AUDIO_DIR` (if configured). |
+| `TTS_AUTH_TOKEN` | Optional | – | Optional bearer token for `TTS_URL`. If absent, `ORCH_AUTH_TOKEN` will be used for TTS requests as a fallback. |
+
+Notes:
+- When `ORCHESTRATOR_URL` is configured, the processor will POST aggregated transcripts and expect an optional JSON response with a `reply` string field. If `reply` is present and `TTS_URL` is configured, the reply will be synthesized and saved as a WAV sidecar.
+- The TTS integration is best-effort: failures to call the TTS service are logged but do not interrupt transcription.
 | `TTS_URL` | ✅ Yes | – | TTS service endpoint |
 | `RECORD_SECONDS` | Optional | `8` | Audio chunk size before transcription |
 
