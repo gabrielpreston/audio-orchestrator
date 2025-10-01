@@ -1,101 +1,96 @@
-from flask import Flask, request, jsonify
+from fastapi import FastAPI, Request, Header, HTTPException
+from pydantic import BaseModel
 import os
+import uvicorn
 import subprocess
+import shutil
 import logging
-import time
-import uuid
+from typing import Optional
 
-# Minimal LLM service: health + respond
-app = Flask(__name__)
+app = FastAPI(title="Local Orchestrator / OpenAI-compatible LLM")
 
-# Configuration via env
-LLAMA_BIN = os.environ.get('LLAMA_BIN', '/app/llama.cpp/build/bin/llama-cli')
-MODEL_PATH = os.environ.get('MODEL_PATH', '/app/models/llama2-7b.gguf')
+# /orchestrate has been removed: this service provides OpenAI-compatible
+# endpoints under /v1/chat/completions. Clients should POST chat requests
+# directly to that endpoint and extract assistant text from
+# choices[0].message.content in the response.
 
+# Minimal OpenAI-compatible chat completions endpoint
+class ChatMessage(BaseModel):
+    role: str
+    content: str
 
-# Basic structured logger helper to follow project conventions.
-LOG_LEVEL = os.environ.get('LOG_LEVEL', 'info').upper()
-logger = logging.getLogger('llm')
-handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(handler)
-logger.setLevel(getattr(logging, LOG_LEVEL, logging.INFO))
+class ChatRequest(BaseModel):
+    model: str | None = None
+    messages: list[ChatMessage]
+    max_tokens: int | None = None
 
+@app.post("/v1/chat/completions")
+async def chat_completions(req: ChatRequest, authorization: str | None = Header(None)):
+    # Optional auth enforcement
+    expected = os.getenv("ORCH_AUTH_TOKEN")
+    if expected:
+        if not authorization or not authorization.startswith("Bearer ") or authorization.split(" ", 1)[1] != expected:
+            raise HTTPException(status_code=401, detail="unauthorized")
+    # Very small local "model": try to invoke a local llama CLI if available,
+    # otherwise fall back to a simple echo.
+    if not req.messages:
+        raise HTTPException(status_code=400, detail="messages required")
 
-def log_kv(level, msg, **fields):
-    """Log a message with key=value pairs appended for easy parsing.
-    This keeps logs readable while providing structured data.
-    """
-    kv = ' '.join([f"{k}={repr(v)}" for k, v in fields.items()])
-    full = f"{msg} {kv}" if kv else msg
-    if level == 'info':
-        logger.info(full)
-    elif level == 'debug':
-        logger.debug(full)
-    elif level == 'warn' or level == 'warning':
-        logger.warning(full)
-    elif level == 'error':
-        logger.error(full)
-    else:
-        logger.info(full)
+    # Build a simple prompt from messages (system -> user/assistant sequence)
+    parts = []
+    for m in req.messages:
+        role = m.role or "user"
+        parts.append(f"[{role}] {m.content}")
+    prompt = "\n".join(parts)
 
+    # Try to use LLAMA_BIN if configured and model file exists
+    llm_bin = os.getenv("LLAMA_BIN")
+    model_path = os.getenv("LLAMA_MODEL_PATH", "/app/models/llama2-7b.gguf")
+    content: Optional[str] = None
+    if llm_bin:
+        try:
+            # Validate binary exists and is executable
+            if shutil.which(llm_bin) or os.path.isfile(llm_bin):
+                # Try common flag forms: --model/--prompt and -m/-p
+                tries = [
+                    [llm_bin, "--model", model_path, "--prompt", prompt, "--n_predict", str(req.max_tokens or 256)],
+                    [llm_bin, "-m", model_path, "-p", prompt, "-n", str(req.max_tokens or 256)],
+                ]
+                for args in tries:
+                    try:
+                        logging.getLogger("uvicorn").debug("Running Llama CLI: %s", args)
+                        proc = subprocess.run(args, capture_output=True, text=True, timeout=60)
+                        if proc.returncode == 0 and proc.stdout:
+                            # crude cleanup of output
+                            out = proc.stdout.strip()
+                            content = out
+                            break
+                        else:
+                            logging.getLogger("uvicorn").warn("Llama CLI failed: %s %s", proc.returncode, proc.stderr)
+                    except Exception as e:
+                        logging.getLogger("uvicorn").debug("Llama CLI invocation error: %s", e)
+        except Exception as e:
+            logging.getLogger("uvicorn").debug("LLAMA_BIN check failed: %s", e)
 
-@app.route('/health')
-def health():
-    return jsonify({'status': 'ok'})
+    if content is None:
+        # fallback: echo the last message prefixed
+        last = req.messages[-1]
+        content = f"(local-model) {last.content}"
+    # OpenAI-compatible response shape (minimal)
+    return {
+        "id": "local-1",
+        "object": "chat.completion",
+        "created": 0,
+        "model": req.model or "local-orch",
+        "choices": [
+            {
+                "index": 0,
+                "message": {"role": "assistant", "content": content},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+    }
 
-
-@app.route('/respond', methods=['POST'])
-def respond():
-    """Accept JSON {"transcript": str, "max_tokens": int, "temperature": float}
-    and return JSON {"output": str} or error details.
-    """
-    data = request.json or {}
-    transcript = data.get('transcript', '')
-    if not transcript:
-        return jsonify({'error': 'missing_transcript'}), 400
-
-    max_tokens = int(data.get('max_tokens', 128))
-    temperature = float(data.get('temperature', 0.2))
-
-    if not os.path.exists(MODEL_PATH):
-        log_kv('error', 'respond: model missing', model_path=MODEL_PATH)
-        return jsonify({'error': 'model_not_found', 'model_path': MODEL_PATH}), 500
-
-    if not os.path.exists(LLAMA_BIN) or not os.access(LLAMA_BIN, os.X_OK):
-        log_kv('error', 'respond: llama binary missing', llama_bin=LLAMA_BIN)
-        return jsonify({'error': 'llama_bin_not_found', 'llama_bin': LLAMA_BIN}), 500
-
-    # Build command. Use a list to avoid shell quoting issues.
-    cmd = [LLAMA_BIN, '-m', MODEL_PATH, '-p', transcript, '-n', str(max_tokens), '--temp', str(temperature)]
-
-    # Correlation id for tracing across logs
-    cid = str(uuid.uuid4())
-    log_kv('info', 'respond: started', correlation_id=cid, prompt_len=len(transcript), model=MODEL_PATH, llama_bin=LLAMA_BIN)
-
-    start = time.time()
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    except subprocess.TimeoutExpired:
-        duration = time.time() - start
-        log_kv('warn', 'respond: timeout', correlation_id=cid, duration_ms=int(duration*1000))
-        return jsonify({'error': 'timeout'}), 504
-    except Exception as e:
-        duration = time.time() - start
-        log_kv('error', 'respond: exec failed', correlation_id=cid, duration_ms=int(duration*1000), exc=str(e))
-        return jsonify({'error': 'exec_failed', 'detail': str(e)}), 500
-
-    duration = time.time() - start
-    if proc.returncode != 0:
-        log_kv('error', 'respond: inference failed', correlation_id=cid, returncode=proc.returncode, duration_ms=int(duration*1000), stderr=proc.stderr[:1024])
-        return jsonify({'error': 'inference_failed', 'stderr': proc.stderr}), 500
-
-    # Success
-    log_kv('info', 'respond: success', correlation_id=cid, returncode=proc.returncode, duration_ms=int(duration*1000), out_len=len(proc.stdout))
-    return jsonify({'output': proc.stdout})
-
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))

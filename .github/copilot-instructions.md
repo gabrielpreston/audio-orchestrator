@@ -65,5 +65,8 @@ Editing guidance for AI agents (do this, not generic items):
 - Agent should make small, incremental changes and run `make build` and `make test`
   after each change to ensure correctness.
 
+Local dev tools to remember:
+- Use `docker-compose` instead of `docker`
+
 If something's unclear or you want more examples (patches, tests, CI guidance), tell
 me which area to expand and I will iterate.

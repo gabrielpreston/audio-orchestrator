@@ -146,7 +146,12 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 		accums:     make(map[uint32]*pcmAccum),
 		aggs:       make(map[uint32]*transcriptAgg),
 		// read the container-local save path; fall back to legacy SAVE_AUDIO_DIR
+		// but only enable saving when SAVE_AUDIO_ENABLED is set to "true"
 		saveAudioDir: func() string {
+			enabled := strings.ToLower(strings.TrimSpace(os.Getenv("SAVE_AUDIO_ENABLED")))
+			if enabled != "true" {
+				return ""
+			}
 			if v := strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR_CONTAINER")); v != "" {
 				return v
 			}
@@ -1161,19 +1166,26 @@ func (p *Processor) flushAgg(ssrc uint32) {
 		}(fw, uid, ssrc, strings.TrimSpace(text))
 	}
 
-	// Forward aggregated transcript to an optional orchestrator service.
-	// ORCHESTRATOR_URL: endpoint to receive conversation events (JSON POST).
+	// Forward aggregated transcript to an optional orchestrator / LLM service.
+	// ORCHESTRATOR_URL: OpenAI-compatible chat completions endpoint (e.g. http://orch:8000/v1/chat/completions)
 	// ORCH_AUTH_TOKEN: optional bearer token to include in Authorization header.
 	if orch := os.Getenv("ORCHESTRATOR_URL"); orch != "" {
 		go func(orchestratorURL string, authToken string, uid string, ssrc uint32, text string) {
-			payload := map[string]interface{}{
-				"user_id":    uid,
-				"ssrc":       ssrc,
-				"transcript": text,
-				"source":     "discord-voice-lab",
+			// Build an OpenAI-compatible chat request. Include a short system message
+			// with metadata so the orchestrator can use it if desired.
+			chatPayload := map[string]interface{}{
+				"model": os.Getenv("ORCHESTRATOR_MODEL"),
+				"messages": []map[string]string{
+					{"role": "system", "content": fmt.Sprintf("source: discord-voice-lab; user_id: %s; ssrc: %d", uid, ssrc)},
+					{"role": "user", "content": text},
+				},
 			}
-			b, _ := json.Marshal(payload)
-			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+			// If model is empty, remove it to let the server pick a default
+			if chatPayload["model"] == "" || chatPayload["model"] == nil {
+				delete(chatPayload, "model")
+			}
+			b, _ := json.Marshal(chatPayload)
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			defer cancel()
 			req, err := http.NewRequestWithContext(ctx, "POST", orchestratorURL, bytes.NewReader(b))
 			if err != nil {
@@ -1184,7 +1196,7 @@ func (p *Processor) flushAgg(ssrc uint32) {
 			if authToken != "" {
 				req.Header.Set("Authorization", "Bearer "+authToken)
 			}
-			c := &http.Client{Timeout: 8 * time.Second}
+			c := &http.Client{Timeout: 12 * time.Second}
 			resp, err := c.Do(req)
 			if err != nil {
 				logging.Sugar().Warnw("Processor: orchestrator POST failed", "err", err, "orchestrator_url", orchestratorURL)
@@ -1196,63 +1208,66 @@ func (p *Processor) flushAgg(ssrc uint32) {
 				logging.Sugar().Warnw("Processor: orchestrator returned non-2xx", "status", resp.StatusCode, "orchestrator_url", orchestratorURL, "ssrc", ssrc, "body", string(body))
 				return
 			}
-			logging.Sugar().Infow("Processor: forwarded transcript to orchestrator", "orchestrator_url", orchestratorURL, "ssrc", ssrc)
+			logging.Sugar().Infow("Processor: forwarded transcript to orchestrator (chat)", "orchestrator_url", orchestratorURL, "ssrc", ssrc)
 
-			// Try to parse JSON response and look for a 'reply' field (string)
+			// Parse OpenAI-style response: choices[0].message.content
 			var orchOut map[string]interface{}
 			if err := json.Unmarshal(body, &orchOut); err == nil {
-				if r, ok := orchOut["reply"].(string); ok && strings.TrimSpace(r) != "" {
-					replyText := strings.TrimSpace(r)
-					logging.Sugar().Infow("Processor: orchestrator reply received", "ssrc", ssrc, "reply", replyText)
-					// If TTS_URL is configured, POST the reply text and save returned audio
-					if tts := os.Getenv("TTS_URL"); tts != "" {
-						// Build payload for TTS service. Use {"text": "..."} as a common shape.
-						b2, _ := json.Marshal(map[string]string{"text": replyText})
-						req2, err := http.NewRequestWithContext(context.Background(), "POST", tts, bytes.NewReader(b2))
-						if err != nil {
-							logging.Sugar().Warnw("Processor: tts new request error", "err", err, "tts_url", tts)
-							return
-						}
-						req2.Header.Set("Content-Type", "application/json")
-						// Optional TTS auth via ORCH_AUTH_TOKEN or separate TTS_AUTH_TOKEN env var
-						if tok := os.Getenv("TTS_AUTH_TOKEN"); tok != "" {
-							req2.Header.Set("Authorization", "Bearer "+tok)
-						} else if authToken != "" {
-							req2.Header.Set("Authorization", "Bearer "+authToken)
-						}
-						c2 := &http.Client{Timeout: 10 * time.Second}
-						resp2, err := c2.Do(req2)
-						if err != nil {
-							logging.Sugar().Warnw("Processor: tts POST failed", "err", err, "tts_url", tts)
-							return
-						}
-						defer resp2.Body.Close()
-						if resp2.StatusCode >= 300 {
-							body2, _ := io.ReadAll(resp2.Body)
-							logging.Sugar().Warnw("Processor: tts returned non-2xx", "status", resp2.StatusCode, "tts_url", tts, "body", string(body2))
-							return
-						}
-						// Read audio bytes and save to disk if configured
-						audioBytes, err := io.ReadAll(resp2.Body)
-						if err != nil {
-							logging.Sugar().Warnw("Processor: failed to read tts response body", "err", err)
-							return
-						}
-						if p.saveAudioDir != "" {
-							tsTs := time.Now().UTC().Format("20060102T150405.000Z")
-							base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
-							fname := base + ".wav"
-							tmp := fname + ".tmp"
-							if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
-								logging.Sugar().Warnw("Processor: failed to write tts wav tmp file", "tmp", tmp, "err", err)
-								return
+				if choices, ok := orchOut["choices"].([]interface{}); ok && len(choices) > 0 {
+					if ch0, ok := choices[0].(map[string]interface{}); ok {
+						if msg, ok := ch0["message"].(map[string]interface{}); ok {
+							if content, ok := msg["content"].(string); ok && strings.TrimSpace(content) != "" {
+								replyText := strings.TrimSpace(content)
+								logging.Sugar().Infow("Processor: orchestrator reply received", "ssrc", ssrc, "reply", replyText)
+								// If TTS_URL is configured, POST the reply text and save returned audio
+								if tts := os.Getenv("TTS_URL"); tts != "" {
+									b2, _ := json.Marshal(map[string]string{"text": replyText})
+									req2, err := http.NewRequestWithContext(context.Background(), "POST", tts, bytes.NewReader(b2))
+									if err != nil {
+										logging.Sugar().Warnw("Processor: tts new request error", "err", err, "tts_url", tts)
+										return
+									}
+									req2.Header.Set("Content-Type", "application/json")
+									if tok := os.Getenv("TTS_AUTH_TOKEN"); tok != "" {
+										req2.Header.Set("Authorization", "Bearer "+tok)
+									} else if authToken != "" {
+										req2.Header.Set("Authorization", "Bearer "+authToken)
+									}
+									c2 := &http.Client{Timeout: 10 * time.Second}
+									resp2, err := c2.Do(req2)
+									if err != nil {
+										logging.Sugar().Warnw("Processor: tts POST failed", "err", err, "tts_url", tts)
+										return
+									}
+									defer resp2.Body.Close()
+									if resp2.StatusCode >= 300 {
+										body2, _ := io.ReadAll(resp2.Body)
+										logging.Sugar().Warnw("Processor: tts returned non-2xx", "status", resp2.StatusCode, "tts_url", tts, "body", string(body2))
+										return
+									}
+									audioBytes, err := io.ReadAll(resp2.Body)
+									if err != nil {
+										logging.Sugar().Warnw("Processor: failed to read tts response body", "err", err)
+										return
+									}
+									if p.saveAudioDir != "" {
+										tsTs := time.Now().UTC().Format("20060102T150405.000Z")
+										base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
+										fname := base + ".wav"
+										tmp := fname + ".tmp"
+										if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
+											logging.Sugar().Warnw("Processor: failed to write tts wav tmp file", "tmp", tmp, "err", err)
+											return
+										}
+										if err := os.Rename(tmp, fname); err != nil {
+											logging.Sugar().Warnw("Processor: failed to rename tts wav tmp", "tmp", tmp, "final", fname, "err", err)
+											_ = os.Remove(tmp)
+											return
+										}
+										logging.Sugar().Infow("Processor: saved TTS audio to disk", "path", fname, "ssrc", ssrc)
+									}
+								}
 							}
-							if err := os.Rename(tmp, fname); err != nil {
-								logging.Sugar().Warnw("Processor: failed to rename tts wav tmp", "tmp", tmp, "final", fname, "err", err)
-								_ = os.Remove(tmp)
-								return
-							}
-							logging.Sugar().Infow("Processor: saved TTS audio to disk", "path", fname, "ssrc", ssrc)
 						}
 					}
 				}

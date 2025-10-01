@@ -18,6 +18,7 @@ services:
     image: discord-voice-bot:latest
     depends_on:
       - stt
+      - orch
     env_file:
       - ./.env.docker
     volumes:
@@ -25,18 +26,19 @@ services:
       - ./.wavs:/app/wavs
     restart: unless-stopped
 
-  llm:
+  orch:
     build:
       context: ./llm
       dockerfile: Dockerfile
-    image: discord-voice-llm:latest
+    image: discord-voice-orch:latest
     env_file:
       - ./.env.docker
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./llm/models:/app/models:ro
     environment:
       - LLAMA_BIN=/app/llama.cpp/build/bin/llama-cli
-    volumes:
-      - ./llm/models:/app/models
-      - ./logs:/app/logs
-    ports:
-      - "5100:5000"
+      - LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
     restart: unless-stopped
