@@ -67,6 +67,7 @@ Editing guidance for AI agents (do this, not generic items):
 
 Local dev tools to remember:
 - Use `docker-compose` instead of `docker`
+- When working with Python, always use `venv` for safety and isolation
 
 If something's unclear or you want more examples (patches, tests, CI guidance), tell
 me which area to expand and I will iterate.
