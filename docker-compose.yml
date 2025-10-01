@@ -32,6 +32,8 @@ services:
     image: discord-voice-llm:latest
     env_file:
       - ./.env.docker
+    environment:
+      - LLAMA_BIN=/app/llama.cpp/build/bin/llama-cli
     volumes:
       - ./llm/models:/app/models
       - ./logs:/app/logs

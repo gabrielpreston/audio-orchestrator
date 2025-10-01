@@ -38,3 +38,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+llm/models-src/
+llm/models/
+.wavs/
