@@ -24,3 +24,17 @@ services:
       - ./logs:/app/logs
       - ./.wavs:/app/wavs
     restart: unless-stopped
+
+  llm:
+    build:
+      context: ./llm
+      dockerfile: Dockerfile
+    image: discord-voice-llm:latest
+    env_file:
+      - ./.env.docker
+    volumes:
+      - ./llm/models:/app/models
+      - ./logs:/app/logs
+    ports:
+      - "5100:5000"
+    restart: unless-stopped
