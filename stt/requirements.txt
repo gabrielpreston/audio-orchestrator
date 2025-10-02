@@ -1,4 +1,4 @@
 fastapi>=0.95.0
 uvicorn[standard]>=0.21.0
 faster-whisper==1.2.0
-# Optional: torch will be pulled in by faster-whisper or can be preinstalled
+python-json-logger>=2.0.2

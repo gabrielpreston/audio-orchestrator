@@ -20,16 +20,17 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/discord-voice-lab/internal/logging"
 	"github.com/google/uuid"
 	"github.com/hraban/opus"
-
-	"github.com/discord-voice-lab/internal/logging"
 )
 
 type Processor struct {
 	mu sync.Mutex
 	// ssrc -> userID
 	ssrcMap map[uint32]string
+	// userID -> display name cache (seeded at join-time)
+	userDisplay map[string]string
 	// optional set of allowed user IDs; when non-empty, frames from mapped
 	// users not in this set will be dropped early.
 	allowlist map[string]struct{}
@@ -261,7 +262,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 					// list files and remove sidecar pairs older than retention
 					files, err := os.ReadDir(dir)
 					if err != nil {
-						logging.Sugar().Warnw("Processor: cleanup readDir failed", "dir", dir, "err", err)
+						// logging removed: Processor: cleanup readDir failed
 						continue
 					}
 					// Collect sidecar JSON entries and associated WAVs, keyed by a base id
@@ -319,7 +320,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 						}
 					}
 					if removed > 0 {
-						logging.Sugar().Infow("Processor: cleanup removed old saved audio pairs", "dir", dir, "removed_pairs", removed)
+						// logging removed: Processor: cleanup removed old saved audio pairs
 					}
 					// If maxFiles > 0, enforce it in terms of pairs (oldest first)
 					if maxFiles > 0 {
@@ -343,7 +344,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 								count++
 							}
 							if count > 0 {
-								logging.Sugar().Infow("Processor: cleanup removed pairs to enforce max_files", "dir", dir, "removed_pairs", count, "max_pairs", maxFiles)
+								// logging removed: Processor: cleanup removed pairs to enforce max_files
 							}
 						}
 					}
@@ -444,25 +445,12 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 			case <-p.ctx.Done():
 				return
 			case <-statsTicker.C:
-				enq := atomic.LoadInt64(&p.enqueueCount)
-				dq := atomic.LoadInt64(&p.dropQueueCount)
-				dec := atomic.LoadInt64(&p.decodeErrCount)
-				vad := atomic.LoadInt64(&p.vadDropCount)
-				sOK := atomic.LoadInt64(&p.sendCount)
-				sFail := atomic.LoadInt64(&p.sendFailCount)
-				logging.Sugar().Infow("Processor stats",
-					"enqueued_frames", enq,
-					"dropped_queue", dq,
-					"decode_errors", dec,
-					"vad_drops", vad,
-					"sends_ok", sOK,
-					"sends_failed", sFail,
-				)
+				// stats collection disabled (logging removed)
 			}
 		}
 	}()
 
-	logging.Sugar().Info("Processor: initialized opus decoder and http client")
+	// logging removed: Processor: initialized opus decoder and http client
 
 	// transcript aggregation window (ms)
 	p.aggMs = 1500
@@ -505,11 +493,12 @@ func (p *Processor) SetAllowedUsers(ids []string) {
 		}
 		p.allowlist[id] = struct{}{}
 	}
-	logging.Sugar().Infow("Processor: SetAllowedUsers", "count", len(p.allowlist))
+	// log configured allowlist size
+	logging.Infow("Processor: SetAllowedUsers", "count", len(p.allowlist))
 }
 
 func (p *Processor) Close() error {
-	logging.Sugar().Info("Processor: Close called")
+	logging.Infow("Processor: Close called")
 	// stop background workers
 	p.cancel()
 	// close channel to unblock worker if it's waiting
@@ -518,17 +507,68 @@ func (p *Processor) Close() error {
 	return nil
 }
 
+// SeedVoiceChannelMembers enumerates the session state's voice states for
+// the given guild and channel and populates an internal userID->display
+// name cache. This helps provide immediate names for participants when the
+// processor starts handling audio for a channel (note: this does not map
+// SSRC -> userID; that still comes from speaking updates).
+func (p *Processor) SeedVoiceChannelMembers(s *discordgo.Session, guildID, channelID string) {
+	if s == nil || guildID == "" || channelID == "" {
+		return
+	}
+	// Create a local map so we can batch update under the processor mutex
+	m := make(map[string]string)
+	if s.State != nil {
+		if gs, err := s.State.Guild(guildID); err == nil && gs != nil {
+			for _, vs := range gs.VoiceStates {
+				if vs.ChannelID != channelID {
+					continue
+				}
+				uid := vs.UserID
+				if uid == "" {
+					continue
+				}
+				// Try resolver first if present
+				name := ""
+				if p.resolver != nil {
+					name = p.resolver.UserName(uid)
+				}
+				// Fall back to session REST lookup if resolver didn't return a name
+				if name == "" {
+					if u, err := s.User(uid); err == nil && u != nil {
+						name = u.Username
+					}
+				}
+				if name == "" {
+					name = uid
+				}
+				m[uid] = name
+			}
+		}
+	}
+	if len(m) == 0 {
+		return
+	}
+	p.mu.Lock()
+	if p.userDisplay == nil {
+		p.userDisplay = make(map[string]string)
+	}
+	for k, v := range m {
+		p.userDisplay[k] = v
+	}
+	p.mu.Unlock()
+}
+
 // HandleVoiceState listens for voice state updates to map userID <-> SSRC (best-effort)
 func (p *Processor) HandleVoiceState(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) {
-	// Include human-friendly fields when available; try resolver first.
-	var userName, channelName string
+	// Include human-friendly names when available via resolver (unused after logging removed).
 	if p.resolver != nil {
-		userName = p.resolver.UserName(vs.UserID)
-		channelName = p.resolver.ChannelName(fmt.Sprintf("%v", vs.ChannelID))
+		if n := p.resolver.UserName(vs.UserID); n != "" {
+			logging.Debugw("Processor: VoiceState update", logging.UserFields(vs.UserID, n)...)
+		} else {
+			logging.Debugw("Processor: VoiceState update", "user_id", vs.UserID)
+		}
 	}
-	fields := append(logging.UserFields(vs.UserID, userName), logging.ChannelFields(fmt.Sprintf("%v", vs.ChannelID), channelName)...)
-	fields = append(fields, "session_update", vs)
-	logging.Sugar().Infow("Processor: HandleVoiceState", fields...)
 }
 
 // HandleSpeakingUpdate receives discordgo speaking updates and is used to map ssrc->user
@@ -541,7 +581,7 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 	p.accumMu.Lock()
 	if a, ok := p.accums[uint32(su.SSRC)]; ok {
 		a.userID = su.UserID
-		if p.resolver != nil {
+		if p.resolver != nil && su.UserID != "" {
 			if n := p.resolver.UserName(su.UserID); n != "" {
 				a.username = strings.ReplaceAll(n, " ", "_")
 			} else {
@@ -552,13 +592,9 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 		}
 	}
 	p.accumMu.Unlock()
-	var userName string
-	if p.resolver != nil {
-		userName = p.resolver.UserName(su.UserID)
-	}
-	fields := []interface{}{"ssrc", su.SSRC}
-	fields = append(fields, logging.UserFields(su.UserID, userName)...)
-	logging.Sugar().Infow("Processor: HandleSpeakingUpdate: mapped SSRC -> user", fields...)
+	// resolver lookup retained for potential future use
+	// Log mapping at info level so operator can see when SSRCs are associated
+	logging.Infow("Processor: HandleSpeakingUpdate: mapped SSRC -> user", "ssrc", su.SSRC, "user_id", su.UserID)
 }
 
 // This function would be called by the discord voice receive loop with raw opus frames.
@@ -575,7 +611,7 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	p.mu.Unlock()
 
 	if allowCount > 0 && uid != "" && !allowed {
-		logging.Sugar().Debugw("Processor: dropping frame from non-allowed user", "ssrc", ssrc, "user_id", uid)
+		// logging removed: dropping frame from non-allowed user
 		return
 	}
 
@@ -586,24 +622,32 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 	// requests include it. Previously this was gated on saveAudioDir; assign
 	// unconditionally (small UUID cost) to enable end-to-end tracing.
 	var outgoingCID string
+	// Read the SSRC->user mapping under p.mu *before* acquiring accumMu so
+	// we don't hold both locks at once. This avoids the previous data race
+	// where appendAccum read p.ssrcMap without synchronization.
+	p.mu.Lock()
+	preUid := p.ssrcMap[ssrc]
+	p.mu.Unlock()
+	preUname := "unknown"
+	if preUid != "" && p.resolver != nil {
+		if n := p.resolver.UserName(preUid); n != "" {
+			preUname = strings.ReplaceAll(n, " ", "_")
+		}
+	}
+
 	p.accumMu.Lock()
 	if a, ok := p.accums[ssrc]; ok && a.correlationID != "" {
 		outgoingCID = a.correlationID
 	} else {
 		outgoingCID = uuid.NewString()
 		if !ok {
-			uid := p.ssrcMap[ssrc]
-			uname := "unknown"
-			if uid != "" && p.resolver != nil {
-				if n := p.resolver.UserName(uid); n != "" {
-					uname = strings.ReplaceAll(n, " ", "_")
-				}
-			}
-			p.accums[ssrc] = &pcmAccum{samples: nil, last: time.Now(), correlationID: outgoingCID, createdAt: time.Now(), userID: uid, username: uname}
-			logging.Sugar().Infow("Processor: generated correlation id for new accumulator", "ssrc", ssrc, "user_id", uid, "username", uname, "correlation_id", outgoingCID, "save_audio_dir", p.saveAudioDir)
+			// Use the pre-captured user info when creating the accumulator so
+			// it contains the correct mapping even if a speaking update races in.
+			p.accums[ssrc] = &pcmAccum{samples: nil, last: time.Now(), correlationID: outgoingCID, createdAt: time.Now(), userID: preUid, username: preUname}
+			logging.Debugw("generated correlation id for new accumulator", "user_id", preUid, "user_name", preUname, "ssrc", ssrc, "correlation_id", outgoingCID)
 		} else {
 			p.accums[ssrc].correlationID = outgoingCID
-			logging.Sugar().Infow("Processor: assigned correlation id to existing accumulator", "ssrc", ssrc, "correlation_id", outgoingCID, "save_audio_dir", p.saveAudioDir)
+			logging.Debugw("assigned correlation id to existing accumulator", "ssrc", ssrc, "correlation_id", outgoingCID)
 		}
 	}
 	p.accumMu.Unlock()
@@ -614,13 +658,13 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, opusPayload []byte) {
 		// increment enqueue counter and log enqueue for diagnostics
 		atomic.AddInt64(&p.enqueueCount, 1)
 		if outgoingCID != "" {
-			logging.Sugar().Debugw("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh), "correlation_id", outgoingCID)
+			logging.Debugw("opus frame enqueued", "ssrc", ssrc, "correlation_id", outgoingCID)
 		} else {
-			logging.Sugar().Debugw("Processor: opus frame enqueued", "ssrc", ssrc, "bytes", len(opusPayload), "queue_len", len(p.opusCh))
+			logging.Debugw("opus frame enqueued", "ssrc", ssrc)
 		}
 	default:
 		atomic.AddInt64(&p.dropQueueCount, 1)
-		logging.Sugar().Warnw("Processor: dropping opus frame; queue full", "ssrc", ssrc)
+		logging.Warnw("dropping opus frame; queue full", "ssrc", ssrc)
 	}
 }
 
@@ -635,7 +679,7 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	n, err := p.dec.Decode(opusPayload, pcm)
 	if err != nil {
 		atomic.AddInt64(&p.decodeErrCount, 1)
-		logging.Sugar().Warnw("Processor: opus decode error", "err", err, "ssrc", ssrc, "payload_bytes", len(opusPayload))
+		logging.Errorw("opus decode error", "ssrc", ssrc, "err", err)
 		return
 	}
 	// assemble raw PCM bytes (little-endian int16)
@@ -652,9 +696,9 @@ func (p *Processor) handleOpusPacket(pkt opusPacket) {
 	// Log the correlation id associated with this accumulated chunk so it's
 	// visible early in the pipeline while frames are still arriving.
 	if cid != "" {
-		logging.Sugar().Debugw("Processor: appended opus frame with correlation", "ssrc", ssrc, "correlation_id", cid, "payload_bytes", len(opusPayload))
+		// logging removed: appended opus frame with correlation
 	} else {
-		logging.Sugar().Debugw("Processor: appended opus frame", "ssrc", ssrc, "payload_bytes", len(opusPayload))
+		// logging removed: appended opus frame
 	}
 }
 
@@ -672,8 +716,11 @@ func (p *Processor) appendAccum(ssrc uint32, samples []int16, incomingCID string
 	a, ok := p.accums[ssrc]
 	if !ok {
 		// If we have a user mapping already, capture it to avoid races where
-		// speaking updates arrive after accumulator creation.
+		// speaking updates arrive after accumulator creation. Read ssrcMap
+		// under p.mu to avoid a data race (was observed as empty in logs).
+		p.mu.Lock()
 		uid := p.ssrcMap[ssrc]
+		p.mu.Unlock()
 		uname := "unknown"
 		if uid != "" && p.resolver != nil {
 			if n := p.resolver.UserName(uid); n != "" {
@@ -691,10 +738,12 @@ func (p *Processor) appendAccum(ssrc uint32, samples []int16, incomingCID string
 			a.correlationID = uuid.NewString()
 			if p.saveAudioDir != "" {
 				// Log the generated correlation id so operator can find the sidecar later
-				logging.Sugar().Infow("Processor: generated correlation id for accumulator on append", "ssrc", ssrc, "user_id", uid, "username", uname, "correlation_id", a.correlationID, "save_audio_dir", p.saveAudioDir)
+				// logging removed: generated correlation id for accumulator on append
 			}
 		}
 		p.accums[ssrc] = a
+		// Log accumulator creation and captured user mapping (may be empty)
+		logging.Debugw("appendAccum: created accumulator", "ssrc", ssrc, "user_id", uid, "user_name", uname, "correlation_id", a.correlationID)
 	}
 	// If accumulator exists but lacks an ID, populate it from incomingCID.
 	if a.correlationID == "" {
@@ -704,6 +753,8 @@ func (p *Processor) appendAccum(ssrc uint32, samples []int16, incomingCID string
 			// ensure every accumulator has an ID
 			a.correlationID = uuid.NewString()
 		}
+		// Log correlation id assignment (if it was previously empty)
+		logging.Debugw("appendAccum: assigned correlation id", "ssrc", ssrc, "correlation_id", a.correlationID, "user_id", a.userID)
 	}
 	a.samples = append(a.samples, samples...)
 	a.last = time.Now()
@@ -744,9 +795,11 @@ func (p *Processor) flushAccum(ssrc uint32) {
 		return
 	}
 	samples := a.samples
-	// capture correlationID and createdAt from accumulator (may be empty)
+	// capture correlationID, createdAt and captured user info from accumulator (may be empty)
 	corrID := a.correlationID
 	createdAt := a.createdAt
+	uid := a.userID
+	uname := a.username
 	delete(p.accums, ssrc)
 	p.accumMu.Unlock()
 
@@ -790,7 +843,7 @@ func (p *Processor) flushAccum(ssrc uint32) {
 		go func(ssrc uint32, pcm []byte, cid string, durationMs int, rmsVal int, vadDropped bool, createdAt time.Time, uid string, uname string) {
 			// ensure dir exists
 			if err := os.MkdirAll(p.saveAudioDir, 0o755); err != nil {
-				logging.Sugar().Warnw("Processor: failed to create save audio dir", "dir", p.saveAudioDir, "err", err)
+				logging.Errorw("failed to create save audio dir", "dir", p.saveAudioDir, "err", err)
 				return
 			}
 			// prefer accumulator-captured user info to avoid races
@@ -811,11 +864,11 @@ func (p *Processor) flushAccum(ssrc uint32) {
 			wav := buildWAV(pcm, 48000, 1, 16)
 			tmp := fname + ".tmp"
 			if err := os.WriteFile(tmp, wav, 0o644); err != nil {
-				logging.Sugar().Warnw("Processor: failed to write wav tmp file", "tmp", tmp, "err", err)
+				logging.Errorw("failed to write wav tmp file", "tmp", tmp, "err", err)
 				return
 			}
 			if err := os.Rename(tmp, fname); err != nil {
-				logging.Sugar().Warnw("Processor: failed to rename wav tmp", "tmp", tmp, "final", fname, "err", err)
+				logging.Errorw("failed to rename wav tmp", "tmp", tmp, "fname", fname, "err", err)
 				_ = os.Remove(tmp)
 				return
 			}
@@ -837,9 +890,27 @@ func (p *Processor) flushAccum(ssrc uint32) {
 			if err := os.WriteFile(base+".json.tmp", sidecarBytes, 0o644); err == nil {
 				_ = os.Rename(base+".json.tmp", base+".json")
 			}
-			logging.Sugar().Warnw("Processor: saved audio to disk", "path", fname, "ssrc", ssrc, "correlation_id", cid, "rms", rmsVal, "vad_dropped", vadDropped)
+			logging.Infow("saved audio to disk", "json", base+".json", "wav", fname, "ssrc", ssrc, "correlation_id", cid)
 		}(ssrc, pcmBytes.Bytes(), cid, durationMs, rmsVal, vadDropped, createdAt, uid, uname)
 	}
+	// If accumulator didn't capture a user mapping, wait a short window for
+	// a late speaking update to arrive (common when the bot joins after
+	// participants are already speaking). This avoids sending "unknown"
+	// transcripts when the mapping arrives milliseconds later.
+	if uid == "" {
+		waitUntil := time.Now().Add(500 * time.Millisecond)
+		for time.Now().Before(waitUntil) {
+			p.mu.Lock()
+			possible := p.ssrcMap[ssrc]
+			p.mu.Unlock()
+			if possible != "" {
+				uid = possible
+				break
+			}
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+
 	// Compute RMS and apply simple VAD: if RMS is below threshold, drop
 	// the chunk. RMS computed in int32 space to avoid overflow.
 	if p.vadRmsThreshold > 0 {
@@ -853,15 +924,28 @@ func (p *Processor) flushAccum(ssrc uint32) {
 			rms := int(math.Sqrt(float64(meanSq)))
 			if rms < p.vadRmsThreshold {
 				atomic.AddInt64(&p.vadDropCount, 1)
-				logging.Sugar().Infow("Processor: VAD dropped near-silence chunk", logging.AccumFields(ssrc, len(samples), (len(samples)*1000)/48000)...)
-				logging.Sugar().Infow("Processor: VAD drop details", "ssrc", ssrc, "rms", rms, "threshold", p.vadRmsThreshold)
+				logging.Debugw("VAD dropped near-silence chunk", "ssrc", ssrc, "rms", rms)
+				logging.Debugw("VAD drop details", "ssrc", ssrc, "samples", len(samples), "duration_ms", (len(samples)*1000)/48000)
 				return
 			}
 		}
 	}
 
-	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes(), cid, createdAt); err != nil {
-		logging.Sugar().Warnf("Processor: send to whisper failed: %v", err)
+	// If we still don't know which user this SSRC belongs to, drop the
+	// chunk and log a warning. We intentionally do not send audio to STT
+	// for anonymous SSRCs to avoid misattributing speech.
+	if uid == "" {
+		durationMs := 0
+		if len(samples) > 0 {
+			durationMs = (len(samples) * 1000) / 48000
+		}
+		atomic.AddInt64(&p.sendFailCount, 1)
+		logging.Warnw("dropping audio chunk with unknown user; not sending to STT", "ssrc", ssrc, "correlation_id", cid, "duration_ms", durationMs)
+		return
+	}
+
+	if err := p.sendPCMToWhisper(ssrc, pcmBytes.Bytes(), cid, createdAt, uid, uname); err != nil {
+		// logging removed: send to whisper failed
 		return
 	}
 }
@@ -900,10 +984,10 @@ func (p *Processor) flushExpiredAccums() {
 
 // sendPCMToWhisper wraps raw PCM16LE into a WAV and POSTs it to WHISPER_URL.
 // It retries up to 3 times with exponential backoff for transient errors.
-func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID string, accumCreatedAt time.Time) error {
+func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID string, accumCreatedAt time.Time, capturedUserID string, capturedUsername string) error {
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
-		logging.Sugar().Warn("Processor: WHISPER_URL not set, dropping audio")
+		logging.Warnw("WHISPER_URL not set, dropping audio", "ssrc", ssrc, "correlation_id", correlationID)
 		return fmt.Errorf("WHISPER_URL not set")
 	}
 
@@ -962,21 +1046,30 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		}
 		// record send timestamp and log the send
 		sendTs := time.Now()
-		logging.Sugar().Infow("Processor: sending audio",
-			"whisper_url", whisper,
-			"ssrc", ssrc,
-			"correlation_id", correlationID,
-			"bytes", len(wav),
-			"attempt", attempt+1,
-			"send_ts", sendTs.UTC().Format(time.RFC3339Nano),
-		)
+		// Log detailed payload metadata: size, samples, duration and user mapping
+		durationMs := 0
+		if len(pcmBytes) > 0 {
+			// pcmBytes length in bytes / 2 -> int16 samples
+			samples := len(pcmBytes) / 2
+			durationMs = (samples * 1000) / 48000
+			// Prefer captured user info from the accumulator to avoid races
+			uid := capturedUserID
+			if uid == "" {
+				p.mu.Lock()
+				uid = p.ssrcMap[ssrc]
+				p.mu.Unlock()
+			}
+			logging.Debugw("sending audio to whisper", "ssrc", ssrc, "url", whisperURL, "correlation_id", correlationID, "bytes", len(pcmBytes), "samples", samples, "duration_ms", durationMs, "user_id", uid)
+		} else {
+			logging.Debugw("sending audio to whisper", "ssrc", ssrc, "url", whisperURL, "correlation_id", correlationID)
+		}
 
 		resp, err := p.httpClient.Do(req)
 		cancel()
 		if err != nil {
 			atomic.AddInt64(&p.sendFailCount, 1)
 			lastErr = err
-			logging.Sugar().Warnw("Processor: HTTP send error", "err", err, "attempt", attempt+1, "whisper_url", whisper)
+			logging.Warnw("HTTP send error to whisper", "ssrc", ssrc, "err", err, "attempt", attempt)
 			// transient network error -> retry
 			backoff := time.Duration(1<<attempt) * time.Second
 			time.Sleep(backoff)
@@ -989,7 +1082,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		if resp.StatusCode >= 500 {
 			atomic.AddInt64(&p.sendFailCount, 1)
 			lastErr = fmt.Errorf("server error status=%d", resp.StatusCode)
-			logging.Sugar().Warnw("Processor: STT server error", "status", resp.StatusCode, "attempt", attempt+1)
+			logging.Warnw("STT server error", "ssrc", ssrc, "status", resp.StatusCode, "attempt", attempt)
 			backoff := time.Duration(1<<attempt) * time.Second
 			time.Sleep(backoff)
 			continue
@@ -1045,41 +1138,37 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 			}
 		}
 
+		// Successful response - log transcript and timing for tracing (username resolved below)
 		// Successful response - log transcript if present and return nil.
 		atomic.AddInt64(&p.sendCount, 1)
-		p.mu.Lock()
-		uid := p.ssrcMap[ssrc]
-		p.mu.Unlock()
-		username := uid
-		if p.resolver != nil {
-			if n := p.resolver.UserName(uid); n != "" {
-				username = n
+		// Prefer the accumulator-captured username when available to avoid
+		// races where the SSRC->user mapping changed between accumulation and send.
+		uid := capturedUserID
+		username := capturedUsername
+		if uid == "" {
+			p.mu.Lock()
+			uid = p.ssrcMap[ssrc]
+			p.mu.Unlock()
+		}
+		if username == "" {
+			if p.resolver != nil {
+				if n := p.resolver.UserName(uid); n != "" {
+					username = n
+				}
 			}
 		}
 		if username == "" {
 			username = "unknown"
 		}
+		// Log STT response with resolved username and raw user id
+		logging.Infow("STT response received", "ssrc", ssrc, "user", username, "user_id", uid, "correlation_id", correlationID, "status", resp.StatusCode, "stt_latency_ms", sttLatencyMs, "stt_server_ms", sttServerMs, "end_to_end_ms", endToEndMs)
 		transcript := ""
 		if t, ok := out["text"].(string); ok {
 			// Trim whitespace the STT service may include (leading/trailing).
 			transcript = strings.TrimSpace(t)
 		}
 		// Log STT result and timing for tracing
-		logging.Sugar().Infow("Processor: STT response received",
-			"ssrc", ssrc,
-			"user_id", uid,
-			"username", username,
-			"correlation_id", correlationID,
-			"transcript_preview", func() string {
-				if len(transcript) > 160 {
-					return transcript[:160] + "..."
-				}
-				return transcript
-			}(),
-			"stt_latency_ms", sttLatencyMs,
-			"stt_server_ms", sttServerMs,
-			"end_to_end_ms", endToEndMs,
-		)
+		// logging removed: STT response received
 		// Optionally forward recognized text to another service for downstream
 		// integrations. This is a best-effort POST; failures are logged but do
 		// not affect the main transcription success path.
@@ -1099,7 +1188,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 				b, _ := json.Marshal(payload)
 				req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
 				if err != nil {
-					logging.Sugar().Warnw("Processor: text forward new request error", "err", err)
+					// logging removed: text forward new request error
 					return
 				}
 				req.Header.Set("Content-Type", "application/json")
@@ -1107,14 +1196,14 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 				c := &http.Client{Timeout: 5 * time.Second}
 				resp, err := c.Do(req)
 				if err != nil {
-					logging.Sugar().Warnw("Processor: text forward POST failed", "err", err)
+					// logging removed: text forward POST failed
 					return
 				}
 				defer resp.Body.Close()
 				if resp.StatusCode >= 300 {
-					logging.Sugar().Warnw("Processor: text forward returned non-2xx", "status", resp.StatusCode, "forward_url", forwardURL, "ssrc", ssrc)
+					// logging removed: text forward returned non-2xx
 				} else {
-					logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc, "correlation_id", cid)
+					// logging removed: forwarded transcript
 				}
 			}(fw, uid, ssrc, transcript, correlationID, sendTs, respReceivedTs, sttLatencyMs, sttServerMs, endToEndMs)
 		}
@@ -1123,9 +1212,11 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		if p.saveAudioDir != "" && correlationID != "" {
 			if path := p.findSidecarPathForCID(correlationID); path != "" {
 				b, err := os.ReadFile(path)
-				if err == nil {
+				if err != nil {
+					logging.Warnw("failed to read sidecar for cid", "path", path, "err", err)
+				} else {
 					var sc map[string]interface{}
-					if err := json.Unmarshal(b, &sc); err == nil {
+					if uerr := json.Unmarshal(b, &sc); uerr == nil {
 						sc["stt_request_sent_utc"] = sendTs.UTC().Format(time.RFC3339Nano)
 						sc["stt_response_received_utc"] = respReceivedTs.UTC().Format(time.RFC3339Nano)
 						sc["stt_latency_ms"] = sttLatencyMs
@@ -1148,6 +1239,8 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 						nb, _ := json.MarshalIndent(sc, "", "  ")
 						_ = os.WriteFile(path+".tmp", nb, 0o644)
 						_ = os.Rename(path+".tmp", path)
+					} else {
+						logging.Debugw("failed to unmarshal sidecar JSON", "path", path, "err", uerr)
 					}
 				}
 			}
@@ -1204,104 +1297,6 @@ func (p *Processor) addAggregatedTranscript(ssrc uint32, username, text string, 
 	}
 }
 
-// detectWakeInSegments inspects STT segments returned in the 'out["segments"]'
-// JSON value and returns true if any segment contains a configured wake
-// phrase within the configured wake window (p.wakePhraseWindowS). The
-// segments parameter is expected to be a JSON-unmarshaled value (likely
-// []interface{}), and we handle it defensively.
-func (p *Processor) detectWakeInSegments(segments interface{}, accumCreatedAt time.Time) bool {
-	if segments == nil {
-		return false
-	}
-	// Build a lowercased joined early-text until the configured window.
-	// Many STT servers provide per-segment "start" times; try to use them
-	// if present. Otherwise, use the fallback heuristic.
-	win := p.wakePhraseWindowS
-	if win <= 0 {
-		return false
-	}
-	// segments may be []interface{}
-	segs, ok := segments.([]interface{})
-	if !ok {
-		return false
-	}
-	// Iterate segments and accumulate words whose segment.start - accumCreatedAt <= window
-	wordsAccum := make([]string, 0)
-	for _, si := range segs {
-		m, ok := si.(map[string]interface{})
-		if !ok {
-			continue
-		}
-		// Some segment formats use `start` (float seconds) or `start_ms` (int ms)
-		startSec := -1.0
-		if v, ok := m["start"]; ok {
-			switch t := v.(type) {
-			case float64:
-				startSec = t
-			case int:
-				startSec = float64(t)
-			case int64:
-				startSec = float64(t)
-			case string:
-				if f, err := strconv.ParseFloat(t, 64); err == nil {
-					startSec = f
-				}
-			}
-		} else if v, ok := m["start_ms"]; ok {
-			switch t := v.(type) {
-			case float64:
-				startSec = t / 1000.0
-			case int:
-				startSec = float64(t) / 1000.0
-			case int64:
-				startSec = float64(t) / 1000.0
-			case string:
-				if n, err := strconv.Atoi(t); err == nil {
-					startSec = float64(n) / 1000.0
-				}
-			}
-		}
-		// If start time is present and beyond window, stop accumulating
-		if startSec >= 0 && startSec > float64(win) {
-			break
-		}
-		// extract text field for this segment
-		if tv, ok := m["text"]; ok {
-			if ts, ok := tv.(string); ok && ts != "" {
-				// normalize and split
-				s := strings.ToLower(regexp.MustCompile(`\s+`).ReplaceAllString(strings.TrimSpace(ts), " "))
-				parts := strings.Fields(s)
-				wordsAccum = append(wordsAccum, parts...)
-			}
-		} else if tv, ok := m["sentence"]; ok {
-			if ts, ok := tv.(string); ok && ts != "" {
-				s := strings.ToLower(regexp.MustCompile(`\s+`).ReplaceAllString(strings.TrimSpace(ts), " "))
-				parts := strings.Fields(s)
-				wordsAccum = append(wordsAccum, parts...)
-			}
-		}
-		// defensive cap to avoid very large accumulation
-		if len(wordsAccum) > win*5 {
-			break
-		}
-	}
-	if len(wordsAccum) == 0 {
-		return false
-	}
-	head := strings.Join(wordsAccum, " ")
-	// check wake phrases as prefix within the head
-	for _, wp := range p.wakePhrases {
-		wp = strings.ToLower(strings.TrimSpace(wp))
-		if wp == "" {
-			continue
-		}
-		if head == wp || strings.HasPrefix(head, wp+" ") || strings.HasPrefix(head, wp+",") {
-			return true
-		}
-	}
-	return false
-}
-
 // flushExpiredAggs checks aggregation buffers and flushes ones that have
 // been inactive longer than aggMs.
 func (p *Processor) flushExpiredAggs() {
@@ -1347,9 +1342,6 @@ func (p *Processor) flushAgg(ssrc uint32) {
 	if username == "" {
 		username = "unknown"
 	}
-	fields := logging.UserFields(username, "")
-	fields = append(fields, "ssrc", ssrc, "correlation_id", corrID, "transcript", strings.TrimSpace(text))
-	logging.Sugar().Debugw("Processor: transcription result", fields...)
 	// Also forward to TEXT_FORWARD_URL if configured (reuse same payload logic)
 	if fw := os.Getenv("TEXT_FORWARD_URL"); fw != "" {
 		go func(forwardURL string, uid string, ssrc uint32, text string) {
@@ -1361,21 +1353,21 @@ func (p *Processor) flushAgg(ssrc uint32) {
 			b, _ := json.Marshal(payload)
 			req, err := http.NewRequestWithContext(context.Background(), "POST", forwardURL, bytes.NewReader(b))
 			if err != nil {
-				logging.Sugar().Warnw("Processor: text forward new request error", "err", err)
+				// logging removed: text forward new request error
 				return
 			}
 			req.Header.Set("Content-Type", "application/json")
 			c := &http.Client{Timeout: 5 * time.Second}
 			resp, err := c.Do(req)
 			if err != nil {
-				logging.Sugar().Warnw("Processor: text forward POST failed", "err", err)
+				// logging removed: text forward POST failed
 				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode >= 300 {
-				logging.Sugar().Warnw("Processor: text forward returned non-2xx", "status", resp.StatusCode, "forward_url", forwardURL, "ssrc", ssrc)
+				// logging removed: text forward returned non-2xx
 			} else {
-				logging.Sugar().Infow("Processor: forwarded transcript", "forward_url", forwardURL, "ssrc", ssrc)
+				// logging removed: forwarded transcript
 			}
 		}(fw, uid, ssrc, strings.TrimSpace(text))
 	}
@@ -1399,12 +1391,8 @@ func (p *Processor) flushAgg(ssrc uint32) {
 			matched = m
 		}
 		if !matched {
-			logging.Sugar().Infow("Processor: transcript did not match wake phrase; skipping orchestrator/TTS forward", "ssrc", ssrc, "correlation_id", corrID, "transcript_preview", func() string {
-				if len(text) > 80 {
-					return text[:80] + "..."
-				}
-				return text
-			}())
+			// not matching wake phrase; skip orchestrator/TTS forwarding
+			return
 		} else {
 			// use stripped text for the user content
 			go func(orchestratorURL string, authToken string, uid string, ssrc uint32, text string, correlationID string) {
@@ -1428,92 +1416,183 @@ func (p *Processor) flushAgg(ssrc uint32) {
 					delete(chatPayload, "model")
 				}
 				b, _ := json.Marshal(chatPayload)
-				// Use configured orchestrator timeout
-				ctx, cancel := context.WithTimeout(context.Background(), time.Duration(p.orchestratorTimeoutMS)*time.Millisecond)
-				defer cancel()
-				req, err := http.NewRequestWithContext(ctx, "POST", orchestratorURL, bytes.NewReader(b))
-				if err != nil {
-					logging.Sugar().Warnw("Processor: orchestrator new request error", "err", err, "orchestrator_url", orchestratorURL)
-					return
+				// Use configured orchestrator timeout (fallback to 30s) and retry a few times
+				timeoutMs := p.orchestratorTimeoutMS
+				if timeoutMs <= 0 {
+					timeoutMs = 30000
 				}
-				req.Header.Set("Content-Type", "application/json")
-				if authToken != "" {
-					req.Header.Set("Authorization", "Bearer "+authToken)
+				attempts := 3
+				var resp *http.Response
+				var err error
+				for i := 0; i < attempts; i++ {
+					ctxReq, cancelReq := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
+					req, rerr := http.NewRequestWithContext(ctxReq, "POST", orchestratorURL, bytes.NewReader(b))
+					if rerr != nil {
+						logging.Debugw("orchestrator: new request error", "err", rerr, "correlation_id", correlationID)
+						cancelReq()
+						err = rerr
+						break
+					}
+					req.Header.Set("Content-Type", "application/json")
+					if authToken != "" {
+						req.Header.Set("Authorization", "Bearer "+authToken)
+					}
+					client := &http.Client{Timeout: time.Duration(timeoutMs) * time.Millisecond}
+					resp, err = client.Do(req)
+					cancelReq()
+					if err != nil {
+						logging.Debugw("orchestrator: POST attempt failed", "attempt", i+1, "err", err, "correlation_id", correlationID)
+						if i < attempts-1 {
+							time.Sleep(time.Duration(200*(1<<i)) * time.Millisecond)
+							continue
+						}
+						// final failure
+						return
+					}
+					// Received response; stop retrying
+					break
 				}
-				c := &http.Client{Timeout: time.Duration(p.orchestratorTimeoutMS) * time.Millisecond}
-				resp, err := c.Do(req)
-				if err != nil {
-					logging.Sugar().Warnw("Processor: orchestrator POST failed", "err", err, "orchestrator_url", orchestratorURL)
+				if resp == nil {
+					logging.Debugw("orchestrator: no response received", "correlation_id", correlationID)
 					return
 				}
 				defer resp.Body.Close()
 				body, _ := io.ReadAll(resp.Body)
 				if resp.StatusCode >= 300 {
-					logging.Sugar().Warnw("Processor: orchestrator returned non-2xx", "status", resp.StatusCode, "orchestrator_url", orchestratorURL, "ssrc", ssrc, "body", string(body))
+					logging.Warnw("orchestrator: returned non-2xx", "status", resp.StatusCode, "correlation_id", correlationID)
 					return
 				}
-				logging.Sugar().Infow("Processor: forwarded transcript to orchestrator (chat)", "orchestrator_url", orchestratorURL, "ssrc", ssrc)
+				logging.Infow("orchestrator: forwarded transcript", "status", resp.StatusCode, "correlation_id", correlationID)
 
 				// Parse OpenAI-style response: choices[0].message.content
 				var orchOut map[string]interface{}
 				if err := json.Unmarshal(body, &orchOut); err == nil {
+					// Log raw orchestrator response for easier tracing (non-sensitive)
+					if bstr := strings.TrimSpace(string(body)); bstr != "" {
+						// Avoid logging extremely large bodies
+						if len(bstr) > 2000 {
+							logging.Debugw("orchestrator: response (truncated)", "correlation_id", correlationID, "body_len", len(bstr))
+						} else {
+							logging.Debugw("orchestrator: response body", "correlation_id", correlationID, "body", bstr)
+						}
+					}
 					if choices, ok := orchOut["choices"].([]interface{}); ok && len(choices) > 0 {
 						if ch0, ok := choices[0].(map[string]interface{}); ok {
 							if msg, ok := ch0["message"].(map[string]interface{}); ok {
 								if content, ok := msg["content"].(string); ok && strings.TrimSpace(content) != "" {
 									replyText := strings.TrimSpace(content)
-									logging.Sugar().Infow("Processor: orchestrator reply received", "ssrc", ssrc, "reply", replyText)
-									// If TTS_URL is configured, POST the reply text and save returned audio
+									logging.Infow("orchestrator: reply received", "correlation_id", correlationID, "reply_len", len(replyText))
+									logging.Debugw("orchestrator: reply text", "correlation_id", correlationID, "reply", replyText)
+
+									// Persist orchestrator reply to sidecar JSON (best-effort)
+									if p.saveAudioDir != "" && correlationID != "" {
+										if path := p.findSidecarPathForCID(correlationID); path != "" {
+											if sb, rerr := os.ReadFile(path); rerr == nil {
+												var sc map[string]interface{}
+												if uerr := json.Unmarshal(sb, &sc); uerr == nil {
+													sc["orchestrator_reply"] = replyText
+													sc["orchestrator_response_received_utc"] = time.Now().UTC().Format(time.RFC3339Nano)
+													if procMs, ok := orchOut["processing_ms"].(float64); ok {
+														sc["orchestrator_processing_ms"] = int(procMs)
+													}
+													nb, _ := json.MarshalIndent(sc, "", "  ")
+													_ = os.WriteFile(path+".tmp", nb, 0o644)
+													_ = os.Rename(path+".tmp", path)
+													logging.Infow("orchestrator: saved reply to sidecar", "path", path, "correlation_id", correlationID)
+												} else {
+													logging.Debugw("orchestrator: failed to unmarshal sidecar JSON", "path", path, "err", uerr, "correlation_id", correlationID)
+												}
+											} else {
+												logging.Debugw("orchestrator: failed to read sidecar for cid", "path", path, "err", rerr, "correlation_id", correlationID)
+											}
+										}
+									}
+
+									// If TTS_URL is configured, POST the reply text and save returned audio (with retries)
 									if tts := os.Getenv("TTS_URL"); tts != "" {
 										b2, _ := json.Marshal(map[string]string{"text": replyText})
-										req2, err := http.NewRequestWithContext(context.Background(), "POST", tts, bytes.NewReader(b2))
-										if err != nil {
-											logging.Sugar().Warnw("Processor: tts new request error", "err", err, "tts_url", tts)
-											return
-										}
-										req2.Header.Set("Content-Type", "application/json")
-										if tok := os.Getenv("TTS_AUTH_TOKEN"); tok != "" {
-											req2.Header.Set("Authorization", "Bearer "+tok)
-										} else if authToken != "" {
-											req2.Header.Set("Authorization", "Bearer "+authToken)
-										}
-										// Use a slightly longer timeout for TTS; fall back to orchestrator timeout if not set
 										ttsTimeout := 10000
 										if p.orchestratorTimeoutMS > 0 {
 											ttsTimeout = p.orchestratorTimeoutMS
 										}
-										c2 := &http.Client{Timeout: time.Duration(ttsTimeout) * time.Millisecond}
-										resp2, err := c2.Do(req2)
-										if err != nil {
-											logging.Sugar().Warnw("Processor: tts POST failed", "err", err, "tts_url", tts)
-											return
-										}
-										defer resp2.Body.Close()
-										if resp2.StatusCode >= 300 {
-											body2, _ := io.ReadAll(resp2.Body)
-											logging.Sugar().Warnw("Processor: tts returned non-2xx", "status", resp2.StatusCode, "tts_url", tts, "body", string(body2))
-											return
-										}
-										audioBytes, err := io.ReadAll(resp2.Body)
-										if err != nil {
-											logging.Sugar().Warnw("Processor: failed to read tts response body", "err", err)
-											return
-										}
-										if p.saveAudioDir != "" {
-											tsTs := time.Now().UTC().Format("20060102T150405.000Z")
-											base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
-											fname := base + ".wav"
-											tmp := fname + ".tmp"
-											if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
-												logging.Sugar().Warnw("Processor: failed to write tts wav tmp file", "tmp", tmp, "err", err)
-												return
+										ttsAttempts := 2
+										var resp2 *http.Response
+										var terr error
+										for ti := 0; ti < ttsAttempts; ti++ {
+											ctx2, cancel2 := context.WithTimeout(context.Background(), time.Duration(ttsTimeout)*time.Millisecond)
+											req2, rerr := http.NewRequestWithContext(ctx2, "POST", tts, bytes.NewReader(b2))
+											if rerr != nil {
+												logging.Debugw("tts: new request error", "err", rerr, "correlation_id", correlationID)
+												cancel2()
+												terr = rerr
+												break
 											}
-											if err := os.Rename(tmp, fname); err != nil {
-												logging.Sugar().Warnw("Processor: failed to rename tts wav tmp", "tmp", tmp, "final", fname, "err", err)
-												_ = os.Remove(tmp)
-												return
+											req2.Header.Set("Content-Type", "application/json")
+											if tok := os.Getenv("TTS_AUTH_TOKEN"); tok != "" {
+												req2.Header.Set("Authorization", "Bearer "+tok)
+											} else if authToken != "" {
+												req2.Header.Set("Authorization", "Bearer "+authToken)
 											}
-											logging.Sugar().Infow("Processor: saved TTS audio to disk", "path", fname, "ssrc", ssrc)
+											client2 := &http.Client{Timeout: time.Duration(ttsTimeout) * time.Millisecond}
+											resp2, terr = client2.Do(req2)
+											cancel2()
+											if terr != nil {
+												logging.Debugw("tts: POST attempt failed", "attempt", ti+1, "err", terr, "correlation_id", correlationID)
+												if ti < ttsAttempts-1 {
+													time.Sleep(time.Duration(200*(1<<ti)) * time.Millisecond)
+													continue
+												}
+												break
+											}
+											// got response; stop retrying
+											break
+										}
+										if terr != nil {
+											logging.Debugw("tts: POST failed", "err", terr, "correlation_id", correlationID)
+										} else if resp2 != nil {
+											defer resp2.Body.Close()
+											if resp2.StatusCode >= 300 {
+												_, _ = io.ReadAll(resp2.Body)
+												logging.Warnw("tts: returned non-2xx", "status", resp2.StatusCode, "correlation_id", correlationID)
+											} else {
+												audioBytes, rerr := io.ReadAll(resp2.Body)
+												if rerr != nil {
+													logging.Debugw("tts: failed to read response body", "err", rerr, "correlation_id", correlationID)
+												} else if p.saveAudioDir != "" {
+													tsTs := time.Now().UTC().Format("20060102T150405.000Z")
+													base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
+													fname := base + ".wav"
+													tmp := fname + ".tmp"
+													if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
+														logging.Debugw("tts: failed to write tmp file", "err", err, "path", tmp, "correlation_id", correlationID)
+													} else if err := os.Rename(tmp, fname); err != nil {
+														logging.Debugw("tts: failed to rename tmp file", "err", err, "tmp", tmp, "final", fname, "correlation_id", correlationID)
+														_ = os.Remove(tmp)
+													} else {
+														logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)
+														// record tts path into sidecar JSON if possible
+														if p.saveAudioDir != "" && correlationID != "" {
+															if path := p.findSidecarPathForCID(correlationID); path != "" {
+																if sb, rerr := os.ReadFile(path); rerr == nil {
+																	var sc map[string]interface{}
+																	if uerr := json.Unmarshal(sb, &sc); uerr == nil {
+																		sc["tts_wav_path"] = fname
+																		sc["tts_saved_utc"] = time.Now().UTC().Format(time.RFC3339Nano)
+																		nb, _ := json.MarshalIndent(sc, "", "  ")
+																		_ = os.WriteFile(path+".tmp", nb, 0o644)
+																		_ = os.Rename(path+".tmp", path)
+																		logging.Infow("tts: saved tts path to sidecar", "path", path, "correlation_id", correlationID)
+																	} else {
+																		logging.Debugw("tts: failed to unmarshal sidecar JSON", "path", path, "err", uerr, "correlation_id", correlationID)
+																	}
+																} else {
+																	logging.Debugw("tts: failed to read sidecar for cid", "path", path, "err", rerr, "correlation_id", correlationID)
+																}
+															}
+														}
+													}
+												}
+											}
 										}
 									}
 								}
@@ -1647,7 +1726,7 @@ func (p *Processor) hasWakePhrase(text string) (bool, string) {
 				if foundIdx >= 0 && foundIdx+len(wpWords) <= len(fullWords) {
 					if foundIdx+len(wpWords) < len(fullWords) {
 						stripped = strings.Join(fullWords[foundIdx+len(wpWords):], " ")
-						stripped = strings.Trim(stripped, " ,.!?;:-\"'`~ ")
+						stripped = strings.Trim(stripped, " ,.!?;:-\"'`~")
 					}
 				}
 				return true, stripped

@@ -2,17 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"os"
 	"os/signal"
-	"reflect"
-	"strconv"
-	"strings"
+
 	"syscall"
 	"time"
 
-	"go.uber.org/zap"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/discord-voice-lab/internal/logging"
@@ -21,309 +17,29 @@ import (
 
 // discordResolver implementation moved to internal/voice/discord_resolver.go
 
-// sensitiveKeys lists JSON keys which should never be logged in plaintext.
-var sensitiveKeys = map[string]struct{}{
-	"token": {}, "session_id": {}, "access_token": {}, "refresh_token": {},
-	"authorization": {}, "password": {}, "email": {}, "client_secret": {},
-}
-
-// redactAny walks a decoded JSON value (map[string]any / []any) and replaces
-// values for sensitive keys with a placeholder. It modifies maps/slices in place.
-func redactAny(v any) any {
-	switch vv := v.(type) {
-	case map[string]any:
-		for k, val := range vv {
-			lk := strings.ToLower(k)
-			if _, ok := sensitiveKeys[lk]; ok {
-				vv[k] = "<redacted>"
-				continue
-			}
-			// Recurse into nested structures
-			vv[k] = redactAny(val)
-		}
-		return vv
-	case []any:
-		for i, it := range vv {
-			vv[i] = redactAny(it)
-		}
-		return vv
-	default:
-		return v
-	}
-}
-
-// extractMeta pulls common searchable fields from known event types and
-// also returns a flexible metadata map built from typed fields, JSON
-// payloads, or reflection. The returned meta map contains stringified
-// key/value pairs discovered on the event which can be used for richer
-// logging and exploration.
-func extractMeta(evt interface{}) (evtType, guildID, channelID, userID string, ssrc uint32, speaking bool, meta map[string]any) {
-	meta = make(map[string]any)
-	if evt == nil {
-		evtType = "<nil>"
-		return
-	}
-
-	// Default type name
-	evtType = fmt.Sprintf("%T", evt)
-
-	// Helper to add to meta if value non-empty
-	addMeta := func(k string, v any) {
-		if v == nil {
-			return
-		}
-		// Preserve original types where possible. For numeric json decoded
-		// values (float64) we leave them as-is; callers can inspect types.
-		switch tv := v.(type) {
-		case string:
-			if tv != "" {
-				meta[k] = tv
-			}
-		default:
-			meta[k] = tv
-		}
-	}
-
-	// Known typed cases (fast-path)
-	switch e := evt.(type) {
-	case *discordgo.VoiceStateUpdate:
-		evtType = "VoiceStateUpdate"
-		guildID = e.GuildID
-		channelID = e.ChannelID
-		userID = e.UserID
-		addMeta("guild_id", e.GuildID)
-		addMeta("channel_id", e.ChannelID)
-		addMeta("user_id", e.UserID)
-	case *discordgo.VoiceSpeakingUpdate:
-		evtType = "VoiceSpeakingUpdate"
-		userID = e.UserID
-		ssrc = uint32(e.SSRC)
-		speaking = e.Speaking
-		addMeta("user_id", e.UserID)
-		addMeta("ssrc", e.SSRC)
-		addMeta("speaking", e.Speaking)
-	case *discordgo.Ready:
-		evtType = "Ready"
-		if e.User != nil && e.User.ID != "" {
-			userID = e.User.ID
-			addMeta("user_id", e.User.ID)
-		}
-	case *discordgo.GuildCreate:
-		evtType = "GuildCreate"
-		if e.ID != "" {
-			guildID = e.ID
-			addMeta("guild_id", e.ID)
-		}
-	case *discordgo.Event:
-		// Event contains RawData which is JSON -- try to decode common keys
-		evtType = e.Type
-		var m map[string]any
-		if err := json.Unmarshal(e.RawData, &m); err == nil {
-			for k, v := range m {
-				addMeta(k, v)
-			}
-			// map common names
-			if v, ok := m["guild_id"].(string); ok {
-				guildID = v
-			}
-			if v, ok := m["channel_id"].(string); ok {
-				channelID = v
-			}
-			if v, ok := m["user_id"].(string); ok {
-				userID = v
-			}
-			// ssrc may be a number; try several numeric types
-			if v, ok := m["ssrc"].(float64); ok {
-				ssrc = uint32(v)
-			} else if v, ok := m["ssrc"].(int); ok {
-				ssrc = uint32(v)
-			} else if v, ok := m["ssrc"].(int64); ok {
-				ssrc = uint32(v)
-			}
-			if v, ok := m["speaking"].(bool); ok {
-				speaking = v
-			}
-		}
-	}
-
-	// If we didn't hit a known typed case, try to decode generically from
-	// some common shapes: map[string]any, json.RawMessage, []byte, or struct via reflection.
-	if len(meta) == 0 {
-		switch v := evt.(type) {
-		case map[string]any:
-			for k, val := range v {
-				addMeta(k, val)
-				if k == "guild_id" {
-					if s, ok := val.(string); ok {
-						guildID = s
-					}
-				}
-				if k == "channel_id" {
-					if s, ok := val.(string); ok {
-						channelID = s
-					}
-				}
-				if k == "user_id" {
-					if s, ok := val.(string); ok {
-						userID = s
-					}
-				}
-			}
-		case json.RawMessage:
-			var m map[string]any
-			if err := json.Unmarshal(v, &m); err == nil {
-				for k, val := range m {
-					addMeta(k, val)
-				}
-			}
-		case []byte:
-			var m map[string]any
-			if err := json.Unmarshal(v, &m); err == nil {
-				for k, val := range m {
-					addMeta(k, val)
-				}
-			}
-		default:
-			// Use reflection for structs: iterate exported fields and use json tag if present
-			rv := reflect.ValueOf(evt)
-			if rv.Kind() == reflect.Ptr {
-				rv = rv.Elem()
-			}
-			if rv.Kind() == reflect.Struct {
-				rt := rv.Type()
-				for i := 0; i < rt.NumField(); i++ {
-					f := rt.Field(i)
-					if f.PkgPath != "" { // unexported
-						continue
-					}
-					name := f.Name
-					if tag := f.Tag.Get("json"); tag != "" {
-						// json tag may be like "name,omitempty"
-						parts := strings.Split(tag, ",")
-						if parts[0] != "" {
-							name = parts[0]
-						}
-					}
-					fv := rv.Field(i)
-					if !fv.IsValid() || (fv.Kind() == reflect.Ptr && fv.IsNil()) {
-						continue
-					}
-					var val any
-					if fv.Kind() == reflect.Ptr {
-						val = fv.Elem().Interface()
-					} else {
-						val = fv.Interface()
-					}
-					addMeta(name, val)
-				}
-			}
-		}
-	}
-
-	// Populate canonical return values from meta if still empty
-	if guildID == "" {
-		if v, ok := meta["guild_id"]; ok {
-			if s, ok2 := v.(string); ok2 {
-				guildID = s
-			}
-		}
-	}
-	if channelID == "" {
-		if v, ok := meta["channel_id"]; ok {
-			if s, ok2 := v.(string); ok2 {
-				channelID = s
-			}
-		}
-	}
-	if userID == "" {
-		if v, ok := meta["user_id"]; ok {
-			if s, ok2 := v.(string); ok2 {
-				userID = s
-			}
-		}
-	}
-	// ssrc and speaking are already set where possible
-
-	return
-}
+// Helpers for event redaction and extraction were removed because
+// logging is suppressed in this branch. Keep the file minimal.
 
 // redactLargeValues inspects a generic JSON object (as bytes) and replaces
 // values larger than redactBytes with a placeholder. Only applies to string
 // values; other types are left intact. Returns the potentially-modified JSON
 // bytes. If parsing fails, returns original bytes.
-func redactLargeValues(raw []byte, redactBytes int64) []byte {
-	if redactBytes <= 0 {
-		return raw
-	}
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return raw
-	}
-
-	var walk func(any) any
-	walk = func(x any) any {
-		switch vv := x.(type) {
-		case map[string]any:
-			for k, val := range vv {
-				vv[k] = walk(val)
-			}
-			return vv
-		case []any:
-			for i, it := range vv {
-				vv[i] = walk(it)
-			}
-			return vv
-		case string:
-			if int64(len(vv)) > redactBytes {
-				return fmt.Sprintf("<redacted %d bytes>", len(vv))
-			}
-			return vv
-		default:
-			return vv
-		}
-	}
-
-	cleaned := walk(v)
-	out, err := json.Marshal(cleaned)
-	if err != nil {
-		return raw
-	}
-	return out
-}
-
-// safeMarshalIndent behaves like json.MarshalIndent but falls back to
-// fmt.Sprintf on error or panic.
-func safeMarshalIndent(v any) []byte {
-	defer func() {
-		if r := recover(); r != nil {
-			// swallow panic
-		}
-	}()
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err == nil {
-		return b
-	}
-	return []byte(fmt.Sprintf("%+v", v))
-}
+// Logging helpers removed: redactLargeValues and safeMarshalIndent were
+// previously used only for preparing payloads for logging. They have been
+// removed as logging is suppressed in this build.
 
 func main() {
 	// Initialize centralized logging
-	loggingSugar := logging.Init()
-	if loggingSugar == nil {
-		// fallback to a basic zap logger if initialization failed
-		l, _ := zap.NewProduction()
-		defer l.Sync()
-		loggingSugar = l.Sugar()
-	}
-	sugar := loggingSugar
+	logging.Init()
+	defer logging.Sync()
 
 	token := os.Getenv("DISCORD_BOT_TOKEN")
 	if token == "" {
-		sugar.Fatal("DISCORD_BOT_TOKEN required")
+		logging.FatalExitf("DISCORD_BOT_TOKEN required")
 	}
 	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
-		sugar.Fatalf("discordgo.New: %v", err)
+		logging.FatalExitf("discordgo.New failed", "err", err)
 	}
 
 	// By default set a conservative intent mask needed for voice functionality.
@@ -340,22 +56,17 @@ func main() {
 	// IntentsGuildMembers and IntentsGuildPresences.
 	privileged := discordgo.IntentsGuildMembers | discordgo.IntentsGuildPresences
 	if dg.Identify.Intents&privileged != 0 {
-		sugar.Warnw("bot is requesting privileged gateway intents; ensure these are enabled in the Discord Developer Portal", "intents", dg.Identify.Intents)
+		// suppressed: privileged intents warning
 	}
-
-	sugar.Infow("using gateway intents", "intents", dg.Identify.Intents)
 
 	// Open the Discord session so the bot connects and can receive events.
-	sugar.Infow("opening discord session")
 	if err := dg.Open(); err != nil {
-		sugar.Fatalf("discord session open failed: %v", err)
+		logging.FatalExitf("discord session open failed", "err", err)
 	}
-	sugar.Infow("discord session opened")
 
 	// Create a single resolver backed by the discord session state and
 	// reuse it for the voice processor and local logging so caches are shared.
 	resolver := voice.NewDiscordResolver(dg)
-	sugar.Infow("creating voice processor")
 	// Create a root context for the application so subsystems can observe
 	// cancellation during shutdown. This context will be cancelled below
 	// when we receive an OS signal.
@@ -364,9 +75,9 @@ func main() {
 
 	vp, err := voice.NewProcessorWithResolver(rootCtx, resolver)
 	if err != nil {
-		sugar.Fatalf("voice.NewProcessor: %v", err)
+		logging.FatalExitf("voice.NewProcessor failed", "err", err)
 	}
-	sugar.Infow("voice processor created")
+	logging.Infow("voice processor created")
 
 	// If ALLOWED_USER_IDS is set, parse it as a comma-separated list and
 	// configure the processor to only accept audio from those users.
@@ -379,17 +90,7 @@ func main() {
 		}
 		if len(parts) > 0 {
 			vp.SetAllowedUsers(parts)
-			sugar.Infow("configured allowed users", "count", len(parts))
-		}
-	}
-
-	// PAYLOAD_MAX_BYTES controls how many bytes of payload we log
-	maxPayload := int64(8 * 1024)
-	if v := os.Getenv("PAYLOAD_MAX_BYTES"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			maxPayload = n
-		} else {
-			sugar.Warnf("invalid PAYLOAD_MAX_BYTES=%s; using default %d", v, maxPayload)
+			logging.Infow("configured allowed users", "count", len(parts))
 		}
 	}
 
@@ -406,14 +107,6 @@ func main() {
 
 	// REDACT_LARGE_BYTES: strings longer than this will be replaced in
 	// detailed dumps. Defaults to 1024 bytes.
-	redactLarge := int64(1024)
-	if v := os.Getenv("REDACT_LARGE_BYTES"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			redactLarge = n
-		} else {
-			sugar.Warnf("invalid REDACT_LARGE_BYTES=%s; using default %d", v, redactLarge)
-		}
-	}
 
 	// Register the processor handlers for voice state and speaking updates so
 	// it can map SSRC <-> user IDs. Wrap the method calls in explicit
@@ -422,99 +115,9 @@ func main() {
 		vp.HandleVoiceState(s, vs)
 	})
 
-	// Generic event logger: logs every event that comes across the wire.
-	// Use *discordgo.Event as the handler signature so discordgo's
-	// reflection validation accepts it. Prefer the populated evt.Struct
-	// (if present) which is a typed event; otherwise unmarshal RawData.
+	// Generic event handler is a no-op because logging is suppressed.
 	dg.AddHandler(func(s *discordgo.Session, evt *discordgo.Event) {
-		var obj any
-		if evt.Struct != nil {
-			obj = evt.Struct
-		} else {
-			// fallback to decoding RawData into a generic structure
-			var v any
-			if err := json.Unmarshal(evt.RawData, &v); err == nil {
-				// redact sensitive fields before using the decoded object
-				obj = redactAny(v)
-			} else {
-				// as a last resort, keep raw bytes as a string (not ideal)
-				// avoid logging raw bytes that might include tokens
-				obj = "<raw data omitted>"
-			}
-		}
-
-		evtType, guildID, channelID, userID, ssrc, speaking, meta := extractMeta(obj)
-		// If extractMeta couldn't identify a typed event, use the gateway Type
-		if evtType == fmt.Sprintf("%T", obj) || evtType == "" {
-			evtType = evt.Type
-		}
-
-		// Marshal the event safely and redact/truncate according to config.
-		payload := safeMarshalIndent(obj)
-		// If this event type is in detailedEvents, include full payload but
-		// redact very large strings. Otherwise, truncate to maxPayload.
-		if _, ok := detailedEvents[evtType]; ok {
-			payload = redactLargeValues(payload, redactLarge)
-		} else {
-			if int64(len(payload)) > maxPayload {
-				// include a short truncated note
-				note := fmt.Sprintf("\n<truncated %d bytes>", len(payload))
-				payload = append(payload[:maxPayload], []byte(note)...)
-			}
-		}
-
-		// Try to extract human-friendly names when the typed event provides them
-		var guildName, channelName, userName string
-		switch t := obj.(type) {
-		case *discordgo.GuildCreate:
-			guildName = t.Name
-		case *discordgo.VoiceStateUpdate:
-			if t.Member != nil && t.Member.User != nil {
-				userName = t.Member.User.Username
-			}
-		case *discordgo.Ready:
-			if t.User != nil {
-				userName = t.User.Username
-			}
-		case *discordgo.Event:
-			// nothing
-		}
-		// Try to find user name in meta structural payloads (JSON decoded)
-		if userName == "" {
-			if m, ok := meta["member"].(map[string]any); ok {
-				if u, ok2 := m["user"].(map[string]any); ok2 {
-					if un, ok3 := u["username"].(string); ok3 {
-						userName = un
-					}
-				}
-			}
-		}
-
-		// If names weren't discovered in the typed event payload, consult the
-		// resolver which may have cached values from Session.State or REST.
-		if guildName == "" && guildID != "" {
-			guildName = resolver.GuildName(guildID)
-		}
-		if channelName == "" && channelID != "" {
-			channelName = resolver.ChannelName(channelID)
-		}
-		if userName == "" && userID != "" {
-			userName = resolver.UserName(userID)
-		}
-
-		// Build structured fields using the logging helpers so names are included when available
-		fields := []interface{}{"type", evtType}
-		if guildID != "" {
-			fields = append(fields, logging.GuildFields(guildID, guildName)...)
-		}
-		if channelID != "" {
-			fields = append(fields, logging.ChannelFields(channelID, channelName)...)
-		}
-		if userID != "" {
-			fields = append(fields, logging.UserFields(userID, userName)...)
-		}
-		fields = append(fields, "ssrc", ssrc, "speaking", speaking, "meta", meta, "payload", string(payload))
-		sugar.Infow("discord event", fields...)
+		// no-op
 	})
 
 	// If configured, attempt to auto-join a voice channel.
@@ -523,30 +126,21 @@ func main() {
 	voiceChannelID := os.Getenv("VOICE_CHANNEL_ID")
 	if guildID != "" && voiceChannelID != "" {
 		// Try to resolve human-friendly names for the guild and channel
-		guildName := resolver.GuildName(guildID)
-		channelName := resolver.ChannelName(voiceChannelID)
-		joinFields := []interface{}{}
-		joinFields = append(joinFields, logging.GuildFields(guildID, guildName)...)
-		joinFields = append(joinFields, logging.ChannelFields(voiceChannelID, channelName)...)
-		sugar.Infow("joining voice channel", joinFields...)
+		_ = resolver.GuildName(guildID)
+		_ = resolver.ChannelName(voiceChannelID)
+		// logging suppressed: joining voice channel
 		vconn, err := dg.ChannelVoiceJoin(guildID, voiceChannelID, false, false)
 		if err != nil {
-			sugar.Warnf("voice join failed: %v", err)
+			logging.Warnw("voice join failed", "err", err)
 		} else {
 			vc = vconn
+			logging.Infow("joined voice channel", "guild_id", guildID, "channel_id", voiceChannelID)
+			// Seed processor display-name cache from current voice channel participants
+			vp.SeedVoiceChannelMembers(dg, guildID, voiceChannelID)
 			// Register voice-level handler for speaking updates which provides
 			// the VoiceConnection and a *discordgo.VoiceSpeakingUpdate.
 			vc.AddHandler(func(v *discordgo.VoiceConnection, su *discordgo.VoiceSpeakingUpdate) {
-				// Log speaking updates observed on the voice websocket so we
-				// can confirm they arrive here. Then forward to the processor
-				// which will map SSRC -> user. Pass the session so the
-				// processor has access to session-based helpers if needed.
-				// Resolve the speaking user's name for friendlier logs
-				userName := resolver.UserName(su.UserID)
-				speaktFields := []interface{}{}
-				speaktFields = append(speaktFields, logging.UserFields(su.UserID, userName)...)
-				speaktFields = append(speaktFields, "ssrc", su.SSRC, "speaking", su.Speaking)
-				sugar.Infow("voice connection speaking update received", speaktFields...)
+				logging.Debugw("voice connection speaking update received", "ssrc", su.SSRC, "user_id", su.UserID)
 				vp.HandleSpeakingUpdate(dg, su)
 			})
 
@@ -575,12 +169,13 @@ func main() {
 					}
 				}(vc)
 			} else {
-				sugar.Warn("voice connection has no OpusRecv; ensure bot is not deafened and discordgo supports opus receive on this build")
+				// suppressed: voice connection has no OpusRecv
 			}
-			joinedFields := []interface{}{}
-			joinedFields = append(joinedFields, logging.GuildFields(guildID, guildName)...)
-			joinedFields = append(joinedFields, logging.ChannelFields(voiceChannelID, channelName)...)
-			sugar.Infow("voice joined", joinedFields...)
+
+			// No join-time SSRC seeding: discordgo's VoiceState doesn't expose
+			// SSRC reliably for pre-existing participants. We instead wait a
+			// short window in the processor flush logic to allow a late
+			// speaking update to arrive and backfill the accumulator.
 		}
 	}
 
@@ -588,7 +183,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	<-stop
-	sugar.Infow("shutdown signal received, closing resources")
+	// shutdown signal received (logging suppressed)
 
 	// Cancel the root context so all subsystems observing it can begin
 	// cooperative shutdown (Processor, opus reader goroutine, etc.).
@@ -598,16 +193,16 @@ func main() {
 	done := make(chan struct{})
 	go func() {
 		if err := vp.Close(); err != nil {
-			sugar.Warnf("processor close error: %v", err)
+			logging.Warnw("processor close error", "err", err)
 		}
 		// If we joined a voice channel, disconnect cleanly first.
 		if vc != nil {
 			if err := vc.Disconnect(); err != nil {
-				sugar.Warnf("voice disconnect error: %v", err)
+				logging.Warnw("voice disconnect error", "err", err)
 			}
 		}
 		if err := dg.Close(); err != nil {
-			sugar.Warnf("discord session close error: %v", err)
+			logging.Warnw("discord session close error", "err", err)
 		}
 		close(done)
 	}()
@@ -616,12 +211,7 @@ func main() {
 	case <-done:
 		// normal shutdown finished
 	case <-time.After(10 * time.Second):
-		sugar.Warn("shutdown timed out after 10s; forcing exit")
+		logging.Warnw("shutdown timed out after 10s; forcing exit")
 	}
-
-	// ensure any logging buffers are flushed
-	if l := zap.L(); l != nil {
-		_ = l.Sync()
-	}
-	sugar.Info("shutdown complete")
+	// shutdown complete
 }
