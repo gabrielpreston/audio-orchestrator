@@ -2,11 +2,8 @@ package voice
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"os"
-	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -110,7 +107,8 @@ type Processor struct {
 	// manager for sidecar JSON files (created when saveAudioDir is set)
 	sidecar *SidecarManager
 	// wake phrases that must prefix a transcript to allow forwarding to orchestrator
-	wakePhrases []string
+	wakePhrases  []string
+	wakeDetector *WakeDetector
 	// wakePhraseWindowS controls how many seconds from the start of an
 	// accumulation we consider the wake phrase to be valid (Option C).
 	wakePhraseWindowS int
@@ -197,6 +195,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 			}
 			return def
 		}(),
+		wakeDetector: nil,
 		sidecar: NewSidecarManager(func() string {
 			enabled := strings.ToLower(strings.TrimSpace(os.Getenv("SAVE_AUDIO_ENABLED")))
 			if enabled != "true" {
@@ -230,6 +229,9 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 		}
 	}
 
+	// instantiate wake detector
+	p.wakeDetector = NewWakeDetector(p.wakePhrases, p.wakePhraseWindowS)
+
 	// assign http client with whisper timeout
 	p.httpClient = &http.Client{Timeout: time.Duration(p.whisperTimeoutMS) * time.Millisecond}
 
@@ -256,107 +258,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	// If saveAudioDir is set, start a background cleanup goroutine to prune old files
 	if p.saveAudioDir != "" {
 		p.wg.Add(1)
-		go func(dir string, retention time.Duration, interval time.Duration, maxFiles int) {
-			defer p.wg.Done()
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-p.ctx.Done():
-					return
-				case <-ticker.C:
-					// list files and remove sidecar pairs older than retention
-					files, err := os.ReadDir(dir)
-					if err != nil {
-						// logging removed: Processor: cleanup readDir failed
-						continue
-					}
-					// Collect sidecar JSON entries and associated WAVs, keyed by a base id
-					type pairInfo struct {
-						jsonPath string
-						wavPath  string
-						mod      time.Time
-					}
-					pairs := make(map[string]*pairInfo)
-					for _, fi := range files {
-						name := fi.Name()
-						if !strings.HasSuffix(name, ".json") {
-							continue
-						}
-						jsonPath := dir + "/" + name
-						b, err := os.ReadFile(jsonPath)
-						if err != nil {
-							continue
-						}
-						var sc map[string]interface{}
-						if err := json.Unmarshal(b, &sc); err != nil {
-							continue
-						}
-						wavPath := ""
-						if v, ok := sc["wav_path"].(string); ok && v != "" {
-							wavPath = v
-						} else {
-							// derive wav path by replacing .json with .wav
-							wavPath = strings.TrimSuffix(jsonPath, ".json") + ".wav"
-						}
-						st, err := os.Stat(jsonPath)
-						if err != nil {
-							continue
-						}
-						base := strings.TrimSuffix(name, ".json")
-						pairs[base] = &pairInfo{jsonPath: jsonPath, wavPath: wavPath, mod: st.ModTime()}
-					}
-					// convert to slice and sort by modtime ascending
-					var pairList []pairInfo
-					for _, p := range pairs {
-						pairList = append(pairList, *p)
-					}
-					sort.Slice(pairList, func(i, j int) bool { return pairList[i].mod.Before(pairList[j].mod) })
-					// Remove pairs older than retention
-					cutoff := time.Now().Add(-retention)
-					removed := 0
-					for _, pi := range pairList {
-						if pi.mod.Before(cutoff) {
-							// remove json and wav if present
-							_ = os.Remove(pi.jsonPath)
-							if pi.wavPath != "" {
-								_ = os.Remove(pi.wavPath)
-							}
-							removed++
-						}
-					}
-					if removed > 0 {
-						// logging removed: Processor: cleanup removed old saved audio pairs
-					}
-					// If maxFiles > 0, enforce it in terms of pairs (oldest first)
-					if maxFiles > 0 {
-						filesLeft := len(pairList) - removed
-						if filesLeft > maxFiles {
-							toRemove := filesLeft - maxFiles
-							count := 0
-							for _, pi := range pairList {
-								if count >= toRemove {
-									break
-								}
-								// skip pairs that were already removed above
-								if _, err := os.Stat(pi.jsonPath); err == nil {
-									_ = os.Remove(pi.jsonPath)
-								}
-								if pi.wavPath != "" {
-									if _, err := os.Stat(pi.wavPath); err == nil {
-										_ = os.Remove(pi.wavPath)
-									}
-								}
-								count++
-							}
-							if count > 0 {
-								// logging removed: Processor: cleanup removed pairs to enforce max_files
-							}
-						}
-					}
-				}
-			}
-		}(p.saveAudioDir, time.Duration(retHours)*time.Hour, time.Duration(cleanIntervalMin)*time.Minute, maxFiles)
+		StartSaveAudioCleaner(p.ctx, &p.wg, p.saveAudioDir, time.Duration(retHours)*time.Hour, time.Duration(cleanIntervalMin)*time.Minute, maxFiles)
 	}
 
 	// Configure accumulation thresholds from env or defaults
@@ -668,115 +570,6 @@ func (p *Processor) addAggregatedTranscript(ssrc uint32, username, transcript, c
 // (commonly 16) are used to populate the header.
 // buildWAV moved to whisper_client.go
 
-// hasWakePhrase checks whether the provided text begins with one of the
-// configured wake phrases (case-insensitive). If a wake phrase is found,
-// it returns (true, strippedText) where strippedText is the text with the
-// wake phrase and any immediate punctuation removed. Otherwise returns
-// (false, "").
-func (p *Processor) hasWakePhrase(text string) (bool, string) {
-	if text == "" {
-		return false, ""
-	}
-	s := strings.ToLower(strings.TrimSpace(text))
-	// normalize whitespace
-	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
-	// trim any leading punctuation
-	s = strings.TrimLeft(s, " \t\n\r\f\v\"'`~")
-	// If wakePhraseWindowS == 0, fallback to strict prefix semantics
-	windowS := p.wakePhraseWindowS
-	for _, wp := range p.wakePhrases {
-		if wp == "" {
-			continue
-		}
-		// exact match
-		if s == wp {
-			return true, ""
-		}
-		// If windowS == 0 use original prefix-based detection
-		if windowS == 0 {
-			prefixes := []string{wp + " ", wp + ",", wp + ".", wp + "!", wp + "?", wp + ":"}
-			for _, pref := range prefixes {
-				if strings.HasPrefix(s, pref) {
-					stripped := strings.TrimLeft(strings.TrimSpace(s[len(pref):]), " ,.!?;:-\"'`~")
-					return true, stripped
-				}
-			}
-			continue
-		}
-		// Window-based heuristic: check whether the wake phrase appears within
-		// the first K words of the transcript. K derived from windowS and a
-		// heuristic speech rate (~3 words/sec). This avoids requiring strict
-		// prefix matching while still limiting false positives.
-		words := strings.Fields(s)
-		k := windowS * 3
-		if k < 3 {
-			k = 3
-		}
-		if len(words) > k {
-			words = words[:k]
-		}
-		// Split wake phrase into words to perform a word-boundary-aware search
-		wpWords := strings.Fields(wp)
-		if len(wpWords) == 0 {
-			continue
-		}
-		// helper to normalize a token for comparison (strip surrounding punctuation)
-		normalizeToken := func(tok string) string {
-			return strings.Trim(strings.ToLower(strings.TrimSpace(tok)), " ,.!?;:-\"'`~")
-		}
-		// Search for the wake phrase sequence anywhere inside the head word slice
-		for i := 0; i+len(wpWords) <= len(words); i++ {
-			match := true
-			for j := 0; j < len(wpWords); j++ {
-				if normalizeToken(words[i+j]) != normalizeToken(wpWords[j]) {
-					match = false
-					break
-				}
-			}
-			if match {
-				// Build stripped text from the remainder of the entire normalized
-				// transcript (not just the head) starting after the matched words.
-				// Find the index of the first occurrence of this sequence in the
-				// full words list to capture any words beyond the head.
-				fullWords := strings.Fields(strings.TrimSpace(regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")))
-				// locate the matched sequence in fullWords
-				foundIdx := -1
-				for fi := 0; fi+len(wpWords) <= len(fullWords); fi++ {
-					okMatch := true
-					for fj := 0; fj < len(wpWords); fj++ {
-						if normalizeToken(fullWords[fi+fj]) != normalizeToken(wpWords[fj]) {
-							okMatch = false
-							break
-						}
-					}
-					if okMatch {
-						foundIdx = fi
-						break
-					}
-				}
-				stripped := ""
-				if foundIdx >= 0 && foundIdx+len(wpWords) <= len(fullWords) {
-					if foundIdx+len(wpWords) < len(fullWords) {
-						stripped = strings.Join(fullWords[foundIdx+len(wpWords):], " ")
-						stripped = strings.Trim(stripped, " ,.!?;:-\"'`~")
-					}
-				}
-				return true, stripped
-			}
-		}
-	}
-	return false, ""
-}
+// Wake detection implemented in wakephrase.go via WakeDetector
 
-// findSidecarPathForCID returns the full path to the sidecar JSON for a given
-// correlation id. It first looks for an index file named `cid-<cid>.idx` in
-// the saveAudioDir which contains the exact JSON path. If not found, it
-// falls back to scanning the directory for a filename that contains
-// 'cid<cid>' and ends with .json (legacy behavior).
-func (p *Processor) findSidecarPathForCID(cid string) string {
-	// Use SidecarManager instead
-	if p.sidecar == nil {
-		return ""
-	}
-	return p.sidecar.FindByCID(cid)
-}
+// sidecar handling implemented in sidecar.go via SidecarManager

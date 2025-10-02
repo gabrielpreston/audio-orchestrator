@@ -21,7 +21,9 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 		stripped := a.wakeStripped
 		if !matched {
 			var m bool
-			m, stripped = p.hasWakePhrase(text)
+			if p.wakeDetector != nil {
+				m, stripped = p.wakeDetector.Detect(text)
+			}
 			matched = m
 		}
 		if !matched {

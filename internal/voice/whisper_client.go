@@ -270,7 +270,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 			}
 		}
 
-		_, strippedText := p.hasWakePhrase(transcript)
+		_, strippedText := p.wakeDetector.Detect(transcript)
 		if transcript != "" {
 			p.addAggregatedTranscript(ssrc, username, transcript, correlationID, accumCreatedAt, strippedText)
 		}
