@@ -1,4 +1,4 @@
-# Voice Agent Command Reference [PLACEHOLDER]
+# Voice Agent Command Reference
 
 ## Purpose
 A comprehensive reference for all voice commands the agent supports — their syntax, intent mapping, and behavior. Also explains how commands are parsed and routed internally.

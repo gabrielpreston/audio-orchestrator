@@ -10,8 +10,8 @@ import (
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// PostWithRetries posts JSON payload to url with simple retry/backoff and returns the http.Response.
-// Caller is responsible for closing resp.Body.
+// PostWithRetries posts JSON to url with retry/backoff and returns the response.
+// Caller must close resp.Body.
 func PostWithRetries(client *http.Client, url string, body []byte, authToken string, timeoutMs int, attempts int, correlationID string) (*http.Response, error) {
 	if attempts <= 0 {
 		attempts = 1

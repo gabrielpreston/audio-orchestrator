@@ -29,12 +29,12 @@ PKG := ./...
 
 # Enable BuildKit by default for faster, modern builds. Set to 0 to disable.
 DOCKER_BUILDKIT ?= 1
-# For legacy docker-compose, enable Docker CLI build integration so BuildKit is used
+# For compatibility with older docker-compose setups, enable BuildKit when available
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
 # Choose the docker compose command at Makefile parse time so recipes can
 # use a simple variable. Prefer the new 'docker compose' subcommand, fall
-# back to the legacy 'docker-compose' binary.
+# fall back to the legacy 'docker-compose' binary when necessary.
 DOCKER_COMPOSE := $(shell if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 2>/dev/null; then echo "docker compose"; elif command -v docker-compose >/dev/null 2>&1; then echo "docker-compose"; else echo ""; fi)
 
 help: ## Show this help (default)

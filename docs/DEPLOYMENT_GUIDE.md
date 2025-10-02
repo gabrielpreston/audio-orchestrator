@@ -1,4 +1,4 @@
-# Deployment Guide [PLACEHOLDER]
+# Deployment Guide
 
 ## Purpose
 This guide explains how to deploy the system in production-like environments — from configuration and orchestration to security and operational considerations.

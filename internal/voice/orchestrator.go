@@ -11,10 +11,9 @@ import (
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// maybeForwardToOrchestrator checks wake-phrase and forwards the aggregated
-// transcript to the configured orchestrator and optional TTS service.
-// This mirrors the original logic from processor.go but is extracted to
-// keep processor.go smaller.
+// maybeForwardToOrchestrator checks for a wake phrase and forwards the
+// aggregated transcript to the configured orchestrator (and TTS if enabled).
+// Extracted from processor.go to keep that file focused.
 func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, text string, correlationID string) {
 	if orch := os.Getenv("ORCHESTRATOR_URL"); orch != "" {
 		matched := a.wakeDetected
@@ -103,8 +102,6 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 	}
 }
 
-// sidecar operations moved to sidecar.go
-
 // handleTTS posts replyText to the TTS service, saves returned audio if configured, and updates sidecar.
 func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, correlationID string) {
 	b2, _ := json.Marshal(map[string]string{"text": replyText})
@@ -134,14 +131,8 @@ func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, 
 	tsTs := time.Now().UTC().Format("20060102T150405.000Z")
 	base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
 	fname := base + ".wav"
-	tmp := fname + ".tmp"
-	if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
-		logging.Debugw("tts: failed to write tmp file", "err", err, "path", tmp, "correlation_id", correlationID)
-		return
-	}
-	if err := os.Rename(tmp, fname); err != nil {
-		logging.Debugw("tts: failed to rename tmp file", "err", err, "tmp", tmp, "final", fname, "correlation_id", correlationID)
-		_ = os.Remove(tmp)
+	if err := SaveFileAtomic(fname, audioBytes, 0o644); err != nil {
+		logging.Debugw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
 		return
 	}
 	logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)

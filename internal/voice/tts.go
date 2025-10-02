@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// TTSClient performs text->audio synthesis using an external service and
-// optionally saves results to disk via SidecarManager.
+// TTSClient performs text->audio synthesis and optionally saves results via SidecarManager.
 type TTSClient struct {
 	URL       string
 	AuthToken string
@@ -23,9 +21,8 @@ type TTSClient struct {
 	TimeoutMs int
 }
 
-// SynthesizeAndSave sends text to the TTS URL, saves returned audio to disk
-// if SaveDir is set, and updates the sidecar via SidecarManager. It returns
-// the saved filename on success or an error.
+// SynthesizeAndSave posts text to the TTS service, saves the returned WAV to
+// disk when configured, and updates the sidecar. Returns the saved filename.
 func (t *TTSClient) SynthesizeAndSave(text string, ssrc uint32, correlationID string) (string, error) {
 	if t == nil || t.URL == "" {
 		return "", fmt.Errorf("tts client not configured")
@@ -57,14 +54,8 @@ func (t *TTSClient) SynthesizeAndSave(text string, ssrc uint32, correlationID st
 	tsTs := time.Now().UTC().Format("20060102T150405.000Z")
 	base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(t.SaveDir, "/"), tsTs, ssrc)
 	fname := base + ".wav"
-	tmp := fname + ".tmp"
-	if err := os.WriteFile(tmp, audioBytes, 0o644); err != nil {
-		logging.Debugw("tts: failed to write tmp file", "err", err, "path", tmp, "correlation_id", correlationID)
-		return "", err
-	}
-	if err := os.Rename(tmp, fname); err != nil {
-		logging.Debugw("tts: failed to rename tmp file", "err", err, "tmp", tmp, "final", fname, "correlation_id", correlationID)
-		_ = os.Remove(tmp)
+	if err := SaveFileAtomic(fname, audioBytes, 0o644); err != nil {
+		logging.Debugw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
 		return "", err
 	}
 	logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)

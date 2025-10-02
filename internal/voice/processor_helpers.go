@@ -105,7 +105,7 @@ func startBackgroundWorkers(p *Processor) {
 			case <-p.ctx.Done():
 				return
 			case <-statsTicker.C:
-				// no-op placeholder for periodic stats
+				// periodic stats hook (noop by default)
 			}
 		}
 	}()

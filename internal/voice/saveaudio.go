@@ -12,10 +12,9 @@ import (
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// StartSaveAudioCleaner starts a background goroutine that periodically
-// scans dir for sidecar JSON files and their paired wavs, removing entries
-// older than retention and enforcing maxFiles. Caller must call wg.Add(1)
-// before calling this function; the goroutine will call wg.Done() on exit.
+// StartSaveAudioCleaner starts a goroutine that prunes old sidecar JSON and
+// their paired WAV files. The caller must call wg.Add(1); the goroutine will
+// call wg.Done() on exit.
 func StartSaveAudioCleaner(ctx context.Context, wg *sync.WaitGroup, dir string, retention time.Duration, interval time.Duration, maxFiles int) {
 	go func() {
 		defer wg.Done()

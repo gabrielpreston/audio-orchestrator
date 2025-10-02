@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// WakeDetector encapsulates wake phrase detection configuration and logic.
+// WakeDetector encapsulates wake-phrase detection configuration.
 type WakeDetector struct {
 	Phrases []string
 	WindowS int
@@ -15,8 +15,8 @@ func NewWakeDetector(phrases []string, windowS int) *WakeDetector {
 	return &WakeDetector{Phrases: phrases, WindowS: windowS}
 }
 
-// Detect returns (matched, stripped) where stripped is the user content after
-// removing the wake phrase, or empty if none.
+// Detect returns (matched, stripped). 'stripped' is the text after removing
+// the detected wake phrase, or empty when none matched.
 func (w *WakeDetector) Detect(text string) (bool, string) {
 	if text == "" {
 		return false, ""

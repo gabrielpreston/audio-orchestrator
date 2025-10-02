@@ -1,4 +1,4 @@
-# Development Guide [PLACEHOLDER]
+# Development Guide
 
 ## Purpose
 This guide explains the *day-to-day developer workflow* for contributing to this project. It focuses on practical details — how to run services locally, debug issues, and safely extend the system — beyond the conceptual overview provided in `ONBOARDING.md`.

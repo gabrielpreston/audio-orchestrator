@@ -17,9 +17,8 @@ import (
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// buildWAV creates a simple RIFF/WAVE header for 16-bit PCM and returns the
-// concatenated bytes (header + data). sampleRate in Hz, channels, bitsPerSample
-// (commonly 16) are used to populate the header.
+// buildWAV creates a RIFF/WAVE header and appends PCM16LE data.
+// sampleRate is in Hz; bitsPerSample is typically 16.
 func buildWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
 	byteRate := uint32(sampleRate * channels * bitsPerSample / 8)
 	blockAlign := uint16(channels * bitsPerSample / 8)
@@ -44,8 +43,8 @@ func buildWAV(pcm []byte, sampleRate, channels, bitsPerSample int) []byte {
 	return buf.Bytes()
 }
 
-// sendPCMToWhisper wraps raw PCM16LE into a WAV and POSTs it to WHISPER_URL.
-// It retries up to 3 times with exponential backoff for transient errors.
+// sendPCMToWhisper wraps PCM into a WAV and POSTs it to WHISPER_URL.
+// Retries up to 3 times with exponential backoff on transient failures.
 func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID string, accumCreatedAt time.Time, capturedUserID string, capturedUsername string) error {
 	whisper := os.Getenv("WHISPER_URL")
 	if whisper == "" {
@@ -237,33 +236,28 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		if p.saveAudioDir != "" && correlationID != "" {
 			if p.sidecar != nil {
 				if path := p.sidecar.FindByCID(correlationID); path != "" {
-					b, err := os.ReadFile(path)
-					if err != nil {
-						logging.Warnw("failed to read sidecar for cid", "path", path, "err", err)
-					} else {
-						var sc map[string]interface{}
-						if uerr := json.Unmarshal(b, &sc); uerr == nil {
-							sc["stt_request_sent_utc"] = sendTs.UTC().Format(time.RFC3339Nano)
-							sc["stt_response_received_utc"] = respReceivedTs.UTC().Format(time.RFC3339Nano)
-							sc["stt_latency_ms"] = sttLatencyMs
-							if sttServerMs > 0 {
-								sc["stt_server_ms"] = sttServerMs
-							}
-							if endToEndMs > 0 {
-								sc["end_to_end_ms"] = endToEndMs
-							}
-							sc["stt_status"] = resp.StatusCode
-							if transcript != "" {
-								sc["transcript"] = transcript
-							}
-							if segs, ok := out["segments"]; ok && segs != nil {
-								sc["segments"] = segs
-							}
-							nb, _ := json.MarshalIndent(sc, "", "  ")
-							_ = os.WriteFile(path+".tmp", nb, 0o644)
-							_ = os.Rename(path+".tmp", path)
-						} else {
-							logging.Debugw("failed to unmarshal sidecar JSON", "path", path, "err", uerr)
+					// Build update map and let SidecarManager handle read/merge/write
+					upd := map[string]interface{}{
+						"stt_request_sent_utc":      sendTs.UTC().Format(time.RFC3339Nano),
+						"stt_response_received_utc": respReceivedTs.UTC().Format(time.RFC3339Nano),
+						"stt_latency_ms":            sttLatencyMs,
+						"stt_status":                resp.StatusCode,
+					}
+					if sttServerMs > 0 {
+						upd["stt_server_ms"] = sttServerMs
+					}
+					if endToEndMs > 0 {
+						upd["end_to_end_ms"] = endToEndMs
+					}
+					if transcript != "" {
+						upd["transcript"] = transcript
+					}
+					if segs, ok := out["segments"]; ok && segs != nil {
+						upd["segments"] = segs
+					}
+					if p.sidecar != nil {
+						if err := p.sidecar.MergeUpdatesForCID(correlationID, upd); err != nil {
+							logging.Warnw("failed to update sidecar via manager", "cid", correlationID, "err", err)
 						}
 					}
 				}

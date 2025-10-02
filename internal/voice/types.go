@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// pcmAccum holds accumulated PCM samples for an SSRC and timestamp of last append
+// pcmAccum holds accumulated PCM samples and metadata for an SSRC.
 type pcmAccum struct {
 	samples       []int16
 	last          time.Time
@@ -15,7 +15,7 @@ type pcmAccum struct {
 	username      string
 }
 
-// transcriptAgg holds an aggregated transcript for an SSRC and timestamp of last update
+// transcriptAgg holds an aggregated transcript for an SSRC.
 type transcriptAgg struct {
 	text          string
 	last          time.Time

@@ -1,7 +1,7 @@
 package voice
 
-// NoopResolver implements NameResolver but returns empty names. Useful for
-// tests or when you want to disable REST lookups for user/guild/channel names.
+// NoopResolver implements NameResolver and always returns empty names.
+// Useful for tests or when REST lookups are disabled.
 type NoopResolver struct{}
 
 func NewNoopResolver() *NoopResolver { return &NoopResolver{} }

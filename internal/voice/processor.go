@@ -126,8 +126,6 @@ type opusPacket struct {
 }
 
 // pcmAccum holds accumulated PCM samples for an SSRC and timestamp of last append
-// types moved to types.go
-
 func NewProcessor() (*Processor, error) {
 	return NewProcessorWithResolver(context.Background(), nil)
 }
@@ -274,8 +272,6 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	// start common background workers
 	startBackgroundWorkers(p)
 
-	// logging removed: Processor: initialized opus decoder and http client
-
 	// transcript aggregation window (ms)
 	p.aggMs = 1500
 	if v := os.Getenv("TRANSCRIPT_AGG_MS"); v != "" {
@@ -330,10 +326,6 @@ func (p *Processor) Close() error {
 	p.wg.Wait()
 	return nil
 }
-
-// touchStats references structure fields used for monitoring so static
-// analysis does not report them as unused. It's a no-op at runtime.
-// (removed touchStats helper; monitoring counters are used where needed)
 
 // SeedVoiceChannelMembers enumerates the session state's voice states for
 // the given guild and channel and populates an internal userID->display
@@ -444,9 +436,8 @@ func (p *Processor) ProcessOpusFrame(ssrc uint32, data []byte) {
 }
 
 // addAggregatedTranscript appends a partial transcript to the per-SSRC
-// aggregation buffer and triggers any downstream forwarding (orchestrator)
-// as a best-effort async call. This was factored out of the original large
-// processor file so whisper_client.go can call it after STT returns.
+// aggregation buffer and triggers downstream forwarding as a best-effort
+// asynchronous call. It is used by the STT path after transcripts arrive.
 func (p *Processor) addAggregatedTranscript(ssrc uint32, username, transcript, correlationID string, accumCreatedAt time.Time, strippedText string) {
 	if transcript == "" {
 		return
@@ -480,7 +471,6 @@ func (p *Processor) addAggregatedTranscript(ssrc uint32, username, transcript, c
 	}
 	p.aggMu.Unlock()
 
-	// Best-effort: extracted orchestrator/TTS forwarding lives in orchestrator.go
-	// call it to perform wake-phrase check and async forwarding when configured.
+	// Best-effort: forwarding to orchestrator/TTS occurs asynchronously.
 	p.maybeForwardToOrchestrator(ssrc, a, a.text, a.correlationID)
 }

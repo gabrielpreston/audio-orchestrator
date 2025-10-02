@@ -12,15 +12,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// buildWAV builds a minimal WAV header + PCM16LE data for given samples
-// buildWAV remains in processor.go to preserve the canonical implementation
+// Decoder helpers extracted from processor.go. These rely on Processor
+// methods and fields defined in processor.go.
 
-// The following functions were extracted from processor.go to reduce file size.
-// They rely on the Processor methods and fields defined in processor.go.
-
+// handleOpusPacket decodes an Opus packet and appends decoded samples.
+// It increments decode error counters on failures.
 func (p *Processor) handleOpusPacket(pkt opusPacket) {
-	// placeholder: original implementation moved; keep a thin wrapper to avoid large diff
-	// decode using existing decoder and append to accumulator
 	ssrc := pkt.ssrc
 	pcm := make([]int16, 48000/50)
 	n, err := p.dec.Decode(pkt.data, pcm)

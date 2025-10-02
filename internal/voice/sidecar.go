@@ -10,8 +10,8 @@ import (
 	"github.com/discord-voice-lab/internal/logging"
 )
 
-// SidecarManager centralizes finding and updating JSON sidecar files stored
-// in a configured directory. If Dir is empty the manager is a no-op.
+// SidecarManager locates and updates JSON sidecar files in a configured dir.
+// If Dir is empty NewSidecarManager returns nil and operations are no-op.
 type SidecarManager struct {
 	Dir string
 }
@@ -23,8 +23,8 @@ func NewSidecarManager(dir string) *SidecarManager {
 	return &SidecarManager{Dir: dir}
 }
 
-// FindByCID returns the full path to the sidecar JSON matching correlation id
-// or an empty string if not found.
+// FindByCID returns the path to the sidecar JSON matching correlation id,
+// or an empty string if none found.
 func (s *SidecarManager) FindByCID(cid string) string {
 	if s == nil || s.Dir == "" || cid == "" {
 		return ""
@@ -62,9 +62,8 @@ func (s *SidecarManager) FindByCID(cid string) string {
 	return ""
 }
 
-// MergeUpdatesForCID reads the sidecar JSON for cid, merges the provided
-// updates into it, and writes the file back atomically. Returns an error
-// if the sidecar cannot be found or updated.
+// MergeUpdatesForCID merges updates into the sidecar JSON and writes it
+// atomically. Returns an error on failure.
 func (s *SidecarManager) MergeUpdatesForCID(cid string, updates map[string]interface{}) error {
 	if s == nil {
 		return fmt.Errorf("sidecar manager not configured")
