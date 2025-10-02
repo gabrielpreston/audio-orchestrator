@@ -14,9 +14,9 @@ import (
 	"github.com/hraban/opus"
 )
 
-// flushExpiredAggs iterates active transcript aggregations and emits
-// any that have been idle longer than the aggregation window. It calls
-// maybeForwardToOrchestrator to perform wake-phrase checks and forwarding.
+// flushExpiredAggs finds transcript aggregations idle past the window and
+// emits them. Forwarding (wake-phrase checks + orchestrator calls) is
+// delegated to maybeForwardToOrchestrator.
 func (p *Processor) flushExpiredAggs() {
 	now := time.Now()
 	toEmit := make([]uint32, 0)
@@ -51,6 +51,8 @@ func (p *Processor) flushExpiredAggs() {
 	}
 }
 
+// Processor holds state and background workers for audio -> STT -> LLM
+// orchestration.
 type Processor struct {
 	mu sync.Mutex
 	// ssrc -> userID
@@ -72,47 +74,42 @@ type Processor struct {
 	opusCh chan opusPacket
 
 	// accumulation state: per-SSRC decoded PCM waiting to be sent as a
-	// larger chunk. Protected by accumMu.
+	// larger chunk (protected by accumMu).
 	accumMu      sync.Mutex
 	accums       map[uint32]*pcmAccum
 	minFlushMs   int // minimum accumulated milliseconds before flush
 	flushTimeout int // ms of inactivity before forcing a flush
 	maxAccumMs   int // maximum accumulation duration per chunk
-	// simple RMS-based VAD: if computed RMS < vadRmsThreshold we drop the chunk
+	// simple RMS-based VAD: drop chunks below vadRmsThreshold
 	vadRmsThreshold int
 	// monitoring counters
-	enqueueCount   int64 // total frames enqueued
-	dropQueueCount int64 // frames dropped due to full queue
 	decodeErrCount int64 // opus decode errors
-	vadDropCount   int64 // VAD drop count
 	sendCount      int64 // successful sends to WHISPER_URL
 	sendFailCount  int64 // failed sends
 
 	// transcript aggregation: buffer successive transcripts per-SSRC and
-	// emit a joined transcript when no new partial arrives within aggMs.
+	// emit a joined transcript after aggMs of inactivity.
 	aggMu sync.Mutex
 	aggs  map[uint32]*transcriptAgg
 	aggMs int // aggregation window in milliseconds
-	// If true, flush immediately once minFlushMs is reached. When false,
-	// only flush on maxAccumMs or inactivity timeout to avoid premature
-	// chunking of long utterances.
+	// If true, flush as soon as minFlushMs is reached; otherwise defer
+	// to maxAccumMs or inactivity to avoid premature chunking.
 	flushOnMin bool
-	// silenceTimeoutMs controls how long (ms) of observed silence after the
-	// last above-threshold RMS we'll wait before flushing an accumulator.
-	// This allows us to dynamically extend buffering while speech continues.
+	// silenceTimeoutMs: ms of observed silence after last above-threshold
+	// RMS before flushing an accumulator.
 	silenceTimeoutMs int
-	// optional directory to save raw/wav audio for troubleshooting. If empty,
-	// audio is not saved to disk.
+	// saveAudioDir: optional directory for raw/wav troubleshooting audio.
+	// Empty disables saving.
 	saveAudioDir string
-	// manager for sidecar JSON files (created when saveAudioDir is set)
+	// manager for sidecar JSON files (created when saveAudioDir is set).
 	sidecar *SidecarManager
-	// wake phrases that must prefix a transcript to allow forwarding to orchestrator
+	// wake phrases that must prefix a transcript to allow forwarding.
 	wakePhrases  []string
 	wakeDetector *WakeDetector
-	// wakePhraseWindowS controls how many seconds from the start of an
-	// accumulation we consider the wake phrase to be valid (Option C).
+	// wakePhraseWindowS: seconds from accumulation start that a wake phrase
+	// is considered valid.
 	wakePhraseWindowS int
-	// timeouts (ms) for external services, configurable via env
+	// timeouts (ms) for external services (from env)
 	whisperTimeoutMS      int
 	orchestratorTimeoutMS int
 	// TTS client (optional)
@@ -155,59 +152,20 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	ctx, cancel := context.WithCancel(parent)
 
 	p := &Processor{
-		ssrcMap:    make(map[uint32]string),
-		allowlist:  make(map[string]struct{}),
-		dec:        dec,
-		httpClient: nil,
-		resolver:   resolver,
-		ctx:        ctx,
-		cancel:     cancel,
-		opusCh:     make(chan opusPacket, 32),
-		accums:     make(map[uint32]*pcmAccum),
-		aggs:       make(map[uint32]*transcriptAgg),
-		// read the container-local save path; fall back to legacy SAVE_AUDIO_DIR
-		// but only enable saving when SAVE_AUDIO_ENABLED is set to "true"
-		saveAudioDir: func() string {
-			enabled := strings.ToLower(strings.TrimSpace(os.Getenv("SAVE_AUDIO_ENABLED")))
-			if enabled != "true" {
-				return ""
-			}
-			if v := strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR_CONTAINER")); v != "" {
-				return v
-			}
-			return strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR"))
-		}(),
-		wakePhrases: func() []string {
-			// default set of wake phrases
-			def := []string{"computer", "hey computer", "hello computer", "ok computer", "hey comp"}
-			if v := strings.TrimSpace(os.Getenv("WAKE_PHRASES")); v != "" {
-				// split on comma and trim
-				parts := strings.Split(v, ",")
-				out := make([]string, 0, len(parts))
-				for _, p := range parts {
-					s := strings.ToLower(strings.TrimSpace(p))
-					if s != "" {
-						out = append(out, s)
-					}
-
-				}
-				if len(out) > 0 {
-					return out
-				}
-			}
-			return def
-		}(),
+		ssrcMap:      make(map[uint32]string),
+		allowlist:    make(map[string]struct{}),
+		dec:          dec,
+		httpClient:   nil,
+		resolver:     resolver,
+		ctx:          ctx,
+		cancel:       cancel,
+		opusCh:       make(chan opusPacket, 32),
+		accums:       make(map[uint32]*pcmAccum),
+		aggs:         make(map[uint32]*transcriptAgg),
+		saveAudioDir: getSaveAudioDir(),
+		wakePhrases:  getWakePhrases(),
 		wakeDetector: nil,
-		sidecar: NewSidecarManager(func() string {
-			enabled := strings.ToLower(strings.TrimSpace(os.Getenv("SAVE_AUDIO_ENABLED")))
-			if enabled != "true" {
-				return ""
-			}
-			if v := strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR_CONTAINER")); v != "" {
-				return v
-			}
-			return strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR"))
-		}()),
+		sidecar:      NewSidecarManager(getSaveAudioDir()),
 	}
 
 	// Configure timeouts and wake phrase window from environment (ms/sec).
@@ -238,16 +196,7 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 	p.httpClient = &http.Client{Timeout: time.Duration(p.whisperTimeoutMS) * time.Millisecond}
 
 	// optional TTS client
-	if ttsURL := strings.TrimSpace(os.Getenv("TTS_URL")); ttsURL != "" {
-		p.tts = &TTSClient{
-			URL:       ttsURL,
-			AuthToken: strings.TrimSpace(os.Getenv("TTS_AUTH_TOKEN")),
-			Client:    &http.Client{Timeout: time.Duration(p.orchestratorTimeoutMS) * time.Millisecond},
-			Sidecar:   p.sidecar,
-			SaveDir:   p.saveAudioDir,
-			TimeoutMs: p.orchestratorTimeoutMS,
-		}
-	}
+	p.tts = initTTSClient(p.sidecar, p.saveAudioDir, p.orchestratorTimeoutMS)
 
 	// Retention settings for saved audio (optional)
 	retHours := 72
@@ -322,55 +271,8 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 		}
 	}
 
-	// start background worker to process opus frames
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		for {
-			select {
-			case <-p.ctx.Done():
-				return
-			case pkt, ok := <-p.opusCh:
-				if !ok {
-					return
-				}
-				p.handleOpusPacket(pkt)
-			}
-		}
-	}()
-
-	// start background flusher which periodically checks for inactive
-	// accumulators and flushes them
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		ticker := time.NewTicker(100 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-p.ctx.Done():
-				return
-			case <-ticker.C:
-				p.flushExpiredAccums()
-			}
-		}
-	}()
-
-	// monitoring ticker: emit periodic stats so we can observe rates over time
-	p.wg.Add(1)
-	go func() {
-		defer p.wg.Done()
-		statsTicker := time.NewTicker(15 * time.Second)
-		defer statsTicker.Stop()
-		for {
-			select {
-			case <-p.ctx.Done():
-				return
-			case <-statsTicker.C:
-				// stats collection disabled (logging removed)
-			}
-		}
-	}()
+	// start common background workers
+	startBackgroundWorkers(p)
 
 	// logging removed: Processor: initialized opus decoder and http client
 
@@ -428,6 +330,10 @@ func (p *Processor) Close() error {
 	p.wg.Wait()
 	return nil
 }
+
+// touchStats references structure fields used for monitoring so static
+// analysis does not report them as unused. It's a no-op at runtime.
+// (removed touchStats helper; monitoring counters are used where needed)
 
 // SeedVoiceChannelMembers enumerates the session state's voice states for
 // the given guild and channel and populates an internal userID->display
@@ -578,12 +484,3 @@ func (p *Processor) addAggregatedTranscript(ssrc uint32, username, transcript, c
 	// call it to perform wake-phrase check and async forwarding when configured.
 	p.maybeForwardToOrchestrator(ssrc, a, a.text, a.correlationID)
 }
-
-// buildWAV creates a simple RIFF/WAVE header for 16-bit PCM and returns the
-// concatenated bytes (header + data). sampleRate in Hz, channels, bitsPerSample
-// (commonly 16) are used to populate the header.
-// buildWAV moved to whisper_client.go
-
-// Wake detection implemented in wakephrase.go via WakeDetector
-
-// sidecar handling implemented in sidecar.go via SidecarManager
