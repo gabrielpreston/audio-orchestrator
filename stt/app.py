@@ -4,6 +4,9 @@ import time
 import io
 import wave
 import os
+import logging
+from pythonjsonlogger import jsonlogger
+import sys
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
@@ -11,9 +14,32 @@ MODEL_NAME = os.environ.get("FW_MODEL", "small")
 # Module-level cached model to avoid repeated loads
 _model = None
 
+# --- JSON logging setup ---
+def _setup_logging():
+    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    try:
+        lvl = getattr(logging, level)
+    except Exception:
+        lvl = logging.INFO
+
+    handler = logging.StreamHandler(stream=sys.stdout)
+    fmt = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+    handler.setFormatter(fmt)
+    root = logging.getLogger()
+    root.handlers = []
+    root.addHandler(handler)
+    root.setLevel(lvl)
+
+
+_setup_logging()
+logger = logging.getLogger("stt.app")
+
 
 @app.post("/asr")
 async def asr(request: Request):
+    # Top-level timing for the request (includes validation, file I/O, model work)
+    req_start = time.time()
+
     # Expect raw WAV bytes in the request body
     body = await request.body()
     if not body:
@@ -23,6 +49,7 @@ async def asr(request: Request):
     try:
         from faster_whisper import WhisperModel
     except Exception as e:
+        logger.exception("faster-whisper import failed", extra={"extra": {"error": str(e)}})
         raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
 
     # Validate WAV container
@@ -54,6 +81,7 @@ async def asr(request: Request):
             else:
                 _model = WhisperModel(MODEL_NAME, device=device)
         except Exception as e:
+            logger.exception("model load error", extra={"extra": {"model_name": MODEL_NAME, "device": device, "error": str(e)}})
             raise HTTPException(status_code=500, detail=f"model load error: {e}")
     model = _model
 
@@ -80,7 +108,11 @@ async def asr(request: Request):
             raise HTTPException(status_code=400, detail="invalid beam_size query param")
 
     tmp_path = None
+    # metadata for response/logs
+    input_bytes = len(body)
+    request_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
     try:
+        logger.info("asr request received", extra={"extra": {"task": task, "beam_size": beam_size, "language": lang_q, "correlation_id": correlation_id, "input_bytes": input_bytes, "model": MODEL_NAME, "device": device}})
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(body)
             tmp_path = tmp.name
@@ -98,8 +130,9 @@ async def asr(request: Request):
             if lv in ('1', 'true', 'yes'):
                 include_word_ts = True
 
-        # measure server-side processing time
+        # measure server-side processing time (model inference portion)
         proc_start = time.time()
+        logger.info("transcription started", extra={"extra": {"tmp_path": tmp_path}})
         if task == 'translate':
             if include_word_ts:
                 segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q, word_timestamps=True)
@@ -121,6 +154,7 @@ async def asr(request: Request):
             pass
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
+        logger.info("transcription finished", extra={"extra": {"processing_ms": processing_ms, "segments": len(segments) if hasattr(segments, '__len__') else None}})
         # Build a combined text and (optionally) include timestamped segments/words
         text = " ".join([seg.text for seg in segments])
         segments_out = []
@@ -150,6 +184,7 @@ async def asr(request: Request):
                         })
                 segments_out.append(segdict)
     except Exception as e:
+        logger.exception("transcription error", extra={"extra": {"error": str(e)}})
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
         if tmp_path:
@@ -157,6 +192,9 @@ async def asr(request: Request):
                 os.unlink(tmp_path)
             except Exception:
                 pass
+
+    req_end = time.time()
+    total_ms = int((req_end - req_start) * 1000)
 
     resp = {"text": text, "duration": info.duration}
     if task:
@@ -167,6 +205,12 @@ async def asr(request: Request):
     # include server-side processing time (ms)
     try:
         resp["processing_ms"] = processing_ms
+        resp["total_ms"] = total_ms
+        resp["input_bytes"] = input_bytes
+        resp["model"] = MODEL_NAME
+        resp["device"] = device
+        if request_id:
+            resp["request_id"] = request_id
     except NameError:
         # if for some reason processing_ms isn't set, ignore
         pass
@@ -176,4 +220,8 @@ async def asr(request: Request):
     headers = {}
     if "processing_ms" in resp:
         headers["X-Processing-Time-ms"] = str(resp["processing_ms"])
+    if "total_ms" in resp:
+        headers["X-Total-Time-ms"] = str(resp["total_ms"])
+    if "input_bytes" in resp:
+        headers["X-Input-Bytes"] = str(resp["input_bytes"])
     return JSONResponse(resp, headers=headers)
