@@ -1,4 +1,4 @@
-# Configuration Reference [PLACEHOLDER]
+# Configuration Reference
 
 ## Purpose
 This document centralizes all environment variables, configuration knobs, and runtime options. It’s the canonical reference for setting up `.env.local` and understanding how configuration influences system behavior.

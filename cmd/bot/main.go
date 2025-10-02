@@ -15,18 +15,9 @@ import (
 	"github.com/discord-voice-lab/internal/voice"
 )
 
-// discordResolver implementation moved to internal/voice/discord_resolver.go
-
-// Helpers for event redaction and extraction were removed because
-// logging is suppressed in this branch. Keep the file minimal.
-
-// redactLargeValues inspects a generic JSON object (as bytes) and replaces
-// values larger than redactBytes with a placeholder. Only applies to string
-// values; other types are left intact. Returns the potentially-modified JSON
-// bytes. If parsing fails, returns original bytes.
-// Logging helpers removed: redactLargeValues and safeMarshalIndent were
-// previously used only for preparing payloads for logging. They have been
-// removed as logging is suppressed in this build.
+// Minimal main for the bot. See internal/voice/discord_resolver.go for
+// the resolver implementation. Non-essential logging helpers were removed
+// to keep this entrypoint focused and compact.
 
 func main() {
 	// Initialize centralized logging
@@ -56,7 +47,7 @@ func main() {
 	// IntentsGuildMembers and IntentsGuildPresences.
 	privileged := discordgo.IntentsGuildMembers | discordgo.IntentsGuildPresences
 	if dg.Identify.Intents&privileged != 0 {
-		// suppressed: privileged intents warning
+		// privileged intents present (ensure enabled in Developer Portal)
 	}
 
 	// Open the Discord session so the bot connects and can receive events.
@@ -128,7 +119,7 @@ func main() {
 		// Try to resolve human-friendly names for the guild and channel
 		_ = resolver.GuildName(guildID)
 		_ = resolver.ChannelName(voiceChannelID)
-		// logging suppressed: joining voice channel
+		// joining voice channel
 		vconn, err := dg.ChannelVoiceJoin(guildID, voiceChannelID, false, false)
 		if err != nil {
 			logging.Warnw("voice join failed", "err", err)
@@ -169,7 +160,7 @@ func main() {
 					}
 				}(vc)
 			} else {
-				// suppressed: voice connection has no OpusRecv
+				// voice connection has no OpusRecv
 			}
 
 			// No join-time SSRC seeding: discordgo's VoiceState doesn't expose
@@ -183,7 +174,7 @@ func main() {
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 
 	<-stop
-	// shutdown signal received (logging suppressed)
+	// shutdown signal received
 
 	// Cancel the root context so all subsystems observing it can begin
 	// cooperative shutdown (Processor, opus reader goroutine, etc.).

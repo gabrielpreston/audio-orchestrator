@@ -34,10 +34,7 @@ def _setup_logging():
 _setup_logging()
 logger = logging.getLogger("llm.app")
 
-# /orchestrate has been removed: this service provides OpenAI-compatible
-# endpoints under /v1/chat/completions. Clients should POST chat requests
-# directly to that endpoint and extract assistant text from
-# choices[0].message.content in the response.
+# Local OpenAI-compatible endpoint: /v1/chat/completions
 
 # Minimal OpenAI-compatible chat completions endpoint
 class ChatMessage(BaseModel):

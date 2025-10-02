@@ -7,6 +7,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// discordResolver resolves names using a discordgo.Session with simple TTL caches.
 type discordResolver struct {
 	s  *discordgo.Session
 	mu sync.Mutex
@@ -21,6 +22,7 @@ type cacheEntry struct {
 	expiry time.Time
 }
 
+// NewDiscordResolver creates a resolver that uses session lookups with caching.
 func NewDiscordResolver(s *discordgo.Session) *discordResolver {
 	return &discordResolver{
 		s:            s,
@@ -30,6 +32,7 @@ func NewDiscordResolver(s *discordgo.Session) *discordResolver {
 	}
 }
 
+// cacheTTL controls how long a cached name is valid.
 // cacheTTL controls how long a cached name is valid.
 var cacheTTL = 5 * time.Minute
 

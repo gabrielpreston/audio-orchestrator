@@ -1,4 +1,4 @@
-# Extending the AI Agent [PLACEHOLDER]
+# Extending the AI Agent
 
 ## Purpose
 This guide explains how to extend and evolve the agent’s capabilities while preserving system integrity and maintainability.
