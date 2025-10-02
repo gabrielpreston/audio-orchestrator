@@ -30,65 +30,39 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 			return
 		}
 
-		// capture uid under lock to avoid data race
 		p.mu.Lock()
 		uid := p.ssrcMap[ssrc]
 		p.mu.Unlock()
 		go func(orchestratorURL string, authToken string, uid string, ssrc uint32, text string, correlationID string, stripped string, aCreated time.Time) {
-			userContent := stripped
-			if userContent == "" {
-				userContent = strings.TrimSpace(text)
+			if p == nil {
+				return
 			}
-
-			chatPayload := map[string]interface{}{
-				"model": os.Getenv("ORCHESTRATOR_MODEL"),
+			// Build orchestrator request body (OpenAI-style chat completions)
+			reqBody := map[string]interface{}{
+				"model": "gpt-3.5-turbo",
 				"messages": []map[string]string{
-					{"role": "system", "content": fmt.Sprintf("source: discord-voice-lab; user_id: %s; ssrc: %d; correlation_id: %s", uid, ssrc, correlationID)},
-					{"role": "user", "content": userContent},
+					{"role": "system", "content": "You are a helpful assistant."},
+					{"role": "user", "content": text},
 				},
-				"correlation_id": correlationID,
 			}
-			if chatPayload["model"] == "" || chatPayload["model"] == nil {
-				delete(chatPayload, "model")
-			}
-
-			b, _ := json.Marshal(chatPayload)
-
-			timeoutMs := p.orchestratorTimeoutMS
-			if timeoutMs <= 0 {
-				timeoutMs = 30000
-			}
-
-			resp, err := PostWithRetries(p.httpClient, orchestratorURL, b, authToken, timeoutMs, 3, correlationID)
+			rb, _ := json.Marshal(reqBody)
+			resp, err := PostWithRetries(p.httpClient, orchestratorURL, rb, authToken, p.orchestratorTimeoutMS, 2, correlationID)
 			if err != nil {
 				logging.Debugw("orchestrator: POST failed", "err", err, "correlation_id", correlationID)
 				return
 			}
 			defer resp.Body.Close()
-
-			body, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode >= 300 {
-				logging.Warnw("orchestrator: returned non-2xx", "status", resp.StatusCode, "correlation_id", correlationID)
+				body, _ := io.ReadAll(resp.Body)
+				logging.Warnw("orchestrator: returned non-2xx", "status", resp.StatusCode, "body", string(body), "correlation_id", correlationID)
 				return
 			}
-			logging.Infow("orchestrator: forwarded transcript", "status", resp.StatusCode, "correlation_id", correlationID)
-
 			var orchOut map[string]interface{}
-			if err := json.Unmarshal(body, &orchOut); err != nil {
-				logging.Debugw("orchestrator: failed to unmarshal response", "err", err, "correlation_id", correlationID)
+			if err := json.NewDecoder(resp.Body).Decode(&orchOut); err != nil {
+				logging.Debugw("orchestrator: failed to decode response", "err", err, "correlation_id", correlationID)
 				return
 			}
 
-			bstr := strings.TrimSpace(string(body))
-			if bstr != "" {
-				if len(bstr) > 2000 {
-					logging.Debugw("orchestrator: response (truncated)", "correlation_id", correlationID, "body_len", len(bstr))
-				} else {
-					logging.Debugw("orchestrator: response body", "correlation_id", correlationID, "body", bstr)
-				}
-			}
-
-			// Extract reply text if present
 			var replyText string
 			if choices, ok := orchOut["choices"].([]interface{}); ok && len(choices) > 0 {
 				if ch0, ok := choices[0].(map[string]interface{}); ok {
@@ -121,14 +95,9 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 				}
 			}
 
-			// Optionally call TTS
-			if tts := os.Getenv("TTS_URL"); tts != "" {
-				// choose token: prefer TTS_AUTH_TOKEN, fall back to orchestrator authToken
-				tok := os.Getenv("TTS_AUTH_TOKEN")
-				if tok == "" {
-					tok = authToken
-				}
-				p.handleTTS(replyText, tts, tok, ssrc, correlationID)
+			// Optionally call TTS using configured client
+			if p.tts != nil {
+				_, _ = p.tts.SynthesizeAndSave(replyText, ssrc, correlationID)
 			}
 		}(orch, os.Getenv("ORCH_AUTH_TOKEN"), uid, ssrc, strings.TrimSpace(text), correlationID, stripped, a.createdAt)
 	}

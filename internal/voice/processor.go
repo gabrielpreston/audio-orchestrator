@@ -115,6 +115,8 @@ type Processor struct {
 	// timeouts (ms) for external services, configurable via env
 	whisperTimeoutMS      int
 	orchestratorTimeoutMS int
+	// TTS client (optional)
+	tts *TTSClient
 }
 
 type opusPacket struct {
@@ -234,6 +236,18 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 
 	// assign http client with whisper timeout
 	p.httpClient = &http.Client{Timeout: time.Duration(p.whisperTimeoutMS) * time.Millisecond}
+
+	// optional TTS client
+	if ttsURL := strings.TrimSpace(os.Getenv("TTS_URL")); ttsURL != "" {
+		p.tts = &TTSClient{
+			URL:       ttsURL,
+			AuthToken: strings.TrimSpace(os.Getenv("TTS_AUTH_TOKEN")),
+			Client:    &http.Client{Timeout: time.Duration(p.orchestratorTimeoutMS) * time.Millisecond},
+			Sidecar:   p.sidecar,
+			SaveDir:   p.saveAudioDir,
+			TimeoutMs: p.orchestratorTimeoutMS,
+		}
+	}
 
 	// Retention settings for saved audio (optional)
 	retHours := 72
