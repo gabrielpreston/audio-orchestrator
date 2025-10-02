@@ -12,6 +12,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/discord-voice-lab/internal/logging"
+	"github.com/discord-voice-lab/internal/mcp"
 	"github.com/discord-voice-lab/internal/voice"
 )
 
@@ -23,6 +24,21 @@ func main() {
 	// Initialize centralized logging
 	logging.Init()
 	defer logging.Sync()
+
+	// Attempt to register with MCP if configured
+	if mcpURL := os.Getenv("MCP_URL"); mcpURL != "" {
+		name := os.Getenv("MCP_NAME")
+		if name == "" {
+			name = "bot"
+		}
+		botURL := os.Getenv("BOT_EXTERNAL_URL")
+		if botURL == "" {
+			botURL = "http://bot:8080"
+		}
+		if err := mcp.Register(name, botURL); err != nil {
+			logging.Warnw("mcp register failed", "err", err)
+		}
+	}
 
 	token := os.Getenv("DISCORD_BOT_TOKEN")
 	if token == "" {

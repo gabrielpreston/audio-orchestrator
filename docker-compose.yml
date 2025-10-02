@@ -19,8 +19,12 @@ services:
     depends_on:
       - stt
       - orch
+      - mcp
     env_file:
       - ./.env.docker
+    environment:
+      - MCP_URL=http://mcp:9001
+      - MCP_NAME=bot
     volumes:
       - ./logs:/app/logs
       - ./.wavs:/app/wavs
@@ -41,4 +45,17 @@ services:
     environment:
       - LLAMA_BIN=/app/llama.cpp/build/bin/llama-cli
       - LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
+      - MCP_URL=http://mcp:9001
+      - MCP_NAME=orch
+    restart: unless-stopped
+
+  mcp:
+    build:
+      context: ./mcp
+      dockerfile: Dockerfile
+    image: discord-voice-mcp:latest
+    env_file:
+      - ./.env.docker
+    ports:
+      - "9001:9001"
     restart: unless-stopped
