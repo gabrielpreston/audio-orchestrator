@@ -43,7 +43,18 @@ func getWakePhrases() []string {
 
 // initTTSClient configures and returns an optional TTSClient based on env vars.
 func initTTSClient(sidecar *SidecarManager, saveDir string, orchTimeout int) *TTSClient {
-	if ttsURL := strings.TrimSpace(os.Getenv("TTS_URL")); ttsURL != "" {
+	// Allow selecting provider via TTS_PROVIDER. If TTS_URL is explicitly set,
+	// honor it. Otherwise, provide sane defaults for known providers (piper).
+	provider := strings.ToLower(strings.TrimSpace(os.Getenv("TTS_PROVIDER")))
+	ttsURL := strings.TrimSpace(os.Getenv("TTS_URL"))
+	if ttsURL == "" {
+		switch provider {
+		case "piper":
+			// default Piper listening port requested by user
+			ttsURL = "http://piper:7000/synthesize"
+		}
+	}
+	if ttsURL != "" {
 		return &TTSClient{
 			URL:       ttsURL,
 			AuthToken: strings.TrimSpace(os.Getenv("TTS_AUTH_TOKEN")),
