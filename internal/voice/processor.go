@@ -107,6 +107,8 @@ type Processor struct {
 	// optional directory to save raw/wav audio for troubleshooting. If empty,
 	// audio is not saved to disk.
 	saveAudioDir string
+	// manager for sidecar JSON files (created when saveAudioDir is set)
+	sidecar *SidecarManager
 	// wake phrases that must prefix a transcript to allow forwarding to orchestrator
 	wakePhrases []string
 	// wakePhraseWindowS controls how many seconds from the start of an
@@ -195,6 +197,16 @@ func NewProcessorWithResolver(parent context.Context, resolver NameResolver) (*P
 			}
 			return def
 		}(),
+		sidecar: NewSidecarManager(func() string {
+			enabled := strings.ToLower(strings.TrimSpace(os.Getenv("SAVE_AUDIO_ENABLED")))
+			if enabled != "true" {
+				return ""
+			}
+			if v := strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR_CONTAINER")); v != "" {
+				return v
+			}
+			return strings.TrimSpace(os.Getenv("SAVE_AUDIO_DIR"))
+		}()),
 	}
 
 	// Configure timeouts and wake phrase window from environment (ms/sec).
@@ -598,7 +610,7 @@ func (p *Processor) HandleSpeakingUpdate(s *discordgo.Session, su *discordgo.Voi
 // ProcessOpusFrame enqueues an incoming opus payload for background decoding.
 // The send is non-blocking to avoid stalling the producer if the queue is full.
 func (p *Processor) ProcessOpusFrame(ssrc uint32, data []byte) {
-	if data == nil || len(data) == 0 {
+	if len(data) == 0 {
 		return
 	}
 	pkt := opusPacket{ssrc: ssrc, data: append([]byte(nil), data...), correlationID: ""}
@@ -762,34 +774,9 @@ func (p *Processor) hasWakePhrase(text string) (bool, string) {
 // falls back to scanning the directory for a filename that contains
 // 'cid<cid>' and ends with .json (legacy behavior).
 func (p *Processor) findSidecarPathForCID(cid string) string {
-	if p.saveAudioDir == "" || cid == "" {
+	// Use SidecarManager instead
+	if p.sidecar == nil {
 		return ""
 	}
-	// Scan JSON files in saveAudioDir and try to find a sidecar whose
-	// correlation_id matches. Fall back to filename substring match if
-	// necessary. This avoids relying on a separate index file.
-	files, _ := os.ReadDir(p.saveAudioDir)
-	for _, fi := range files {
-		name := fi.Name()
-		if !strings.HasSuffix(name, ".json") {
-			continue
-		}
-		path := p.saveAudioDir + "/" + name
-		if b, err := os.ReadFile(path); err == nil {
-			var sc map[string]interface{}
-			if err := json.Unmarshal(b, &sc); err == nil {
-				if v, ok := sc["correlation_id"].(string); ok && v == cid {
-					return path
-				}
-			}
-		}
-	}
-	// fallback: filename contains cid
-	for _, fi := range files {
-		name := fi.Name()
-		if strings.Contains(name, "cid"+cid) && strings.HasSuffix(name, ".json") {
-			return p.saveAudioDir + "/" + name
-		}
-	}
-	return ""
+	return p.sidecar.FindByCID(cid)
 }

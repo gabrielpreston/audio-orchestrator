@@ -1,12 +1,9 @@
 package voice
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -60,7 +57,7 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 				timeoutMs = 30000
 			}
 
-			resp, err := p.postWithRetries(orchestratorURL, b, authToken, timeoutMs, 3, correlationID)
+			resp, err := PostWithRetries(p.httpClient, orchestratorURL, b, authToken, timeoutMs, 3, correlationID)
 			if err != nil {
 				logging.Debugw("orchestrator: POST failed", "err", err, "correlation_id", correlationID)
 				return
@@ -117,7 +114,9 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 				if procMs, ok := orchOut["processing_ms"].(float64); ok {
 					upd["orchestrator_processing_ms"] = int(procMs)
 				}
-				p.updateSidecarForCID(correlationID, upd)
+				if p.sidecar != nil {
+					_ = p.sidecar.MergeUpdatesForCID(correlationID, upd)
+				}
 			}
 
 			// Optionally call TTS
@@ -133,59 +132,7 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 	}
 }
 
-// postWithRetries posts JSON payload to url with simple retry/backoff and returns the http.Response.
-// Caller is responsible for closing resp.Body.
-func (p *Processor) postWithRetries(url string, body []byte, authToken string, timeoutMs int, attempts int, correlationID string) (*http.Response, error) {
-	for i := 0; i < attempts; i++ {
-		ctxReq, cancelReq := context.WithTimeout(context.Background(), time.Duration(timeoutMs)*time.Millisecond)
-		req, rerr := http.NewRequestWithContext(ctxReq, "POST", url, bytes.NewReader(body))
-		if rerr != nil {
-			logging.Debugw("postWithRetries: new request error", "err", rerr, "correlation_id", correlationID)
-			cancelReq()
-			return nil, rerr
-		}
-		req.Header.Set("Content-Type", "application/json")
-		if authToken != "" {
-			req.Header.Set("Authorization", "Bearer "+authToken)
-		}
-		client := &http.Client{Timeout: time.Duration(timeoutMs) * time.Millisecond}
-		resp, err := client.Do(req)
-		cancelReq()
-		if err != nil {
-			logging.Debugw("postWithRetries: POST attempt failed", "attempt", i+1, "err", err, "correlation_id", correlationID)
-			if i < attempts-1 {
-				time.Sleep(time.Duration(200*(1<<i)) * time.Millisecond)
-				continue
-			}
-			return nil, err
-		}
-		return resp, nil
-	}
-	return nil, fmt.Errorf("no response from postWithRetries")
-}
-
-// updateSidecarForCID reads the sidecar for correlationID, merges updates, and writes it back.
-func (p *Processor) updateSidecarForCID(correlationID string, updates map[string]interface{}) {
-	if path := p.findSidecarPathForCID(correlationID); path != "" {
-		sb, rerr := os.ReadFile(path)
-		if rerr != nil {
-			logging.Debugw("orchestrator: failed to read sidecar for cid", "path", path, "err", rerr, "correlation_id", correlationID)
-			return
-		}
-		var sc map[string]interface{}
-		if uerr := json.Unmarshal(sb, &sc); uerr != nil {
-			logging.Debugw("orchestrator: failed to unmarshal sidecar JSON", "path", path, "err", uerr, "correlation_id", correlationID)
-			return
-		}
-		for k, v := range updates {
-			sc[k] = v
-		}
-		nb, _ := json.MarshalIndent(sc, "", "  ")
-		_ = os.WriteFile(path+".tmp", nb, 0o644)
-		_ = os.Rename(path+".tmp", path)
-		logging.Infow("orchestrator: saved reply to sidecar", "path", path, "correlation_id", correlationID)
-	}
-}
+// sidecar operations moved to sidecar.go
 
 // handleTTS posts replyText to the TTS service, saves returned audio if configured, and updates sidecar.
 func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, correlationID string) {
@@ -194,7 +141,7 @@ func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, 
 	if p.orchestratorTimeoutMS > 0 {
 		ttsTimeout = p.orchestratorTimeoutMS
 	}
-	resp2, err := p.postWithRetries(ttsURL, b2, authToken, ttsTimeout, 2, correlationID)
+	resp2, err := PostWithRetries(p.httpClient, ttsURL, b2, authToken, ttsTimeout, 2, correlationID)
 	if err != nil {
 		logging.Debugw("tts: POST failed", "err", err, "correlation_id", correlationID)
 		return
@@ -227,8 +174,8 @@ func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, 
 		return
 	}
 	logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)
-	if correlationID != "" {
-		p.updateSidecarForCID(correlationID, map[string]interface{}{
+	if correlationID != "" && p.sidecar != nil {
+		_ = p.sidecar.MergeUpdatesForCID(correlationID, map[string]interface{}{
 			"tts_wav_path":  fname,
 			"tts_saved_utc": time.Now().UTC().Format(time.RFC3339Nano),
 		})

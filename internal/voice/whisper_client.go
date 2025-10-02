@@ -165,13 +165,15 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 
 		endToEndMs := 0
 		if p.saveAudioDir != "" && correlationID != "" {
-			if path := p.findSidecarPathForCID(correlationID); path != "" {
-				if b, err := os.ReadFile(path); err == nil {
-					var sc map[string]interface{}
-					if err := json.Unmarshal(b, &sc); err == nil {
-						if ac, ok := sc["accum_created_utc"].(string); ok && ac != "" {
-							if t, err := time.Parse(time.RFC3339Nano, ac); err == nil {
-								endToEndMs = int(respReceivedTs.Sub(t).Milliseconds())
+			if p.sidecar != nil {
+				if path := p.sidecar.FindByCID(correlationID); path != "" {
+					if b, err := os.ReadFile(path); err == nil {
+						var sc map[string]interface{}
+						if err := json.Unmarshal(b, &sc); err == nil {
+							if ac, ok := sc["accum_created_utc"].(string); ok && ac != "" {
+								if t, err := time.Parse(time.RFC3339Nano, ac); err == nil {
+									endToEndMs = int(respReceivedTs.Sub(t).Milliseconds())
+								}
 							}
 						}
 					}
@@ -233,34 +235,36 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		}
 
 		if p.saveAudioDir != "" && correlationID != "" {
-			if path := p.findSidecarPathForCID(correlationID); path != "" {
-				b, err := os.ReadFile(path)
-				if err != nil {
-					logging.Warnw("failed to read sidecar for cid", "path", path, "err", err)
-				} else {
-					var sc map[string]interface{}
-					if uerr := json.Unmarshal(b, &sc); uerr == nil {
-						sc["stt_request_sent_utc"] = sendTs.UTC().Format(time.RFC3339Nano)
-						sc["stt_response_received_utc"] = respReceivedTs.UTC().Format(time.RFC3339Nano)
-						sc["stt_latency_ms"] = sttLatencyMs
-						if sttServerMs > 0 {
-							sc["stt_server_ms"] = sttServerMs
-						}
-						if endToEndMs > 0 {
-							sc["end_to_end_ms"] = endToEndMs
-						}
-						sc["stt_status"] = resp.StatusCode
-						if transcript != "" {
-							sc["transcript"] = transcript
-						}
-						if segs, ok := out["segments"]; ok && segs != nil {
-							sc["segments"] = segs
-						}
-						nb, _ := json.MarshalIndent(sc, "", "  ")
-						_ = os.WriteFile(path+".tmp", nb, 0o644)
-						_ = os.Rename(path+".tmp", path)
+			if p.sidecar != nil {
+				if path := p.sidecar.FindByCID(correlationID); path != "" {
+					b, err := os.ReadFile(path)
+					if err != nil {
+						logging.Warnw("failed to read sidecar for cid", "path", path, "err", err)
 					} else {
-						logging.Debugw("failed to unmarshal sidecar JSON", "path", path, "err", uerr)
+						var sc map[string]interface{}
+						if uerr := json.Unmarshal(b, &sc); uerr == nil {
+							sc["stt_request_sent_utc"] = sendTs.UTC().Format(time.RFC3339Nano)
+							sc["stt_response_received_utc"] = respReceivedTs.UTC().Format(time.RFC3339Nano)
+							sc["stt_latency_ms"] = sttLatencyMs
+							if sttServerMs > 0 {
+								sc["stt_server_ms"] = sttServerMs
+							}
+							if endToEndMs > 0 {
+								sc["end_to_end_ms"] = endToEndMs
+							}
+							sc["stt_status"] = resp.StatusCode
+							if transcript != "" {
+								sc["transcript"] = transcript
+							}
+							if segs, ok := out["segments"]; ok && segs != nil {
+								sc["segments"] = segs
+							}
+							nb, _ := json.MarshalIndent(sc, "", "  ")
+							_ = os.WriteFile(path+".tmp", nb, 0o644)
+							_ = os.Rename(path+".tmp", path)
+						} else {
+							logging.Debugw("failed to unmarshal sidecar JSON", "path", path, "err", uerr)
+						}
 					}
 				}
 			}
