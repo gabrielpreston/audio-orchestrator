@@ -104,13 +104,14 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		// safe filename: replace spaces with underscore
 		safeName := strings.ReplaceAll(username, " ", "_")
 		tsTs := time.Now().UTC().Format("20060102T150405.000Z")
-		base := fmt.Sprintf("%s/%s_ssrc%d_%s", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc, safeName)
+		// include correlation id in filename so SidecarManager.FindByCID fallback can locate by name
+		base := fmt.Sprintf("%s/%s_ssrc%d_%s_cid%s", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc, safeName, correlationID)
 		wavPath := base + ".wav"
 		jsonPath := base + ".json"
 
 		// Save WAV; ignore errors but log them at debug level so operators can inspect
 		if err := SaveFileAtomic(wavPath, wav, 0o644); err != nil {
-			logging.Debugw("saveaudio: failed to write decoded wav", "err", err, "path", wavPath, "correlation_id", correlationID)
+			logging.Warnw("saveaudio: failed to write decoded wav", "err", err, "path", wavPath, "correlation_id", correlationID)
 		} else {
 			logging.Infow("saveaudio: wrote decoded wav", "path", wavPath, "correlation_id", correlationID)
 		}
@@ -123,7 +124,7 @@ func (p *Processor) sendPCMToWhisper(ssrc uint32, pcmBytes []byte, correlationID
 		}
 		if b, err := json.MarshalIndent(sc, "", "  "); err == nil {
 			if err := SaveFileAtomic(jsonPath, b, 0o644); err != nil {
-				logging.Debugw("saveaudio: failed to write sidecar json", "err", err, "path", jsonPath, "correlation_id", correlationID)
+				logging.Warnw("saveaudio: failed to write sidecar json", "err", err, "path", jsonPath, "correlation_id", correlationID)
 			} else {
 				logging.Infow("saveaudio: wrote sidecar json", "path", jsonPath, "correlation_id", correlationID)
 			}

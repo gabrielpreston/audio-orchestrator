@@ -45,15 +45,32 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 				},
 			}
 			rb, _ := json.Marshal(reqBody)
+			// record request timestamp for sidecar
+			reqSent := time.Now().UTC()
 			resp, err := PostWithRetries(p.httpClient, orchestratorURL, rb, authToken, p.orchestratorTimeoutMS, 2, correlationID)
 			if err != nil {
 				logging.Debugw("orchestrator: POST failed", "err", err, "correlation_id", correlationID)
+				// update sidecar with request timestamp even on POST failure
+				if p.saveAudioDir != "" && correlationID != "" && p.sidecar != nil {
+					_ = p.sidecar.MergeUpdatesForCID(correlationID, map[string]interface{}{
+						"orch_request_sent_utc": reqSent.Format(time.RFC3339Nano),
+					})
+				}
 				return
 			}
 			defer resp.Body.Close()
+			// on any response, record response timestamp
+			respReceived := time.Now().UTC()
 			if resp.StatusCode >= 300 {
 				body, _ := io.ReadAll(resp.Body)
 				logging.Warnw("orchestrator: returned non-2xx", "status", resp.StatusCode, "body", string(body), "correlation_id", correlationID)
+				if p.saveAudioDir != "" && correlationID != "" && p.sidecar != nil {
+					_ = p.sidecar.MergeUpdatesForCID(correlationID, map[string]interface{}{
+						"orch_request_sent_utc":      reqSent.Format(time.RFC3339Nano),
+						"orch_response_received_utc": respReceived.Format(time.RFC3339Nano),
+						"orchestrator_status":        resp.StatusCode,
+					})
+				}
 				return
 			}
 			var orchOut map[string]interface{}
@@ -83,8 +100,9 @@ func (p *Processor) maybeForwardToOrchestrator(ssrc uint32, a *transcriptAgg, te
 			// Save reply to sidecar if configured
 			if p.saveAudioDir != "" && correlationID != "" {
 				upd := map[string]interface{}{
-					"orchestrator_reply":                 replyText,
-					"orchestrator_response_received_utc": time.Now().UTC().Format(time.RFC3339Nano),
+					"orchestrator_reply":         replyText,
+					"orch_request_sent_utc":      reqSent.Format(time.RFC3339Nano),
+					"orch_response_received_utc": respReceived.Format(time.RFC3339Nano),
 				}
 				if procMs, ok := orchOut["processing_ms"].(float64); ok {
 					upd["orchestrator_processing_ms"] = int(procMs)
@@ -129,10 +147,11 @@ func (p *Processor) handleTTS(replyText, ttsURL, authToken string, ssrc uint32, 
 		return
 	}
 	tsTs := time.Now().UTC().Format("20060102T150405.000Z")
-	base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc)
+	// include correlation id in filename so SidecarManager.FindByCID fallback can locate by name
+	base := fmt.Sprintf("%s/%s_ssrc%d_tts_cid%s", strings.TrimRight(p.saveAudioDir, "/"), tsTs, ssrc, correlationID)
 	fname := base + ".wav"
 	if err := SaveFileAtomic(fname, audioBytes, 0o644); err != nil {
-		logging.Debugw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
+		logging.Warnw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
 		return
 	}
 	logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)

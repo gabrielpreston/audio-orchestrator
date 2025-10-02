@@ -52,10 +52,11 @@ func (t *TTSClient) SynthesizeAndSave(text string, ssrc uint32, correlationID st
 		return "", nil
 	}
 	tsTs := time.Now().UTC().Format("20060102T150405.000Z")
-	base := fmt.Sprintf("%s/%s_ssrc%d_tts", strings.TrimRight(t.SaveDir, "/"), tsTs, ssrc)
+	// include correlation id in filename so SidecarManager.FindByCID fallback can locate by name
+	base := fmt.Sprintf("%s/%s_ssrc%d_tts_cid%s", strings.TrimRight(t.SaveDir, "/"), tsTs, ssrc, correlationID)
 	fname := base + ".wav"
 	if err := SaveFileAtomic(fname, audioBytes, 0o644); err != nil {
-		logging.Debugw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
+		logging.Warnw("tts: failed to save wav atomically", "err", err, "path", fname, "correlation_id", correlationID)
 		return "", err
 	}
 	logging.Infow("tts: saved audio to disk", "path", fname, "correlation_id", correlationID)
