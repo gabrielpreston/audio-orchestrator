@@ -2,7 +2,7 @@ version: '3.8'
 services:
   stt:
     build:
-      context: ./stt
+      context: ./services/stt
       dockerfile: Dockerfile
     image: discord-voice-stt:latest
     ports:
@@ -13,8 +13,8 @@ services:
 
   bot:
     build:
-      context: .
-      dockerfile: ./cmd/bot/Dockerfile
+      context: ./services
+      dockerfile: ./bot/Dockerfile
     image: discord-voice-bot:latest
     depends_on:
       - stt
@@ -32,7 +32,7 @@ services:
 
   orch:
     build:
-      context: ./llm
+      context: ./services/llm
       dockerfile: Dockerfile
     image: discord-voice-orch:latest
     env_file:
@@ -51,7 +51,7 @@ services:
 
   mcp:
     build:
-      context: ./mcp-server
+      context: ./services/mcp-server
       dockerfile: Dockerfile
     image: discord-voice-mcp:latest
     env_file:

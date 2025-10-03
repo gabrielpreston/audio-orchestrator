@@ -1,0 +1,43 @@
+# Ignore git metadata
+.git
+
+# Ignore local environment files
+.env
+.env.local
+
+# Editor / OS temporary files
+*.swp
+*.swo
+*.tmp
+*.bak
+*~
+.DS_Store
+
+# Logs and runtime data
+logs
+logs/
+*.log
+.wavs
+.wavs/
+
+# Go build artifacts
+bin
+bin/
+*.exe
+*.test
+
+# Python/ML model artifacts (large files)
+llm/models
+llm/models/
+*.gguf
+
+# Node artifacts (if present)
+node_modules
+npm-debug.log
+
+# Docker artifacts
+Dockerfile
+docker-compose.yml
+
+# Go modules cache (not necessary inside build context)
+vendor/

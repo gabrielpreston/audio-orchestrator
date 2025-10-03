@@ -46,11 +46,12 @@ help: ## Show this help (default)
 
 test: ## Run unit tests (verbose)
 	@echo -e "$(COLOR_YELLOW)→ Running go tests...$(COLOR_OFF)"
-	$(GO) test -v $(PKG)
+	cd services && $(GO) test -v $(PKG)
 
 build: ## Build the bot binary
 	@echo -e "$(COLOR_YELLOW)→ Building $(BINARY)$(COLOR_OFF)"
-	$(GO) build -o $(BINARY) ./cmd/bot
+	@# Build from services/ (where the module file lives) and output to repo-root bin/
+	cd services && $(GO) build -o ../$(BINARY) ./bot/cmd/bot
 
 
 stop: ## Stop and remove containers for the compose stack
