@@ -1,5 +1,5 @@
 ### Builder stage: compile the Go bot
-FROM golang:1.22-bullseye AS builder
+FROM golang:1.25.1 AS builder
 WORKDIR /src
 
 # Install native build dependencies required for cgo (opus)

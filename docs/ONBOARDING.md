@@ -95,7 +95,7 @@ Swapping engines (e.g., Whisper CPP, NVIDIA Riva, different LLM, or another TTS)
 
 ## Local Dev (WSL2)
 
-* **Prereqs:** Go 1.22+, Python venvs for STT, Piper for TTS, llama.cpp server for LLM.
+* **Prereqs:** Go 1.25+, Python venvs for STT, Piper for TTS, llama.cpp server for LLM.
 * **Services:**
 
   * LLM: `llama-server` or `llama_cpp.server` on `127.0.0.1:8000`

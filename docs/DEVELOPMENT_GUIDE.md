@@ -10,7 +10,7 @@ Completed checklist (developer-friendly)
 
 1. Prerequisites
 
-- Go 1.22+ (recommended)
+- Go 1.25+ (recommended)
 - Python 3.10+ for STT/TTS microservices
 - ffmpeg (for PCM/WAV conversions)
 - `make` and standard build tools (git, curl)

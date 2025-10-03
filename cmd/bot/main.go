@@ -25,18 +25,44 @@ func main() {
 	logging.Init()
 	defer logging.Sync()
 
-	// Attempt to register with MCP if configured
+	// Attempt to connect to MCP server via WebSocket if configured, otherwise
+	// fall back to simple HTTP registry Register.
+	var mcpClient *mcp.ClientWrapper
 	if mcpURL := os.Getenv("MCP_URL"); mcpURL != "" {
+		// If the MCP_URL is an HTTP endpoint, convert to ws scheme and path /mcp/ws
+		wsURL := mcpURL
+		if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
+			if strings.HasPrefix(wsURL, "http://") {
+				wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
+			} else if strings.HasPrefix(wsURL, "https://") {
+				wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
+			} else {
+				wsURL = "ws://" + wsURL
+			}
+		}
+		// ensure websocket path
+		if !strings.HasSuffix(wsURL, "/mcp/ws") {
+			wsURL = strings.TrimRight(wsURL, "/") + "/mcp/ws"
+		}
+
 		name := os.Getenv("MCP_NAME")
 		if name == "" {
 			name = "bot"
 		}
-		botURL := os.Getenv("BOT_EXTERNAL_URL")
-		if botURL == "" {
-			botURL = "http://bot:8080"
-		}
-		if err := mcp.Register(name, botURL); err != nil {
-			logging.Warnw("mcp register failed", "err", err)
+		mcpClient = mcp.NewClientWrapper(name, "v0.0.0")
+		// Use a short context for connect attempt so startup doesn't block forever
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := mcpClient.ConnectWebSocket(ctx, wsURL); err != nil {
+			logging.Warnw("mcp websocket connect failed, falling back to Register", "err", err)
+			botURL := os.Getenv("BOT_EXTERNAL_URL")
+			if botURL == "" {
+				botURL = "http://bot:8080"
+			}
+			if err := mcp.Register(name, botURL); err != nil {
+				logging.Warnw("mcp register failed", "err", err)
+			}
+			mcpClient = nil
 		}
 	}
 

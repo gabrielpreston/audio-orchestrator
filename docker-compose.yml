@@ -51,7 +51,7 @@ services:
 
   mcp:
     build:
-      context: ./mcp
+      context: ./mcp-server
       dockerfile: Dockerfile
     image: discord-voice-mcp:latest
     env_file:
