@@ -6,5 +6,6 @@ bin/
 __pycache__/
 logs/
 .wavs/
-llm/models-src/
-llm/models/
+services/llm/models/
+services/llm/models-src/
+*.gguf

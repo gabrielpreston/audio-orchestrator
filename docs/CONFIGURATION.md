@@ -1,44 +1,17 @@
 # Configuration Reference
 
-## Purpose
-This document centralizes all environment variables, configuration knobs, and runtime options. It’s the canonical reference for setting up `.env.local` and understanding how configuration influences system behavior.
+This document is the canonical reference for environment variables used by the project. It focuses on variables that are actually read by code (Go and Python services) and provides: name, whether required, default (if any), primary files that reference the variable, and a short purpose note.
+
+Keep this file up-to-date when adding new runtime flags. For machine-readable manifests or an `.env.sample` update, see the "Next steps" section at the end.
 
 ---
 
-## 1. Environment Variables
+## How to read this table
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DISCORD_BOT_TOKEN` | ✅ Yes | – | Discord bot authentication token |
-| `GUILD_ID` | ✅ Yes | – | Discord server ID for auto-join |
-| `VOICE_CHANNEL_ID` | ✅ Yes | – | Voice channel ID for auto-join |
-| `OPENAI_BASE_URL` | ✅ Yes | – | LLM endpoint base URL (OpenAI-compatible; e.g. local llama.cpp server or remote API) |
-| `OPENAI_API_KEY` | ✅ Yes | – | API key for LLM or service token for local OpenAI-shaped servers |
-| `OPENAI_MODEL` | ✅ Yes | `gpt-5` | Model name. To enable GPT-5 for all clients set this to `gpt-5`. Keep a fallback model for development (see `OPENAI_FALLBACK_MODEL`). |
-| `OPENAI_FALLBACK_MODEL` | Optional | `local` | Fallback model name to use when `gpt-5` is unavailable (development/local inference). |
-| `GPT5_ENABLED` | Optional | `true` | Toggle to explicitly enable GPT-5 for all clients. Set to `false` to disable and force fallbacks. |
-| `WHISPER_URL` | ✅ Yes | – | STT service endpoint |
-| `WHISPER_TRANSLATE` | Optional | `false` | When set to `true` (or `1`), the audio sent to `WHISPER_URL` will include a `task=translate` query parameter requesting translation into English when supported by the STT service. |
-| `TEXT_FORWARD_URL` | Optional | – | If set, recognized text (JSON) will be POSTed to this URL for downstream processing (best-effort). Payload: {"user_id","ssrc","transcript"}. |
-| `ORCHESTRATOR_URL` | Optional | – | If set, aggregated transcripts will be POSTed to this OpenAI-compatible chat completions endpoint (e.g. `http://orch:8000/v1/chat/completions`). The processor builds a chat request with a short system message and a user message containing the transcript. The assistant reply is extracted from `choices[0].message.content` if present. |
-| `ORCH_AUTH_TOKEN` | Optional | – | Optional bearer token sent in the Authorization header when calling `ORCHESTRATOR_URL`. |
-| `TTS_URL` | Optional | – | If set, the orchestrator's `reply` field (if present) will be POSTed to this URL as {"text":"..."} and the returned audio will be saved to `SAVE_AUDIO_DIR` (if configured). |
-| `TTS_AUTH_TOKEN` | Optional | – | Optional bearer token for `TTS_URL`. If absent, `ORCH_AUTH_TOKEN` will be used for TTS requests as a fallback. |
-| `SAVE_AUDIO_ENABLED` | Optional | `false` | Toggle to enable saving decoded WAVs and sidecar JSON. When `false` (default) the processor will not write WAV or JSON sidecars even if `SAVE_AUDIO_DIR_*` are set. |
+- Variable: environment variable name.
+- Required: whether code treats this as required at startup ("Yes") or optional ("No").
+- Default: default value used by code when present in source (if any).
 
-Notes:
-- When `ORCHESTRATOR_URL` is configured, the processor will POST aggregated transcripts as an OpenAI-style chat completion request. It expects a standard OpenAI-style response; the assistant's text is read from `choices[0].message.content`. If that field exists and `TTS_URL` is configured, the reply text will be POSTed to TTS and saved as a WAV sidecar.
-- The TTS integration is best-effort: failures to call the TTS service are logged but do not interrupt transcription.
-| `TTS_URL` | ✅ Yes | – | TTS service endpoint |
-| `RECORD_SECONDS` | Optional | `8` | Audio chunk size before transcription |
-
-> ✅ Completed: Added GPT-5 guidance and safety/rollout variables.
-
----
-
-## 2. Enabling GPT-5 for all clients
-
-Recommendation: to make GPT-5 the default model used by the bot and all internal clients, set `OPENAI_MODEL=gpt-5` in your `.env.local` (or environment) and ensure `GPT5_ENABLED=true`.
 
 Minimal example `.env.local` snippet:
 
@@ -73,9 +46,10 @@ Enabling GPT-5 universally increases cost and may impact latency. Add runtime gu
 ## 4. Secrets Management
 
 - Keep `OPENAI_API_KEY` and any provider keys out of source control. Use `git-crypt`, `sops`, or your cloud secret manager in prod.
+
 - For local dev, use `.env.local` that is gitignored. Example `.gitignore` entry:
 
-```
+```gitignore
 .env.local
 ```
 
@@ -98,10 +72,62 @@ Enabling GPT-5 universally increases cost and may impact latency. Add runtime gu
 
 ---
 
-## 2. Secrets Management
-> ✅ TODO: Add instructions for handling secrets securely in development and production.
+## TODO: Secrets & Advanced Settings
+
+> ✅ TODO: Add targeted guidance for secrets management and optional tuning flags. This section is intentionally condensed — I can expand it into separate sub-sections if you want more detail.
 
 ---
 
-## 3. Advanced Settings
-> ✅ TODO: Cover optional tuning knobs and runtime flags.
+## Implemented environment variables (scanned from code)
+
+Below is a consolidated, deduplicated list of environment variables that are referenced by the codebase (Go services under `internal/` and `cmd/`, and the Python services under `services/`). For each variable the most relevant file(s) are listed along with a short note on purpose.
+
+- `DISCORD_BOT_TOKEN` — `cmd/bot/main.go`
+  - Required. Discord bot authentication token.
+
+- `GUILD_ID`, `VOICE_CHANNEL_ID` — `cmd/bot/main.go`
+  - Optional auto-join target used at startup.
+
+- `ALLOWED_USER_IDS` — `cmd/bot/main.go`
+  - Comma-separated allow-list; when set the Processor accepts audio only from these user IDs.
+
+- `DETAILED_EVENTS` — `cmd/bot/main.go`
+  - Comma-separated event names which should always produce detailed dumps regardless of log level.
+
+- `MCP_URL`, `MCP_NAME`, `BOT_EXTERNAL_URL` — `cmd/bot/main.go`, `internal/mcp/registrar.go`, `services/llm/app.py`
+  - Service registry / MCP configuration used for registration and discovery.
+
+- `WHISPER_URL`, `WHISPER_TRANSLATE`, `STT_BEAM_SIZE`, `STT_LANGUAGE`, `STT_WORD_TIMESTAMPS`, `WHISPER_TIMEOUT_MS`, `TEXT_FORWARD_URL` — `internal/voice/whisper_client.go`
+  - STT endpoint, query-params and timeouts. `WHISPER_URL` is required for posting decoded PCM to the STT service.
+
+- `ORCHESTRATOR_URL`, `ORCH_AUTH_TOKEN`, `ORCH_TIMEOUT_MS` — `internal/voice/orchestrator.go`, `internal/voice/processor.go`, `services/llm/app.py`
+  - Orchestrator (LLM) endpoint, optional bearer token, and timeouts used when forwarding aggregated transcripts.
+
+- `TTS_PROVIDER`, `TTS_URL`, `TTS_AUTH_TOKEN` — `internal/voice/processor_helpers.go`, docs/TTS.md
+  - TTS integration settings. `TTS_URL` overrides provider defaults; `TTS_AUTH_TOKEN` is sent as an Authorization header when provided.
+
+- `SAVE_AUDIO_ENABLED`, `SAVE_AUDIO_DIR`, `SAVE_AUDIO_DIR_CONTAINER`, `SAVE_AUDIO_DIR_HOST`, `SAVE_AUDIO_RETENTION_HOURS`, `SAVE_AUDIO_CLEAN_INTERVAL_MIN`, `SAVE_AUDIO_MAX_FILES`, `SIDECAR_LOCKING` — `internal/voice/processor_helpers.go`, `internal/voice/processor.go`, `internal/voice/sidecar.go`, .env.sample, .env.docker
+  - Controls saving decoded WAVs and JSON sidecars and the retention/cleanup behavior for saved audio.
+
+- `MIN_FLUSH_MS`, `FLUSH_TIMEOUT_MS`, `MAX_ACCUM_MS`, `VAD_RMS_THRESHOLD`, `FLUSH_ON_MIN`, `SILENCE_TIMEOUT_MS`, `TRANSCRIPT_AGG_MS`, `WAKE_PHRASE_WINDOW_S`, `WAKE_PHRASES` — `internal/voice/processor.go`, `internal/voice/processor_helpers.go`
+  - Audio accumulation / VAD / flush tuning knobs and wake-phrase detection parameters.
+
+- `LLAMA_BIN`, `LLAMA_MODEL_PATH`, `PORT` — `services/llm/app.py`, `services/mcp-server/main.go`
+  - Local LLM adapter binary and model path; `PORT` is used by the Python services when run standalone.
+
+- `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_FALLBACK_MODEL`, `GPT5_ENABLED`, `LLM_MAX_TOKENS`, `LLM_MAX_COST_PER_MINUTE_USD`, `LLM_USE_FUNCTION_CALLS`, `LLM_DEFAULT_TEMPERATURE`, `LLM_LOG_PROMPTS`, `LLM_METRICS_EXPORT` — docs references and orchestrator/LLM client config
+  - LLM provider and runtime guardrail settings. These are referenced in docs and used by LLM/orchestrator-related code paths; keep them configured when integrating with remote OpenAI-compatible endpoints.
+
+- `FW_MODEL`, `FW_DEVICE`, `FW_COMPUTE_TYPE` — `services/stt/app.py`
+  - Fast-whisper model selection and device/compute-type tuning for the STT service.
+
+- `LOG_LEVEL`, `PAYLOAD_MAX_BYTES`, `REDACT_LARGE_BYTES` — `internal/logging/logging.go`, `.github/copilot-instructions.md`, and various entrypoints
+  - Logging and debug controls used across services.
+
+Notes:
+
+- This list was generated by scanning for direct env accesses (e.g., `os.Getenv`, `os.LookupEnv`, `os.environ.get`, etc.) across Go and Python sources. It includes variables referenced in `.env.sample` / `.env.docker` that the code uses.
+
+- If you'd like, I can:
+  - Split this appendix into a dedicated `docs/ENV_VARS.md` and add machine-readable output (JSON/TOML) for automation, or
+  - Update `.env.sample` to include any missing example values for implemented vars.
