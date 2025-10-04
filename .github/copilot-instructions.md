@@ -65,9 +65,65 @@ Editing guidance for AI agents (do this, not generic items):
 - Agent should make small, incremental changes and run `make build` and `make test`
   after each change to ensure correctness.
 
-Local dev tools to remember:
-- Use `docker-compose` instead of `docker`
-- When working with Python, always use `venv` for safety and isolation
+<!--
+Concise, actionable guidance for AI coding agents working on
+the discord-voice-lab repository. Keep it short (20-50 lines), concrete,
+and reference exact files/commands in this repo.
+-->
 
-If something's unclear or you want more examples (patches, tests, CI guidance), tell
-me which area to expand and I will iterate.
+# Copilot instructions for discord-voice-lab
+
+This repo implements a small multi-service voice agent. Core pieces live under `services/`:
+- `services/bot` — the Discord client (audio -> STT -> LLM/Orchestrator -> TTS).
+- `services/stt` — STT HTTP service (FastAPI + Whisper/processing).
+- `services/llm` — local orchestrator / OpenAI-compatible LLM shim.
+- `services/mcp-server` — small MCP registry & WebSocket bridge used for service discovery/coordination.
+
+Read these first (fast path to comprehension):
+- `services/bot/cmd/bot/main.go` — app entry, logging, env-driven config, Discord session and voice join/recv wiring.
+- `services/bot/Dockerfile` — how the bot is built inside Docker (note build context expectations).
+- `services/bot/cmd/bot/*` and `internal/voice/*.go` — audio pipeline, SSRC <-> user mapping, opus decode, and POSTs to STT.
+- `services/mcp-server/main.go` and `ws_transport.go` — MCP server and WebSocket transport implementation.
+
+Build / run / debug (practical commands):
+- Local binary (fast): `make build` — builds `bin/bot` (Makefile builds from `services/` module).
+- Full stack (recommended for integration): `make run` — builds images and starts compose stack (stt, bot, orch, mcp).
+- Tail logs: `make logs` or `docker-compose logs -f --tail=200`.
+- Rebuild a single service: `docker-compose build <service>` then `docker-compose up -d <service>`.
+- Run bot locally with environment: `make dev-bot` (starts `scripts/run_bot.sh` in background).
+
+Key environment variables (most used in `services/bot/cmd/bot/main.go`):
+- `DISCORD_BOT_TOKEN` (required)
+- `GUILD_ID`, `VOICE_CHANNEL_ID` — optional auto-join
+- `WHISPER_URL` — STT HTTP endpoint (bot POSTS decoded PCM here)
+- `MCP_URL`, `MCP_NAME` — service registry URL/name (mcp-server is used in compose)
+- `ALLOWED_USER_IDS` — comma-separated allow-list for Processor
+- `LOG_LEVEL`, `REDACT_LARGE_BYTES`, `DETAILED_EVENTS` — logging/debug behavior
+
+Project-specific conventions (do these):
+- Centralized structured logging: call `logging.Init()` early and use `logging.Sugar()` helpers. Include `logging.UserFields`, `GuildFields`, `ChannelFields` in structured logs.
+- Small discordgo handlers: always register thin wrapper functions with `dg.AddHandler(func(s *discordgo.Session, evt *discordgo.Event){...})` so discordgo's reflection accepts them.
+- Audio path: enqueue Opus frames via `Processor.ProcessOpusFrame(ssrc, data)`; the processor decodes (hraban/opus) and POSTs PCM to `WHISPER_URL` using context-aware HTTP requests.
+- Preserve allow-list semantics: `Processor.SetAllowedUsers` + early-drop logic must remain intact when changing audio flow.
+- External calls: always use context + timeout. See `NewProcessorWithResolver` for examples.
+
+Integration & cross-component points to inspect before editing:
+- `internal/voice/discord_resolver.go` — maps Discord IDs to human-friendly names; used by logs and the processor.
+- `services/llm/app.py` — orchestration service registers with MCP at startup via `${MCP_URL}/mcp/register`.
+- `services/mcp-server/ws_transport.go` — WebSocket transport; ensures MCP server <-> client connections.
+
+Editing guidance for AI agents (concrete):
+- When adding new env vars: update `services/bot/cmd/bot/main.go` defaults and add a note in `README.md` or `docs/`.
+- Keep changes small and test locally: run `make build` and `make run`, then `docker compose logs` to validate behavior.
+- Add logs with `logging.Sugar().Infow/Debugw/Warnf` and include entity fields (`logging.UserFields`, etc.).
+- If touching Docker builds, ensure `services/go.mod` remains in the build context (Dockerfiles assume the build context includes `services/`).
+
+Quick examples:
+- Add a discord handler:
+  `dg.AddHandler(func(s *discordgo.Session, vs *discordgo.VoiceStateUpdate) { vp.HandleVoiceState(s, vs) })`
+- Post PCM to STT (pattern): use context with timeout, build request with Content-Type and send bytes; see `internal/voice/whisper_client.go` for the canonical approach.
+
+Where not to be speculative
+- Don't change external integration behavior (Discord intents, MCP protocol, or STT POST shapes) without updating `docs/ARCHITECTURE.md` and adding tests or a migration note.
+
+If something's unclear or you want a focused patch (optimize Docker context, persist MCP registry, or add tests), tell me which and I'll prepare a small, testable change.
