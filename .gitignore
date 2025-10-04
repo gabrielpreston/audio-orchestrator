@@ -9,3 +9,6 @@ logs/
 services/llm/models/
 services/llm/models-src/
 *.gguf
+bot
+services/bot/bot
+services/mcp-server/mcp-server
