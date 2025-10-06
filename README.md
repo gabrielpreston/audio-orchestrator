@@ -1,44 +1,98 @@
-Discord Voice Lab - Minimal scaffold
+# Discord Voice Lab — Quickstart
 
-This repository contains documentation and a minimal Go scaffold for an LLM client used by the voice agent. It implements runtime model selection and fallback behavior for `gpt-5` vs a local fallback.
+A minimal Go scaffold for a Discord voice agent (audio → STT → orchestrator). This README provides the fastest path to run and test the project.
 
-Quickstart:
+Prerequisites
+
+- make
+- Docker (optional, for image build/run)
+- A Discord bot token (required)
+
+Environment files (recommended)
+
+This project supports loading environment variables from files instead of manual "export" commands. Use:
+
+- `.env.local` — for local development (used by `make dev-bot` / `make dev-stt` which source this file when present)
+- `.env.docker` — for containers (referenced by `docker-compose.yml` via the `env_file` field)
+
+Essential environment variables (examples)
+
+Create a `.env.local` for local runs or `.env.docker` for docker runs. Example contents:
+
+```env
+# .env.local or .env.docker
+DISCORD_BOT_TOKEN=your_token_here
+GUILD_ID=123456789012345678
+VOICE_CHANNEL_ID=987654321098765432
+WHISPER_URL=http://localhost:9000
+LOG_LEVEL=info
+DETAILED_EVENTS=false
+ALLOWED_USER_IDS=12345,67890
+# Optional: save decoded audio
+SAVE_AUDIO_DIR_HOST=/tmp/discord-voice-audio
+SAVE_AUDIO_DIR_CONTAINER=/app/wavs
+```
+
+Quickstart — local development
+
+1. Run tests
 
 ```bash
 make test
 ```
 
-Troubleshooting: saving audio to disk
------------------------------------
-
-You can optionally save decoded audio WAV files to disk for troubleshooting STT mismatches. To avoid confusion between container paths and host paths we provide two environment variables:
-
-- `SAVE_AUDIO_DIR_CONTAINER` — container-local directory where the bot writes WAVs (example: `/app/wavs`).
-- `SAVE_AUDIO_DIR_HOST` — host directory mounted into the container (example: `./.wavs`).
-
-Example (docker-compose already mounts `./.wavs` to `/app/wavs`):
+1. Build the binary
 
 ```bash
-# set host path for convenience scripts
-export SAVE_AUDIO_DIR_HOST="/tmp/discord-voice-audio"
-# container path (when running in docker compose this should be /app/wavs)
-export SAVE_AUDIO_DIR_CONTAINER="/app/wavs"
+make build
+# binary: bin/bot
+```
+
+1. Run the bot (local)
+
+For a fast local developer experience, create a `.env.local` file (example above) and run the dev helper which will source that file automatically:
+
+```bash
+# start the bot binary in background (dev-friendly)
+make dev-bot
+
+# or run the STT service locally (dev helper will source .env.local if present)
+make dev-stt
+```
+
+To run the full stack via Docker Compose, create a `.env.docker` (example above) and then:
+
+```bash
 make run
+# the compose files use ./.env.docker via the `env_file` setting
 ```
 
-The processor will write per-flush WAV files named like `20250101T123456.000Z_ssrc12345_username.wav` so you can replay them locally and compare against your STT service.
+Quickstart — Docker image
 
-BuildKit / buildx
-------------------
-
-This repository provides Makefile helpers to build and push Docker images using Docker BuildKit / buildx. Example:
+Make sure `.env.docker` exists in the repo root (see example above). Then build/push images:
 
 ```bash
-# Build the bot image (uses buildx if available)
 make build-image IMAGE_TAG=latest
-
-# Push the image (multi-arch builds via buildx)
-make push-image IMAGE_TAG=latest
+make push-image IMAGE_TAG=latest   # pushes multi-arch image (requires buildx)
 ```
 
-If you don't have a buildx builder configured, the Makefile target `buildx-ensure` will create one named `mybuilder` automatically.
+Troubleshooting — save decoded audio
+
+To save WAVs written by the processor for STT debugging, set the save paths in your `.env.local` or `.env.docker`:
+
+```env
+SAVE_AUDIO_DIR_HOST=/tmp/discord-voice-audio
+SAVE_AUDIO_DIR_CONTAINER=/app/wavs
+```
+
+If you run with Docker Compose the compose file mounts `./logs` and `./.wavs` by default; ensure `SAVE_AUDIO_DIR_HOST` points to a host directory you want to collect.
+
+WAVs are written per flush with names like: 20250101T123456.000Z_ssrc12345_username.wav
+
+Where to look next
+
+- `cmd/bot/main.go` — app entry, env config, Discord session and handlers
+- `internal/voice/*` — audio pipeline, opus decode, POSTs to STT (WHISPER_URL)
+- `docs/` — architecture and development guides
+
+That's all you need to get started. For changes to runtime behavior, update env defaults in `cmd/bot/main.go` and the docs as appropriate.
