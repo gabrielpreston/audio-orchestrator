@@ -4,15 +4,14 @@ import (
 	"context"
 	"os"
 	"os/signal"
-
+	"strings"
 	"syscall"
 	"time"
-
-	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/discord-voice-lab/internal/logging"
 	"github.com/discord-voice-lab/internal/mcp"
+	mcpconfig "github.com/discord-voice-lab/internal/mcp/config"
 	"github.com/discord-voice-lab/internal/voice"
 )
 
@@ -25,44 +24,94 @@ func main() {
 	logging.Init()
 	defer logging.Sync()
 
-	// Attempt to connect to MCP server via WebSocket if configured, otherwise
-	// fall back to simple HTTP registry Register.
-	var mcpClient *mcp.ClientWrapper
-	if mcpURL := os.Getenv("MCP_SERVER_URL"); mcpURL != "" {
-		// If the MCP_SERVER_URL is an HTTP endpoint, convert to ws scheme and path /mcp/ws
-		wsURL := mcpURL
-		if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
-			if strings.HasPrefix(wsURL, "http://") {
-				wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
-			} else if strings.HasPrefix(wsURL, "https://") {
-				wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
-			} else {
-				wsURL = "ws://" + wsURL
-			}
-		}
-		// ensure websocket path
-		if !strings.HasSuffix(wsURL, "/mcp/ws") {
-			wsURL = strings.TrimRight(wsURL, "/") + "/mcp/ws"
-		}
+	rootCtx, rootCancel := context.WithCancel(context.Background())
+	defer rootCancel()
 
-		name := os.Getenv("MCP_SERVICE_NAME")
-		if name == "" {
-			name = "bot"
+	serviceName := os.Getenv("MCP_SERVICE_NAME")
+	if serviceName == "" {
+		serviceName = "bot"
+	}
+
+	var mcpClients []*mcp.ClientWrapper
+
+	manifestResult, manifestErr := mcpconfig.LoadResult()
+	if manifestErr != nil {
+		logging.Warnw("failed to load mcp manifest", "err", manifestErr)
+	} else if len(manifestResult.Order) > 0 {
+		logging.Infow("loaded mcp configuration", "sources", manifestResult.Sources, "servers", len(manifestResult.Order))
+		for _, serverName := range manifestResult.Order {
+			server := manifestResult.Servers[serverName]
+			if !server.EnabledValue() {
+				logging.Debugw("skipping disabled mcp server", "server", serverName)
+				continue
+			}
+
+			client := mcp.NewClientWrapper(serviceName, "v0.0.0")
+			switch {
+			case server.Transport != nil && strings.EqualFold(server.Transport.Type, "websocket"):
+				wsURL := server.Transport.URL
+				if wsURL == "" {
+					logging.Warnw("mcp server missing websocket url", "server", serverName)
+					continue
+				}
+				connectCtx, cancel := context.WithTimeout(rootCtx, 5*time.Second)
+				err := client.ConnectWebSocket(connectCtx, wsURL)
+				cancel()
+				if err != nil {
+					logging.Warnw("mcp websocket connect failed", "server", serverName, "err", err)
+					continue
+				}
+				logging.Infow("connected mcp websocket server", "server", serverName)
+			case server.Command != "":
+				connectCtx, cancel := context.WithTimeout(rootCtx, 10*time.Second)
+				err := client.ConnectCommand(connectCtx, serverName, server.Command, server.Args, server.Env)
+				cancel()
+				if err != nil {
+					logging.Warnw("mcp command connect failed", "server", serverName, "err", err)
+					continue
+				}
+				logging.Infow("started mcp command server", "server", serverName)
+			default:
+				logging.Warnw("mcp server missing transport configuration", "server", serverName)
+				continue
+			}
+
+			mcpClients = append(mcpClients, client)
 		}
-		mcpClient = mcp.NewClientWrapper(name, "v0.0.0")
-		// Use a short context for connect attempt so startup doesn't block forever
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := mcpClient.ConnectWebSocket(ctx, wsURL); err != nil {
-			logging.Warnw("mcp websocket connect failed, falling back to Register", "err", err)
-			botURL := os.Getenv("BOT_EXTERNAL_URL")
-			if botURL == "" {
-				botURL = "http://bot:8080"
+	}
+
+	if len(mcpClients) == 0 {
+		if mcpURL := os.Getenv("MCP_SERVER_URL"); mcpURL != "" {
+			wsURL := mcpURL
+			if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
+				if strings.HasPrefix(wsURL, "http://") {
+					wsURL = "ws://" + strings.TrimPrefix(wsURL, "http://")
+				} else if strings.HasPrefix(wsURL, "https://") {
+					wsURL = "wss://" + strings.TrimPrefix(wsURL, "https://")
+				} else {
+					wsURL = "ws://" + wsURL
+				}
 			}
-			if err := mcp.Register(name, botURL); err != nil {
-				logging.Warnw("mcp register failed", "err", err)
+			if !strings.HasSuffix(wsURL, "/mcp/ws") {
+				wsURL = strings.TrimRight(wsURL, "/") + "/mcp/ws"
 			}
-			mcpClient = nil
+
+			client := mcp.NewClientWrapper(serviceName, "v0.0.0")
+			connectCtx, cancel := context.WithTimeout(rootCtx, 5*time.Second)
+			err := client.ConnectWebSocket(connectCtx, wsURL)
+			cancel()
+			if err != nil {
+				logging.Warnw("mcp websocket connect failed, falling back to Register", "err", err)
+				botURL := os.Getenv("BOT_EXTERNAL_URL")
+				if botURL == "" {
+					botURL = "http://bot:8080"
+				}
+				if err := mcp.Register(serviceName, botURL); err != nil {
+					logging.Warnw("mcp register failed", "err", err)
+				}
+			} else {
+				mcpClients = append(mcpClients, client)
+			}
 		}
 	}
 
@@ -100,12 +149,8 @@ func main() {
 	// Create a single resolver backed by the discord session state and
 	// reuse it for the voice processor and local logging so caches are shared.
 	resolver := voice.NewDiscordResolver(dg)
-	// Create a root context for the application so subsystems can observe
-	// cancellation during shutdown. This context will be cancelled below
-	// when we receive an OS signal.
-	rootCtx, rootCancel := context.WithCancel(context.Background())
-	defer rootCancel()
-
+	// Use the shared root context so subsystems can observe cancellation
+	// during shutdown when we receive an OS signal.
 	vp, err := voice.NewProcessorWithResolver(rootCtx, resolver)
 	if err != nil {
 		logging.FatalExitf("voice.NewProcessor failed", "err", err)
@@ -236,6 +281,11 @@ func main() {
 		}
 		if err := dg.Close(); err != nil {
 			logging.Warnw("discord session close error", "err", err)
+		}
+		for _, client := range mcpClients {
+			if err := client.Close(); err != nil {
+				logging.Warnw("mcp client close error", "err", err)
+			}
 		}
 		close(done)
 	}()
