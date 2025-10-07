@@ -91,7 +91,11 @@ func TestClientWrapperConnectWebSocket(t *testing.T) {
 				_ = conn.Close()
 				return
 			}
-			defer session.Close()
+			defer func() {
+				if err := session.Close(); err != nil {
+					t.Logf("server session close: %v", err)
+				}
+			}()
 			if err := session.Wait(); err != nil {
 				t.Logf("server session wait: %v", err)
 			}
