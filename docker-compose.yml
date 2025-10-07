@@ -67,8 +67,6 @@ services:
     image: discord-voice-monday-mcp:latest
     env_file:
       - ./.env.docker
-    environment:
-      - MONDAY_API_KEY=${MONDAY_API_KEY}
     ports:
       # The monday MCP tool listens on container port 9001 by default; map it to host 9002
       - "9002:9001"
