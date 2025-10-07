@@ -1,5 +1,4 @@
-.env.local
-.env.docker
+.env.*
 bin/
 ./bot
 .venv-*/

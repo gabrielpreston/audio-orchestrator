@@ -8,7 +8,9 @@ services:
     ports:
       - "9000:9000"
     env_file:
+      - ./.env.common
       - ./.env.docker
+      - ./services/stt/.env.service
     restart: unless-stopped
 
   bot:
@@ -21,10 +23,9 @@ services:
       - orch
       - mcp
     env_file:
+      - ./.env.common
       - ./.env.docker
-    environment:
-      - MCP_SERVER_URL=http://mcp:9001
-      - MCP_SERVICE_NAME=bot
+      - ./services/bot/.env.service
     volumes:
       - ./logs:/app/logs
       - ./.wavs:/app/wavs
@@ -36,38 +37,12 @@ services:
       dockerfile: Dockerfile
     image: discord-voice-orch:latest
     env_file:
+      - ./.env.common
       - ./.env.docker
+      - ./services/llm/.env.service
     ports:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
       - ./services/llm/models:/app/models:ro
-    environment:
-      - LLAMA_BIN=/app/llama.cpp/build/bin/llama-cli
-      - LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
-      - MCP_SERVER_URL=http://mcp:9001
-      - MCP_SERVICE_NAME=orch
-    restart: unless-stopped
-
-  mcp:
-    build:
-      context: ./services/mcp-server
-      dockerfile: Dockerfile
-    image: discord-voice-mcp:latest
-    env_file:
-      - ./.env.docker
-    ports:
-      - "9001:9001"
-    restart: unless-stopped
-
-  monday-mcp:
-    build:
-      context: ./services/monday-mcp
-      dockerfile: Dockerfile
-    image: discord-voice-monday-mcp:latest
-    env_file:
-      - ./.env.docker
-    ports:
-      # The monday MCP tool listens on container port 9001 by default; map it to host 9002
-      - "9002:9001"
     restart: unless-stopped
