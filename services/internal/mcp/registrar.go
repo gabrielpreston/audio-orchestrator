@@ -12,7 +12,7 @@ import (
 
 // Register posts a simple service record to the MCP register endpoint.
 func Register(name, url string) error {
-	mcp := os.Getenv("MCP_URL")
+	mcp := os.Getenv("MCP_SERVER_URL")
 	if mcp == "" {
 		return nil
 	}

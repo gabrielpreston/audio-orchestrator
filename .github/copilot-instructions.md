@@ -96,7 +96,7 @@ Key environment variables (most used in `services/bot/cmd/bot/main.go`):
 - `DISCORD_BOT_TOKEN` (required)
 - `GUILD_ID`, `VOICE_CHANNEL_ID` — optional auto-join
 - `WHISPER_URL` — STT HTTP endpoint (bot POSTS decoded PCM here)
-- `MCP_URL`, `MCP_NAME` — service registry URL/name (mcp-server is used in compose)
+- `MCP_SERVER_URL`, `MCP_SERVICE_NAME` — service registry URL/name (mcp-server is used in compose)
 - `ALLOWED_USER_IDS` — comma-separated allow-list for Processor
 - `LOG_LEVEL`, `REDACT_LARGE_BYTES`, `DETAILED_EVENTS` — logging/debug behavior
 
@@ -109,7 +109,7 @@ Project-specific conventions (do these):
 
 Integration & cross-component points to inspect before editing:
 - `internal/voice/discord_resolver.go` — maps Discord IDs to human-friendly names; used by logs and the processor.
-- `services/llm/app.py` — orchestration service registers with MCP at startup via `${MCP_URL}/mcp/register`.
+- `services/llm/app.py` — orchestration service registers with MCP at startup via `${MCP_SERVER_URL}/mcp/register`.
 - `services/mcp-server/ws_transport.go` — WebSocket transport; ensures MCP server <-> client connections.
 
 Editing guidance for AI agents (concrete):

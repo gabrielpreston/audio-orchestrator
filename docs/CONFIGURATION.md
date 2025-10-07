@@ -94,7 +94,7 @@ Below is a consolidated, deduplicated list of environment variables that are ref
 - `DETAILED_EVENTS` — `cmd/bot/main.go`
   - Comma-separated event names which should always produce detailed dumps regardless of log level.
 
-- `MCP_URL`, `MCP_NAME`, `BOT_EXTERNAL_URL` — `cmd/bot/main.go`, `internal/mcp/registrar.go`, `services/llm/app.py`
+- `MCP_SERVER_URL`, `MCP_SERVICE_NAME`, `BOT_EXTERNAL_URL` — `cmd/bot/main.go`, `internal/mcp/registrar.go`, `services/llm/app.py`
   - Service registry / MCP configuration used for registration and discovery.
 
 - `WHISPER_URL`, `WHISPER_TRANSLATE`, `STT_BEAM_SIZE`, `STT_LANGUAGE`, `STT_WORD_TIMESTAMPS`, `WHISPER_TIMEOUT_MS`, `TEXT_FORWARD_URL` — `internal/voice/whisper_client.go`

@@ -23,8 +23,8 @@ services:
     env_file:
       - ./.env.docker
     environment:
-      - MCP_URL=http://mcp:9001
-      - MCP_NAME=bot
+      - MCP_SERVER_URL=http://mcp:9001
+      - MCP_SERVICE_NAME=bot
     volumes:
       - ./logs:/app/logs
       - ./.wavs:/app/wavs
@@ -41,12 +41,12 @@ services:
       - "8000:8000"
     volumes:
       - ./logs:/app/logs
-      - ./llm/models:/app/models:ro
+      - ./services/llm/models:/app/models:ro
     environment:
       - LLAMA_BIN=/app/llama.cpp/build/bin/llama-cli
       - LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
-      - MCP_URL=http://mcp:9001
-      - MCP_NAME=orch
+      - MCP_SERVER_URL=http://mcp:9001
+      - MCP_SERVICE_NAME=orch
     restart: unless-stopped
 
   mcp:

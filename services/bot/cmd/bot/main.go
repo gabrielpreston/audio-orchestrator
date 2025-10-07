@@ -28,8 +28,8 @@ func main() {
 	// Attempt to connect to MCP server via WebSocket if configured, otherwise
 	// fall back to simple HTTP registry Register.
 	var mcpClient *mcp.ClientWrapper
-	if mcpURL := os.Getenv("MCP_URL"); mcpURL != "" {
-		// If the MCP_URL is an HTTP endpoint, convert to ws scheme and path /mcp/ws
+	if mcpURL := os.Getenv("MCP_SERVER_URL"); mcpURL != "" {
+		// If the MCP_SERVER_URL is an HTTP endpoint, convert to ws scheme and path /mcp/ws
 		wsURL := mcpURL
 		if !strings.HasPrefix(wsURL, "ws://") && !strings.HasPrefix(wsURL, "wss://") {
 			if strings.HasPrefix(wsURL, "http://") {
@@ -45,7 +45,7 @@ func main() {
 			wsURL = strings.TrimRight(wsURL, "/") + "/mcp/ws"
 		}
 
-		name := os.Getenv("MCP_NAME")
+		name := os.Getenv("MCP_SERVICE_NAME")
 		if name == "" {
 			name = "bot"
 		}
