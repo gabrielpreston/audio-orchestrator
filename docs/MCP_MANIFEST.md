@@ -82,5 +82,3 @@ Related files
 - `services/internal/mcp/client.go` — `ClientWrapper`, ConnectWebSocket, ConnectCommand, session keepalive and Close logic.
 - `services/internal/mcp/command_transport.go` and `services/internal/mcp/ws_transport_client.go` — transport adapters for command stdio and websockets.
 - `services/internal/mcp/registrar.go` — helper to POST a simple service record to `${MCP_SERVER_URL}/mcp/register`.
-
-If you want, I can add a small command-line helper script that validates a `mcp.json` file against the expected shape and prints the expanded paths. Would you like that?
