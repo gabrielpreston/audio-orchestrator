@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help run stop logs dev-pybot dev-stt clean docker-clean docker-status
+.PHONY: help run stop logs dev-discord dev-stt clean docker-clean docker-status
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -60,9 +60,9 @@ logs: ## Tail logs for compose services (set SERVICE=name to filter)
 	        $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
 	fi
 
-dev-pybot: ## Run the Python Discord bot locally in the foreground
-	@echo -e "$(COLOR_GREEN)→ Starting Python bot (local dev)$(COLOR_OFF)"
-	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec $(PYTHON) -m services.pybot.main'
+dev-discord: ## Run the Discord voice interface locally in the foreground
+	@echo -e "$(COLOR_GREEN)→ Starting Discord voice interface (local dev)$(COLOR_OFF)"
+	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec $(PYTHON) -m services.discord.main'
 
 dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh
 	@echo -e "$(COLOR_GREEN)→ Starting STT (local dev)$(COLOR_OFF)"

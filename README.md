@@ -13,7 +13,7 @@ This repository provides a Python-based Discord voice agent alongside supporting
 
 Use environment files to avoid exporting variables manually:
 
-- `.env.local` — sourced by local development targets such as `make dev-pybot` and `make dev-stt`.
+- `.env.local` — sourced by local development targets such as `make dev-discord` and `make dev-stt`.
 - `.env.docker` — consumed by Docker Compose services.
 
 Copy `.env.sample` to either location and update the placeholders before running the bot.
@@ -40,13 +40,13 @@ LOG_JSON=true
    ```bash
    python -m venv .venv
    . .venv/bin/activate
-   pip install -r services/pybot/requirements.txt
+   pip install -r services/discord/requirements.txt
    ```
 
 2. Source environment variables (or rely on `.env.local`) and run the bot:
 
    ```bash
-   make dev-pybot
+   make dev-discord
    ```
 
    The bot exposes itself as an MCP server over stdio, coordinates with the faster-whisper STT service, performs wake-word filtering, and streams transcript notifications plus Discord control tools (join, leave, play audio, send message) to downstream orchestrators.
@@ -63,7 +63,7 @@ This brings up the STT and orchestrator containers defined in `docker-compose.ym
 
 ## Where to look next
 
-- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription client, MCP server, Discord client wiring).
+- `services/discord/` — Python Discord interface packages (audio pipeline, wake detection, transcription client, MCP server, Discord client wiring).
 - `services/stt/` — FastAPI-based STT service using faster-whisper.
 - `services/llm/` — lightweight orchestrator service exposing OpenAI-compatible APIs.
 - `docs/` — architecture and development guides shared between runtimes.
