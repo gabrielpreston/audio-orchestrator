@@ -58,12 +58,12 @@ This repository houses a Go-based Discord voice bot along with supporting FastAP
 
 * If you browsed files or used terminal commands, you must add citations to the final response (not the body of the PR message) where relevant. Citations reference file paths and terminal outputs with the following formats:
 
-  - `【F:<file_path>†L<line_start>(-L<line_end>)?】`
+  - `[F:<file_path>:L<line_start>(-L<line_end>)?]`
 
     - File path citations must start with `F:`. `file_path` is the exact file path of the file relative to the root of the repository that contains the relevant text.
     - `line_start` is the 1-indexed start line number of the relevant output within that file.
 
-  - `【<chunk_id>†L<line_start>(-L<line_end>)?】`
+  - `[<chunk_id>:L<line_start>(-L<line_end>)?]`
 
     - Where `chunk_id` is the chunk_id of the terminal output, `line_start` and `line_end` are the 1-indexed start and end line numbers of the relevant output within that chunk.
 
@@ -75,3 +75,4 @@ This repository houses a Go-based Discord voice bot along with supporting FastAP
 - Prefer file citations over terminal citations unless the terminal output is directly relevant to the clauses before the citation, i.e. clauses on test results.
   - For PR creation tasks, use file citations when referring to code changes in the summary section of your final response, and terminal citations in the testing section.
   - For question-answering tasks, you should only use terminal citations if you need to programmatically verify an answer (i.e. counting lines of code). Otherwise, use file citations.
+  

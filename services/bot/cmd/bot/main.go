@@ -183,9 +183,6 @@ func main() {
 		}
 	}
 
-	// REDACT_LARGE_BYTES: strings longer than this will be replaced in
-	// detailed dumps. Defaults to 1024 bytes.
-
 	// Register the processor handlers for voice state and speaking updates so
 	// it can map SSRC <-> user IDs. Wrap the method calls in explicit
 	// functions so discordgo's reflection validation accepts them.
@@ -250,10 +247,6 @@ func main() {
 				// voice connection has no OpusRecv
 			}
 
-			// No join-time SSRC seeding: discordgo's VoiceState doesn't expose
-			// SSRC reliably for pre-existing participants. We instead wait a
-			// short window in the processor flush logic to allow a late
-			// speaking update to arrive and backfill the accumulator.
 		}
 	}
 
