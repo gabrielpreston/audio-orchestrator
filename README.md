@@ -53,13 +53,13 @@ LOG_JSON=true
 
 ## Quickstart — Docker Compose services
 
-Create `.env.docker` in the repository root (see example above). Then build and run the supporting services:
+Create `.env.docker` in the repository root (see example above). Populate it with the Discord credentials (`DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_VOICE_CHANNEL_ID`) alongside the STT settings before starting the stack. Then build and run the services:
 
 ```bash
 make run
 ```
 
-This brings up the STT and orchestrator containers defined in `docker-compose.yml`. Use `make logs` to follow their output and `make stop` to tear them down.
+This brings up the Discord bot, STT, and orchestrator containers defined in `docker-compose.yml`. Use `make logs` to follow their output and `make stop` to tear them down. The bot container reads the same environment variables as the local `make dev-discord` workflow.
 
 ## Where to look next
 

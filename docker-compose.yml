@@ -1,5 +1,19 @@
 version: '3.8'
 services:
+  discord:
+    build:
+      context: ./services/discord
+      dockerfile: Dockerfile
+    image: discord-voice-bot:latest
+    env_file:
+      - ./.env.common
+      - ./.env.docker
+      - ./services/discord/.env.service
+    depends_on:
+      - stt
+      - orch
+    restart: unless-stopped
+
   stt:
     build:
       context: ./services/stt
