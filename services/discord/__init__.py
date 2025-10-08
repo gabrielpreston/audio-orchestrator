@@ -1,4 +1,4 @@
-"""Python Discord voice bot package."""
+"""Python Discord voice interface package."""
 
 __all__ = [
     "audio",

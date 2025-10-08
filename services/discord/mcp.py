@@ -128,7 +128,7 @@ class MCPServer:
         self._initialized = True
         result = {
             "protocolVersion": "1.0",
-            "server": {"name": "discord.pybot", "version": "0.1.0"},
+            "server": {"name": "discord.voice-interface", "version": "0.1.0"},
             "capabilities": {
                 "tools": {"listChanged": True},
                 "notifications": {"subscriptions": ["discord/transcript"]},

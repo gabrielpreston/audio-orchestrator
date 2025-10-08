@@ -1,4 +1,4 @@
-"""Entrypoint for the Python Discord voice bot."""
+"""Entrypoint for the Python Discord voice interface."""
 
 from __future__ import annotations
 

@@ -22,16 +22,16 @@ Build an AI agent that:
 
 ### Current status (codebase)
 - ✅ STT service available (`services/stt/app.py`) and configured via `STT_BASE_URL`.
-- ✅ Audio pipeline / Opus decode / POST to STT (`services/pybot/audio.py`, `services/pybot/transcription.py`).
-- ✅ Discord integration and resolver wired (`services/pybot/discord_voice.py`, `services/pybot/main.py`).
-- ✅ Centralized logging helpers (`services/pybot/logging.py`).
-- ✅ Local dev helpers (`Makefile`): `dev-pybot`, `dev-stt`, `run`, `logs`.
+- ✅ Audio pipeline / Opus decode / POST to STT (`services/discord/audio.py`, `services/discord/transcription.py`).
+- ✅ Discord integration and resolver wired (`services/discord/discord_voice.py`, `services/discord/main.py`).
+- ✅ Centralized logging helpers (`services/discord/logging.py`).
+- ✅ Local dev helpers (`Makefile`): `dev-discord`, `dev-stt`, `run`, `logs`.
 
 Additional implemented pieces discovered in the codebase:
-- ✅ Allow-listing of users via `AUDIO_ALLOWLIST` (`services/pybot/config.py`, `services/pybot/audio.py`).
-- ✅ Wake phrase configuration and filtering (`services/pybot/wake.py`, `services/pybot/config.py`).
-- ✅ Transcript aggregation with retry/backoff when calling STT (`services/pybot/transcription.py`).
-- ✅ Structured MCP manifest loading for downstream tools (`services/pybot/mcp.py`).
+- ✅ Allow-listing of users via `AUDIO_ALLOWLIST` (`services/discord/config.py`, `services/discord/audio.py`).
+- ✅ Wake phrase configuration and filtering (`services/discord/wake.py`, `services/discord/config.py`).
+- ✅ Transcript aggregation with retry/backoff when calling STT (`services/discord/transcription.py`).
+- ✅ Structured MCP manifest loading for downstream tools (`services/discord/mcp.py`).
 
 ### Phase 1 — Stabilize the Core Voice Layer (Days 1-3)
 Objective: Finalize the base voice ingestion pipeline so the agent can reliably hear and understand instructions.
@@ -47,7 +47,7 @@ Objective: Establish two-way communication between the voice agent and Cursor’
 
 - ⬜ Cursor context access — Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. (Agent can “see” the project and reason about it.)
 - ⬜ Codegen orchestration — Define how agent proposals (from LLM) are written into files or suggested as diffs. (AI can write code directly into the repo.)
-- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `dev-pybot`, `dev-stt`, `run`.)
+- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `dev-discord`, `dev-stt`, `run`.)
 
 ---
 

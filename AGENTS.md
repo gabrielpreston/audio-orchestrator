@@ -3,7 +3,7 @@
 This repository houses a Python-based Discord voice bot along with supporting FastAPI speech-to-text (STT) and lightweight orchestration services, helper scripts, and documentation. Follow the conventions below for any change you make anywhere in this repo.
 
 ## Repository map
-- `services/pybot/` — Python package containing the Discord voice bot (audio pipeline, wake detection, transcription client, MCP tooling).
+- `services/discord/` — Python package containing the Discord voice interface (audio pipeline, wake detection, transcription client, MCP tooling).
 - `services/stt/` — Python FastAPI app for faster-whisper inference (Dockerfile + app + requirements).
 - `services/llm/` — Python FastAPI app exposing an OpenAI-compatible endpoint backed by local tooling.
 - `scripts/` — Bash helpers invoked by `make` (dev runners, STT smoke tests). Keep these POSIX-friendly when possible.
@@ -11,22 +11,22 @@ This repository houses a Python-based Discord voice bot along with supporting Fa
 - Audio fixtures in repo root (`test.wav`, `test_speech_16k.wav`) support automated/manual verification of the STT pipeline.
 
 ## Build & local tooling
-- Prefer the `Makefile` targets over ad-hoc commands so CI and local workflows stay aligned: `make run`, `make stop`, `make logs`, `make dev-pybot`, `make dev-stt`, `make clean`, and `make docker-clean` are the common entry points.
+- Prefer the `Makefile` targets over ad-hoc commands so CI and local workflows stay aligned: `make run`, `make stop`, `make logs`, `make dev-discord`, `make dev-stt`, `make clean`, and `make docker-clean` are the common entry points.
 - `scripts/run_stt.sh` is used by the `make dev-stt` helper; keep it idempotent and ensure it respects `.env.local` when sourced.
 - `scripts/test_stt.sh` performs a curl-based smoke test (optionally booting the STT container); update it alongside any API or port changes so developers can quickly validate audio ingestion.
 
 ## Configuration & environment files
 - `.env.local` powers local `make dev-*` runs and `.env.docker` feeds Docker Compose. When you add or rename environment variables, update both files (or their documented examples) plus `README.md` and any affected guide in `docs/`.
-- Keep defaults and validation logic in sync between Python components (`services/pybot/config.py`, `services/stt/app.py`, `services/llm/*`). Document any breaking changes in configuration.
+- Keep defaults and validation logic in sync between Python components (`services/discord/config.py`, `services/stt/app.py`, `services/llm/*`). Document any breaking changes in configuration.
 
 ## Docker & Compose
 - `docker-compose.yml` must continue to work with both `docker compose` (plugin) and the legacy `docker-compose` binary. Test changes with `make run`.
 - Respect the BuildKit toggles already wired in the `Makefile`. If you introduce new images or services, add matching `Makefile` targets or extend existing ones instead of duplicating shell commands.
 - Ensure any new container mounts or env files remain compatible with the existing `.env.docker` and local volume layout (`./logs`, `./.wavs`).
 
-## Python bot (`services/pybot`)
+## Discord interface (`services/discord`)
 - Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
-- Maintain JSON logging using the helpers in `services/pybot/logging.py`; new log lines should include structured metadata when applicable.
+- Maintain JSON logging using the helpers in `services/discord/logging.py`; new log lines should include structured metadata when applicable.
 - Keep FastAPI/HTTP client interactions resilient—propagate timeouts and retries through configuration.
 - Run relevant unit or integration tests (when available) and capture smoke-test output (manual Discord runs, STT interactions) in your summary when submitting changes that affect runtime behavior.
 
