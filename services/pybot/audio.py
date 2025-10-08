@@ -56,7 +56,11 @@ class Accumulator:
         self.active = True
 
     def mark_silence(self, timestamp: float) -> None:
-        self.last_activity = timestamp
+        """Register silence without resetting the voice activity timer."""
+        if not self.frames:
+            # No active segment yet; keep last_activity aligned with recent silence.
+            self.last_activity = timestamp
+        # When frames exist we intentionally avoid mutating last_activity so silence can trigger flushes.
 
     def should_flush(self, timestamp: float) -> bool:
         if not self.frames:
