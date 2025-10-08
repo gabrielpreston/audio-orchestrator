@@ -11,12 +11,25 @@ from typing import Awaitable, Callable, Dict, Optional
 import aiohttp
 import discord
 
+try:
+    from discord.ext import voice_recv as discord_voice_recv  # type: ignore[attr-defined]
+except ImportError:
+    discord_voice_recv = None
+else:
+    # Patch in the voice receive-capable client provided by discord-ext-voice-recv.
+    discord.VoiceClient = discord_voice_recv.VoiceRecvClient  # type: ignore[assignment]
+    try:
+        discord.opus._load_default()
+    except OSError:
+        pass
+
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig
 from .logging import get_logger
 from .mcp import MCPServer
 from .transcription import TranscriptResult, TranscriptionClient
 from .wake import WakeDetector
+from .receiver import build_sink
 
 
 @dataclass(slots=True)
@@ -52,8 +65,16 @@ class VoiceBot(discord.Client):
         self._segment_task: Optional[asyncio.Task[None]] = None
         self._shutdown = asyncio.Event()
         self._http_session: Optional[aiohttp.ClientSession] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._voice_receivers: Dict[int, object] = {}
+        if discord_voice_recv is None:
+            self._logger.warning(
+                "voice.recv_extension_missing",
+                extra={"message": "discord-ext-voice-recv not available; voice receive disabled"},
+            )
 
     async def setup_hook(self) -> None:
+        self._loop = asyncio.get_running_loop()
         if self._http_session is None:
             self._http_session = aiohttp.ClientSession()
         self._segment_task = asyncio.create_task(self._segment_consumer())
@@ -66,6 +87,9 @@ class VoiceBot(discord.Client):
                 await self._segment_task
             except asyncio.CancelledError:
                 pass
+        for guild_id in list(self._voice_receivers.keys()):
+            voice_client = self._voice_client_for_guild(guild_id)
+            self._stop_voice_receiver(guild_id, voice_client)
         if self._http_session:
             await self._http_session.close()
         await super().close()
@@ -93,18 +117,29 @@ class VoiceBot(discord.Client):
             raise ValueError(f"Channel {channel_id} is not a voice channel")
 
         voice_client = self._voice_client_for_guild(guild_id)
+        desired_cls = (discord_voice_recv.VoiceRecvClient if discord_voice_recv else discord.VoiceClient)  # type: ignore[attr-defined]
+
         if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
-            self._logger.info(
-                "discord.voice_already_connected",
-                extra={"guild_id": guild_id, "channel_id": channel_id},
-            )
-            return {"status": "already_connected", "guild_id": guild_id, "channel_id": channel_id}
+            if discord_voice_recv and not isinstance(voice_client, discord_voice_recv.VoiceRecvClient):  # type: ignore[attr-defined]
+                await voice_client.disconnect()
+                voice_client = None
+            else:
+                self._logger.info(
+                    "discord.voice_already_connected",
+                    extra={"guild_id": guild_id, "channel_id": channel_id},
+                )
+                self._ensure_voice_receiver(voice_client)
+                return {"status": "already_connected", "guild_id": guild_id, "channel_id": channel_id}
 
         try:
             if voice_client and voice_client.channel:
                 await voice_client.move_to(channel)
+                self._ensure_voice_receiver(voice_client)
             else:
-                await channel.connect()
+                connect_kwargs = {"cls": desired_cls} if discord_voice_recv else {}
+                voice_client = await channel.connect(**connect_kwargs)
+                if voice_client:
+                    self._ensure_voice_receiver(voice_client)
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
                 "discord.voice_connect_failed",
@@ -129,6 +164,7 @@ class VoiceBot(discord.Client):
             return {"status": "not_connected", "guild_id": guild_id}
 
         channel_id = voice_client.channel.id if voice_client.channel else None
+        self._stop_voice_receiver(guild_id, voice_client)
         await voice_client.disconnect()
         self._logger.info(
             "discord.voice_disconnected",
@@ -179,19 +215,30 @@ class VoiceBot(discord.Client):
         if not voice_state:
             self._logger.warning(
                 "discord.voice_state_missing",
-                extra={"user_id": user_id},
+                extra={"user_id": user_id, "correlation_id": segment.correlation_id},
             )
             return
         if not voice_state.channel:
             self._logger.warning(
                 "discord.voice_channel_missing",
-                extra={"user_id": user_id},
+                extra={"user_id": user_id, "correlation_id": segment.correlation_id},
             )
             return
         context = SegmentContext(
             segment=segment,
             guild_id=voice_state.channel.guild.id,
             channel_id=voice_state.channel.id,
+        )
+        self._logger.info(
+            "voice.segment_enqueued",
+            extra={
+                "correlation_id": segment.correlation_id,
+                "user_id": segment.user_id,
+                "guild_id": context.guild_id,
+                "channel_id": context.channel_id,
+                "frames": segment.frame_count,
+                "duration": segment.duration,
+            },
         )
         await self._segment_queue.put(context)
 
@@ -208,7 +255,26 @@ class VoiceBot(discord.Client):
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:
+                    self._logger.info(
+                        "voice.segment_processing_start",
+                        extra={
+                            "correlation_id": context.segment.correlation_id,
+                            "guild_id": context.guild_id,
+                            "channel_id": context.channel_id,
+                            "frames": context.segment.frame_count,
+                        },
+                    )
                     transcript = await stt_client.transcribe(context.segment)
+                    self._logger.info(
+                        "voice.segment_processing_complete",
+                        extra={
+                            "correlation_id": transcript.correlation_id,
+                            "guild_id": context.guild_id,
+                            "channel_id": context.channel_id,
+                            "text_length": len(transcript.text),
+                            "confidence": transcript.confidence,
+                        },
+                    )
                     await self._handle_transcript(context, transcript)
                 except asyncio.CancelledError:
                     raise
@@ -256,7 +322,25 @@ class VoiceBot(discord.Client):
             "confidence": transcript.confidence,
             "frames": context.segment.frame_count,
         }
+        self._logger.info(
+            "wake.detected",
+            extra={
+                "correlation_id": transcript.correlation_id,
+                "wake_phrase": wake_phrase,
+                "confidence": transcript.confidence,
+                "guild_id": context.guild_id,
+                "channel_id": context.channel_id,
+            },
+        )
         await self._publish_transcript(payload)
+        self._logger.info(
+            "voice.transcript_published",
+            extra={
+                "correlation_id": transcript.correlation_id,
+                "guild_id": context.guild_id,
+                "channel_id": context.channel_id,
+            },
+        )
 
     async def _play_tts(self, audio_url: str, context: SegmentContext) -> None:
         if not self._http_session:
@@ -302,10 +386,79 @@ class VoiceBot(discord.Client):
                 return voice_client
         return None
 
+    def _ensure_voice_receiver(self, voice_client: discord.VoiceClient) -> None:
+        if self._loop is None:
+            self._logger.warning(
+                "voice.receiver_loop_missing",
+                extra={"guild_id": voice_client.guild.id if voice_client.guild else None},
+            )
+            return
+        guild_id = voice_client.guild.id if voice_client.guild else None
+        channel_id = voice_client.channel.id if voice_client.channel else None
+        if guild_id is None or channel_id is None:
+            return
+        if guild_id in self._voice_receivers:
+            return
+        try:
+            assert self._loop is not None
+            receiver = build_sink(self._loop, self.ingest_voice_packet)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error(
+                "voice.receiver_unavailable",
+                extra={
+                    "guild_id": guild_id,
+                    "channel_id": channel_id,
+                    "error": str(exc),
+                },
+            )
+            return
+        try:
+            voice_client.listen(receiver)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error(
+                "voice.receiver_start_failed",
+                extra={
+                    "guild_id": guild_id,
+                    "channel_id": channel_id,
+                    "error": str(exc),
+                },
+            )
+            return
+        self._voice_receivers[guild_id] = receiver
+        self._logger.info(
+            "voice.receiver_started",
+            extra={
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+            },
+        )
+
+    def _stop_voice_receiver(self, guild_id: int, voice_client: Optional[discord.VoiceClient]) -> None:
+        receiver = self._voice_receivers.pop(guild_id, None)
+        if not receiver:
+            return
+        if voice_client:
+            with suppress(Exception):
+                voice_client.stop_listening()
+        if hasattr(receiver, "cleanup"):
+            with suppress(Exception):
+                receiver.cleanup()
+        self._logger.info(
+            "voice.receiver_stopped",
+            extra={
+                "guild_id": guild_id,
+                "channel_id": voice_client.channel.id if voice_client and voice_client.channel else None,
+            },
+        )
+
     @staticmethod
     def _build_intents(config: DiscordConfig) -> discord.Intents:
         intents = discord.Intents.none()
-        for name in config.intents:
+        intent_aliases = {
+            "guild_voice_states": "voice_states",
+        }
+        for raw_name in config.intents:
+            name = intent_aliases.get(raw_name, raw_name)
             if hasattr(intents, name):
                 setattr(intents, name, True)
         return intents
@@ -321,12 +474,18 @@ async def run_bot(config: BotConfig) -> None:
     server.attach_voice_bot(bot)
 
     bot_task = asyncio.create_task(bot.start(config.discord.token))
+    server_task = asyncio.create_task(server.serve())
     try:
-        await server.serve()
+        await bot_task
     finally:
-        await bot.close()
+        await server.shutdown()
         with suppress(asyncio.CancelledError):
-            await bot_task
+            await server_task
+        await bot.close()
+        if not bot_task.done():
+            bot_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await bot_task
 
 
 __all__ = ["SegmentContext", "TranscriptPublisher", "VoiceBot", "run_bot"]

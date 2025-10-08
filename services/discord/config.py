@@ -15,7 +15,7 @@ class DiscordConfig:
     token: str
     guild_id: int
     voice_channel_id: int
-    intents: List[str] = field(default_factory=lambda: ["guilds", "guild_voice_states", "guild_messages"])
+    intents: List[str] = field(default_factory=lambda: ["guilds", "voice_states", "guild_messages"])
     auto_join: bool = False
 
 
@@ -110,7 +110,7 @@ def load_config() -> BotConfig:
         token=_require_env("DISCORD_BOT_TOKEN"),
         guild_id=_get_int("DISCORD_GUILD_ID"),
         voice_channel_id=_get_int("DISCORD_VOICE_CHANNEL_ID"),
-        intents=_split_csv(os.getenv("DISCORD_INTENTS", "guilds,guild_voice_states")),
+        intents=_split_csv(os.getenv("DISCORD_INTENTS", "guilds,voice_states")),
         auto_join=os.getenv("DISCORD_AUTO_JOIN", "false").lower() == "true",
     )
 

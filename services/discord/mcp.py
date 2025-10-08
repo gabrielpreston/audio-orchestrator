@@ -50,15 +50,29 @@ class MCPServer:
 
         self._voice_bot = voice_bot
 
+    async def shutdown(self) -> None:
+        """Stop serving new MCP requests and tear down background tasks."""
+
+        if self._shutdown.is_set():
+            return
+        self._shutdown.set()
+        self._incoming.put_nowait(None)
+        if self._reader_task:
+            self._reader_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._reader_task
+
     async def serve(self) -> None:
         """Serve MCP requests over stdio until shutdown."""
 
         self._reader_task = asyncio.create_task(self._pump_stdin())
         try:
-            while not self._shutdown.is_set():
+            while True:
                 message = await self._incoming.get()
                 if message is None:
-                    break
+                    if self._shutdown.is_set():
+                        break
+                    continue
                 await self._handle_message(message)
         finally:
             self._shutdown.set()
@@ -79,12 +93,22 @@ class MCPServer:
         }
         if not self._initialized:
             self._pending_notifications.append(message)
-            self._logger.debug(
-                "mcp.notification_buffered",
-                extra={"method": "discord/transcript", "reason": "not_initialized"},
+            self._logger.info(
+                "mcp.transcript_buffered",
+                extra={
+                    "correlation_id": payload.get("correlation_id"),
+                    "reason": "not_initialized",
+                },
             )
             return
         await self._send(message)
+        self._logger.info(
+            "mcp.transcript_sent",
+            extra={
+                "correlation_id": payload.get("correlation_id"),
+                "text_length": len(str(payload.get("text", ""))),
+            },
+        )
 
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         if "method" not in message:
@@ -286,6 +310,8 @@ class MCPServer:
 
         def reader() -> None:
             for raw in sys.stdin:
+                if self._shutdown.is_set():
+                    break
                 text = raw.strip()
                 if not text:
                     continue
@@ -297,7 +323,8 @@ class MCPServer:
                     )
                     continue
                 loop.call_soon_threadsafe(self._incoming.put_nowait, message)
-            loop.call_soon_threadsafe(self._incoming.put_nowait, None)
+            if not self._shutdown.is_set():
+                self._logger.debug("mcp.stdin_closed")
 
         await asyncio.to_thread(reader)
 

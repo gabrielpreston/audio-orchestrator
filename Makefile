@@ -60,14 +60,6 @@ logs: ## Tail logs for compose services (set SERVICE=name to filter)
 	        $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
 	fi
 
-dev-discord: ## Run the Discord voice interface locally in the foreground
-	@echo -e "$(COLOR_GREEN)→ Starting Discord voice interface (local dev)$(COLOR_OFF)"
-	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec $(PYTHON) -m services.discord.main'
-
-dev-stt: ## Run STT locally (virtualenv) via scripts/run_stt.sh
-	@echo -e "$(COLOR_GREEN)→ Starting STT (local dev)$(COLOR_OFF)"
-	@bash -lc 'if [ -f .env.local ]; then set -a; . ./.env.local; set +a; fi; exec ./scripts/run_stt.sh'
-
 clean: ## Remove logs and cached audio artifacts
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
 	@if [ -d "logs" ]; then \

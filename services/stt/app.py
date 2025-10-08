@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 import time
 import io
@@ -7,12 +7,13 @@ import os
 import logging
 from pythonjsonlogger import jsonlogger
 import sys
+from typing import Any, Optional, Tuple
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
 # Module-level cached model to avoid repeated loads
-_model = None
+_model: Any = None
 
 # --- JSON logging setup ---
 def _setup_logging():
@@ -35,55 +36,104 @@ _setup_logging()
 logger = logging.getLogger("stt.app")
 
 
-@app.post("/asr")
-async def asr(request: Request):
-    # Top-level timing for the request (includes validation, file I/O, model work)
-    req_start = time.time()
+def _parse_bool(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return str(value).lower() in {"1", "true", "yes", "on"}
 
-    # Expect raw WAV bytes in the request body
-    body = await request.body()
-    if not body:
-        raise HTTPException(status_code=400, detail="empty request body")
 
-    # Load model lazily (import heavy deps only when needed)
+def _lazy_load_model() -> Any:
+    global _model
     try:
         from faster_whisper import WhisperModel
-    except Exception as e:
-        logger.exception("faster-whisper import failed", extra={"extra": {"error": str(e)}})
+    except Exception as e:  # noqa: BLE001
+        logger.exception(
+            "faster-whisper import failed", extra={"extra": {"error": str(e)}}
+        )
         raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
 
-    # Validate WAV container
-    try:
-        wf = wave.open(io.BytesIO(body), "rb")
-    except wave.Error as e:
-        raise HTTPException(status_code=400, detail=f"invalid WAV: {e}")
+    if _model is not None:
+        logger.debug(
+            "model cache hit",
+            extra={"extra": {"model_name": MODEL_NAME}},
+        )
+        return _model
 
-    # Only support PCM16LE mono 16k/48k etc.
-    channels = wf.getnchannels()
-    sampwidth = wf.getsampwidth()
-    framerate = wf.getframerate()
-    nframes = wf.getnframes()
+    device = os.environ.get("FW_DEVICE", "cpu")
+    compute_type = os.environ.get("FW_COMPUTE_TYPE")
+    try:
+        if compute_type:
+            _model = WhisperModel(MODEL_NAME, device=device, compute_type=compute_type)
+        else:
+            _model = WhisperModel(MODEL_NAME, device=device)
+        logger.info(
+            "model loaded",
+            extra={
+                "extra": {
+                    "model_name": MODEL_NAME,
+                    "device": device,
+                    "compute_type": compute_type or "default",
+                }
+            },
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.exception(
+            "model load error",
+            extra={
+                "extra": {
+                    "model_name": MODEL_NAME,
+                    "device": device,
+                    "compute_type": compute_type,
+                    "error": str(e),
+                }
+            },
+        )
+        raise HTTPException(status_code=500, detail=f"model load error: {e}")
+    return _model
+
+
+def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
+    try:
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            channels = wf.getnchannels()
+            sampwidth = wf.getsampwidth()
+            framerate = wf.getframerate()
+            wf.getnframes()  # consume to ensure header validity
+        logger.debug(
+            "wav metadata parsed",
+            extra={
+                "extra": {
+                    "channels": channels,
+                    "sample_width": sampwidth,
+                    "sample_rate": framerate,
+                }
+            },
+        )
+    except wave.Error as e:
+        raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
 
     if sampwidth != 2:
         raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+    return channels, sampwidth, framerate
 
-    pcm = wf.readframes(nframes)
 
-    # Create model (this will use CPU by default; user can set device env)
-    global _model
+async def _transcribe_request(
+    request: Request,
+    wav_bytes: bytes,
+    *,
+    correlation_id: Optional[str],
+    filename: Optional[str],
+) -> JSONResponse:
+    # Top-level timing for the request (includes validation, file I/O, model work)
+    req_start = time.time()
+
+    if not wav_bytes:
+        raise HTTPException(status_code=400, detail="empty request body")
+
+    channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
+
+    model = _lazy_load_model()
     device = os.environ.get("FW_DEVICE", "cpu")
-    compute_type = os.environ.get("FW_COMPUTE_TYPE")
-    # Load model once
-    if _model is None:
-        try:
-            if compute_type:
-                _model = WhisperModel(MODEL_NAME, device=device, compute_type=compute_type)
-            else:
-                _model = WhisperModel(MODEL_NAME, device=device)
-        except Exception as e:
-            logger.exception("model load error", extra={"extra": {"model_name": MODEL_NAME, "device": device, "error": str(e)}})
-            raise HTTPException(status_code=500, detail=f"model load error: {e}")
-    model = _model
 
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
@@ -94,9 +144,8 @@ async def asr(request: Request):
     beam_size_q = request.query_params.get('beam_size')
     lang_q = request.query_params.get('language')
     word_ts_q = request.query_params.get('word_timestamps')
-    # Accept a correlation id from the client (header or query param) and
-    # echo it back in the response so callers can correlate requests.
-    correlation_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
+    language = lang_q
+    include_word_ts = _parse_bool(word_ts_q)
     # default beam size (if not provided) — keep it modest to balance quality/latency
     beam_size = 5
     if beam_size_q:
@@ -109,12 +158,30 @@ async def asr(request: Request):
 
     tmp_path = None
     # metadata for response/logs
-    input_bytes = len(body)
+    input_bytes = len(wav_bytes)
     request_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
+    headers_correlation = request.headers.get('X-Correlation-ID')
+    correlation_id = correlation_id or headers_correlation or request.query_params.get('correlation_id')
     try:
-        logger.info("asr request received", extra={"extra": {"task": task, "beam_size": beam_size, "language": lang_q, "correlation_id": correlation_id, "input_bytes": input_bytes, "model": MODEL_NAME, "device": device}})
+        logger.info(
+            "transcription request received",
+            extra={
+                "extra": {
+                    "task": task,
+                    "beam_size": beam_size,
+                    "language": language,
+                    "correlation_id": correlation_id,
+                    "input_bytes": input_bytes,
+                    "model": MODEL_NAME,
+                    "device": device,
+                    "filename": filename,
+                    "channels": channels,
+                    "sample_rate": framerate,
+                }
+            },
+        )
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp.write(body)
+            tmp.write(wav_bytes)
             tmp_path = tmp.name
         # faster-whisper's transcribe signature accepts beam_size and optional
         # task/language parameters. If language is not provided we pass None
@@ -124,25 +191,27 @@ async def asr(request: Request):
         # Determine whether caller requested word-level timestamps and pass
         # that flag into the model.transcribe call (some faster-whisper
         # implementations accept a word_timestamps=True parameter).
-        include_word_ts = False
-        if word_ts_q:
-            lv = str(word_ts_q).lower()
-            if lv in ('1', 'true', 'yes'):
-                include_word_ts = True
-
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
-        logger.info("transcription started", extra={"extra": {"tmp_path": tmp_path}})
+        logger.info(
+            "transcription started",
+            extra={
+                "extra": {
+                    "tmp_path": tmp_path,
+                    "correlation_id": correlation_id,
+                }
+            },
+        )
         if task == 'translate':
             if include_word_ts:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q, word_timestamps=True)
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=language, word_timestamps=True)
             else:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=lang_q)
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=language)
         else:
             if include_word_ts:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q, word_timestamps=True)
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=language, word_timestamps=True)
             else:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=lang_q)
+                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=language)
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
         # optionally include word-level timestamps).
@@ -154,15 +223,19 @@ async def asr(request: Request):
             pass
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
-        logger.info("transcription finished", extra={"extra": {"processing_ms": processing_ms, "segments": len(segments) if hasattr(segments, '__len__') else None}})
+        logger.info(
+            "transcription finished",
+            extra={
+                "extra": {
+                    "processing_ms": processing_ms,
+                    "segments": len(segments) if hasattr(segments, '__len__') else None,
+                    "correlation_id": correlation_id,
+                }
+            },
+        )
         # Build a combined text and (optionally) include timestamped segments/words
-        text = " ".join([seg.text for seg in segments])
+        text = " ".join([getattr(seg, "text", "") for seg in segments]).strip()
         segments_out = []
-        include_word_ts = False
-        if word_ts_q:
-            lv = str(word_ts_q).lower()
-            if lv in ('1', 'true', 'yes'):
-                include_word_ts = True
         if include_word_ts:
             for seg in segments:
                 segdict = {
@@ -196,7 +269,12 @@ async def asr(request: Request):
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
 
-    resp = {"text": text, "duration": info.duration}
+    resp = {
+        "text": text,
+        "duration": getattr(info, "duration", None),
+        "language": getattr(info, "language", None),
+        "confidence": getattr(info, "language_probability", None),
+    }
     if task:
         resp["task"] = task
     # include correlation id if provided by client
@@ -224,4 +302,91 @@ async def asr(request: Request):
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
+    logger.info(
+        "transcription response ready",
+        extra={
+            "extra": {
+                "correlation_id": correlation_id,
+                "text_length": len(resp.get("text", "")),
+                "processing_ms": resp.get("processing_ms"),
+                "total_ms": resp.get("total_ms"),
+            }
+        },
+    )
     return JSONResponse(resp, headers=headers)
+
+
+@app.post("/asr")
+async def asr(request: Request):
+    # Expect raw WAV bytes in the request body
+    body = await request.body()
+    logger.info(
+        "asr request received",
+        extra={
+            "extra": {
+                "content_length": len(body),
+                "correlation_id": request.headers.get("X-Correlation-ID"),
+            }
+        },
+    )
+    return await _transcribe_request(
+        request,
+        body,
+        correlation_id=request.headers.get("X-Correlation-ID")
+        or request.query_params.get("correlation_id"),
+        filename=None,
+    )
+
+
+@app.post("/transcribe")
+async def transcribe(request: Request):
+    form = await request.form()
+    upload = form.get("file")
+    if upload is None:
+        logger.warning(
+            "transcribe missing file",
+            extra={
+                "extra": {
+                    "fields": list(form.keys()),
+                }
+            },
+        )
+        raise HTTPException(status_code=400, detail="missing 'file' form field")
+
+    metadata_value = form.get("metadata")
+
+    filename: Optional[str] = None
+    wav_bytes: bytes
+    if isinstance(upload, UploadFile):
+        filename = upload.filename
+        wav_bytes = await upload.read()
+        await upload.close()
+    elif isinstance(upload, (bytes, bytearray)):
+        wav_bytes = bytes(upload)
+    else:
+        logger.warning(
+            "transcribe unsupported payload",
+            extra={
+                "extra": {
+                    "type": type(upload).__name__,
+                }
+            },
+        )
+        raise HTTPException(status_code=400, detail="unsupported file payload")
+
+    logger.info(
+        "transcribe request received",
+        extra={
+            "extra": {
+                "filename": filename,
+                "input_bytes": len(wav_bytes),
+                "correlation_id": metadata_value,
+            }
+        },
+    )
+    return await _transcribe_request(
+        request,
+        wav_bytes,
+        correlation_id=metadata_value,
+        filename=filename,
+    )

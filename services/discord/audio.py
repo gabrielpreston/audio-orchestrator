@@ -5,11 +5,12 @@ from __future__ import annotations
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict, List, Literal, Optional
 
 import numpy as np
 
 from .config import AudioConfig
+from .logging import get_logger
 
 
 @dataclass(slots=True)
@@ -40,6 +41,16 @@ class AudioSegment:
 
 
 @dataclass(slots=True)
+class FlushDecision:
+    """Represents a decision about whether to flush an accumulator."""
+
+    action: Literal["flush", "hold"]
+    reason: str
+    total_duration: float
+    silence_age: float
+
+
+@dataclass(slots=True)
 class Accumulator:
     """Collects PCM frames for a specific speaker."""
 
@@ -49,31 +60,41 @@ class Accumulator:
     active: bool = False
     last_activity: float = field(default_factory=time.monotonic)
     sequence: int = 0
+    silence_started_at: Optional[float] = None
 
     def append(self, frame: PCMFrame) -> None:
         self.frames.append(frame)
         self.last_activity = frame.timestamp
         self.active = True
+        self.silence_started_at = None
 
-    def mark_silence(self, timestamp: float) -> None:
+    def mark_silence(self, timestamp: float) -> bool:
         """Register silence without resetting the voice activity timer."""
+        new_silence = False
         if not self.frames:
             # No active segment yet; keep last_activity aligned with recent silence.
             self.last_activity = timestamp
+        else:
+            if self.silence_started_at is None:
+                self.silence_started_at = timestamp
+                new_silence = True
         # When frames exist we intentionally avoid mutating last_activity so silence can trigger flushes.
+        return new_silence
 
-    def should_flush(self, timestamp: float) -> bool:
+    def should_flush(self, timestamp: float) -> Optional[FlushDecision]:
         if not self.frames:
-            return False
+            return None
         start = self.frames[0].timestamp
         end = self.frames[-1].timestamp + self.frames[-1].duration
         total_duration = end - start
+        silence_age = timestamp - self.last_activity
         if total_duration >= self.config.max_segment_duration_seconds:
-            return True
-        if timestamp - self.last_activity >= self.config.silence_timeout_seconds:
+            return FlushDecision("flush", "max_duration", total_duration, silence_age)
+        if silence_age >= self.config.silence_timeout_seconds:
             if total_duration >= self.config.min_segment_duration_seconds:
-                return True
-        return False
+                return FlushDecision("flush", "silence_timeout", total_duration, silence_age)
+            return FlushDecision("hold", "min_duration", total_duration, silence_age)
+        return None
 
     def pop_segment(self, correlation_id: str) -> Optional[AudioSegment]:
         if not self.frames:
@@ -91,6 +112,7 @@ class Accumulator:
         )
         self.frames.clear()
         self.active = False
+        self.silence_started_at = None
         return segment
 
 
@@ -100,6 +122,7 @@ class AudioPipeline:
     def __init__(self, config: AudioConfig) -> None:
         self._config = config
         self._accumulators: Dict[int, Accumulator] = {}
+        self._logger = get_logger(__name__)
 
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
@@ -108,6 +131,10 @@ class AudioPipeline:
 
     def register_frame(self, user_id: int, pcm: bytes, rms: float, duration: float) -> Optional[AudioSegment]:
         if not self._allowed(user_id):
+            self._logger.debug(
+                "voice.frame_rejected",
+                extra={"user_id": user_id, "reason": "allowlist"},
+            )
             return None
 
         timestamp = time.monotonic()
@@ -115,30 +142,124 @@ class AudioPipeline:
         accumulator.sequence += 1
         frame = PCMFrame(pcm=pcm, timestamp=timestamp, rms=rms, duration=duration, sequence=accumulator.sequence)
 
+        self._logger.debug(
+            "voice.frame_received",
+            extra={
+                "user_id": user_id,
+                "sequence": frame.sequence,
+                "rms": rms,
+                "duration": duration,
+                "threshold": self._config.vad_threshold,
+            },
+        )
+
         if rms < self._config.vad_threshold:
-            accumulator.mark_silence(timestamp)
-            if accumulator.should_flush(timestamp):
-                return self._flush_accumulator(accumulator)
+            silence_started = accumulator.mark_silence(timestamp)
+            if silence_started and accumulator.frames:
+                start = accumulator.frames[0].timestamp
+                end = accumulator.frames[-1].timestamp + accumulator.frames[-1].duration
+                self._logger.debug(
+                    "voice.silence_started",
+                    extra={
+                        "user_id": user_id,
+                        "frames": len(accumulator.frames),
+                        "active_duration": end - start,
+                    },
+                )
+            decision = accumulator.should_flush(timestamp)
+            if decision:
+                if decision.action == "flush":
+                    return self._flush_accumulator(accumulator, reason=decision.reason, timestamp=timestamp)
+                self._logger.debug(
+                    "voice.segment_on_hold",
+                    extra={
+                        "user_id": user_id,
+                        "reason": decision.reason,
+                        "frames": len(accumulator.frames),
+                        "duration": decision.total_duration,
+                        "silence_age": decision.silence_age,
+                    },
+                )
             return None
 
+        resumed_from_silence = accumulator.silence_started_at is not None
+        silence_duration = (timestamp - accumulator.silence_started_at) if resumed_from_silence else 0.0
+        was_active = accumulator.active
         accumulator.append(frame)
-        if accumulator.should_flush(timestamp):
-            return self._flush_accumulator(accumulator)
+        if resumed_from_silence:
+            self._logger.debug(
+                "voice.silence_ended",
+                extra={
+                    "user_id": user_id,
+                    "silence_duration": silence_duration,
+                },
+            )
+        if not was_active:
+            self._logger.info(
+                "voice.segment_started",
+                extra={
+                    "user_id": user_id,
+                    "sequence": frame.sequence,
+                    "rms": frame.rms,
+                    "duration": frame.duration,
+                },
+            )
+        else:
+            start = accumulator.frames[0].timestamp
+            end = accumulator.frames[-1].timestamp + accumulator.frames[-1].duration
+            self._logger.debug(
+                "voice.segment_buffering",
+                extra={
+                    "user_id": user_id,
+                    "frames": len(accumulator.frames),
+                    "duration": end - start,
+                },
+            )
+        decision = accumulator.should_flush(timestamp)
+        if decision and decision.action == "flush":
+            return self._flush_accumulator(accumulator, reason=decision.reason, timestamp=timestamp)
+        if decision and decision.action == "hold":
+            self._logger.debug(
+                "voice.segment_on_hold",
+                extra={
+                    "user_id": user_id,
+                    "reason": decision.reason,
+                    "frames": len(accumulator.frames),
+                    "duration": decision.total_duration,
+                    "silence_age": decision.silence_age,
+                },
+            )
         return None
 
     def force_flush(self) -> List[AudioSegment]:
         segments: List[AudioSegment] = []
         for accumulator in self._accumulators.values():
-            segment = self._flush_accumulator(accumulator)
+            segment = self._flush_accumulator(accumulator, reason="force_flush", timestamp=time.monotonic())
             if segment:
                 segments.append(segment)
         return segments
 
-    def _flush_accumulator(self, accumulator: Accumulator) -> Optional[AudioSegment]:
+    def _flush_accumulator(self, accumulator: Accumulator, *, reason: str, timestamp: float) -> Optional[AudioSegment]:
         correlation_id = f"discord-{accumulator.user_id}-{int(time.time() * 1000)}"
+        frame_count = len(accumulator.frames)
+        average_rms = float(sum(frame.rms for frame in accumulator.frames) / frame_count) if frame_count else 0.0
+        last_activity_age = timestamp - accumulator.last_activity
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
+        self._logger.info(
+            "voice.segment_ready",
+            extra={
+                "user_id": segment.user_id,
+                "correlation_id": segment.correlation_id,
+                "frames": segment.frame_count,
+                "duration": segment.duration,
+                "reason": reason,
+                "average_rms": average_rms,
+                "silence_age": last_activity_age,
+                "pcm_bytes": len(segment.pcm),
+            },
+        )
         return segment
 
 

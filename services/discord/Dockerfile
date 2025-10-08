@@ -9,6 +9,7 @@ WORKDIR /app
 # Install runtime dependencies required for voice capture and playback
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        git \
         build-essential \
         ffmpeg \
         libffi-dev \

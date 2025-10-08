@@ -1,7 +1,10 @@
+.vscode/
 .env.*
 bin/
 ./bot
 .venv-*/
+.venv/
+.tmpvenv/
 __pycache__/
 logs/
 .wavs/

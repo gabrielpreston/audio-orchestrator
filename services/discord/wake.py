@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, List
 
 
@@ -12,6 +12,7 @@ class WakeDetector:
     """Detects wake phrases using case-insensitive matching."""
 
     wake_phrases: List[str]
+    _pattern: re.Pattern[str] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         patterns = [re.escape(phrase.strip()) for phrase in self.wake_phrases if phrase.strip()]
