@@ -1,6 +1,6 @@
 # Discord Voice Lab — Quickstart
 
-A minimal Go scaffold for a Discord voice agent (audio → STT → orchestrator). This README provides the fastest path to run and test the project.
+This repository now contains both the original Go-based Discord voice gateway and a new Python implementation that mirrors the same audio → wake-word → STT → orchestration loop. This README highlights the fastest path to run and test the Python bot.
 
 Prerequisites
 
@@ -17,55 +17,39 @@ This project supports loading environment variables from files instead of manual
 
 Essential environment variables (examples)
 
-Create a `.env.local` for local runs or `.env.docker` for docker runs. Example contents:
+Create a `.env.local` for local runs or `.env.docker` for docker runs. Example contents for the Python bot:
 
 ```env
 # .env.local or .env.docker
 DISCORD_BOT_TOKEN=your_token_here
-GUILD_ID=123456789012345678
-VOICE_CHANNEL_ID=987654321098765432
-WHISPER_URL=http://localhost:9000
+DISCORD_GUILD_ID=123456789012345678
+DISCORD_VOICE_CHANNEL_ID=987654321098765432
+DISCORD_AUTO_JOIN=true
+STT_BASE_URL=http://localhost:9000
+ORCHESTRATOR_BASE_URL=http://localhost:9100
+ORCHESTRATOR_WAKE_PHRASES=hey atlas,ok atlas
+AUDIO_ALLOWLIST=12345,67890
 LOG_LEVEL=info
-DETAILED_EVENTS=false
-ALLOWED_USER_IDS=12345,67890
-# Optional: save decoded audio
-SAVE_AUDIO_DIR_HOST=/tmp/discord-voice-audio
-SAVE_AUDIO_DIR_CONTAINER=/app/wavs
+LOG_JSON=true
 ```
 
-Quickstart — local development
+Quickstart — Python voice bot
 
-1. Run tests
+1. Install dependencies (ideally inside a virtualenv):
 
 ```bash
-make test
+python -m venv .venv
+. .venv/bin/activate
+pip install -r services/pybot/requirements.txt
 ```
 
-1. Build the binary
+2. Export environment variables (or rely on `.env.local` sourced beforehand) and run the bot:
 
 ```bash
-make build
-# binary: bin/bot
+python -m services.pybot.main
 ```
 
-1. Run the bot (local)
-
-For a fast local developer experience, create a `.env.local` file (example above) and run the dev helper which will source that file automatically:
-
-```bash
-# start the bot binary in background (dev-friendly)
-make dev-bot
-
-# or run the STT service locally (dev helper will source .env.local if present)
-make dev-stt
-```
-
-To run the full stack via Docker Compose, create a `.env.docker` (example above) and then:
-
-```bash
-make run
-# the compose files use ./.env.docker via the `env_file` setting
-```
+The Python bot automatically loads manifests declared via `MCP_MANIFESTS`, coordinates with the faster-whisper STT service, performs wake-word filtering before invoking the orchestrator, and plays TTS audio responses when available.
 
 Quickstart — Docker image
 
@@ -91,8 +75,8 @@ WAVs are written per flush with names like: 20250101T123456.000Z_ssrc12345_usern
 
 Where to look next
 
-- `cmd/bot/main.go` — app entry, env config, Discord session and handlers
-- `internal/voice/*` — audio pipeline, opus decode, POSTs to STT (WHISPER_URL)
-- `docs/` — architecture and development guides
+- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription, orchestrator bridge, MCP integration, Discord client wiring).
+- `services/bot/` — Original Go implementation retained for reference.
+- `docs/` — architecture and development guides shared between runtimes.
 
-That's all you need to get started. For changes to runtime behavior, update env defaults in `cmd/bot/main.go` and the docs as appropriate.
+That's all you need to get started. For changes to runtime behavior, update env defaults in both the Python and Go entrypoints and keep the docs in sync.
