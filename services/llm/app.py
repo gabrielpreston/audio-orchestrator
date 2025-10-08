@@ -10,29 +10,8 @@ import uvicorn
 import subprocess
 import shutil
 from typing import Optional
-import httpx
 
 app = FastAPI(title="Local Orchestrator / OpenAI-compatible LLM")
-
-
-@app.on_event("startup")
-async def register_with_mcp():
-    mcp = os.getenv("MCP_SERVER_URL")
-    if not mcp:
-        logger.info("MCP_SERVER_URL not configured; skipping registration")
-        return
-    name = os.getenv("MCP_SERVICE_NAME", "orch")
-    url = os.getenv("ORCH_EXTERNAL_URL", f"http://orch:8000/v1/chat/completions")
-    payload = {"name": name, "url": url, "description": "local orchestrator"}
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.post(f"{mcp.rstrip('/')}/mcp/register", json=payload)
-            if resp.status_code == 200:
-                logger.info("registered with MCP", extra={"extra": {"mcp": mcp, "name": name}})
-            else:
-                logger.warn("mcp registration returned non-200", extra={"extra": {"status": resp.status_code, "body": resp.text}})
-    except Exception:
-        logger.exception("failed to register with mcp")
 
 # --- JSON logging setup ---
 def _setup_logging():

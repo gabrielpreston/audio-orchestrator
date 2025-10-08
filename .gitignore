@@ -11,3 +11,4 @@ services/llm/models-src/
 bot
 services/bot/bot
 services/mcp-server/mcp-server
+mcp.json

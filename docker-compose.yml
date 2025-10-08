@@ -15,6 +15,9 @@ services:
       volumes:
         - ./logs:/app/logs
         - ./.wavs:/app/wavs
+        # Mount workspace MCP manifest so the bot (running inside the container)
+        # can load `.discord-voice-lab/mcp.json` from its working directory.
+        - ./mcp.json:/app/.discord-voice-lab/mcp.json:ro
       restart: unless-stopped
 
   stt:
