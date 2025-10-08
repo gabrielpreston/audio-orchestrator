@@ -1,5 +1,22 @@
 version: '3.8'
 services:
+  bot:
+      build:
+        context: ./services
+        dockerfile: ./bot/Dockerfile
+      image: discord-voice-bot:latest
+      depends_on:
+        - stt
+        - orch
+      env_file:
+        - ./.env.common
+        - ./.env.docker
+        - ./services/bot/.env.service
+      volumes:
+        - ./logs:/app/logs
+        - ./.wavs:/app/wavs
+      restart: unless-stopped
+
   stt:
     build:
       context: ./services/stt
@@ -11,24 +28,6 @@ services:
       - ./.env.common
       - ./.env.docker
       - ./services/stt/.env.service
-    restart: unless-stopped
-
-  bot:
-    build:
-      context: ./services
-      dockerfile: ./bot/Dockerfile
-    image: discord-voice-bot:latest
-    depends_on:
-      - stt
-      - orch
-      - mcp
-    env_file:
-      - ./.env.common
-      - ./.env.docker
-      - ./services/bot/.env.service
-    volumes:
-      - ./logs:/app/logs
-      - ./.wavs:/app/wavs
     restart: unless-stopped
 
   orch:
