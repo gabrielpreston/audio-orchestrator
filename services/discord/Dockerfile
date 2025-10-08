@@ -9,8 +9,10 @@ WORKDIR /app
 # Install runtime dependencies required for voice capture and playback
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+        build-essential \
         ffmpeg \
         libffi-dev \
+        libsodium-dev \
         libopus0 \
     && rm -rf /var/lib/apt/lists/*
 
