@@ -51,10 +51,8 @@ Field reference
 
 Behavior and fallbacks
 
-- The bot loads and merges manifests using `mcpconfig.LoadResult()` at startup. If a server is configured with `transport.type == "websocket"` the bot uses the provided `url` and attempts a websocket connection.
+- The bot loads and merges manifests at startup. If a server is configured with `transport.type == "websocket"` the bot uses the provided `url` and attempts a websocket connection.
 - If a server is configured with `command` the bot will start the command and use stdio as a JSON-RPC transport.
-- If no servers from the manifest are connected and the `MCP_SERVER_URL` environment variable is set, the bot will attempt to connect directly to `${MCP_SERVER_URL}/mcp/ws` (http(s) is normalized to ws/wss).
-- If websocket connection fails and `MCP_SERVER_URL` is configured, the bot falls back to registering itself by POSTing to `${MCP_SERVER_URL}/mcp/register` (the `Register` helper in `services/internal/mcp/registrar.go`).
 
 Notes and recommendations
 
@@ -75,10 +73,3 @@ Example: minimal `mcp.json` for local development
   }
 }
 ```
-
-Related files
-
-- `services/internal/mcp/config/manifest.go` — manifest parsing and normalization.
-- `services/internal/mcp/client.go` — `ClientWrapper`, ConnectWebSocket, ConnectCommand, session keepalive and Close logic.
-- `services/internal/mcp/command_transport.go` and `services/internal/mcp/ws_transport_client.go` — transport adapters for command stdio and websockets.
-- `services/internal/mcp/registrar.go` — helper to POST a simple service record to `${MCP_SERVER_URL}/mcp/register`.
