@@ -26,8 +26,7 @@ DISCORD_GUILD_ID=123456789012345678
 DISCORD_VOICE_CHANNEL_ID=987654321098765432
 DISCORD_AUTO_JOIN=true
 STT_BASE_URL=http://localhost:9000
-ORCHESTRATOR_BASE_URL=http://localhost:9100
-ORCHESTRATOR_WAKE_PHRASES=hey atlas,ok atlas
+WAKE_PHRASES=hey atlas,ok atlas
 AUDIO_ALLOWLIST=12345,67890
 LOG_LEVEL=info
 LOG_JSON=true
@@ -49,7 +48,7 @@ pip install -r services/pybot/requirements.txt
 python -m services.pybot.main
 ```
 
-The Python bot automatically loads manifests declared via `MCP_MANIFESTS`, coordinates with the faster-whisper STT service, performs wake-word filtering before invoking the orchestrator, and plays TTS audio responses when available.
+The Python bot exposes itself as an MCP server over stdio, coordinates with the faster-whisper STT service, performs wake-word filtering, and streams transcript notifications plus Discord control tools (join, leave, play audio, send message) to the orchestrator.
 
 Quickstart — Docker image
 
@@ -75,7 +74,7 @@ WAVs are written per flush with names like: 20250101T123456.000Z_ssrc12345_usern
 
 Where to look next
 
-- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription, orchestrator bridge, MCP integration, Discord client wiring).
+- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription, MCP server, Discord client wiring).
 - `services/bot/` — Original Go implementation retained for reference.
 - `docs/` — architecture and development guides shared between runtimes.
 

@@ -6,7 +6,6 @@ __all__ = [
     "discord_voice",
     "logging",
     "mcp",
-    "orchestrator",
     "transcription",
     "wake",
 ]

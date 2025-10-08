@@ -41,16 +41,6 @@ class STTConfig:
 
 
 @dataclass(slots=True)
-class OrchestratorConfig:
-    """Settings for orchestrator/MCP coordination."""
-
-    wake_phrases: List[str] = field(default_factory=lambda: ["hey atlas", "ok atlas"])
-    base_url: Optional[str] = None
-    request_timeout_seconds: float = 30.0
-    max_retries: int = 2
-
-
-@dataclass(slots=True)
 class MCPConfig:
     """Configuration for manifest loading and transports."""
 
@@ -78,9 +68,16 @@ class BotConfig:
     discord: DiscordConfig
     audio: AudioConfig
     stt: STTConfig
-    orchestrator: OrchestratorConfig
+    wake: "WakeConfig"
     mcp: MCPConfig
     telemetry: TelemetryConfig
+
+
+@dataclass(slots=True)
+class WakeConfig:
+    """Wake phrase detection settings."""
+
+    wake_phrases: List[str] = field(default_factory=lambda: ["hey atlas", "ok atlas"])
 
 
 def _require_env(name: str) -> str:
@@ -135,11 +132,10 @@ def load_config() -> BotConfig:
         max_retries=int(os.getenv("STT_MAX_RETRIES", "3")),
     )
 
-    orchestrator = OrchestratorConfig(
-        wake_phrases=_split_csv(os.getenv("ORCHESTRATOR_WAKE_PHRASES", "hey atlas,ok atlas")),
-        base_url=os.getenv("ORCHESTRATOR_BASE_URL"),
-        request_timeout_seconds=float(os.getenv("ORCHESTRATOR_TIMEOUT", "30")),
-        max_retries=int(os.getenv("ORCHESTRATOR_MAX_RETRIES", "2")),
+    wake = WakeConfig(
+        wake_phrases=_split_csv(
+            os.getenv("WAKE_PHRASES", os.getenv("ORCHESTRATOR_WAKE_PHRASES", "hey atlas,ok atlas"))
+        ),
     )
 
     manifest_paths = [Path(part) for part in _split_csv(os.getenv("MCP_MANIFESTS", ""))]
@@ -162,10 +158,19 @@ def load_config() -> BotConfig:
         discord=discord,
         audio=audio,
         stt=stt,
-        orchestrator=orchestrator,
+        wake=wake,
         mcp=mcp,
         telemetry=telemetry,
     )
 
 
-__all__ = ["BotConfig", "load_config", "DiscordConfig", "AudioConfig", "STTConfig", "OrchestratorConfig", "MCPConfig", "TelemetryConfig"]
+__all__ = [
+    "AudioConfig",
+    "BotConfig",
+    "DiscordConfig",
+    "MCPConfig",
+    "STTConfig",
+    "TelemetryConfig",
+    "WakeConfig",
+    "load_config",
+]
