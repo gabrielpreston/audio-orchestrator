@@ -29,8 +29,6 @@ DISCORD_AUTO_JOIN=true
 STT_BASE_URL=http://localhost:9000
 WAKE_PHRASES=hey atlas,ok atlas
 AUDIO_ALLOWLIST=12345,67890
-LOG_LEVEL=INFO
-LOG_JSON=true
 ```
 
 ## Quickstart — Python voice bot

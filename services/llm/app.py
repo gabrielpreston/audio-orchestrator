@@ -1,9 +1,6 @@
 from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
 import time
-import logging
-from pythonjsonlogger import jsonlogger
-import sys
 from pydantic import BaseModel
 import os
 import uvicorn
@@ -12,27 +9,6 @@ import shutil
 from typing import Optional
 
 app = FastAPI(title="Local Orchestrator / OpenAI-compatible LLM")
-
-# --- JSON logging setup ---
-def _setup_logging():
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
-    try:
-        lvl = getattr(logging, level)
-    except Exception:
-        lvl = logging.INFO
-
-    handler = logging.StreamHandler(stream=sys.stdout)
-    # use python-json-logger for structured JSON logs
-    fmt = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-    handler.setFormatter(fmt)
-    root = logging.getLogger()
-    root.handlers = []
-    root.addHandler(handler)
-    root.setLevel(lvl)
-
-
-_setup_logging()
-logger = logging.getLogger("llm.app")
 
 # Local OpenAI-compatible endpoint: /v1/chat/completions
 
@@ -55,12 +31,10 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
     expected = os.getenv("ORCH_AUTH_TOKEN")
     if expected:
         if not authorization or not authorization.startswith("Bearer ") or authorization.split(" ", 1)[1] != expected:
-            logger.warning("unauthorized request", extra={"extra": {"event": "auth", "status": "unauthorized"}})
             raise HTTPException(status_code=401, detail="unauthorized")
     # Very small local "model": try to invoke a local llama CLI if available,
     # otherwise fall back to a simple echo.
     if not req.messages:
-        logger.warning("bad request: messages required", extra={"extra": {"event": "bad_request"}})
         raise HTTPException(status_code=400, detail="messages required")
 
     # Build a simple prompt from messages (system -> user/assistant sequence)
@@ -93,13 +67,10 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
                             content = out
                             break
                         else:
-                            logger.debug("llama cli failed", extra={"extra": {"args": args, "rc": proc.returncode, "stderr": proc.stderr}})
                             pass
                     except Exception:
-                        logger.exception("llama invocation error", extra={"extra": {"args": args}})
                         pass
         except Exception:
-            logger.exception("LLAMA_BIN check failed")
             pass
 
     if content is None:
@@ -108,7 +79,6 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
         content = f"(local-model) {last.content}"
     # model selection/metadata
     model_name = req.model or "local-orch"
-    logger.info("completion generated", extra={"extra": {"model": model_name, "id": "local-1", "prompt_bytes": prompt_bytes}})
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)

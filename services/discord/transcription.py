@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import io
-import time
 import wave
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -13,7 +12,6 @@ import aiohttp
 
 from .audio import AudioSegment
 from .config import STTConfig
-from .logging import get_logger
 
 
 @dataclass(slots=True)
@@ -36,7 +34,6 @@ class TranscriptionClient:
         self._config = config
         self._session = session
         self._owns_session = session is None
-        self._logger = get_logger(__name__)
 
     async def __aenter__(self) -> "TranscriptionClient":
         if self._session is None:
@@ -66,32 +63,9 @@ class TranscriptionClient:
                 )
                 payload.add_field("metadata", segment.correlation_id)
                 assert self._session is not None
-                request_started = time.monotonic()
-                self._logger.info(
-                    "stt.transcribe_start",
-                    extra={
-                        "correlation_id": segment.correlation_id,
-                        "attempt": attempt,
-                        "payload_bytes": len(wav_bytes),
-                        "duration": segment.duration,
-                        "frames": segment.frame_count,
-                    },
-                )
                 async with self._session.post(f"{self._config.base_url}/transcribe", data=payload) as response:
                     response.raise_for_status()
                     data = await response.json()
-                    elapsed = time.monotonic() - request_started
-                    self._logger.info(
-                        "stt.transcribe_success",
-                        extra={
-                            "correlation_id": segment.correlation_id,
-                            "attempt": attempt,
-                            "language": data.get("language"),
-                            "confidence": data.get("confidence"),
-                            "text_length": len(data.get("text", "")),
-                            "latency_ms": int(elapsed * 1000),
-                        },
-                    )
                     return TranscriptResult(
                         text=data.get("text", ""),
                         start_timestamp=segment.start_timestamp,
@@ -103,24 +77,8 @@ class TranscriptionClient:
                     )
             except Exception as exc:  # noqa: BLE001
                 if attempt >= self._config.max_retries:
-                    self._logger.error(
-                        "stt.transcribe_failed",
-                        extra={
-                            "correlation_id": segment.correlation_id,
-                            "attempt": attempt,
-                            "error": str(exc),
-                        },
-                    )
                     raise
                 backoff = min(2 ** (attempt - 1), 10)
-                self._logger.warning(
-                    "stt.retry",
-                    extra={
-                        "correlation_id": segment.correlation_id,
-                        "attempt": attempt,
-                        "backoff": backoff,
-                    },
-                )
                 await asyncio.sleep(backoff)
 
 

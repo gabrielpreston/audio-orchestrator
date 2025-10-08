@@ -4,9 +4,6 @@ import time
 import io
 import wave
 import os
-import logging
-from pythonjsonlogger import jsonlogger
-import sys
 from typing import Any, Optional, Tuple
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
@@ -14,27 +11,6 @@ app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
 # Module-level cached model to avoid repeated loads
 _model: Any = None
-
-# --- JSON logging setup ---
-def _setup_logging():
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
-    try:
-        lvl = getattr(logging, level)
-    except Exception:
-        lvl = logging.INFO
-
-    handler = logging.StreamHandler(stream=sys.stdout)
-    fmt = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-    handler.setFormatter(fmt)
-    root = logging.getLogger()
-    root.handlers = []
-    root.addHandler(handler)
-    root.setLevel(lvl)
-
-
-_setup_logging()
-logger = logging.getLogger("stt.app")
-
 
 def _parse_bool(value: Optional[str]) -> bool:
     if value is None:
@@ -47,16 +23,9 @@ def _lazy_load_model() -> Any:
     try:
         from faster_whisper import WhisperModel
     except Exception as e:  # noqa: BLE001
-        logger.exception(
-            "faster-whisper import failed", extra={"extra": {"error": str(e)}}
-        )
         raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
 
     if _model is not None:
-        logger.debug(
-            "model cache hit",
-            extra={"extra": {"model_name": MODEL_NAME}},
-        )
         return _model
 
     device = os.environ.get("FW_DEVICE", "cpu")
@@ -66,28 +35,7 @@ def _lazy_load_model() -> Any:
             _model = WhisperModel(MODEL_NAME, device=device, compute_type=compute_type)
         else:
             _model = WhisperModel(MODEL_NAME, device=device)
-        logger.info(
-            "model loaded",
-            extra={
-                "extra": {
-                    "model_name": MODEL_NAME,
-                    "device": device,
-                    "compute_type": compute_type or "default",
-                }
-            },
-        )
     except Exception as e:  # noqa: BLE001
-        logger.exception(
-            "model load error",
-            extra={
-                "extra": {
-                    "model_name": MODEL_NAME,
-                    "device": device,
-                    "compute_type": compute_type,
-                    "error": str(e),
-                }
-            },
-        )
         raise HTTPException(status_code=500, detail=f"model load error: {e}")
     return _model
 
@@ -99,16 +47,6 @@ def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
             sampwidth = wf.getsampwidth()
             framerate = wf.getframerate()
             wf.getnframes()  # consume to ensure header validity
-        logger.debug(
-            "wav metadata parsed",
-            extra={
-                "extra": {
-                    "channels": channels,
-                    "sample_width": sampwidth,
-                    "sample_rate": framerate,
-                }
-            },
-        )
     except wave.Error as e:
         raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
 
@@ -157,29 +95,12 @@ async def _transcribe_request(
             raise HTTPException(status_code=400, detail="invalid beam_size query param")
 
     tmp_path = None
-    # metadata for response/logs
+    # metadata for response payload
     input_bytes = len(wav_bytes)
     request_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
     headers_correlation = request.headers.get('X-Correlation-ID')
     correlation_id = correlation_id or headers_correlation or request.query_params.get('correlation_id')
     try:
-        logger.info(
-            "transcription request received",
-            extra={
-                "extra": {
-                    "task": task,
-                    "beam_size": beam_size,
-                    "language": language,
-                    "correlation_id": correlation_id,
-                    "input_bytes": input_bytes,
-                    "model": MODEL_NAME,
-                    "device": device,
-                    "filename": filename,
-                    "channels": channels,
-                    "sample_rate": framerate,
-                }
-            },
-        )
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(wav_bytes)
             tmp_path = tmp.name
@@ -193,15 +114,6 @@ async def _transcribe_request(
         # implementations accept a word_timestamps=True parameter).
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
-        logger.info(
-            "transcription started",
-            extra={
-                "extra": {
-                    "tmp_path": tmp_path,
-                    "correlation_id": correlation_id,
-                }
-            },
-        )
         if task == 'translate':
             if include_word_ts:
                 segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=language, word_timestamps=True)
@@ -223,16 +135,6 @@ async def _transcribe_request(
             pass
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
-        logger.info(
-            "transcription finished",
-            extra={
-                "extra": {
-                    "processing_ms": processing_ms,
-                    "segments": len(segments) if hasattr(segments, '__len__') else None,
-                    "correlation_id": correlation_id,
-                }
-            },
-        )
         # Build a combined text and (optionally) include timestamped segments/words
         text = " ".join([getattr(seg, "text", "") for seg in segments]).strip()
         segments_out = []
@@ -257,7 +159,6 @@ async def _transcribe_request(
                         })
                 segments_out.append(segdict)
     except Exception as e:
-        logger.exception("transcription error", extra={"extra": {"error": str(e)}})
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
         if tmp_path:
@@ -302,17 +203,6 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    logger.info(
-        "transcription response ready",
-        extra={
-            "extra": {
-                "correlation_id": correlation_id,
-                "text_length": len(resp.get("text", "")),
-                "processing_ms": resp.get("processing_ms"),
-                "total_ms": resp.get("total_ms"),
-            }
-        },
-    )
     return JSONResponse(resp, headers=headers)
 
 
@@ -320,15 +210,6 @@ async def _transcribe_request(
 async def asr(request: Request):
     # Expect raw WAV bytes in the request body
     body = await request.body()
-    logger.info(
-        "asr request received",
-        extra={
-            "extra": {
-                "content_length": len(body),
-                "correlation_id": request.headers.get("X-Correlation-ID"),
-            }
-        },
-    )
     return await _transcribe_request(
         request,
         body,
@@ -343,14 +224,6 @@ async def transcribe(request: Request):
     form = await request.form()
     upload = form.get("file")
     if upload is None:
-        logger.warning(
-            "transcribe missing file",
-            extra={
-                "extra": {
-                    "fields": list(form.keys()),
-                }
-            },
-        )
         raise HTTPException(status_code=400, detail="missing 'file' form field")
 
     metadata_value = form.get("metadata")
@@ -364,26 +237,8 @@ async def transcribe(request: Request):
     elif isinstance(upload, (bytes, bytearray)):
         wav_bytes = bytes(upload)
     else:
-        logger.warning(
-            "transcribe unsupported payload",
-            extra={
-                "extra": {
-                    "type": type(upload).__name__,
-                }
-            },
-        )
         raise HTTPException(status_code=400, detail="unsupported file payload")
 
-    logger.info(
-        "transcribe request received",
-        extra={
-            "extra": {
-                "filename": filename,
-                "input_bytes": len(wav_bytes),
-                "correlation_id": metadata_value,
-            }
-        },
-    )
     return await _transcribe_request(
         request,
         wav_bytes,

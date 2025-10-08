@@ -4,7 +4,6 @@ __all__ = [
     "audio",
     "config",
     "discord_voice",
-    "logging",
     "mcp",
     "receiver",
     "transcription",

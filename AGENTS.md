@@ -26,13 +26,13 @@ This repository houses a Python-based Discord voice bot along with supporting Fa
 
 ## Discord interface (`services/discord`)
 - Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
-- Maintain JSON logging using the helpers in `services/discord/logging.py`; new log lines should include structured metadata when applicable.
+- Keep the code paths lean; the project intentionally omits runtime instrumentation.
 - Keep FastAPI/HTTP client interactions resilient—propagate timeouts and retries through configuration.
 - Run relevant unit or integration tests (when available) and capture smoke-test output (manual Discord runs, STT interactions) in your summary when submitting changes that affect runtime behavior.
 
 ## Python services (`services/stt`, `services/llm`)
 - Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
-- Maintain JSON logging using `python-json-logger`; new log lines should include structured metadata via the `extra` field.
+- Avoid introducing telemetry dependencies; these services operate without additional instrumentation.
 - Keep FastAPI response models (`pydantic`) up-to-date when the API shape changes. Document any new query params or headers in the relevant doc.
 - Sort imports (`ruff --select I`, `isort`, or the tooling in your editor) and freeze dependencies by updating the service-specific `requirements.txt` files when libraries change.
 - Use `scripts/test_stt.sh` against `test_speech_16k.wav` (and the translate variant) after modifying the STT service. Add lightweight unit tests if feasible for pure-Python helpers.
