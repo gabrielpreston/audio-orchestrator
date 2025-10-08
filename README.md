@@ -1,23 +1,24 @@
 # Discord Voice Lab — Quickstart
 
-This repository now contains both the original Go-based Discord voice gateway and a new Python implementation that mirrors the same audio → wake-word → STT → orchestration loop. This README highlights the fastest path to run and test the Python bot.
+This repository provides a Python-based Discord voice agent alongside supporting services for speech-to-text (STT) and lightweight orchestration. The Python bot handles audio capture, wake-word filtering, transcription requests, and exposes Discord control tools over the Model Context Protocol (MCP).
 
-Prerequisites
+## Prerequisites
 
 - make
-- Docker (optional, for image build/run)
-- A Discord bot token (required)
+- Python 3.10+
+- Docker (optional, for containerized STT/LLM services)
+- A Discord bot token
 
-Environment files (recommended)
+## Environment files (recommended)
 
-This project supports loading environment variables from files instead of manual "export" commands. Use:
+Use environment files to avoid exporting variables manually:
 
-- `.env.local` — for local development (used by `make dev-bot` / `make dev-stt` which source this file when present)
-- `.env.docker` — for containers (referenced by `docker-compose.yml` via the `env_file` field)
+- `.env.local` — sourced by local development targets such as `make dev-pybot` and `make dev-stt`.
+- `.env.docker` — consumed by Docker Compose services.
 
-Essential environment variables (examples)
+Copy `.env.sample` to either location and update the placeholders before running the bot.
 
-Create a `.env.local` for local runs or `.env.docker` for docker runs. Example contents for the Python bot:
+## Essential environment variables (examples)
 
 ```env
 # .env.local or .env.docker
@@ -28,54 +29,43 @@ DISCORD_AUTO_JOIN=true
 STT_BASE_URL=http://localhost:9000
 WAKE_PHRASES=hey atlas,ok atlas
 AUDIO_ALLOWLIST=12345,67890
-LOG_LEVEL=info
+LOG_LEVEL=INFO
 LOG_JSON=true
 ```
 
-Quickstart — Python voice bot
+## Quickstart — Python voice bot
 
-1. Install dependencies (ideally inside a virtualenv):
+1. Install dependencies (ideally inside a virtual environment):
+
+   ```bash
+   python -m venv .venv
+   . .venv/bin/activate
+   pip install -r services/pybot/requirements.txt
+   ```
+
+2. Source environment variables (or rely on `.env.local`) and run the bot:
+
+   ```bash
+   make dev-pybot
+   ```
+
+   The bot exposes itself as an MCP server over stdio, coordinates with the faster-whisper STT service, performs wake-word filtering, and streams transcript notifications plus Discord control tools (join, leave, play audio, send message) to downstream orchestrators.
+
+## Quickstart — Docker Compose services
+
+Create `.env.docker` in the repository root (see example above). Then build and run the supporting services:
 
 ```bash
-python -m venv .venv
-. .venv/bin/activate
-pip install -r services/pybot/requirements.txt
+make run
 ```
 
-2. Export environment variables (or rely on `.env.local` sourced beforehand) and run the bot:
+This brings up the STT and orchestrator containers defined in `docker-compose.yml`. Use `make logs` to follow their output and `make stop` to tear them down.
 
-```bash
-python -m services.pybot.main
-```
+## Where to look next
 
-The Python bot exposes itself as an MCP server over stdio, coordinates with the faster-whisper STT service, performs wake-word filtering, and streams transcript notifications plus Discord control tools (join, leave, play audio, send message) to the orchestrator.
-
-Quickstart — Docker image
-
-Make sure `.env.docker` exists in the repo root (see example above). Then build/push images:
-
-```bash
-make build-image IMAGE_TAG=latest
-make push-image IMAGE_TAG=latest   # pushes multi-arch image (requires buildx)
-```
-
-Troubleshooting — save decoded audio
-
-To save WAVs written by the processor for STT debugging, set the save paths in your `.env.local` or `.env.docker`:
-
-```env
-SAVE_AUDIO_DIR_HOST=/tmp/discord-voice-audio
-SAVE_AUDIO_DIR_CONTAINER=/app/wavs
-```
-
-If you run with Docker Compose the compose file mounts `./logs` and `./.wavs` by default; ensure `SAVE_AUDIO_DIR_HOST` points to a host directory you want to collect.
-
-WAVs are written per flush with names like: 20250101T123456.000Z_ssrc12345_username.wav
-
-Where to look next
-
-- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription, MCP server, Discord client wiring).
-- `services/bot/` — Original Go implementation retained for reference.
+- `services/pybot/` — Python bot packages (audio pipeline, wake detection, transcription client, MCP server, Discord client wiring).
+- `services/stt/` — FastAPI-based STT service using faster-whisper.
+- `services/llm/` — lightweight orchestrator service exposing OpenAI-compatible APIs.
 - `docs/` — architecture and development guides shared between runtimes.
 
-That's all you need to get started. For changes to runtime behavior, update env defaults in both the Python and Go entrypoints and keep the docs in sync.
+That's all you need to get started. Update environment defaults and documentation in tandem with any behavior changes to keep the project consistent.

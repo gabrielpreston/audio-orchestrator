@@ -1,25 +1,5 @@
 version: '3.8'
 services:
-  bot:
-      build:
-        context: ./services
-        dockerfile: ./bot/Dockerfile
-      image: discord-voice-bot:latest
-      depends_on:
-        - stt
-        - orch
-      env_file:
-        - ./.env.common
-        - ./.env.docker
-        - ./services/bot/.env.service
-      volumes:
-        - ./logs:/app/logs
-        - ./.wavs:/app/wavs
-        # Mount workspace MCP manifest so the bot (running inside the container)
-        # can load `.discord-voice-lab/mcp.json` from its working directory.
-        - ./mcp.json:/app/.discord-voice-lab/mcp.json:ro
-      restart: unless-stopped
-
   stt:
     build:
       context: ./services/stt

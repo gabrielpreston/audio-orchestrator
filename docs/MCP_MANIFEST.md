@@ -6,7 +6,7 @@ This document shows the `mcp.json` manifest shape used by the bot to discover an
 - workspace `.discord-voice-lab/mcp.json` (project-local)
 - user `~/.config/discord-voice-lab/mcp.json`
 
-The parsed manifest is merged and normalized by `services/internal/mcp/config/manifest.go`.
+The parsed manifest is merged and normalized by `services/pybot/mcp.py`.
 
 Top-level shape
 
