@@ -1,37 +1,34 @@
 # Contributor Guidelines for `discord-voice-lab`
 
-This repository houses a Go-based Discord voice bot along with supporting FastAPI speech-to-text (STT) and lightweight LLM/orchestration services, orchestration scripts, and extensive docs. Follow the conventions below for any change you make anywhere in this repo.
+This repository houses a Python-based Discord voice bot along with supporting FastAPI speech-to-text (STT) and lightweight orchestration services, helper scripts, and documentation. Follow the conventions below for any change you make anywhere in this repo.
 
 ## Repository map
-- `services/` — Go module (`go.mod`) that contains everything compiled into the bot as well as companion services.
-  - `bot/cmd/bot` — main entrypoint; configuration defaults and Discord session wiring live here.
-  - `internal/` — shared Go packages (voice pipeline, logging helpers, Discord glue code). Favor adding new packages here over duplicating logic in `cmd`.
-  - `stt/` — Python FastAPI app for faster-whisper inference (Dockerfile + app + requirements).
-  - `llm/` — Python FastAPI app exposing an OpenAI-compatible endpoint backed by local tooling.
+- `services/pybot/` — Python package containing the Discord voice bot (audio pipeline, wake detection, transcription client, MCP tooling).
+- `services/stt/` — Python FastAPI app for faster-whisper inference (Dockerfile + app + requirements).
+- `services/llm/` — Python FastAPI app exposing an OpenAI-compatible endpoint backed by local tooling.
 - `scripts/` — Bash helpers invoked by `make` (dev runners, STT smoke tests). Keep these POSIX-friendly when possible.
 - `docs/` — Markdown guides for architecture, onboarding, configuration, and operations. Update the relevant guide whenever you change behavior or workflows.
 - Audio fixtures in repo root (`test.wav`, `test_speech_16k.wav`) support automated/manual verification of the STT pipeline.
 
 ## Build & local tooling
-- Prefer the `Makefile` targets over ad-hoc commands so CI and local workflows stay aligned: `make test`, `make build`, `make dev-bot`, `make dev-stt`, `make run`, `make logs`, `make clean`, and `make ci` are the common entry points.
-- `scripts/run_bot.sh` and `scripts/run_stt.sh` are used by the `make dev-*` helpers; keep them idempotent and ensure they respect `.env.local` when sourced.
+- Prefer the `Makefile` targets over ad-hoc commands so CI and local workflows stay aligned: `make run`, `make stop`, `make logs`, `make dev-pybot`, `make dev-stt`, `make clean`, and `make docker-clean` are the common entry points.
+- `scripts/run_stt.sh` is used by the `make dev-stt` helper; keep it idempotent and ensure it respects `.env.local` when sourced.
 - `scripts/test_stt.sh` performs a curl-based smoke test (optionally booting the STT container); update it alongside any API or port changes so developers can quickly validate audio ingestion.
 
 ## Configuration & environment files
 - `.env.local` powers local `make dev-*` runs and `.env.docker` feeds Docker Compose. When you add or rename environment variables, update both files (or their documented examples) plus `README.md` and any affected guide in `docs/`.
-- Keep defaults and validation logic in sync between Go (`services/bot/internal/config`, `cmd/bot/main.go`) and Python apps. Document any breaking changes in configuration.
+- Keep defaults and validation logic in sync between Python components (`services/pybot/config.py`, `services/stt/app.py`, `services/llm/*`). Document any breaking changes in configuration.
 
 ## Docker & Compose
 - `docker-compose.yml` must continue to work with both `docker compose` (plugin) and the legacy `docker-compose` binary. Test changes with `make run`.
 - Respect the BuildKit toggles already wired in the `Makefile`. If you introduce new images or services, add matching `Makefile` targets or extend existing ones instead of duplicating shell commands.
 - Ensure any new container mounts or env files remain compatible with the existing `.env.docker` and local volume layout (`./logs`, `./.wavs`).
 
-## Go code (`services/...`)
-- Always format with `gofmt -s` (the `make fmt` target handles this automatically) and organize imports with `goimports`.
-- Use the structured logging helpers in `services/internal/logging` (`logging.Infow`, etc.) rather than raw `fmt.Printf`.
-- Keep public API boundaries small—favor returning explicit errors over panics. Use `context.Context` for operations that might block or touch external services.
-- Run `make test` (which invokes `go test ./...` from the module root) after modifying Go code. Run `make vet` or `make ci` if you touch lower-level packages or concurrency-heavy code.
-- If you change dependencies, run `go mod tidy` within `services/` and include the updated `go.mod`/`go.sum` in your commit.
+## Python bot (`services/pybot`)
+- Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
+- Maintain JSON logging using the helpers in `services/pybot/logging.py`; new log lines should include structured metadata when applicable.
+- Keep FastAPI/HTTP client interactions resilient—propagate timeouts and retries through configuration.
+- Run relevant unit or integration tests (when available) and capture smoke-test output (manual Discord runs, STT interactions) in your summary when submitting changes that affect runtime behavior.
 
 ## Python services (`services/stt`, `services/llm`)
 - Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
@@ -42,7 +39,7 @@ This repository houses a Go-based Discord voice bot along with supporting FastAP
 
 ## Shell scripts
 - Target POSIX sh-compatible syntax (current scripts use `bash` pragmas when necessary). Guard environment variable usage with defaults where appropriate and prefer `set -euo pipefail` for safety.
-- Keep scripts idempotent so repeated runs are safe. If a script manages background processes (e.g., dev-bot), ensure PID files are cleaned up reliably.
+- Keep scripts idempotent so repeated runs are safe. If a script manages background processes, ensure PID files are cleaned up reliably.
 
 ## Documentation
 - Maintain Markdown heading hierarchy (`#`, `##`, `###`) and wrap lines at ~100 characters for readability.
@@ -50,7 +47,6 @@ This repository houses a Go-based Discord voice bot along with supporting FastAP
 - Include command examples as fenced code blocks with language hints (`bash`, `env`, `go`).
 
 ## Testing expectations
-- At minimum, run `make test` for Go changes. Use `make ci` when touching lint or vet-sensitive areas.
 - For Python service updates, run service-specific checks (virtualenv or Docker) and capture smoke-test output (`scripts/test_stt.sh`, manual FastAPI calls) in your summary.
 - Mention any additional manual or automated verification (Docker Compose runs, API smoke tests, audio fixture validation) in your summary when submitting changes.
 
@@ -74,5 +70,4 @@ This repository houses a Go-based Discord voice bot along with supporting FastAP
 - Use file path citations that reference any code changes, documentation or files, and use terminal citations only for relevant terminal output.
 - Prefer file citations over terminal citations unless the terminal output is directly relevant to the clauses before the citation, i.e. clauses on test results.
   - For PR creation tasks, use file citations when referring to code changes in the summary section of your final response, and terminal citations in the testing section.
-  - For question-answering tasks, you should only use terminal citations if you need to programmatically verify an answer (i.e. counting lines of code). Otherwise, use file citations.
-  
+  - For question-answering tasks, you should only use terminal citations if you need to programmatically verify an answer (i.e., counting lines of code). Otherwise, use file citations.

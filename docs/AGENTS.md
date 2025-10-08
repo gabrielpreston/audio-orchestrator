@@ -27,7 +27,7 @@ The goal is to create an ecosystem where a user can speak naturally to the syste
 
 | Service                  | Language                | Function                    | Description                                                                                                                 |
 | ------------------------ | ----------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| **Discord Voice Bot**    | Go                      | Voice Gateway               | Connects to Discord voice channels, captures user audio, detects wake phrases, and plays synthesized audio replies.         |
+| **Discord Voice Bot**    | Python                      | Voice Gateway               | Connects to Discord voice channels, captures user audio, detects wake phrases, and plays synthesized audio replies.         |
 | **Speech-to-Text (STT)** | Python (faster-whisper) | Transcription Engine        | Converts incoming voice segments into text in near-real time for the orchestrator.                                          |
 | **LLM Orchestrator**     | Python (llama.cpp)      | Reasoning and Planning Core | Interprets transcribed input, determines intent, plans multi-step actions, and routes them to available tools or services.  |
 | **Additional Capability Servers**   | Mixed                   | Tool Execution              | Implement discrete skills such as file management, Git operations, HTTP/API calls, or text-to-speech synthesis.             |
@@ -53,7 +53,7 @@ The result is a **continuous conversational control loop** where the AI listens,
 ```text
 🎤 User speaks
    ↓
-[Go Discord Bot]
+[Python Discord Bot]
    - Captures audio
    - Detects wake phrase
    - Streams to STT
@@ -69,7 +69,7 @@ The result is a **continuous conversational control loop** where the AI listens,
 [Additional Capability Servers]
    - Perform other actions (FS, TTS)
    ↓
-[Go Discord Bot]
+[Python Discord Bot]
    - Receives response
    - Plays audio reply
 ```
@@ -80,7 +80,7 @@ Each arrow represents a **structured, schema-validated interface**, independent 
 
 ## 5. Responsibilities by Layer
 
-### Discord Bot (Go)
+### Discord Bot (Python)
 
 * Capture and normalize per-user audio streams.
 * Detect wake phrases before invoking transcription.
@@ -229,7 +229,7 @@ If you are an **AI Agent** participating in this system:
 
 | Tool Namespace | Description                     | Host Service          |
 | -------------- | ------------------------------- | --------------------- |
-| `discord.*`    | Join, leave, speak, send text   | Go Discord Bot        |
+| `discord.*`    | Join, leave, speak, send text   | Python Discord Bot        |
 | `stt.*`        | Transcribe, diarize             | Python faster-whisper |
 | `tts.*`        | Generate or stream speech audio | Python TTS            |
 | `fs.*`         | File read/write/edit            | FS Service            |

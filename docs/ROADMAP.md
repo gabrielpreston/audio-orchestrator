@@ -21,18 +21,17 @@ Build an AI agent that:
 ## 2. 14-Day Roadmap (Strategic Focus)
 
 ### Current status (codebase)
-- ✅ STT service available (`stt/app.py`) and configured via `WHISPER_URL`.
-- ✅ Audio pipeline / opus decode / POST to STT (`internal/voice/processor.go`).
-- ✅ Discord integration and resolver wired (`cmd/bot/main.go`, `internal/voice/discord_resolver.go`).
-- ✅ Centralized logging helpers (`internal/logging/logging.go`).
-- ✅ Local CI/dev targets (`Makefile`): `test`, `lint`, `ci` (used by "Action verification layer").
+- ✅ STT service available (`services/stt/app.py`) and configured via `STT_BASE_URL`.
+- ✅ Audio pipeline / Opus decode / POST to STT (`services/pybot/audio.py`, `services/pybot/transcription.py`).
+- ✅ Discord integration and resolver wired (`services/pybot/discord_voice.py`, `services/pybot/main.py`).
+- ✅ Centralized logging helpers (`services/pybot/logging.py`).
+- ✅ Local dev helpers (`Makefile`): `dev-pybot`, `dev-stt`, `run`, `logs`.
 
 Additional implemented pieces discovered in the codebase:
-- ✅ Allow-listing of users via `ALLOWED_USER_IDS` and `Processor.SetAllowedUsers` (`cmd/bot/main.go`, `internal/voice/processor.go`).
-- ✅ Optional saving of WAVs + sidecar JSON for offline analysis (`SAVE_AUDIO_DIR_*` and saveAudioDir logic in `internal/voice/processor.go`).
-- ✅ Simple RMS-based VAD to drop low-energy chunks (`vadRmsThreshold` and related logic in `internal/voice/processor.go`).
-- ✅ Transcript aggregation + forwarding to `TEXT_FORWARD_URL` if configured (`internal/voice/processor.go`).
-- ✅ STT request retry/backoff + correlation IDs and instrumentation in `internal/voice/processor.go`.
+- ✅ Allow-listing of users via `AUDIO_ALLOWLIST` (`services/pybot/config.py`, `services/pybot/audio.py`).
+- ✅ Wake phrase configuration and filtering (`services/pybot/wake.py`, `services/pybot/config.py`).
+- ✅ Transcript aggregation with retry/backoff when calling STT (`services/pybot/transcription.py`).
+- ✅ Structured MCP manifest loading for downstream tools (`services/pybot/mcp.py`).
 
 ### Phase 1 — Stabilize the Core Voice Layer (Days 1-3)
 Objective: Finalize the base voice ingestion pipeline so the agent can reliably hear and understand instructions.
@@ -48,7 +47,7 @@ Objective: Establish two-way communication between the voice agent and Cursor’
 
 - ⬜ Cursor context access — Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. (Agent can “see” the project and reason about it.)
 - ⬜ Codegen orchestration — Define how agent proposals (from LLM) are written into files or suggested as diffs. (AI can write code directly into the repo.)
-- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `test`, `lint`, `ci`.)
+- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `dev-pybot`, `dev-stt`, `run`.)
 
 ---
 
