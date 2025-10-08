@@ -207,8 +207,23 @@ class VoiceBot(discord.Client):
         async with TranscriptionClient(self.config.stt) as stt_client:
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
-                transcript = await stt_client.transcribe(context.segment)
-                await self._handle_transcript(context, transcript)
+                try:
+                    transcript = await stt_client.transcribe(context.segment)
+                    await self._handle_transcript(context, transcript)
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    self._logger.error(
+                        "voice.segment_processing_failed",
+                        extra={
+                            "guild_id": context.guild_id,
+                            "channel_id": context.channel_id,
+                            "correlation_id": context.segment.correlation_id,
+                            "error": str(exc),
+                        },
+                    )
+                finally:
+                    self._segment_queue.task_done()
 
     async def _handle_transcript(
         self,
