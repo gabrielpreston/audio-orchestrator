@@ -21,6 +21,7 @@ COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 RUN python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/discord/requirements.txt
 
-COPY services /app/services
+COPY services/common /app/services/common
+COPY services/discord /app/services/discord
 
 CMD ["python", "-m", "services.discord.main"]

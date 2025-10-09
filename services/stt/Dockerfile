@@ -21,7 +21,8 @@ COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 RUN python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/stt/requirements.txt
 
-COPY services /app/services
+COPY services/common /app/services/common
+COPY services/stt /app/services/stt
 
 EXPOSE 9000
 

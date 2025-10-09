@@ -10,7 +10,8 @@ RUN apt-get update && \
 COPY services/llm/requirements.txt /app/services/llm/requirements.txt
 RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt
 
-COPY services /app/services
+COPY services/common /app/services/common
+COPY services/llm /app/services/llm
 
 ENV PORT=8000
 ENV LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
