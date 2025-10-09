@@ -1,17 +1,21 @@
 # Discord Voice MCP User Journeys
 
 ## Overview
+
 This guide outlines sample user journeys that illustrate how Discord Voice interactions combine with
 Model Context Protocol (MCP) tooling to automate work across Monday.com, GitHub, and AWS. Each
 journey highlights the user intent, the orchestration steps across services, and how results are
 surfaced back to the user via voice.
 
 ## Journey 1: Sprint Planning via Monday.com
-### Scenario
+
+### Scenario — Sprint Planning
+
 A project manager wants to check the status of the current sprint, update a task, and notify the
 team about a change.
 
-### Step-by-step Experience
+### Step-by-step Experience — Sprint Planning
+
 1. **Wake Phrase** – The manager says, "Hey Voice Lab, how is Sprint 24 progressing?"
 2. **Transcription** – The Discord bot streams audio to the STT service, which emits text to the
    orchestrator.
@@ -29,7 +33,8 @@ team about a change.
 9. **Voice Response** – The bot confirms verbally: "Sprint 24 is on track. The API hardening task is
    now In Review with QA approval, and the team has been notified."
 
-### Sequence Diagram
+### Sequence Diagram — Sprint Planning
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -51,7 +56,8 @@ sequenceDiagram
     Orchestrator->>User: Spoken confirmation
 ```
 
-### Outstanding Implementation Needs
+### Outstanding Implementation Needs — Sprint Planning
+
 * **Monday.com MCP coverage** – Build and register the `monday.board_summary`,
   `monday.update_item`, and `monday.create_update` tools with schemas that map
   sprint metadata, status transitions, and note payloads.
@@ -66,11 +72,14 @@ sequenceDiagram
   states.
 
 ## Journey 2: GitHub Code Review Assistant
-### Scenario
+
+### Scenario — GitHub Code Review
+
 An engineer requests a quick summary of open pull requests, inspects CI failures, and instructs the
 AI to add a comment to a PR.
 
-### Step-by-step Experience
+### Step-by-step Experience — GitHub Code Review
+
 1. **Wake Phrase** – "Hey Voice Lab, what open PRs do we have for the voice bot?"
 2. **Intent Parsing** – The orchestrator calls `github.list_pull_requests` scoped to the repository
    and branch filters configured for the Discord channel.
@@ -84,7 +93,8 @@ AI to add a comment to a PR.
 7. **Confirmation** – The bot responds, "Posted a comment on PR #142 requesting a retry with the
    refreshed mock configuration."
 
-### Sequence Diagram
+### Sequence Diagram — GitHub Code Review
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -108,7 +118,8 @@ sequenceDiagram
     Orchestrator->>User: Spoken confirmation
 ```
 
-### Outstanding Implementation Needs
+### Outstanding Implementation Needs — GitHub Code Review
+
 * **GitHub tool surface** – Implement authenticated MCP tools for listing pull
   requests, retrieving check runs, and posting comments with robust pagination
   and retry logic.
@@ -122,11 +133,14 @@ sequenceDiagram
   behalf of the user, including optional confirmation for write actions.
 
 ## Journey 3: AWS Incident Response
-### Scenario
+
+### Scenario — AWS Incident Response
+
 A DevOps responder detects elevated latency in production and uses voice to triage, scale, and log
 an incident report.
 
-### Step-by-step Experience
+### Step-by-step Experience — AWS Incident Response
+
 1. **Wake Phrase** – "Hey Voice Lab, latency is spiking. What do you see in prod?"
 2. **Telemetry Query** – The orchestrator calls `aws.cloudwatch_get_metric` for the relevant service
    metrics and correlates them with MCP-provided alerts.
@@ -141,7 +155,8 @@ an incident report.
 7. **Wrap-up** – The bot confirms: "Autoscaling applied and incident V-217 logged in Monday.com.
    Latency is trending back toward baseline."
 
-### Sequence Diagram
+### Sequence Diagram — AWS Incident Response
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -167,7 +182,8 @@ sequenceDiagram
     Orchestrator->>User: Spoken wrap-up
 ```
 
-### Outstanding Implementation Needs
+### Outstanding Implementation Needs — AWS Incident Response
+
 * **Observability hooks** – Integrate MCP tools for CloudWatch metric queries
   and alert introspection, including rate limiting and standardized incident
   payloads.
@@ -181,11 +197,14 @@ sequenceDiagram
   (graphs, impact summaries) to complement the spoken response.
 
 ## Journey 4: Cross-Service Release Handoff
-### Scenario
+
+### Scenario — Cross-Service Release Handoff
+
 A tech lead prepares for a release by gathering GitHub deployment readiness, Monday.com blockers,
 and AWS preflight checks in a single voice-driven session.
 
-### Step-by-step Experience
+### Step-by-step Experience — Cross-Service Release Handoff
+
 1. **Wake Phrase** – "Hey Voice Lab, run the release handoff checklist for version 2.3."
 2. **Checklist Expansion** – The orchestrator loads a stored MCP manifest describing the checklist
    steps and associated tools.
@@ -201,6 +220,7 @@ and AWS preflight checks in a single voice-driven session.
    journeys (e.g., update Monday.com tasks or notify engineers) without leaving the conversation.
 
 ### Flow Diagram
+
 ```mermaid
 flowchart TD
     A[Wake phrase: run release handoff] --> B[Load checklist manifest]
@@ -219,7 +239,8 @@ flowchart TD
     H -->|No| J[Confirm release readiness]
 ```
 
-### Outstanding Implementation Needs
+### Outstanding Implementation Needs — Cross-Service Release Handoff
+
 * **Checklist manifest engine** – Create a reusable manifest format and loader
   that defines release steps, required tools, and success criteria the
   orchestrator can evaluate.
@@ -233,6 +254,7 @@ flowchart TD
   role before executing deployment-sensitive AWS or GitHub operations.
 
 ## Key Design Considerations
+
 * **MCP Manifests** – Keep tool definitions declarative so the orchestrator can dynamically compose
   workflows as user needs evolve.
 * **Context Windows** – Retain conversational memory across journeys, enabling users to chain

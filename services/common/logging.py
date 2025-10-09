@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
-
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import structlog
 

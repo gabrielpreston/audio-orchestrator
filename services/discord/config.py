@@ -158,9 +158,7 @@ def load_config() -> BotConfig:
 
     wake_model_paths = [Path(part) for part in _split_csv(os.getenv("WAKE_MODEL_PATHS", ""))]
     wake = WakeConfig(
-        wake_phrases=_split_csv(
-            os.getenv("WAKE_PHRASES", "hey atlas,ok atlas")
-        ),
+        wake_phrases=_split_csv(os.getenv("WAKE_PHRASES", "hey atlas,ok atlas")),
         model_paths=wake_model_paths,
         activation_threshold=float(os.getenv("WAKE_THRESHOLD", "0.5")),
         target_sample_rate_hz=int(
@@ -173,25 +171,19 @@ def load_config() -> BotConfig:
         manifest_paths=manifest_paths,
         websocket_url=os.getenv("MCP_WEBSOCKET_URL"),
         command_path=(
-            Path(os.getenv("MCP_COMMAND_PATH", ""))
-            if os.getenv("MCP_COMMAND_PATH")
-            else None
+            Path(os.getenv("MCP_COMMAND_PATH", "")) if os.getenv("MCP_COMMAND_PATH") else None
         ),
         registration_url=os.getenv("MCP_REGISTRATION_URL"),
         heartbeat_interval_seconds=float(os.getenv("MCP_HEARTBEAT_INTERVAL", "30")),
     )
 
+    metrics_port_env = os.getenv("METRICS_PORT")
+    waveform_debug_env = os.getenv("WAVEFORM_DEBUG_DIR")
     telemetry = TelemetryConfig(
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         log_json=os.getenv("LOG_JSON", "true").lower() == "true",
-        metrics_port=int(os.getenv("METRICS_PORT"))
-        if os.getenv("METRICS_PORT")
-        else None,
-        waveform_debug_dir=(
-            Path(os.getenv("WAVEFORM_DEBUG_DIR", ""))
-            if os.getenv("WAVEFORM_DEBUG_DIR")
-            else None
-        ),
+        metrics_port=int(metrics_port_env) if metrics_port_env else None,
+        waveform_debug_dir=Path(waveform_debug_env) if waveform_debug_env else None,
     )
 
     return BotConfig(

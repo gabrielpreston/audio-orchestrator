@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import audioop
 import io
 import wave
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from types import TracebackType
+from typing import Any, Dict, Optional, Type
 
-import audioop
 import httpx
 
 from services.common.http import post_with_retries
@@ -45,7 +46,12 @@ class TranscriptionClient:
             self._session = httpx.AsyncClient(timeout=timeout)
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> None:
         if self._owns_session and self._session:
             await self._session.aclose()
 

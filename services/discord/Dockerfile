@@ -7,6 +7,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Install runtime dependencies required for voice capture and playback
+# hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         git \
@@ -18,6 +19,7 @@ RUN apt-get update && \
     && rm -rf /var/lib/apt/lists/*
 
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
+# hadolint ignore=DL3013
 RUN python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/discord/requirements.txt
 

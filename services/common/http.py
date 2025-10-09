@@ -6,7 +6,6 @@ import asyncio
 from typing import Any, Mapping, MutableMapping, Optional, Union
 
 import httpx
-
 from structlog.stdlib import BoundLogger
 
 from .logging import get_logger

@@ -5,6 +5,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 # Install system dependencies required for audio processing and some wheels
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     ffmpeg \
@@ -18,6 +19,7 @@ WORKDIR /app
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 
 # Install Python deps from the copied requirements
+# hadolint ignore=DL3013
 RUN python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/stt/requirements.txt
 

@@ -7,31 +7,34 @@ import io
 import random
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Optional, Set
+from typing import Any, Awaitable, Callable, Dict, Optional, Set
 
-import httpx
 import discord
+import httpx
 
 from services.common.logging import get_logger
-
-try:
-    from discord.ext import voice_recv as discord_voice_recv  # type: ignore[attr-defined]
-except ImportError:
-    discord_voice_recv = None
-else:
-    # Patch in the voice receive-capable client provided by discord-ext-voice-recv.
-    discord.VoiceClient = discord_voice_recv.VoiceRecvClient  # type: ignore[assignment]
-    try:
-        discord.opus._load_default()
-    except OSError:
-        pass
 
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig
 from .mcp import MCPServer
 from .receiver import build_sink
-from .transcription import TranscriptResult, TranscriptionClient
+from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
+
+try:
+    from discord.ext import voice_recv as _voice_recv
+except ImportError:
+    _voice_recv = None
+else:
+    recv_client_cls = getattr(_voice_recv, "VoiceRecvClient", None)
+    if isinstance(recv_client_cls, type):
+        setattr(discord, "VoiceClient", recv_client_cls)
+    try:
+        discord.opus._load_default()
+    except OSError:
+        pass
+
+discord_voice_recv: Optional[Any] = _voice_recv
 
 
 @dataclass(slots=True)
@@ -170,17 +173,15 @@ class VoiceBot(discord.Client):
         async with lock:
             self._cancel_pending_reconnect(guild_id)
             voice_client = self._voice_client_for_guild(guild_id)
-            desired_cls = (
-                discord_voice_recv.VoiceRecvClient if discord_voice_recv else discord.VoiceClient
-            )  # type: ignore[attr-defined]
+            recv_client_cls = getattr(discord_voice_recv, "VoiceRecvClient", None)
+            if isinstance(recv_client_cls, type):
+                desired_cls: type[discord.VoiceClient] = recv_client_cls
+            else:
+                desired_cls = discord.VoiceClient
 
             if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
-                if (
-                    discord_voice_recv is not None
-                    and not isinstance(
-                        voice_client,
-                        discord_voice_recv.VoiceRecvClient,  # type: ignore[attr-defined]
-                    )
+                if isinstance(recv_client_cls, type) and not isinstance(
+                    voice_client, recv_client_cls
                 ):
                     await voice_client.disconnect()
                     voice_client = None
@@ -285,7 +286,7 @@ class VoiceBot(discord.Client):
         )
         return {"status": "disconnected", "guild_id": guild_id, "channel_id": channel_id}
 
-    async def on_voice_state_update(  # type: ignore[override]
+    async def on_voice_state_update(
         self,
         member: discord.Member,
         before: discord.VoiceState,
@@ -564,6 +565,7 @@ class VoiceBot(discord.Client):
                 error=str(exc),
             )
             return
+
         class MemoryAudio(discord.AudioSource):
             def __init__(self, payload: bytes) -> None:
                 self._buffer = io.BytesIO(payload)

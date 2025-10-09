@@ -4,7 +4,7 @@ import os
 import time
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
 from llama_cpp import Llama
 from pydantic import BaseModel

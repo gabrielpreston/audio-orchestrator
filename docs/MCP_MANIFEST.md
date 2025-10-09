@@ -45,9 +45,9 @@ Field reference
 
 - `mcpServers` (object): map of server name -> server config.
 - ServerConfig fields:
-- `transport` (object, optional): when present and `type` is `websocket` the
-  bot attempts to connect by websocket. Use the `url` field to provide the
-  websocket endpoint (e.g. `wss://host/mcp/ws`).
+  - `transport` (object, optional): when present and `type` is `websocket` the
+    bot attempts to connect by websocket. Use the `url` field to provide the
+    websocket endpoint (e.g. `wss://host/mcp/ws`).
     - `type` (string): currently `websocket` is supported.
     - `url` (string): websocket URL (http(s) will be normalized to ws/wss automatically by the client).
   - `command` (string, optional): executable to spawn from the bot container. If provided, the bot starts the process and wires stdio as the MCP transport.

@@ -83,8 +83,11 @@ after the first run) and executes:
 - Makefile: `checkmake`
 - Markdown: `markdownlint`
 
-Need to debug locally or avoid Docker? Use `make lint-local` to run the same
+Need to apply auto-formatting from the containerized toolchain? Run `make lint-fix`
+to execute `black` and `isort` inside the lint image with repository binds.
+
+Prefer to debug locally or avoid Docker? Use `make lint-local` to run the same
 toolchain with host-installed binaries. Install the Python packages via
 `pip install black isort ruff mypy yamllint`, the Dockerfile linter with
-`hadolint`, the Makefile linter using `go install github.com/mrtazz/checkmake/cmd/checkmake@latest`,
+`hadolint`, the Makefile linter using `go install github.com/checkmake/checkmake/cmd/checkmake@latest`,
 and the Markdown linter with `npm install -g markdownlint-cli`.

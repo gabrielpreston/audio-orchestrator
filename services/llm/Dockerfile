@@ -2,12 +2,14 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install build tools required for llama-cpp-python
+# hadolint ignore=DL3008
 RUN apt-get update && \
         apt-get install -y --no-install-recommends \
                 build-essential cmake pkg-config libgomp1 libopenblas-dev wget ca-certificates libcurl4-openssl-dev && \
         rm -rf /var/lib/apt/lists/*
 
 COPY services/llm/requirements.txt /app/services/llm/requirements.txt
+# hadolint ignore=DL3013
 RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt
 
 COPY services /app/services

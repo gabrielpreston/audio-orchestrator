@@ -7,7 +7,7 @@ import json
 import sys
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
 
 from services.common.logging import get_logger
 

@@ -281,12 +281,7 @@ class AudioPipeline:
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
-        reason = (
-            override_reason
-            or (decision.reason if decision else None)
-            or trigger
-            or "unknown"
-        )
+        reason = override_reason or (decision.reason if decision else None) or trigger or "unknown"
         self._logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,

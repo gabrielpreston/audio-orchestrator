@@ -5,7 +5,7 @@ from __future__ import annotations
 import audioop
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable, List, Literal, Optional
 
 import numpy as np
 from rapidfuzz import fuzz, process, utils
@@ -15,7 +15,7 @@ from services.common.logging import get_logger
 try:  # pragma: no cover - optional dependency import guard
     from openwakeword import Model as WakeWordModel
 except Exception:  # pragma: no cover - gracefully degrade when package missing
-    WakeWordModel = None  # type: ignore[assignment]
+    WakeWordModel = None
 
 if TYPE_CHECKING:
     from .audio import AudioSegment
@@ -90,12 +90,12 @@ class WakeDetector:
         normalized = np.frombuffer(converted, dtype=np.int16).astype(np.float32) / 32768.0
         payload = normalized.tolist()
         try:
-            scores = self._model.predict(payload)  # type: ignore[arg-type]
+            scores = self._model.predict(payload)
         except TypeError:
             scores = self._model.predict(
                 payload,
                 sample_rate=self._target_sample_rate,
-            )  # type: ignore[arg-type]
+            )
         except Exception as exc:  # noqa: BLE001
             self._logger.error("wake.audio_inference_failed", error=str(exc))
             return None

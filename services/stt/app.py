@@ -2,9 +2,9 @@ import io
 import os
 import time
 import wave
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
 
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
@@ -43,6 +43,7 @@ async def _warm_model() -> None:
     except Exception as exc:  # noqa: BLE001
         logger.exception("stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc))
         raise
+
 
 def _parse_bool(value: Optional[str]) -> bool:
     if value is None:
@@ -122,6 +123,7 @@ async def _transcribe_request(
 
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
+
     # Allow clients to optionally request a translation task by passing
     # the `task=translate` query parameter. We also accept `beam_size` and
     # `language` query params to tune faster-whisper behavior at runtime.
@@ -144,16 +146,18 @@ async def _transcribe_request(
     tmp_path = None
     # metadata for response payload
     input_bytes = len(wav_bytes)
-    request_id = (
-        request.headers.get("X-Correlation-ID")
-        or request.query_params.get("correlation_id")
+    request_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
+        "correlation_id"
     )
     headers_correlation = request.headers.get("X-Correlation-ID")
     correlation_id = (
-        correlation_id
-        or headers_correlation
-        or request.query_params.get("correlation_id")
+        correlation_id or headers_correlation or request.query_params.get("correlation_id")
     )
+    processing_ms: Optional[int] = None
+    info: Any = None
+    segments_list: List[Any] = []
+    text = ""
+    segments_out: List[Dict[str, Any]] = []
     try:
         logger.debug(
             "stt.request_received",
@@ -187,47 +191,58 @@ async def _transcribe_request(
                 transcribe_kwargs["language"] = language
         if include_word_ts:
             transcribe_kwargs["word_timestamps"] = True
-        segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
+        raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
         # optionally include word-level timestamps).
-        try:
-            segments = list(segments)
-        except TypeError:
-            # if segments is already a list, this will raise TypeError from list()
-            # in some unlikely cases; ignore and continue with the original object.
-            pass
+        if isinstance(raw_segments, list):
+            segments_list = raw_segments
+        else:
+            try:
+                segments_list = list(cast(Iterable[Any], raw_segments))
+            except TypeError:
+                segments_list = [raw_segments]
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
         logger.info(
             "stt.request_processed",
             correlation_id=correlation_id,
             processing_ms=processing_ms,
-            segments=len(segments) if hasattr(segments, "__len__") else None,
+            segments=len(segments_list),
         )
         # Build a combined text and (optionally) include timestamped segments/words
-        text = " ".join([getattr(seg, "text", "") for seg in segments]).strip()
-        segments_out = []
+        text = " ".join(getattr(seg, "text", "") for seg in segments_list).strip()
         if include_word_ts:
-            for seg in segments:
-                segdict = {
-                    "start": getattr(seg, 'start', None),
-                    "end": getattr(seg, 'end', None),
-                    "text": getattr(seg, 'text', ""),
+            for seg in segments_list:
+                segment_entry: Dict[str, Any] = {
+                    "start": getattr(seg, "start", None),
+                    "end": getattr(seg, "end", None),
+                    "text": getattr(seg, "text", ""),
                 }
                 # some faster-whisper variants expose `words` on segments when
                 # word timestamps are requested; include them if present.
-                words = getattr(seg, 'words', None)
-                if words:
-                    segdict['words'] = []
+                words = getattr(seg, "words", None)
+                word_entries: List[Dict[str, Any]] = []
+                if isinstance(words, list):
                     for w in words:
-                        # word objects typically have text/start/end attributes
-                        segdict['words'].append({
-                            'word': getattr(w, 'word', None) or getattr(w, 'text', None),
-                            'start': getattr(w, 'start', None),
-                            'end': getattr(w, 'end', None),
-                        })
-                segments_out.append(segdict)
+                        word_entries.append(
+                            {
+                                "word": getattr(w, "word", None) or getattr(w, "text", None),
+                                "start": getattr(w, "start", None),
+                                "end": getattr(w, "end", None),
+                            }
+                        )
+                elif words is not None:
+                    word_entries.append(
+                        {
+                            "word": getattr(words, "word", None) or getattr(words, "text", None),
+                            "start": getattr(words, "start", None),
+                            "end": getattr(words, "end", None),
+                        }
+                    )
+                if word_entries:
+                    segment_entry["words"] = word_entries
+                segments_out.append(segment_entry)
     except Exception as e:
         logger.exception("stt.transcription_error", correlation_id=correlation_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
@@ -241,7 +256,7 @@ async def _transcribe_request(
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
 
-    resp = {
+    resp: Dict[str, Any] = {
         "text": text,
         "duration": getattr(info, "duration", None),
         "language": getattr(info, "language", None),
@@ -313,9 +328,8 @@ async def transcribe(request: Request):
     try:
         form = await request.form()
     except ClientDisconnect:
-        correlation_id = (
-            request.headers.get("X-Correlation-ID")
-            or request.query_params.get("correlation_id")
+        correlation_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
+            "correlation_id"
         )
         logger.info(
             "stt.client_disconnect",

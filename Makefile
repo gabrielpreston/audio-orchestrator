@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -49,6 +49,47 @@ LINT_IMAGE ?= discord-voice-lab/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
 
+define SHELL_RUN_COMMAND
+echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"
+if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans
+else
+	if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but docker buildx is missing; running without BuildKit."; fi
+	$(DOCKER_COMPOSE) up -d --build --remove-orphans
+fi
+endef
+
+define SHELL_LOGS_COMMAND
+echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"
+if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+if [ -z "$(SERVICE)" ]; then
+	$(DOCKER_COMPOSE) logs -f --tail=100
+else
+	$(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE)
+fi
+endef
+
+define SHELL_CLEAN_COMMAND
+echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
+if [ -d "logs" ]; then
+	echo "Removing logs in ./logs"
+	rm -rf logs/* || true
+fi
+if [ -d ".wavs" ]; then
+	echo "Removing saved wavs/sidecars in ./.wavs"
+	rm -rf .wavs/* || true
+fi
+if [ -d "services" ]; then
+	echo "Removing __pycache__ directories under ./services"
+	find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true
+fi
+endef
+
+all: help ## Default aggregate target
+
+test: lint ## Run lint suite as the default test harness
+
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
 	@echo
@@ -57,14 +98,7 @@ help: ## Show this help (default)
 	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 run: stop ## Start docker-compose stack (Discord bot + STT + orchestrator)
-	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then \
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans; \
-	else \
-	if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but 'docker buildx' is missing; running without BuildKit."; fi; \
-	$(DOCKER_COMPOSE) up -d --build --remove-orphans; \
-	fi
+	@bash -eo pipefail -c '$(SHELL_RUN_COMMAND)'
 
 
 stop: ## Stop and remove containers for the compose stack
@@ -73,13 +107,7 @@ stop: ## Stop and remove containers for the compose stack
 	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
-	@echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@if [ -z "$(SERVICE)" ]; then \
-	$(DOCKER_COMPOSE) logs -f --tail=100; \
-	else \
-	$(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
-	fi
+	@bash -eo pipefail -c '$(SHELL_LOGS_COMMAND)'
 
 logs-dump: ## Capture docker logs to ./docker.logs
 	@echo -e "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)"
@@ -110,19 +138,7 @@ docker-config: ## Render the effective docker-compose configuration
 	@$(DOCKER_COMPOSE) config
 
 clean: ## Remove logs and cached audio artifacts
-	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
-	@if [ -d "logs" ]; then \
-	echo "Removing logs in ./logs"; \
-	rm -rf logs/* || true; \
-	fi
-	@if [ -d ".wavs" ]; then \
-	echo "Removing saved wavs/sidecars in ./.wavs"; \
-	rm -rf .wavs/* || true; \
-	fi
-	@if [ -d "services" ]; then \
-	echo "Removing __pycache__ directories under ./services"; \
-	find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; \
-	fi
+	@bash -eo pipefail -c '$(SHELL_CLEAN_COMMAND)'
 
 docker-clean: ## Bring down compose stack and prune unused docker resources
 	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
@@ -157,6 +173,16 @@ lint-container: lint-image ## Build lint container (if needed) and run lint suit
 		-v "$(CURDIR)":$(LINT_WORKDIR) \
 		$(LINT_IMAGE)
 
+lint-fix: lint-image ## Format sources using the lint container toolchain
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE) \
+		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES)"
+
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
@@ -184,7 +210,7 @@ lint-compose: ## Lint docker-compose.yml with yamllint
 
 lint-makefile: ## Lint Makefile with checkmake
 	@command -v checkmake >/dev/null 2>&1 || { \
-		echo "checkmake not found; install via 'go install github.com/mrtazz/checkmake/cmd/checkmake@latest'." >&2; exit 1; }
+		echo "checkmake not found; install via 'go install github.com/checkmake/checkmake/cmd/checkmake@latest'." >&2; exit 1; }
 	@checkmake Makefile
 
 lint-markdown: ## Lint Markdown docs with markdownlint
