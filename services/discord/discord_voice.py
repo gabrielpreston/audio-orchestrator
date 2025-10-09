@@ -321,15 +321,42 @@ class VoiceBot(discord.Client):
     async def send_text_message(self, channel_id: int, content: str) -> Dict[str, object]:
         await self.wait_until_ready()
         channel = self.get_channel(channel_id)
-        if not isinstance(channel, discord.TextChannel):
-            raise ValueError(f"Channel {channel_id} is not a text channel")
+        if channel is None:
+            raise ValueError(f"Channel {channel_id} not found")
+        if not isinstance(
+            channel,
+            (
+                discord.TextChannel,
+                discord.VoiceChannel,
+                discord.StageChannel,
+                discord.Thread,
+            ),
+        ):
+            raise ValueError(
+                f"Channel {channel_id} does not support text messages"
+            )
         message = await channel.send(content)
+        channel_type = getattr(channel, "type", None)
+        if hasattr(channel_type, "name"):
+            channel_type_name = channel_type.name  # type: ignore[assignment]
+        elif channel_type is None:
+            channel_type_name = None
+        else:
+            channel_type_name = str(channel_type)
         self._logger.info(
             "discord.text_message_sent",
             channel_id=channel_id,
             message_id=message.id,
+            channel_type=channel_type_name,
         )
-        return {"status": "sent", "channel_id": channel_id, "message_id": message.id}
+        payload: Dict[str, object] = {
+            "status": "sent",
+            "channel_id": channel_id,
+            "message_id": message.id,
+        }
+        if channel_type_name:
+            payload["channel_type"] = channel_type_name
+        return payload
 
     async def play_audio_from_url(
         self,
