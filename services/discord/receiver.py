@@ -15,7 +15,7 @@ except ImportError as exc:  # pragma: no cover - handled at runtime
 else:
     _IMPORT_ERROR = None
 
-FrameCallback = Callable[[int, bytes, float], Awaitable[None]]
+FrameCallback = Callable[[int, bytes, float, int], Awaitable[None]]
 
 LOGGER = get_logger(__name__, service_name="discord")
 
@@ -40,7 +40,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voi
         sample_rate = getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
-        future = asyncio.run_coroutine_threadsafe(callback(user_id, pcm, duration), loop)
+        future = asyncio.run_coroutine_threadsafe(callback(user_id, pcm, duration, int(sample_rate)), loop)
         future.add_done_callback(_consume_result)
 
     # BasicSink accepts the callback and supports decode option.
@@ -51,7 +51,7 @@ def _consume_result(future: "asyncio.Future[None]") -> None:
     try:
         future.result()
     except Exception as exc:  # noqa: BLE001
-        LOGGER.error("voice.receiver_callback_failed", extra={"error": str(exc)})
+        LOGGER.error("voice.receiver_callback_failed", error=str(exc))
 
 
 __all__ = ["build_sink"]

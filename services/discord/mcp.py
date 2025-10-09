@@ -96,25 +96,25 @@ class MCPServer:
             self._pending_notifications.append(message)
             self._logger.info(
                 "mcp.transcript_buffered",
-                extra={"correlation_id": payload.get("correlation_id"), "reason": "not_initialized"},
+                correlation_id=payload.get("correlation_id"),
+                reason="not_initialized",
             )
             return
         await self._send(message)
         self._logger.info(
             "mcp.transcript_sent",
-            extra={
-                "correlation_id": payload.get("correlation_id"),
-                "text_length": len(str(payload.get("text", ""))),
-            },
+            correlation_id=payload.get("correlation_id"),
+            text_length=len(str(payload.get("text", ""))),
         )
 
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         if "method" not in message:
-            self._logger.debug("mcp.ignored_message", extra={"message": message})
+            self._logger.debug("mcp.ignored_message", message=message)
             return
         if "id" not in message:
             self._logger.debug(
-                "mcp.notification_ignored", extra={"method": message.get("method")}
+                "mcp.notification_ignored",
+                method=message.get("method"),
             )
             return
         await self._handle_request(message)
@@ -142,7 +142,9 @@ class MCPServer:
             await self._send_error(request_id, -32602, str(exc))
         except Exception as exc:  # noqa: BLE001
             self._logger.exception(
-                "mcp.request_failed", extra={"method": method, "id": request_id}
+                "mcp.request_failed",
+                method=method,
+                request_id=request_id,
             )
             await self._send_error(request_id, -32000, "Server error", {"error": str(exc)})
 
@@ -317,7 +319,9 @@ class MCPServer:
                     message = json.loads(text)
                 except json.JSONDecodeError as exc:  # noqa: PERF203
                     self._logger.error(
-                        "mcp.invalid_message", extra={"error": str(exc), "payload": text}
+                        "mcp.invalid_message",
+                        error=str(exc),
+                        payload=text,
                     )
                     continue
                 loop.call_soon_threadsafe(self._incoming.put_nowait, message)

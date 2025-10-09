@@ -4,61 +4,30 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Mapping, MutableMapping, Optional
+from typing import Optional
 
-from pythonjsonlogger import jsonlogger
+from typing import Any, Callable
 
-# Default fields emitted for JSON logs.
-DEFAULT_FIELDS: tuple[str, ...] = (
-    "timestamp",
-    "level",
-    "service",
-    "name",
-    "message",
-    "correlation_id",
-    "guild_id",
-    "channel_id",
-    "user_id",
-)
+import structlog
 
 
-class JsonFormatter(jsonlogger.JsonFormatter):
-    """Structured formatter that enforces consistent field names."""
-
-    def add_fields(
-        self,
-        log_record: MutableMapping[str, object],
-        record: logging.LogRecord,
-        message_dict: Mapping[str, object],
-    ) -> None:
-        super().add_fields(log_record, record, message_dict)
-        if not log_record.get("level"):
-            log_record["level"] = record.levelname
-        if not log_record.get("timestamp"):
-            log_record["timestamp"] = self.formatTime(record, self.datefmt)
-        if not log_record.get("name"):
-            log_record["name"] = record.name
-        service = getattr(record, "service", None)
-        if service and not log_record.get("service"):
-            log_record["service"] = service
-        for field in DEFAULT_FIELDS:
-            if field in message_dict and field not in log_record:
-                log_record[field] = message_dict[field]
+def _numeric_level(level: str) -> int:
+    value = logging.getLevelName(level.upper())
+    if isinstance(value, int):
+        return value
+    return logging.INFO
 
 
-class ContextLogger(logging.LoggerAdapter):
-    """Logger adapter that merges contextual fields into each log call."""
+Processor = Callable[[Any, str, dict[str, Any]], dict[str, Any]]
 
-    def process(
-        self,
-        msg: str,
-        kwargs: MutableMapping[str, object],
-    ) -> tuple[str, MutableMapping[str, object]]:
-        extra = kwargs.get("extra") or {}
-        merged: MutableMapping[str, object] = dict(self.extra)
-        merged.update(extra)
-        kwargs["extra"] = merged
-        return msg, kwargs
+
+def _add_service(service_name: Optional[str]) -> Processor:
+    def processor(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+        if service_name and "service" not in event_dict:
+            event_dict["service"] = service_name
+        return event_dict
+
+    return processor
 
 
 def configure_logging(
@@ -66,31 +35,50 @@ def configure_logging(
     *,
     json_logs: bool = True,
     service_name: Optional[str] = None,
-) -> logging.Logger:
-    """Configure the root logger for a process."""
+) -> None:
+    """Configure structlog + stdlib logging for the process."""
 
-    logging.captureWarnings(True)
-    root = logging.getLogger()
-    root.setLevel(level.upper())
-    root.handlers.clear()
-
-    handler = logging.StreamHandler(stream=sys.stdout)
+    numeric_level = _numeric_level(level)
+    shared_processors = [
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.add_log_level,
+        structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
+        _add_service(service_name),
+        structlog.processors.dict_tracebacks,
+    ]
     if json_logs:
-        formatter = JsonFormatter("%(timestamp)s %(level)s %(service)s %(name)s %(message)s")
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ]
     else:
-        formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-    handler.setFormatter(formatter)
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.dev.ConsoleRenderer(),
+        ]
 
-    if service_name:
-        def _inject_service(record: logging.LogRecord) -> bool:
-            if not getattr(record, "service", None):
-                record.service = service_name  # type: ignore[attr-defined]
-            return True
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=shared_processors,
+            processors=formatter_processors,
+        )
+    )
 
-        handler.addFilter(_inject_service)
+    root = logging.getLogger()
+    root.handlers = [handler]
+    root.setLevel(numeric_level)
+    logging.captureWarnings(True)
 
-    root.addHandler(handler)
-    return root
+    structlog.configure(
+        processors=[
+            *shared_processors,
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(numeric_level),
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
 
 
 def get_logger(
@@ -98,15 +86,15 @@ def get_logger(
     *,
     correlation_id: Optional[str] = None,
     service_name: Optional[str] = None,
-) -> ContextLogger:
-    """Return a logger adapter that injects contextual metadata."""
+) -> structlog.stdlib.BoundLogger:
+    """Return a structlog logger bound with standard metadata."""
 
-    extra: MutableMapping[str, object] = {}
+    logger = structlog.stdlib.get_logger(name)
     if correlation_id:
-        extra["correlation_id"] = correlation_id
+        logger = logger.bind(correlation_id=correlation_id)
     if service_name:
-        extra["service"] = service_name
-    return ContextLogger(logging.getLogger(name), extra)
+        logger = logger.bind(service=service_name)
+    return logger
 
 
-__all__ = ["configure_logging", "get_logger", "JsonFormatter", "ContextLogger"]
+__all__ = ["configure_logging", "get_logger"]

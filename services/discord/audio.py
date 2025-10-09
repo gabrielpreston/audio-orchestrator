@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import audioop
 import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Literal, Optional
 
 import numpy as np
+import webrtcvad
 
 from services.common.logging import get_logger
 
@@ -23,6 +25,7 @@ class PCMFrame:
     rms: float
     duration: float
     sequence: int
+    sample_rate: int
 
 
 @dataclass(slots=True)
@@ -35,6 +38,7 @@ class AudioSegment:
     end_timestamp: float
     correlation_id: str
     frame_count: int
+    sample_rate: int
 
     @property
     def duration(self) -> float:
@@ -62,12 +66,14 @@ class Accumulator:
     last_activity: float = field(default_factory=time.monotonic)
     sequence: int = 0
     silence_started_at: Optional[float] = None
+    sample_rate: int = 0
 
     def append(self, frame: PCMFrame) -> None:
         self.frames.append(frame)
         self.last_activity = frame.timestamp
         self.active = True
         self.silence_started_at = None
+        self.sample_rate = frame.sample_rate
 
     def mark_silence(self, timestamp: float) -> bool:
         """Register silence without resetting the voice activity timer."""
@@ -110,6 +116,7 @@ class Accumulator:
             end_timestamp=end,
             correlation_id=correlation_id,
             frame_count=len(self.frames),
+            sample_rate=self.sample_rate or self.config.input_sample_rate_hz,
         )
         self.frames.clear()
         self.active = False
@@ -124,26 +131,64 @@ class AudioPipeline:
         self._config = config
         self._accumulators: Dict[int, Accumulator] = {}
         self._logger = get_logger(__name__, service_name="discord")
+        frame_ms = config.vad_frame_duration_ms
+        if frame_ms not in (10, 20, 30):
+            nearest = min((10, 20, 30), key=lambda value: abs(value - frame_ms))
+            self._logger.warning(
+                "voice.vad_frame_adjusted",
+                requested=frame_ms,
+                applied=nearest,
+            )
+            frame_ms = nearest
+        self._vad_frame_duration_ms = frame_ms
+        aggressiveness = config.vad_aggressiveness
+        if aggressiveness < 0 or aggressiveness > 3:
+            clamped = min(max(aggressiveness, 0), 3)
+            self._logger.warning(
+                "voice.vad_aggressiveness_clamped",
+                requested=aggressiveness,
+                applied=clamped,
+            )
+            aggressiveness = clamped
+        self._target_sample_rate = config.vad_sample_rate_hz
+        self._vad = webrtcvad.Vad(aggressiveness)
+        self._vad_frame_bytes = int(self._target_sample_rate * frame_ms / 1000) * 2
 
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
             return True
         return user_id in self._config.allowlist_user_ids
 
-    def register_frame(self, user_id: int, pcm: bytes, rms: float, duration: float) -> Optional[AudioSegment]:
+    def register_frame(
+        self,
+        user_id: int,
+        pcm: bytes,
+        rms: float,
+        duration: float,
+        sample_rate: int,
+    ) -> Optional[AudioSegment]:
         if not self._allowed(user_id):
             self._logger.debug(
                 "voice.frame_rejected",
-                extra={"user_id": user_id, "reason": "allowlist"},
+                user_id=user_id,
+                reason="allowlist",
             )
             return None
 
         timestamp = time.monotonic()
         accumulator = self._accumulators.setdefault(user_id, Accumulator(user_id=user_id, config=self._config))
         accumulator.sequence += 1
-        frame = PCMFrame(pcm=pcm, timestamp=timestamp, rms=rms, duration=duration, sequence=accumulator.sequence)
+        frame = PCMFrame(
+            pcm=pcm,
+            timestamp=timestamp,
+            rms=rms,
+            duration=duration,
+            sequence=accumulator.sequence,
+            sample_rate=sample_rate,
+        )
 
-        if rms < self._config.vad_threshold:
+        is_speech = self._is_speech(frame.pcm, frame.sample_rate)
+        if not is_speech:
             accumulator.mark_silence(timestamp)
             decision = accumulator.should_flush(timestamp)
             if decision and decision.action == "flush":
@@ -153,13 +198,11 @@ class AudioPipeline:
         accumulator.append(frame)
         self._logger.debug(
             "voice.frame_buffered",
-            extra={
-                "user_id": user_id,
-                "sequence": frame.sequence,
-                "rms": rms,
-                "duration": duration,
-                "threshold": self._config.vad_threshold,
-            },
+            user_id=user_id,
+            sequence=frame.sequence,
+            rms=rms,
+            duration=duration,
+            sample_rate=sample_rate,
         )
         decision = accumulator.should_flush(timestamp)
         if decision and decision.action == "flush":
@@ -181,15 +224,44 @@ class AudioPipeline:
             return None
         self._logger.info(
             "voice.segment_ready",
-            extra={
-                "user_id": segment.user_id,
-                "correlation_id": segment.correlation_id,
-                "frames": segment.frame_count,
-                "duration": segment.duration,
-                "pcm_bytes": len(segment.pcm),
-            },
+            user_id=segment.user_id,
+            correlation_id=segment.correlation_id,
+            frames=segment.frame_count,
+            duration=segment.duration,
+            pcm_bytes=len(segment.pcm),
+            sample_rate=segment.sample_rate,
         )
         return segment
+
+    def _prepare_vad_frame(self, pcm: bytes, sample_rate: int) -> bytes:
+        if not pcm:
+            return pcm
+        if sample_rate != self._target_sample_rate:
+            try:
+                pcm, _ = audioop.ratecv(pcm, 2, 1, sample_rate, self._target_sample_rate, None)
+            except Exception as exc:  # noqa: BLE001
+                self._logger.warning(
+                    "voice.vad_resample_failed",
+                    error=str(exc),
+                    source_rate=sample_rate,
+                    target_rate=self._target_sample_rate,
+                )
+                return b""
+        if len(pcm) < self._vad_frame_bytes:
+            pcm = pcm.ljust(self._vad_frame_bytes, b"\x00")
+        elif len(pcm) > self._vad_frame_bytes:
+            pcm = pcm[: self._vad_frame_bytes]
+        return pcm
+
+    def _is_speech(self, pcm: bytes, sample_rate: int) -> bool:
+        frame = self._prepare_vad_frame(pcm, sample_rate)
+        if not frame:
+            return False
+        try:
+            return self._vad.is_speech(frame, self._target_sample_rate)
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning("voice.vad_error", error=str(exc))
+            return False
 
 
 def rms_from_pcm(pcm: bytes) -> float:

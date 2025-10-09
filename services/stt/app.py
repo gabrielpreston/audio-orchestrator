@@ -37,11 +37,11 @@ def _lazy_load_model() -> Any:
     try:
         from faster_whisper import WhisperModel
     except Exception as e:  # noqa: BLE001
-        logger.exception("stt.model_import_failed", extra={"error": str(e)})
+        logger.exception("stt.model_import_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
 
     if _model is not None:
-        logger.debug("stt.model_cache_hit", extra={"model_name": MODEL_NAME})
+        logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
         return _model
 
     device = os.environ.get("FW_DEVICE", "cpu")
@@ -53,21 +53,17 @@ def _lazy_load_model() -> Any:
             _model = WhisperModel(MODEL_NAME, device=device)
         logger.info(
             "stt.model_loaded",
-            extra={
-                "model_name": MODEL_NAME,
-                "device": device,
-                "compute_type": compute_type or "default",
-            },
+            model_name=MODEL_NAME,
+            device=device,
+            compute_type=compute_type or "default",
         )
     except Exception as e:  # noqa: BLE001
         logger.exception(
             "stt.model_load_error",
-            extra={
-                "model_name": MODEL_NAME,
-                "device": device,
-                "compute_type": compute_type,
-                "error": str(e),
-            },
+            model_name=MODEL_NAME,
+            device=device,
+            compute_type=compute_type,
+            error=str(e),
         )
         raise HTTPException(status_code=500, detail=f"model load error: {e}")
     return _model
@@ -136,16 +132,14 @@ async def _transcribe_request(
     try:
         logger.info(
             "stt.request_received",
-            extra={
-                "correlation_id": correlation_id,
-                "input_bytes": input_bytes,
-                "task": task,
-                "beam_size": beam_size,
-                "language": language,
-                "filename": filename,
-                "channels": channels,
-                "sample_rate": framerate,
-            },
+            correlation_id=correlation_id,
+            input_bytes=input_bytes,
+            task=task,
+            beam_size=beam_size,
+            language=language,
+            filename=filename,
+            channels=channels,
+            sample_rate=framerate,
         )
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(wav_bytes)
@@ -183,11 +177,9 @@ async def _transcribe_request(
         processing_ms = int((proc_end - proc_start) * 1000)
         logger.info(
             "stt.request_processed",
-            extra={
-                "correlation_id": correlation_id,
-                "processing_ms": processing_ms,
-                "segments": len(segments) if hasattr(segments, "__len__") else None,
-            },
+            correlation_id=correlation_id,
+            processing_ms=processing_ms,
+            segments=len(segments) if hasattr(segments, "__len__") else None,
         )
         # Build a combined text and (optionally) include timestamped segments/words
         text = " ".join([getattr(seg, "text", "") for seg in segments]).strip()
@@ -213,7 +205,7 @@ async def _transcribe_request(
                         })
                 segments_out.append(segdict)
     except Exception as e:
-        logger.exception("stt.transcription_error", extra={"correlation_id": correlation_id, "error": str(e)})
+        logger.exception("stt.transcription_error", correlation_id=correlation_id, error=str(e))
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
         if tmp_path:
@@ -260,12 +252,10 @@ async def _transcribe_request(
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
     logger.info(
         "stt.response_ready",
-        extra={
-            "correlation_id": correlation_id,
-            "text_length": len(resp.get("text", "")),
-            "processing_ms": resp.get("processing_ms"),
-            "total_ms": resp.get("total_ms"),
-        },
+        correlation_id=correlation_id,
+        text_length=len(resp.get("text", "")),
+        processing_ms=resp.get("processing_ms"),
+        total_ms=resp.get("total_ms"),
     )
     return JSONResponse(resp, headers=headers)
 
@@ -276,10 +266,8 @@ async def asr(request: Request):
     body = await request.body()
     logger.info(
         "stt.asr_request",
-        extra={
-            "content_length": len(body),
-            "correlation_id": request.headers.get("X-Correlation-ID"),
-        },
+        content_length=len(body),
+        correlation_id=request.headers.get("X-Correlation-ID"),
     )
     return await _transcribe_request(
         request,
@@ -297,7 +285,7 @@ async def transcribe(request: Request):
     if upload is None:
         logger.warning(
             "stt.transcribe_missing_file",
-            extra={"fields": list(form.keys())},
+            fields=list(form.keys()),
         )
         raise HTTPException(status_code=400, detail="missing 'file' form field")
 
@@ -314,17 +302,15 @@ async def transcribe(request: Request):
     else:
         logger.warning(
             "stt.transcribe_unsupported_payload",
-            extra={"type": type(upload).__name__},
+            payload_type=type(upload).__name__,
         )
         raise HTTPException(status_code=400, detail="unsupported file payload")
 
     logger.info(
         "stt.transcribe_request",
-        extra={
-            "filename": filename,
-            "input_bytes": len(wav_bytes),
-            "correlation_id": metadata_value,
-        },
+        filename=filename,
+        input_bytes=len(wav_bytes),
+        correlation_id=metadata_value,
     )
 
     return await _transcribe_request(
