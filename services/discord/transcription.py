@@ -40,7 +40,7 @@ class TranscriptionClient:
 
     async def __aenter__(self) -> "TranscriptionClient":
         if self._session is None:
-            timeout = httpx.Timeout(self._config.request_timeout_seconds, connect=5.0)
+            timeout = httpx.Timeout(connect=5.0, read=None, write=None, pool=None)
             self._session = httpx.AsyncClient(timeout=timeout)
         return self
 
@@ -61,11 +61,25 @@ class TranscriptionClient:
             )
         }
         data = {"metadata": segment.correlation_id}
+        params: Dict[str, Any] = {}
+        if self._config.forced_language:
+            params["language"] = self._config.forced_language
         logger = self._logger.bind(correlation_id=segment.correlation_id)
         logger.info(
             "stt.transcribe_request",
             frames=segment.frame_count,
             payload_bytes=len(wav_bytes),
+            language=params.get("language"),
+        )
+        processing_timeout = max(
+            self._config.request_timeout_seconds,
+            (segment.duration * 4.0) + 5.0,
+        )
+        request_timeout = httpx.Timeout(
+            connect=5.0,
+            read=processing_timeout,
+            write=processing_timeout,
+            pool=None,
         )
         try:
             response = await post_with_retries(
@@ -76,6 +90,8 @@ class TranscriptionClient:
                 max_retries=self._config.max_retries,
                 log_fields={"correlation_id": segment.correlation_id},
                 logger=logger,
+                params=params or None,
+                timeout=request_timeout,
             )
         except Exception as exc:  # noqa: BLE001
             logger.error("stt.transcribe_failed", error=str(exc))
@@ -86,6 +102,7 @@ class TranscriptionClient:
             "stt.transcribe_success",
             language=payload.get("language"),
             confidence=payload.get("confidence"),
+            text=payload.get("text"),
         )
         return TranscriptResult(
             text=payload.get("text", ""),

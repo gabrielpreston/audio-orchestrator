@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Mapping, MutableMapping, Optional
+from typing import Any, Mapping, MutableMapping, Optional, Union
 
 import httpx
 
@@ -22,9 +22,11 @@ async def post_with_retries(
     data: Optional[Mapping[str, Any]] = None,
     json: Optional[Any] = None,
     headers: Optional[Mapping[str, str]] = None,
+    params: Optional[Mapping[str, Any]] = None,
     max_retries: int = 3,
     log_fields: Optional[MutableMapping[str, Any]] = None,
     logger: Optional[BoundLogger] = None,
+    timeout: Optional[Union[float, httpx.Timeout]] = None,
 ) -> httpx.Response:
     """POST helper that retries with exponential backoff and structured logs."""
 
@@ -40,6 +42,8 @@ async def post_with_retries(
                 data=data,
                 json=json,
                 headers=headers,
+                params=params,
+                timeout=timeout,
             )
             response.raise_for_status()
             log.debug(

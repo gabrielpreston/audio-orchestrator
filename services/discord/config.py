@@ -39,8 +39,9 @@ class STTConfig:
     """Transcription service configuration."""
 
     base_url: str
-    request_timeout_seconds: float = 15.0
+    request_timeout_seconds: float = 45.0
     max_retries: int = 3
+    forced_language: Optional[str] = "en"
 
 
 @dataclass(slots=True)
@@ -135,10 +136,12 @@ def load_config() -> BotConfig:
         vad_aggressiveness=int(os.getenv("AUDIO_VAD_AGGRESSIVENESS", "2")),
     )
 
+    stt_forced_language = os.getenv("STT_FORCED_LANGUAGE", "en")
     stt = STTConfig(
         base_url=_require_env("STT_BASE_URL"),
-        request_timeout_seconds=float(os.getenv("STT_TIMEOUT", "15")),
+        request_timeout_seconds=float(os.getenv("STT_TIMEOUT", "45")),
         max_retries=int(os.getenv("STT_MAX_RETRIES", "3")),
+        forced_language=stt_forced_language if stt_forced_language else None,
     )
 
     wake_model_paths = [Path(part) for part in _split_csv(os.getenv("WAKE_MODEL_PATHS", ""))]

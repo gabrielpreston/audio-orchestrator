@@ -67,10 +67,12 @@ class VoiceBot(discord.Client):
         self._logger = LOGGER
         self._segment_queue: "asyncio.Queue[SegmentContext]" = asyncio.Queue()
         self._segment_task: Optional[asyncio.Task[None]] = None
+        self._idle_flush_task: Optional[asyncio.Task[None]] = None
         self._shutdown = asyncio.Event()
         self._http_session: Optional[httpx.AsyncClient] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._voice_receivers: Dict[int, object] = {}
+        self._voice_contexts: Dict[int, tuple[int, int]] = {}
         if discord_voice_recv is None:
             self._logger.warning(
                 "voice.recv_extension_missing",
@@ -83,6 +85,7 @@ class VoiceBot(discord.Client):
             timeout = httpx.Timeout(30.0, connect=10.0)
             self._http_session = httpx.AsyncClient(timeout=timeout)
         self._segment_task = asyncio.create_task(self._segment_consumer())
+        self._idle_flush_task = asyncio.create_task(self._idle_flush_loop())
 
     async def close(self) -> None:
         self._shutdown.set()
@@ -90,6 +93,12 @@ class VoiceBot(discord.Client):
             self._segment_task.cancel()
             try:
                 await self._segment_task
+            except asyncio.CancelledError:
+                pass
+        if self._idle_flush_task:
+            self._idle_flush_task.cancel()
+            try:
+                await self._idle_flush_task
             except asyncio.CancelledError:
                 pass
         for guild_id in list(self._voice_receivers.keys()):
@@ -222,38 +231,59 @@ class VoiceBot(discord.Client):
     ) -> None:
         """Entry point for voice receivers to feed PCM data into the pipeline."""
 
+        voice_state = self._resolve_voice_state(user_id)
+        if not voice_state or not voice_state.channel:
+            self._logger.debug(
+                "discord.voice_state_unavailable",
+                user_id=user_id,
+                pcm_bytes=len(pcm),
+                frame_duration=frame_duration,
+                sample_rate=sample_rate,
+            )
+            return
+
+        guild_id = voice_state.channel.guild.id
+        channel_id = voice_state.channel.id
+        self._voice_contexts[user_id] = (guild_id, channel_id)
+
         rms = rms_from_pcm(pcm)
         segment = self.audio_pipeline.register_frame(user_id, pcm, rms, frame_duration, sample_rate)
         if not segment:
             return
-        voice_state = self._resolve_voice_state(user_id)
-        if not voice_state:
+        await self._enqueue_segment(segment, context=(guild_id, channel_id))
+
+    async def _enqueue_segment(
+        self,
+        segment: AudioSegment,
+        *,
+        context: Optional[tuple[int, int]] = None,
+    ) -> None:
+        if context is None:
+            context = self._voice_contexts.get(segment.user_id)
+        if context is None:
             self._logger.warning(
-                "discord.voice_state_missing",
-                user_id=user_id,
+                "discord.voice_context_missing",
+                user_id=segment.user_id,
             )
             return
-        if not voice_state.channel:
-            self._logger.warning(
-                "discord.voice_channel_missing",
-                user_id=user_id,
-            )
-            return
-        context = SegmentContext(
+        guild_id, channel_id = context
+        segment_context = SegmentContext(
             segment=segment,
-            guild_id=voice_state.channel.guild.id,
-            channel_id=voice_state.channel.id,
+            guild_id=guild_id,
+            channel_id=channel_id,
         )
+        pending_segments = self._segment_queue.qsize()
         self._logger.info(
             "voice.segment_enqueued",
             correlation_id=segment.correlation_id,
             user_id=segment.user_id,
-            guild_id=context.guild_id,
-            channel_id=context.channel_id,
+            guild_id=segment_context.guild_id,
+            channel_id=segment_context.channel_id,
             frames=segment.frame_count,
             duration=segment.duration,
+            queue_depth=pending_segments + 1,
         )
-        await self._segment_queue.put(context)
+        await self._segment_queue.put(segment_context)
 
     def _resolve_voice_state(self, user_id: int) -> Optional[discord.VoiceState]:
         for guild in self.guilds:
@@ -261,6 +291,32 @@ class VoiceBot(discord.Client):
             if member and member.voice and member.voice.channel:
                 return member.voice
         return None
+
+    async def _idle_flush_loop(self) -> None:
+        """Periodically flush stale accumulators so silence gaps emit segments."""
+
+        interval = max(self.config.audio.silence_timeout_seconds / 2.0, 0.1)
+        interval = min(interval, 0.5)
+        try:
+            self._logger.debug(
+                "voice.idle_flush_loop_started",
+                interval=interval,
+            )
+            while not self._shutdown.is_set():
+                segments = self.audio_pipeline.flush_inactive()
+                for segment in segments:
+                    await self._enqueue_segment(
+                        segment,
+                        context=self._voice_contexts.get(segment.user_id),
+                    )
+                try:
+                    await asyncio.wait_for(self._shutdown.wait(), timeout=interval)
+                except asyncio.TimeoutError:
+                    continue
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._logger.debug("voice.idle_flush_loop_stopped")
 
     async def _segment_consumer(self) -> None:
         await asyncio.sleep(0)

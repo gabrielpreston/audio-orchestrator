@@ -1,10 +1,13 @@
-from fastapi import FastAPI, Request, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
-import time
 import io
-import wave
 import os
+import time
+import wave
 from typing import Any, Optional, Tuple
+
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from starlette.datastructures import UploadFile
+from starlette.requests import ClientDisconnect
 
 from services.common.logging import configure_logging, get_logger
 
@@ -257,6 +260,12 @@ async def _transcribe_request(
         processing_ms=resp.get("processing_ms"),
         total_ms=resp.get("total_ms"),
     )
+    if resp.get("text"):
+        logger.info(
+            "stt.transcription_text",
+            correlation_id=correlation_id,
+            text=resp["text"],
+        )
     return JSONResponse(resp, headers=headers)
 
 
@@ -280,7 +289,16 @@ async def asr(request: Request):
 
 @app.post("/transcribe")
 async def transcribe(request: Request):
-    form = await request.form()
+    try:
+        form = await request.form()
+    except ClientDisconnect:
+        correlation_id = request.headers.get("X-Correlation-ID") or request.query_params.get("correlation_id")
+        logger.info(
+            "stt.client_disconnect",
+            correlation_id=correlation_id,
+            detail="client closed connection during multipart parse",
+        )
+        return JSONResponse({"detail": "client disconnected"}, status_code=499)
     upload = form.get("file")
     if upload is None:
         logger.warning(

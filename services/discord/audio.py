@@ -192,7 +192,12 @@ class AudioPipeline:
             accumulator.mark_silence(timestamp)
             decision = accumulator.should_flush(timestamp)
             if decision and decision.action == "flush":
-                return self._flush_accumulator(accumulator, timestamp=timestamp)
+                return self._flush_accumulator(
+                    accumulator,
+                    timestamp=timestamp,
+                    decision=decision,
+                    trigger="silence_check",
+                )
             return None
 
         accumulator.append(frame)
@@ -206,22 +211,77 @@ class AudioPipeline:
         )
         decision = accumulator.should_flush(timestamp)
         if decision and decision.action == "flush":
-            return self._flush_accumulator(accumulator, timestamp=timestamp)
+            return self._flush_accumulator(
+                accumulator,
+                timestamp=timestamp,
+                decision=decision,
+                trigger="speech_check",
+            )
         return None
 
     def force_flush(self) -> List[AudioSegment]:
         segments: List[AudioSegment] = []
         for accumulator in self._accumulators.values():
-            segment = self._flush_accumulator(accumulator, timestamp=time.monotonic())
+            segment = self._flush_accumulator(
+                accumulator,
+                timestamp=time.monotonic(),
+                trigger="force_flush",
+            )
             if segment:
                 segments.append(segment)
         return segments
 
-    def _flush_accumulator(self, accumulator: Accumulator, *, timestamp: float) -> Optional[AudioSegment]:
+    def flush_inactive(self) -> List[AudioSegment]:
+        """Flush accumulators that have exceeded silence timeout without new frames."""
+
+        segments: List[AudioSegment] = []
+        timestamp = time.monotonic()
+        aggregation_window = max(self._config.aggregation_window_seconds, 0.0)
+        for accumulator in self._accumulators.values():
+            decision = accumulator.should_flush(timestamp)
+            if not decision:
+                continue
+            flush = decision.action == "flush"
+            decision_reason = decision.reason
+            if (
+                not flush
+                and decision.reason == "min_duration"
+                and aggregation_window > 0
+                and decision.silence_age >= aggregation_window
+            ):
+                flush = True
+                decision_reason = "aggregation_window"
+            if flush:
+                segment = self._flush_accumulator(
+                    accumulator,
+                    timestamp=timestamp,
+                    decision=decision,
+                    trigger="idle_flush",
+                    override_reason=decision_reason,
+                )
+                if segment:
+                    segments.append(segment)
+        return segments
+
+    def _flush_accumulator(
+        self,
+        accumulator: Accumulator,
+        *,
+        timestamp: float,
+        decision: Optional[FlushDecision] = None,
+        trigger: Optional[str] = None,
+        override_reason: Optional[str] = None,
+    ) -> Optional[AudioSegment]:
         correlation_id = f"discord-{accumulator.user_id}-{int(time.time() * 1000)}"
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
+        reason = (
+            override_reason
+            or (decision.reason if decision else None)
+            or trigger
+            or "unknown"
+        )
         self._logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
@@ -230,6 +290,10 @@ class AudioPipeline:
             duration=segment.duration,
             pcm_bytes=len(segment.pcm),
             sample_rate=segment.sample_rate,
+            flush_reason=reason,
+            silence_age=decision.silence_age if decision else None,
+            total_duration=decision.total_duration if decision else segment.duration,
+            flush_trigger=trigger,
         )
         return segment
 
