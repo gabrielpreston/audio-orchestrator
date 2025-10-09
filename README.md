@@ -11,29 +11,20 @@ This repository provides a Python-based Discord voice agent alongside supporting
 
 ## Environment files (recommended)
 
-Use environment files to avoid exporting variables manually:
+The stack now separates shared defaults from service-specific configuration:
 
-- `.env.local` — sourced by local development targets such as `make dev-discord` and `make dev-stt`.
-- `.env.docker` — consumed by Docker Compose services.
+- `.env.common` — logging defaults applied across every Python process.
+- `services/discord/.env.service` — Discord bot credentials and audio/STT tuning.
+- `services/stt/.env.service` — faster-whisper model selection.
+- `services/llm/.env.service` — llama.cpp runtime configuration and auth.
+- `.env.docker` — Docker-only overrides such as UID/GID ownership.
+- `.env.local` (optional) — local overrides loaded by `make dev-*`.
 
-Copy `.env.sample` to either location and update the placeholders before running the bot.
-
-## Essential environment variables (examples)
-
-```env
-# .env.local or .env.docker
-DISCORD_BOT_TOKEN=your_token_here
-DISCORD_GUILD_ID=123456789012345678
-DISCORD_VOICE_CHANNEL_ID=987654321098765432
-DISCORD_AUTO_JOIN=true
-STT_BASE_URL=http://localhost:9000
-WAKE_PHRASES=hey atlas,ok atlas
-AUDIO_ALLOWLIST=12345,67890
-LOG_LEVEL=INFO
-LOG_JSON=true
-```
+Copy the relevant blocks from `.env.sample` into each file before running locally or via Docker Compose.
 
 ## Quickstart — Python voice bot
+
+Before you start the bot, update `services/discord/.env.service` with your Discord credentials and point `STT_BASE_URL` at a running transcription service. Adjust the llama and STT service files as needed for your environment.
 
 1. Install dependencies (ideally inside a virtual environment):
 
@@ -57,7 +48,7 @@ All Python services share the `services.common.logging` helpers to emit JSON log
 
 ## Quickstart — Docker Compose services
 
-Create `.env.docker` in the repository root (see example above). Populate it with the Discord credentials (`DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_VOICE_CHANNEL_ID`) alongside the STT settings before starting the stack. Then build and run the services:
+Populate each `services/**/.env.service` file (see `.env.sample`) with production-ready values, then adjust `.env.docker` if you need custom UID/GID ownership for mounted volumes. When everything is in place, build and run the stack:
 
 ```bash
 make run
