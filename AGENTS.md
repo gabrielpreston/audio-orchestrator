@@ -90,6 +90,9 @@ manifests; document and test them when introduced.
 
 - Keep defaults synchronized across `.env.sample`, service-specific `.env.service` files, and
   `.env.common` / `.env.docker` when you add or rename variables for Docker Compose deployments.
+- When introducing new environment variables, update `.env.sample`, copy the values into each
+  affected `services/**/.env.service` file, and call out the requirement in README/docs so local and
+  containerized runs stay aligned.
 - Document breaking or notable configuration changes in `README.md` and the matching guide under
   `docs/`.
 
@@ -99,6 +102,9 @@ manifests; document and test them when introduced.
   CI and documentation. Expand the Makefile whenever you identify repeated sequences of Docker or
   Python invocations—future contributors should be able to rely on a named target instead of
   recreating shell snippets.
+- Keep edits incremental and validate after each change: rebuild the stack with `make run`,
+  inspect `make logs` (optionally scoped via `SERVICE`), and perform focused service smoke tests
+  rather than deferring checks to later.
 - When editing Dockerfiles or Compose definitions, test with `make run` and ensure workflows rely
   on `docker-compose`.
 - Mount paths introduced in Compose must work with the existing `.env.*` structure and repository
@@ -108,8 +114,8 @@ manifests; document and test them when introduced.
 
 - Follow PEP 8 style, add type hints for new functions/classes, and keep imports sorted (use
   `ruff --select I` or an editor integration).
-- Reuse `services.common.logging` for structured JSON logs; prefer `extra={}` for contextual
-  metadata instead of string interpolation.
+- Reuse `services.common.logging` (`services/common/logging.py`) for structured JSON logs; prefer
+  `extra={}` for contextual metadata instead of string interpolation.
 - Propagate configurable timeouts and retries through HTTP or MCP clients.
 - Update `requirements.txt` files when you add or upgrade dependencies; pin versions where
   appropriate for reproducible deployments.
