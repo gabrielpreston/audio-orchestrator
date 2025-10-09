@@ -1,73 +1,138 @@
-# Contributor Guidelines for `discord-voice-lab`
+# Contributor Playbook — `discord-voice-lab`
 
-This repository houses a Python-based Discord voice bot along with supporting FastAPI speech-to-text (STT) and lightweight orchestration services, helper scripts, and documentation. Follow the conventions below for any change you make anywhere in this repo.
+This guide consolidates the expectations from every previous `AGENTS.md` file and
+aligns them with the current repository layout. Follow these conventions for all
+changes, regardless of scope.
 
-## Repository map
-- `services/discord/` — Python package containing the Discord voice interface (audio pipeline, wake detection, transcription client, MCP tooling).
-- `services/stt/` — Python FastAPI app for faster-whisper inference (Dockerfile + app + requirements).
-- `services/llm/` — Python FastAPI app exposing an OpenAI-compatible endpoint backed by local tooling.
-- `scripts/` — Bash helpers invoked by `make` (dev runners, STT smoke tests). Keep these POSIX-friendly when possible.
-- `docs/` — Markdown guides for architecture, onboarding, configuration, and operations. Update the relevant guide whenever you change behavior or workflows.
-- Audio fixtures in repo root (`test.wav`, `test_speech_16k.wav`) support automated/manual verification of the STT pipeline.
+## 1. Project purpose & architecture
 
-## Build & local tooling
-- Prefer the `Makefile` targets over ad-hoc commands so CI and local workflows stay aligned: `make run`, `make stop`, `make logs`, `make dev-discord`, `make dev-stt`, `make clean`, and `make docker-clean` are the common entry points.
-- `scripts/run_stt.sh` is used by the `make dev-stt` helper; keep it idempotent and ensure it respects `.env.local` when sourced.
-- `scripts/test_stt.sh` performs a curl-based smoke test (optionally booting the STT container); update it alongside any API or port changes so developers can quickly validate audio ingestion.
+`discord-voice-lab` delivers a voice-first Discord assistant composed of three
+Python services plus shared helpers:
 
-## Configuration & environment files
-- `.env.local` powers local `make dev-*` runs and `.env.docker` feeds Docker Compose. When you add or rename environment variables, update both files (or their documented examples) plus `README.md` and any affected guide in `docs/`.
-- Keep defaults and validation logic in sync between Python components (`services/discord/config.py`, `services/stt/app.py`, `services/llm/*`). Document any breaking changes in configuration.
+| Service/Module | Language | Role |
+| -------------- | -------- | ---- |
+| `services/discord` | Python (discord.py, MCP) | Captures voice from Discord, detects wake phrases, forwards audio to STT, exposes Discord control tools, and plays orchestrator/TTS audio responses. |
+| `services/stt` | Python (FastAPI, faster-whisper) | Provides HTTP transcription with streaming-friendly latencies for the Discord bot and other clients. |
+| `services/llm` | Python (FastAPI) | Presents an OpenAI-compatible endpoint that can broker MCP tool invocations and return reasoning output to the bot. |
+| `services/common` | Python package | Houses shared logging and HTTP utilities to keep service behavior consistent. |
 
-## Docker & Compose
-- `docker-compose.yml` must continue to work with both `docker compose` (plugin) and the legacy `docker-compose` binary. Test changes with `make run`.
-- Respect the BuildKit toggles already wired in the `Makefile`. If you introduce new images or services, add matching `Makefile` targets or extend existing ones instead of duplicating shell commands.
-- Ensure any new container mounts or env files remain compatible with the existing `.env.docker` and local volume layout (`./logs`, `./.wavs`).
+Optional capability servers (e.g., text-to-speech or file tooling) can integrate
+via MCP manifests; document and test them when introduced.
 
-## Discord interface (`services/discord`)
-- Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
-- Use the shared `services.common.logging` helpers to emit structured logs; prefer contextual metadata (`extra={...}`) over string interpolation.
-- Keep FastAPI/HTTP client interactions resilient—propagate timeouts and retries through configuration.
-- Run relevant unit or integration tests (when available) and capture smoke-test output (manual Discord runs, STT interactions) in your summary when submitting changes that affect runtime behavior.
+## 2. Repository layout essentials
 
-## Python services (`services/stt`, `services/llm`)
-- Stick to PEP 8 style and add type hints for new functions, request models, and helper utilities.
-- Reuse `services.common.logging` for structured output so container logs stay consistent.
-- Keep FastAPI response models (`pydantic`) up-to-date when the API shape changes. Document any new query params or headers in the relevant doc.
-- Sort imports (`ruff --select I`, `isort`, or the tooling in your editor) and freeze dependencies by updating the service-specific `requirements.txt` files when libraries change.
-- Use `scripts/test_stt.sh` against `test_speech_16k.wav` (and the translate variant) after modifying the STT service. Add lightweight unit tests if feasible for pure-Python helpers.
+- `docker-compose.yml` orchestrates the three core services with shared
+  environment files.
+- `.env.sample` is the canonical source for new configuration keys; copy the
+  relevant blocks into:
+  - `.env.common`
+  - `.env.docker`
+  - `services/**/.env.service`
+- `Makefile` provides the supported workflows (`make run`, `make stop`,
+  `make logs`, `make docker-build`, `make docker-restart`, `make docker-shell`,
+  `make docker-config`, `make docker-clean`, etc.). When a new workflow
+  emerges, add or refine a Makefile target rather than relying on
+  copy-pasted commands.
+- `docs/` stores onboarding, architecture, manifest, and roadmap content.
+  Update the relevant page whenever you change behavior, workflows, or
+  configuration names.
 
-## Shell scripts
-- Target POSIX sh-compatible syntax (current scripts use `bash` pragmas when necessary). Guard environment variable usage with defaults where appropriate and prefer `set -euo pipefail` for safety.
-- Keep scripts idempotent so repeated runs are safe. If a script manages background processes, ensure PID files are cleaned up reliably.
+## 3. Configuration expectations
 
-## Documentation
-- Maintain Markdown heading hierarchy (`#`, `##`, `###`) and wrap lines at ~100 characters for readability.
-- Use relative links between docs (e.g., `../docs/FILE.md`). Mirror configuration or API changes in `README.md`, `docs/CONFIGURATION.md`, and other affected guides.
-- Include command examples as fenced code blocks with language hints (`bash`, `env`, `go`).
+- Keep defaults synchronized across `.env.sample`, service-specific `.env.service`
+  files, and `.env.common` / `.env.docker` when you add or rename variables for
+  Docker Compose deployments.
+- Document breaking or notable configuration changes in `README.md` and the
+  matching guide under `docs/`.
 
-## Testing expectations
-- For Python service updates, run service-specific checks (virtualenv or Docker) and capture smoke-test output (`scripts/test_stt.sh`, manual FastAPI calls) in your summary.
-- Mention any additional manual or automated verification (Docker Compose runs, API smoke tests, audio fixture validation) in your summary when submitting changes.
 
-## Citations instructions
+## 4. Tooling & workflow standards
 
-* If you browsed files or used terminal commands, you must add citations to the final response (not the body of the PR message) where relevant. Citations reference file paths and terminal outputs with the following formats:
+- Prefer the `Makefile` targets over ad-hoc Docker or Python commands so
+  Docker-based runs match CI and documentation. Expand the Makefile whenever
+  you identify repeated sequences of Docker or Python invocations—future
+  contributors should be able to rely on a named target instead of recreating
+  shell snippets.
+- When editing Dockerfiles or Compose definitions, test with `make run` and
+  ensure workflows rely on `docker-compose`.
+- Mount paths introduced in Compose must work with the existing `.env.*`
+  structure and repository directories mounted into the containers (e.g.,
+  `./logs`, `./.wavs`).
 
-  - `[F:<file_path>:L<line_start>(-L<line_end>)?]`
+## 5. Python coding guidelines
 
-    - File path citations must start with `F:`. `file_path` is the exact file path of the file relative to the root of the repository that contains the relevant text.
-    - `line_start` is the 1-indexed start line number of the relevant output within that file.
+- Follow PEP 8 style, add type hints for new functions/classes, and keep imports
+  sorted (use `ruff --select I` or an editor integration).
+- Reuse `services.common.logging` for structured JSON logs; prefer `extra={}` for
+  contextual metadata instead of string interpolation.
+- Propagate configurable timeouts and retries through HTTP or MCP clients.
+- Update `requirements.txt` files when you add or upgrade dependencies; pin
+  versions where appropriate for reproducible deployments.
 
-  - `[<chunk_id>:L<line_start>(-L<line_end>)?]`
+## 6. Service-specific notes
 
-    - Where `chunk_id` is the chunk_id of the terminal output, `line_start` and `line_end` are the 1-indexed start and end line numbers of the relevant output within that chunk.
+### Discord voice bot (`services/discord`)
+- Keep wake-word detection, audio aggregation, and STT client behavior in sync
+  with configuration defaults found in `.env.sample`.
+- Handle STT or orchestrator failures gracefully—log with correlation metadata
+  and avoid crashing the voice loop.
+- When adding MCP tools, expose them through `mcp.py` with clear schemas and
+  document them in `docs/MCP_MANIFEST.md`.
+- Preserve TTS playback plumbing (`_play_tts`) so external TTS services can plug
+  in through URLs supplied by the orchestrator.
 
-- Line ends are optional, and if not provided, line end is the same as line start, so only 1 line is cited.
-- Ensure that the line numbers are correct, and that the cited file paths or terminal outputs are directly relevant to the word or clause before the citation.
-- Do not cite completely empty lines inside the chunk, only cite lines that have content.
-- Only cite from file paths and terminal outputs, DO NOT cite from previous pr diffs and comments, nor cite git hashes as chunk ids.
-- Use file path citations that reference any code changes, documentation or files, and use terminal citations only for relevant terminal output.
-- Prefer file citations over terminal citations unless the terminal output is directly relevant to the clauses before the citation, i.e. clauses on test results.
-  - For PR creation tasks, use file citations when referring to code changes in the summary section of your final response, and terminal citations in the testing section.
-  - For question-answering tasks, you should only use terminal citations if you need to programmatically verify an answer (i.e., counting lines of code). Otherwise, use file citations.
+### Speech-to-text service (`services/stt`)
+- Ensure the FastAPI contract stays stable; update response models if the JSON
+  shape changes.
+- Validate faster-whisper model configuration via environment variables and keep
+  compute defaults aligned with `.env.sample`.
+- Aim for responsive startup and streaming latencies; capture notable tuning in
+  the docs.
+
+### Orchestrator (`services/llm`)
+- Maintain compatibility with the OpenAI-style routes already implemented in
+  `app.py` and document any schema extensions.
+- Surface MCP-driven actions carefully: validate inputs, guard credentials, and
+  return structured JSON so downstream clients remain deterministic.
+
+### Shared utilities (`services/common`)
+- Keep helpers generic and well-documented; prefer adding shared logic here
+  instead of duplicating code across services.
+
+## 7. Documentation expectations
+
+- Use Markdown heading hierarchy (`#`, `##`, `###`) and wrap lines around
+  100 characters for readability.
+- Favor relative links (e.g., `../docs/FILE.md`) and include fenced code blocks
+  with language hints (`bash`, `env`, `json`, etc.).
+- Align architectural diagrams and process descriptions with the actual service
+  behavior described above. Update `docs/MCP_MANIFEST.md`, `ROADMAP.md`, and any
+  proposals if your change affects them.
+
+## 8. Observability, security, & performance
+
+- Every service should expose health checks, structured logs, and metrics where
+  feasible so Compose deployments remain observable.
+- Authenticate MCP connections with scoped credentials and propagate correlation
+  IDs through logs and tool responses.
+- Treat audio and transcript data as sensitive: avoid persisting raw audio unless
+  explicitly needed for debugging and documented in the PR.
+- Target fast wake detection (<200 ms), quick STT startup (<300 ms from speech
+  onset), end-to-response times under ~2 s for short queries, and timely TTS
+  playback. Note deviations in docs or PR summaries.
+
+## 9. Testing & validation
+
+- Run the relevant Docker-focused `Makefile` targets after changes (`make run`,
+  `make logs`, `make docker-build`, etc.) and summarize noteworthy output in
+  your PR.
+- Exercise manual or scripted audio tests using your own fixtures (the repo no
+  longer stores `.wav` samples). Capture the command/output you used.
+- When changing APIs, provide example requests/responses in docs or PR notes so
+  reviewers can verify behavior quickly.
+
+## 10. Citations for final summaries
+
+When preparing final responses, cite files and terminal output using the house
+format: `【F:path/to/file†Lstart-Lend】` for files and `【chunk_id†Lstart-Lend】`
+for terminal commands. Ensure cited lines directly support the referenced text.
