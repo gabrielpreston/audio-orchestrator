@@ -65,7 +65,7 @@ class TranscriptionClient:
         if self._config.forced_language:
             params["language"] = self._config.forced_language
         logger = self._logger.bind(correlation_id=segment.correlation_id)
-        logger.info(
+        logger.debug(
             "stt.transcribe_request",
             frames=segment.frame_count,
             payload_bytes=len(wav_bytes),
@@ -98,12 +98,15 @@ class TranscriptionClient:
             raise
         payload = response.json()
         await response.aclose()
+        text = payload.get("text", "")
         logger.info(
             "stt.transcribe_success",
             language=payload.get("language"),
             confidence=payload.get("confidence"),
-            text=payload.get("text"),
+            text_length=len(text),
         )
+        if text:
+            logger.debug("stt.transcribe_text", text=text)
         return TranscriptResult(
             text=payload.get("text", ""),
             start_timestamp=segment.start_timestamp,

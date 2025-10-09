@@ -148,7 +148,7 @@ async def _transcribe_request(
     headers_correlation = request.headers.get('X-Correlation-ID')
     correlation_id = correlation_id or headers_correlation or request.query_params.get('correlation_id')
     try:
-        logger.info(
+        logger.debug(
             "stt.request_received",
             correlation_id=correlation_id,
             input_bytes=input_bytes,
@@ -268,7 +268,7 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    logger.info(
+    logger.debug(
         "stt.response_ready",
         correlation_id=correlation_id,
         text_length=len(resp.get("text", "")),
@@ -276,7 +276,7 @@ async def _transcribe_request(
         total_ms=resp.get("total_ms"),
     )
     if resp.get("text"):
-        logger.info(
+        logger.debug(
             "stt.transcription_text",
             correlation_id=correlation_id,
             text=resp["text"],

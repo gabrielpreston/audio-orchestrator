@@ -273,7 +273,7 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
         )
         pending_segments = self._segment_queue.qsize()
-        self._logger.info(
+        self._logger.debug(
             "voice.segment_enqueued",
             correlation_id=segment.correlation_id,
             user_id=segment.user_id,
@@ -324,7 +324,7 @@ class VoiceBot(discord.Client):
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:
-                    self._logger.info(
+                    self._logger.debug(
                         "voice.segment_processing_start",
                         correlation_id=context.segment.correlation_id,
                         guild_id=context.guild_id,
