@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio
 import io
 import wave
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-import aiohttp
+import httpx
 
+from services.common.http import post_with_retries
 from services.common.logging import get_logger
 
 from .audio import AudioSegment
@@ -32,7 +32,7 @@ class TranscriptResult:
 class TranscriptionClient:
     """Async client that sends audio segments to the STT service."""
 
-    def __init__(self, config: STTConfig, *, session: Optional[aiohttp.ClientSession] = None) -> None:
+    def __init__(self, config: STTConfig, *, session: Optional[httpx.AsyncClient] = None) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
@@ -40,83 +40,62 @@ class TranscriptionClient:
 
     async def __aenter__(self) -> "TranscriptionClient":
         if self._session is None:
-            timeout = aiohttp.ClientTimeout(total=self._config.request_timeout_seconds)
-            self._session = aiohttp.ClientSession(timeout=timeout)
+            timeout = httpx.Timeout(self._config.request_timeout_seconds, connect=5.0)
+            self._session = httpx.AsyncClient(timeout=timeout)
         return self
 
     async def __aexit__(self, exc_type, exc, tb) -> None:  # type: ignore[override]
         if self._owns_session and self._session:
-            await self._session.close()
+            await self._session.aclose()
 
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult:
         if not self._session:
             raise RuntimeError("TranscriptionClient must be used as an async context manager")
 
-        attempt = 0
-        while True:
-            attempt += 1
-            try:
-                wav_bytes = _pcm_to_wav(segment.pcm)
-                payload = aiohttp.FormData()
-                payload.add_field(
-                    "file",
-                    wav_bytes,
-                    filename=f"segment-{segment.correlation_id}.wav",
-                    content_type="audio/wav",
-                )
-                payload.add_field("metadata", segment.correlation_id)
-                assert self._session is not None
-                self._logger.info(
-                    "stt.transcribe_request",
-                    extra={
-                        "correlation_id": segment.correlation_id,
-                        "attempt": attempt,
-                        "frames": segment.frame_count,
-                        "payload_bytes": len(wav_bytes),
-                    },
-                )
-                async with self._session.post(f"{self._config.base_url}/transcribe", data=payload) as response:
-                    response.raise_for_status()
-                    data = await response.json()
-                    self._logger.info(
-                        "stt.transcribe_success",
-                        extra={
-                            "correlation_id": segment.correlation_id,
-                            "attempt": attempt,
-                            "language": data.get("language"),
-                            "confidence": data.get("confidence"),
-                        },
-                    )
-                    return TranscriptResult(
-                        text=data.get("text", ""),
-                        start_timestamp=segment.start_timestamp,
-                        end_timestamp=segment.end_timestamp,
-                        language=data.get("language"),
-                        confidence=data.get("confidence"),
-                        correlation_id=segment.correlation_id,
-                        raw_response=data,
-                    )
-            except Exception as exc:  # noqa: BLE001
-                if attempt >= self._config.max_retries:
-                    self._logger.error(
-                        "stt.transcribe_failed",
-                        extra={
-                            "correlation_id": segment.correlation_id,
-                            "attempt": attempt,
-                            "error": str(exc),
-                        },
-                    )
-                    raise
-                backoff = min(2 ** (attempt - 1), 10)
-                self._logger.warning(
-                    "stt.transcribe_retry",
-                    extra={
-                        "correlation_id": segment.correlation_id,
-                        "attempt": attempt,
-                        "backoff": backoff,
-                    },
-                )
-                await asyncio.sleep(backoff)
+        wav_bytes = _pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)
+        files = {
+            "file": (
+                f"segment-{segment.correlation_id}.wav",
+                wav_bytes,
+                "audio/wav",
+            )
+        }
+        data = {"metadata": segment.correlation_id}
+        logger = self._logger.bind(correlation_id=segment.correlation_id)
+        logger.info(
+            "stt.transcribe_request",
+            frames=segment.frame_count,
+            payload_bytes=len(wav_bytes),
+        )
+        try:
+            response = await post_with_retries(
+                self._session,
+                f"{self._config.base_url}/transcribe",
+                files=files,
+                data=data,
+                max_retries=self._config.max_retries,
+                log_fields={"correlation_id": segment.correlation_id},
+                logger=logger,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("stt.transcribe_failed", error=str(exc))
+            raise
+        payload = response.json()
+        await response.aclose()
+        logger.info(
+            "stt.transcribe_success",
+            language=payload.get("language"),
+            confidence=payload.get("confidence"),
+        )
+        return TranscriptResult(
+            text=payload.get("text", ""),
+            start_timestamp=segment.start_timestamp,
+            end_timestamp=segment.end_timestamp,
+            language=payload.get("language"),
+            confidence=payload.get("confidence"),
+            correlation_id=segment.correlation_id,
+            raw_response=payload,
+        )
 
 
 def _pcm_to_wav(pcm: bytes, *, sample_rate: int = 48000, channels: int = 1) -> bytes:

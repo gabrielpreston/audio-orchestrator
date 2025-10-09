@@ -23,12 +23,15 @@ class DiscordConfig:
 class AudioConfig:
     """Audio pipeline knobs."""
 
-    vad_threshold: float = 40.0
     silence_timeout_seconds: float = 0.75
     max_segment_duration_seconds: float = 15.0
     min_segment_duration_seconds: float = 0.3
     aggregation_window_seconds: float = 1.5
     allowlist_user_ids: List[int] = field(default_factory=list)
+    input_sample_rate_hz: int = 48000
+    vad_sample_rate_hz: int = 16000
+    vad_frame_duration_ms: int = 30
+    vad_aggressiveness: int = 2
 
 
 @dataclass(slots=True)
@@ -78,6 +81,9 @@ class WakeConfig:
     """Wake phrase detection settings."""
 
     wake_phrases: List[str] = field(default_factory=lambda: ["hey atlas", "ok atlas"])
+    model_paths: List[Path] = field(default_factory=list)
+    activation_threshold: float = 0.5
+    target_sample_rate_hz: int = 16000
 
 
 def _require_env(name: str) -> str:
@@ -118,12 +124,15 @@ def load_config() -> BotConfig:
     allowlist_ids = [int(item) for item in _split_csv(allowlist_raw)] if allowlist_raw else []
 
     audio = AudioConfig(
-        vad_threshold=float(os.getenv("AUDIO_VAD_THRESHOLD", "40.0")),
         silence_timeout_seconds=float(os.getenv("AUDIO_SILENCE_TIMEOUT", "0.75")),
         max_segment_duration_seconds=float(os.getenv("AUDIO_MAX_SEGMENT_DURATION", "15")),
         min_segment_duration_seconds=float(os.getenv("AUDIO_MIN_SEGMENT_DURATION", "0.3")),
         aggregation_window_seconds=float(os.getenv("AUDIO_AGGREGATION_WINDOW", "1.5")),
         allowlist_user_ids=allowlist_ids,
+        input_sample_rate_hz=int(os.getenv("AUDIO_SAMPLE_RATE", "48000")),
+        vad_sample_rate_hz=int(os.getenv("AUDIO_VAD_SAMPLE_RATE", "16000")),
+        vad_frame_duration_ms=int(os.getenv("AUDIO_VAD_FRAME_MS", "30")),
+        vad_aggressiveness=int(os.getenv("AUDIO_VAD_AGGRESSIVENESS", "2")),
     )
 
     stt = STTConfig(
@@ -132,9 +141,15 @@ def load_config() -> BotConfig:
         max_retries=int(os.getenv("STT_MAX_RETRIES", "3")),
     )
 
+    wake_model_paths = [Path(part) for part in _split_csv(os.getenv("WAKE_MODEL_PATHS", ""))]
     wake = WakeConfig(
         wake_phrases=_split_csv(
             os.getenv("WAKE_PHRASES", os.getenv("ORCHESTRATOR_WAKE_PHRASES", "hey atlas,ok atlas"))
+        ),
+        model_paths=wake_model_paths,
+        activation_threshold=float(os.getenv("WAKE_THRESHOLD", "0.5")),
+        target_sample_rate_hz=int(
+            os.getenv("WAKE_SAMPLE_RATE", os.getenv("AUDIO_VAD_SAMPLE_RATE", "16000"))
         ),
     )
 
