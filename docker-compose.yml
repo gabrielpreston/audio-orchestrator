@@ -2,8 +2,8 @@ version: '3.8'
 services:
   discord:
     build:
-      context: ./services/discord
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/discord/Dockerfile
     image: discord-voice-bot:latest
     env_file:
       - ./.env.common
@@ -16,8 +16,8 @@ services:
 
   stt:
     build:
-      context: ./services/stt
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/stt/Dockerfile
     image: discord-voice-stt:latest
     ports:
       - "9000:9000"
@@ -29,8 +29,8 @@ services:
 
   orch:
     build:
-      context: ./services/llm
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: services/llm/Dockerfile
     image: discord-voice-orch:latest
     env_file:
       - ./.env.common

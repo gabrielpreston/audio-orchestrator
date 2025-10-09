@@ -8,6 +8,8 @@ import subprocess
 import shutil
 from typing import Optional
 
+from services.common.logging import configure_logging, get_logger
+
 app = FastAPI(title="Local Orchestrator / OpenAI-compatible LLM")
 
 # Local OpenAI-compatible endpoint: /v1/chat/completions
@@ -22,6 +24,18 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     max_tokens: int | None = None
 
+
+def _env_bool(name: str, default: str = "true") -> bool:
+    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+
+
+configure_logging(
+    os.getenv("LOG_LEVEL", "INFO"),
+    json_logs=_env_bool("LOG_JSON", "true"),
+    service_name="llm",
+)
+logger = get_logger(__name__, service_name="llm")
+
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatRequest, authorization: str | None = Header(None)):
     # Top-level timing for request (includes prompt build + local model invocation)
@@ -31,10 +45,15 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
     expected = os.getenv("ORCH_AUTH_TOKEN")
     if expected:
         if not authorization or not authorization.startswith("Bearer ") or authorization.split(" ", 1)[1] != expected:
+            logger.warning(
+                "llm.unauthorized_request",
+                extra={"has_header": authorization is not None},
+            )
             raise HTTPException(status_code=401, detail="unauthorized")
     # Very small local "model": try to invoke a local llama CLI if available,
     # otherwise fall back to a simple echo.
     if not req.messages:
+        logger.warning("llm.bad_request", extra={"reason": "messages_missing"})
         raise HTTPException(status_code=400, detail="messages required")
 
     # Build a simple prompt from messages (system -> user/assistant sequence)
@@ -49,6 +68,14 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
     model_path = os.getenv("LLAMA_MODEL_PATH", "/app/models/llama2-7b.gguf")
     content: Optional[str] = None
     prompt_bytes = len(prompt.encode('utf-8')) if prompt else 0
+    logger.info(
+        "llm.request_received",
+        extra={
+            "model": req.model,
+            "messages": len(req.messages),
+            "prompt_bytes": prompt_bytes,
+        },
+    )
     if llm_bin:
         try:
             # Validate binary exists and is executable
@@ -67,11 +94,18 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
                             content = out
                             break
                         else:
-                            pass
-                    except Exception:
-                        pass
-        except Exception:
-            pass
+                            logger.debug(
+                                "llm.cli_failed",
+                                extra={
+                                    "args": args,
+                                    "returncode": proc.returncode,
+                                    "stderr": proc.stderr,
+                                },
+                            )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.exception("llm.cli_exception", extra={"args": args, "error": str(exc)})
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("llm.cli_setup_failed", extra={"error": str(exc)})
 
     if content is None:
         # fallback: echo the last message prefixed
@@ -84,6 +118,16 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
     total_ms = int((req_end - req_start) * 1000)
     # for local/non-llama runs we don't have separate inference timing; approximate with total_ms
     processing_ms = total_ms
+
+    logger.info(
+        "llm.response_ready",
+        extra={
+            "model": model_name,
+            "processing_ms": processing_ms,
+            "prompt_bytes": prompt_bytes,
+            "used_cli": llm_bin is not None and content is not None,
+        },
+    )
 
     # OpenAI-compatible response shape (minimal)
     resp = {

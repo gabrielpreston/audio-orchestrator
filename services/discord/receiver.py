@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Awaitable, Callable, Optional
 
+from services.common.logging import get_logger
+
 try:
     from discord.ext import voice_recv  # type: ignore[attr-defined]
 except ImportError as exc:  # pragma: no cover - handled at runtime
@@ -14,6 +16,8 @@ else:
     _IMPORT_ERROR = None
 
 FrameCallback = Callable[[int, bytes, float], Awaitable[None]]
+
+LOGGER = get_logger(__name__, service_name="discord")
 
 
 def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voice_recv.BasicSink":  # type: ignore[misc]
@@ -31,6 +35,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voi
             return
         user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
         if user_id is None:
+            LOGGER.debug("voice.receiver_unknown_user")
             return
         sample_rate = getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
         frame_count = len(pcm) // 2  # 16-bit mono
@@ -43,7 +48,10 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voi
 
 
 def _consume_result(future: "asyncio.Future[None]") -> None:
-    future.result()
+    try:
+        future.result()
+    except Exception as exc:  # noqa: BLE001
+        LOGGER.error("voice.receiver_callback_failed", extra={"error": str(exc)})
 
 
 __all__ = ["build_sink"]

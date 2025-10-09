@@ -10,6 +10,8 @@ from typing import Any, Dict, Optional
 
 import aiohttp
 
+from services.common.logging import get_logger
+
 from .audio import AudioSegment
 from .config import STTConfig
 
@@ -34,6 +36,7 @@ class TranscriptionClient:
         self._config = config
         self._session = session
         self._owns_session = session is None
+        self._logger = get_logger(__name__, service_name="discord")
 
     async def __aenter__(self) -> "TranscriptionClient":
         if self._session is None:
@@ -63,9 +66,27 @@ class TranscriptionClient:
                 )
                 payload.add_field("metadata", segment.correlation_id)
                 assert self._session is not None
+                self._logger.info(
+                    "stt.transcribe_request",
+                    extra={
+                        "correlation_id": segment.correlation_id,
+                        "attempt": attempt,
+                        "frames": segment.frame_count,
+                        "payload_bytes": len(wav_bytes),
+                    },
+                )
                 async with self._session.post(f"{self._config.base_url}/transcribe", data=payload) as response:
                     response.raise_for_status()
                     data = await response.json()
+                    self._logger.info(
+                        "stt.transcribe_success",
+                        extra={
+                            "correlation_id": segment.correlation_id,
+                            "attempt": attempt,
+                            "language": data.get("language"),
+                            "confidence": data.get("confidence"),
+                        },
+                    )
                     return TranscriptResult(
                         text=data.get("text", ""),
                         start_timestamp=segment.start_timestamp,
@@ -77,8 +98,24 @@ class TranscriptionClient:
                     )
             except Exception as exc:  # noqa: BLE001
                 if attempt >= self._config.max_retries:
+                    self._logger.error(
+                        "stt.transcribe_failed",
+                        extra={
+                            "correlation_id": segment.correlation_id,
+                            "attempt": attempt,
+                            "error": str(exc),
+                        },
+                    )
                     raise
                 backoff = min(2 ** (attempt - 1), 10)
+                self._logger.warning(
+                    "stt.transcribe_retry",
+                    extra={
+                        "correlation_id": segment.correlation_id,
+                        "attempt": attempt,
+                        "backoff": backoff,
+                    },
+                )
                 await asyncio.sleep(backoff)
 
 

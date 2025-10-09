@@ -9,6 +9,8 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional, TYPE_CHECKING
 
+from services.common.logging import get_logger
+
 from .config import BotConfig
 
 if TYPE_CHECKING:  # pragma: no cover - runtime only
@@ -33,6 +35,7 @@ class MCPServer:
 
     def __init__(self, config: BotConfig) -> None:
         self._config = config
+        self._logger = get_logger(__name__, service_name="discord")
         self._voice_bot: Optional["VoiceBot"] = None
         self._tools: Dict[str, ToolDefinition] = {}
         self._incoming: "asyncio.Queue[Optional[Dict[str, Any]]]" = asyncio.Queue()
@@ -91,13 +94,28 @@ class MCPServer:
         }
         if not self._initialized:
             self._pending_notifications.append(message)
+            self._logger.info(
+                "mcp.transcript_buffered",
+                extra={"correlation_id": payload.get("correlation_id"), "reason": "not_initialized"},
+            )
             return
         await self._send(message)
+        self._logger.info(
+            "mcp.transcript_sent",
+            extra={
+                "correlation_id": payload.get("correlation_id"),
+                "text_length": len(str(payload.get("text", ""))),
+            },
+        )
 
     async def _handle_message(self, message: Dict[str, Any]) -> None:
         if "method" not in message:
+            self._logger.debug("mcp.ignored_message", extra={"message": message})
             return
         if "id" not in message:
+            self._logger.debug(
+                "mcp.notification_ignored", extra={"method": message.get("method")}
+            )
             return
         await self._handle_request(message)
 
@@ -123,6 +141,9 @@ class MCPServer:
         except ValueError as exc:
             await self._send_error(request_id, -32602, str(exc))
         except Exception as exc:  # noqa: BLE001
+            self._logger.exception(
+                "mcp.request_failed", extra={"method": method, "id": request_id}
+            )
             await self._send_error(request_id, -32000, "Server error", {"error": str(exc)})
 
     async def _handle_initialize(self, request_id: Any) -> None:
@@ -294,9 +315,14 @@ class MCPServer:
                     continue
                 try:
                     message = json.loads(text)
-                except json.JSONDecodeError:  # noqa: PERF203
+                except json.JSONDecodeError as exc:  # noqa: PERF203
+                    self._logger.error(
+                        "mcp.invalid_message", extra={"error": str(exc), "payload": text}
+                    )
                     continue
                 loop.call_soon_threadsafe(self._incoming.put_nowait, message)
+            if not self._shutdown.is_set():
+                self._logger.debug("mcp.stdin_closed")
 
         await asyncio.to_thread(reader)
 

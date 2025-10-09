@@ -29,6 +29,8 @@ DISCORD_AUTO_JOIN=true
 STT_BASE_URL=http://localhost:9000
 WAKE_PHRASES=hey atlas,ok atlas
 AUDIO_ALLOWLIST=12345,67890
+LOG_LEVEL=INFO
+LOG_JSON=true
 ```
 
 ## Quickstart — Python voice bot
@@ -48,6 +50,10 @@ AUDIO_ALLOWLIST=12345,67890
    ```
 
    The bot exposes itself as an MCP server over stdio, coordinates with the faster-whisper STT service, performs wake-word filtering, and streams transcript notifications plus Discord control tools (join, leave, play audio, send message) to downstream orchestrators.
+
+## Structured logging
+
+All Python services share the `services.common.logging` helpers to emit JSON logs to stdout by default. Configure verbosity with `LOG_LEVEL` (e.g., `DEBUG`, `INFO`) and toggle JSON output via `LOG_JSON`. Docker Compose surfaces these logs through `docker compose logs`, making it easy to aggregate or ship them to your preferred observability stack.
 
 ## Quickstart — Docker Compose services
 

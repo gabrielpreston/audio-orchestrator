@@ -15,17 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Copy the build context into /app/stt. This makes the Dockerfile work whether
-# the build context is the repo root (.) or the `stt/` directory.
-COPY . /app/stt
+COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 
 # Install Python deps from the copied requirements
 RUN python -m pip install --upgrade pip setuptools wheel && \
-    pip install -r /app/stt/requirements.txt
+    pip install -r /app/services/stt/requirements.txt
+
+COPY services /app/services
 
 EXPOSE 9000
 
 ENV HOST=0.0.0.0
 ENV PORT=9000
 
-CMD ["uvicorn", "stt.app:app", "--host", "0.0.0.0", "--port", "9000"]
+CMD ["uvicorn", "services.stt.app:app", "--host", "0.0.0.0", "--port", "9000"]

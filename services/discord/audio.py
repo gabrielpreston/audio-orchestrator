@@ -9,6 +9,8 @@ from typing import Deque, Dict, List, Literal, Optional
 
 import numpy as np
 
+from services.common.logging import get_logger
+
 from .config import AudioConfig
 
 
@@ -121,6 +123,7 @@ class AudioPipeline:
     def __init__(self, config: AudioConfig) -> None:
         self._config = config
         self._accumulators: Dict[int, Accumulator] = {}
+        self._logger = get_logger(__name__, service_name="discord")
 
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
@@ -129,6 +132,10 @@ class AudioPipeline:
 
     def register_frame(self, user_id: int, pcm: bytes, rms: float, duration: float) -> Optional[AudioSegment]:
         if not self._allowed(user_id):
+            self._logger.debug(
+                "voice.frame_rejected",
+                extra={"user_id": user_id, "reason": "allowlist"},
+            )
             return None
 
         timestamp = time.monotonic()
@@ -144,6 +151,16 @@ class AudioPipeline:
             return None
 
         accumulator.append(frame)
+        self._logger.debug(
+            "voice.frame_buffered",
+            extra={
+                "user_id": user_id,
+                "sequence": frame.sequence,
+                "rms": rms,
+                "duration": duration,
+                "threshold": self._config.vad_threshold,
+            },
+        )
         decision = accumulator.should_flush(timestamp)
         if decision and decision.action == "flush":
             return self._flush_accumulator(accumulator, timestamp=timestamp)
@@ -162,6 +179,16 @@ class AudioPipeline:
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
+        self._logger.info(
+            "voice.segment_ready",
+            extra={
+                "user_id": segment.user_id,
+                "correlation_id": segment.correlation_id,
+                "frames": segment.frame_count,
+                "duration": segment.duration,
+                "pcm_bytes": len(segment.pcm),
+            },
+        )
         return segment
 
 

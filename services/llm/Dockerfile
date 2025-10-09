@@ -7,8 +7,8 @@ RUN apt-get update && \
 		build-essential cmake git pkg-config libgomp1 libopenblas-dev wget ca-certificates libcurl4-openssl-dev && \
 	rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY services/llm/requirements.txt /app/services/llm/requirements.txt
+RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt
 
 # Clone and build llama.cpp so the container can run gguf models directly.
 RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /app/llama.cpp && \
@@ -17,11 +17,11 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git /app/llama.cp
 	cmake .. && \
 	cmake --build . -- -j"$(nproc)"
 
-COPY app.py ./
+COPY services /app/services
 
 # Default model path and CLI
 ENV PORT=8000
 ENV LLAMA_BIN=/app/llama.cpp/main
 ENV LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "services.llm.app:app", "--host", "0.0.0.0", "--port", "8000"]

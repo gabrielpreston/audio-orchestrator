@@ -17,10 +17,10 @@ RUN apt-get update && \
         libopus0 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt /app/services/discord/requirements.txt
+COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 RUN python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/discord/requirements.txt
 
-COPY . /app/services/discord
+COPY services /app/services
 
 CMD ["python", "-m", "services.discord.main"]

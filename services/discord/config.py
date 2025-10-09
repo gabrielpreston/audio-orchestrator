@@ -55,6 +55,8 @@ class MCPConfig:
 class TelemetryConfig:
     """Diagnostics options."""
 
+    log_level: str = "INFO"
+    log_json: bool = True
     metrics_port: Optional[int] = None
     waveform_debug_dir: Optional[Path] = None
 
@@ -146,6 +148,8 @@ def load_config() -> BotConfig:
     )
 
     telemetry = TelemetryConfig(
+        log_level=os.getenv("LOG_LEVEL", "INFO"),
+        log_json=os.getenv("LOG_JSON", "true").lower() == "true",
         metrics_port=int(os.getenv("METRICS_PORT")) if os.getenv("METRICS_PORT") else None,
         waveform_debug_dir=Path(os.getenv("WAVEFORM_DEBUG_DIR", "")) if os.getenv("WAVEFORM_DEBUG_DIR") else None,
     )

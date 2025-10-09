@@ -24,6 +24,7 @@ Build an AI agent that:
 - ✅ STT service available (`services/stt/app.py`) and configured via `STT_BASE_URL`.
 - ✅ Audio pipeline / Opus decode / POST to STT (`services/discord/audio.py`, `services/discord/transcription.py`).
 - ✅ Discord integration and resolver wired (`services/discord/discord_voice.py`, `services/discord/main.py`).
+- ✅ Centralized logging helpers (`services/common/logging.py`).
 - ✅ Local dev helpers (`Makefile`): `dev-discord`, `dev-stt`, `run`, `logs`.
 
 Additional implemented pieces discovered in the codebase:

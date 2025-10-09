@@ -170,7 +170,7 @@ Each arrow represents a **structured, schema-validated interface**, independent 
 * **Authentication:** All MCP connections must use verified credentials (mTLS or short-lived tokens).
 * **Authorization:** Each tool invocation must check policy constraints (user, channel, or context).
 * **Isolation:** Run each capability server in a sandboxed environment with least-privilege permissions.
-* **Auditing:** Record all `ListTools`, `CallTool`, and `InvokeResult` events with timestamps and correlation IDs.
+* **Auditing:** Log all `ListTools`, `CallTool`, and `InvokeResult` events with timestamps and correlation IDs.
 * **Privacy:** Audio data is transient; raw voice packets are discarded after transcription unless explicitly persisted for debugging.
 
 ---
@@ -195,7 +195,7 @@ Performance tuning priorities: **KWS → STT → Orchestration → TTS** in that
 
   * **Health endpoint** (`/health` or MCP equivalent)
   * **Metrics** (Prometheus or structured JSON)
-  * **Structured activity feeds** (JSON with correlation IDs)
+  * **Structured logs** (JSON with correlation IDs)
 * Orchestrator aggregates distributed traces for full request visibility.
 * Failure of one service should degrade gracefully without blocking others.
 
@@ -221,7 +221,7 @@ If you are an **AI Agent** participating in this system:
 4. **Propagate correlation IDs** for traceability.
 5. **Handle partial failures gracefully** and attempt safe retries where possible.
 6. **Do not persist raw audio or private user data** unless explicitly authorized by policy.
-7. **Record and summarize actions** for inclusion in the orchestrator’s reasoning context.
+7. **Log and summarize actions** for inclusion in the orchestrator’s reasoning context.
 
 ---
 
