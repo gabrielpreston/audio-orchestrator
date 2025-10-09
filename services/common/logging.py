@@ -47,18 +47,21 @@ def configure_logging(
         structlog.processors.dict_tracebacks,
     ]
     if json_logs:
-        renderer = structlog.processors.JSONRenderer()
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ]
     else:
-        renderer = structlog.dev.ConsoleRenderer()
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.dev.ConsoleRenderer(),
+        ]
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             foreign_pre_chain=shared_processors,
-            processors=[
-                structlog.stdlib.ProcessorFormatter.remove_processors_meta,
-                renderer,
-            ],
+            processors=formatter_processors,
         )
     )
 
