@@ -121,9 +121,14 @@ class VoiceBot(discord.Client):
                 await self._idle_flush_task
             except asyncio.CancelledError:
                 pass
-        for guild_id in list(self._voice_receivers.keys()):
-            voice_client = self._voice_client_for_guild(guild_id)
-            self._stop_voice_receiver(guild_id, voice_client)
+        disconnect_coros: list[Awaitable[None]] = []
+        for voice_client in list(self.voice_clients):
+            guild_id = voice_client.guild.id if voice_client.guild else None
+            if guild_id is not None:
+                self._stop_voice_receiver(guild_id, voice_client)
+            disconnect_coros.append(self._disconnect_voice_client(voice_client))
+        if disconnect_coros:
+            await asyncio.gather(*disconnect_coros, return_exceptions=True)
         if self._http_session:
             await self._http_session.aclose()
         await super().close()
@@ -702,6 +707,23 @@ class VoiceBot(discord.Client):
             guild_id=guild_id,
             channel_id=voice_client.channel.id if voice_client and voice_client.channel else None,
         )
+
+    async def _disconnect_voice_client(self, voice_client: discord.VoiceClient) -> None:
+        channel_id = voice_client.channel.id if voice_client.channel else None
+        try:
+            await voice_client.disconnect(force=True)
+            self._logger.info(
+                "discord.voice_force_disconnected",
+                guild_id=voice_client.guild.id if voice_client.guild else None,
+                channel_id=channel_id,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self._logger.warning(
+                "discord.voice_force_disconnect_exception",
+                guild_id=voice_client.guild.id if voice_client.guild else None,
+                channel_id=channel_id,
+                error=str(exc),
+            )
 
     async def _cleanup_failed_voice_client(self, guild_id: int) -> None:
         voice_client = self._voice_client_for_guild(guild_id)
