@@ -7,7 +7,6 @@ import asyncio
 from services.common.logging import configure_logging
 
 from .config import load_config
-from .discord_voice import run_bot
 
 
 def main() -> None:
@@ -17,6 +16,8 @@ def main() -> None:
         json_logs=config.telemetry.log_json,
         service_name="discord",
     )
+    from .discord_voice import run_bot  # Local import so logging is configured first
+
     asyncio.run(run_bot(config))
 
 

@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help run stop logs dev-discord dev-stt clean docker-clean docker-status
+.PHONY: help run stop logs logs-dump dev-discord dev-stt clean docker-clean docker-status
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -37,7 +37,7 @@ help: ## Show this help (default)
 	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 run: stop ## Start docker-compose stack (Discord bot + STT + orchestrator)
-	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers via docker compose (press Ctrl+C to stop)$(COLOR_OFF)"
+	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then \
 	        DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans; \
@@ -47,18 +47,23 @@ run: stop ## Start docker-compose stack (Discord bot + STT + orchestrator)
 	fi
 
 stop: ## Stop and remove containers for the compose stack
-	@echo -e "$(COLOR_BLUE)→ Bringing down containers via docker compose$(COLOR_OFF)"
+	@echo -e "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)"
 	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
 	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
-	@echo -e "$(COLOR_CYAN)→ Tailing logs for compose services (Ctrl+C to stop)$(COLOR_OFF)"
-	@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
-	@if [ -z "$(SERVICE)" ]; then \
-	        $(DOCKER_COMPOSE) logs -f --tail=100; \
-	else \
-	        $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
-	fi
+		@echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"
+		@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+		@if [ -z "$(SERVICE)" ]; then \
+		        $(DOCKER_COMPOSE) logs -f --tail=100; \
+		else \
+		        $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); \
+		fi
+
+logs-dump: ## Capture docker logs to ./docker.logs
+		@echo -e "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)"
+		@if [ -z "$(DOCKER_COMPOSE)" ]; then echo "Neither 'docker compose' nor 'docker-compose' was found; please install Docker Compose."; exit 1; fi
+		@$(DOCKER_COMPOSE) logs > ./docker.logs
 
 clean: ## Remove logs and cached audio artifacts
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"

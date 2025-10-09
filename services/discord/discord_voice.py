@@ -34,9 +34,6 @@ from .transcription import TranscriptResult, TranscriptionClient
 from .wake import WakeDetector
 
 
-LOGGER = get_logger(__name__, service_name="discord")
-
-
 @dataclass(slots=True)
 class SegmentContext:
     """Metadata about a captured audio segment."""
@@ -74,7 +71,7 @@ class VoiceBot(discord.Client):
         self.audio_pipeline = audio_pipeline
         self._wake_detector = wake_detector
         self._publish_transcript = transcript_publisher
-        self._logger = LOGGER
+        self._logger = get_logger(__name__, service_name="discord")
         self._segment_queue: "asyncio.Queue[SegmentContext]" = asyncio.Queue()
         self._segment_task: Optional[asyncio.Task[None]] = None
         self._idle_flush_task: Optional[asyncio.Task[None]] = None

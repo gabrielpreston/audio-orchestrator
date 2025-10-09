@@ -7,6 +7,7 @@ import wave
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
+import audioop
 import httpx
 
 from services.common.http import post_with_retries
@@ -118,8 +119,22 @@ class TranscriptionClient:
         )
 
 
-def _pcm_to_wav(pcm: bytes, *, sample_rate: int = 48000, channels: int = 1) -> bytes:
+def _pcm_to_wav(
+    pcm: bytes,
+    *,
+    sample_rate: int = 48000,
+    channels: int = 1,
+    target_sample_rate: int = 16000,
+) -> bytes:
     """Encode raw PCM bytes into a WAV container."""
+
+    if sample_rate != target_sample_rate and pcm:
+        try:
+            pcm, _ = audioop.ratecv(pcm, 2, channels, sample_rate, target_sample_rate, None)
+            sample_rate = target_sample_rate
+        except Exception:
+            # Fall back to the original sample rate if resampling fails.
+            pass
 
     buffer = io.BytesIO()
     with wave.open(buffer, "wb") as wav_file:

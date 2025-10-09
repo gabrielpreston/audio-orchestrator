@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import audioop
-import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Literal, Optional, Pattern, TYPE_CHECKING
+from typing import Iterable, List, Literal, Optional, TYPE_CHECKING
 
 import numpy as np
+from rapidfuzz import fuzz, process, utils
 
 from services.common.logging import get_logger
 
@@ -34,33 +34,18 @@ class WakeDetectionResult:
 class WakeDetector:
     """Detect wake phrases from transcripts and raw audio."""
 
+    _TRANSCRIPT_SCORE_CUTOFF = 85.0  # RapidFuzz scores range from 0 to 100.
+
     def __init__(self, config: "WakeConfig") -> None:
         self._config = config
         self._logger = get_logger(__name__, service_name="discord")
-        self._pattern: Optional[Pattern[str]] = self._compile_pattern(config.wake_phrases)
+        self._phrases: List[str] = [
+            phrase.strip() for phrase in config.wake_phrases if phrase and phrase.strip()
+        ]
+        self._normalized_phrases: List[str] = [self._normalize_phrase(phrase) for phrase in self._phrases]
         self._target_sample_rate = config.target_sample_rate_hz
         self._threshold = config.activation_threshold
         self._model = self._load_model(config.model_paths)
-
-    def _compile_pattern(self, phrases: Iterable[str]) -> Optional[Pattern[str]]:
-        """Allow wake phrases to match even with punctuation or repeated whitespace between words."""
-
-        pattern_parts: List[str] = []
-        for phrase in phrases:
-            normalized = phrase.strip()
-            if not normalized:
-                continue
-            tokens = [token for token in re.split(r"\s+", normalized) if token]
-            if not tokens:
-                continue
-            word_patterns = [rf"\b{re.escape(token)}\b" for token in tokens]
-            phrase_pattern = word_patterns[0]
-            for token_pattern in word_patterns[1:]:
-                phrase_pattern = rf"{phrase_pattern}(?:[\W_]+){token_pattern}"
-            pattern_parts.append(phrase_pattern)
-        if not pattern_parts:
-            return None
-        return re.compile(r"(?:" + "|".join(pattern_parts) + r")", re.IGNORECASE)
 
     def _load_model(self, paths: Iterable[Path]):
         model_paths = [str(path) for path in paths if path]
@@ -88,11 +73,7 @@ class WakeDetector:
         audio_result = self._detect_audio(segment.pcm, segment.sample_rate)
         if audio_result:
             return audio_result
-        if transcript and self._pattern:
-            match = self._pattern.search(transcript)
-            if match:
-                return WakeDetectionResult(match.group(0).lower(), None, "transcript")
-        return None
+        return self._detect_transcript(transcript)
 
     def _detect_audio(self, pcm: bytes, sample_rate: int) -> Optional[WakeDetectionResult]:
         if not pcm or self._model is None:
@@ -116,6 +97,27 @@ class WakeDetector:
             return None
         return WakeDetectionResult(str(phrase), float(score), "audio")
 
+    def _detect_transcript(self, transcript: Optional[str]) -> Optional[WakeDetectionResult]:
+        if not transcript or not self._normalized_phrases:
+            return None
+        normalized_transcript = utils.default_process(transcript)
+        if not normalized_transcript:
+            return None
+        match = process.extractOne(
+            normalized_transcript,
+            self._normalized_phrases,
+            scorer=fuzz.partial_ratio,
+            score_cutoff=self._TRANSCRIPT_SCORE_CUTOFF,
+        )
+        if not match:
+            return None
+        _, score, index = match
+        if index < 0 or index >= len(self._phrases):  # pragma: no cover - defensive guard
+            return None
+        phrase = self._phrases[index]
+        confidence = float(score) / 100.0
+        return WakeDetectionResult(phrase.lower(), confidence, "transcript")
+
     def _resample(self, pcm: bytes, sample_rate: int) -> bytes:
         if sample_rate == self._target_sample_rate:
             return pcm
@@ -132,20 +134,20 @@ class WakeDetector:
             return b""
 
     def matches(self, transcript: str) -> bool:
-        if not transcript or not self._pattern:
-            return False
-        return bool(self._pattern.search(transcript))
+        return self._detect_transcript(transcript) is not None
 
     def first_match(self, transcript: str) -> Optional[str]:
-        if not transcript or not self._pattern:
-            return None
-        match = self._pattern.search(transcript)
-        return match.group(0).lower() if match else None
+        detection = self._detect_transcript(transcript)
+        return detection.phrase if detection else None
 
     def filter_segments(self, transcripts: Iterable[str]) -> List[str]:
-        if not self._pattern:
-            return list(transcripts)
         return [segment for segment in transcripts if self.matches(segment)]
+
+    @staticmethod
+    def _normalize_phrase(value: str) -> str:
+        """Normalize phrases the same way RapidFuzz normalizes inputs."""
+
+        return utils.default_process(value) or ""
 
 
 __all__ = ["WakeDetector", "WakeDetectionResult"]

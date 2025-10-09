@@ -6,7 +6,7 @@ import audioop
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Literal, Optional
+from typing import Deque, Dict, List, Literal, Optional, Tuple
 
 import numpy as np
 import webrtcvad
@@ -178,10 +178,11 @@ class AudioPipeline:
         timestamp = time.monotonic()
         accumulator = self._accumulators.setdefault(user_id, Accumulator(user_id=user_id, config=self._config))
         accumulator.sequence += 1
+        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, rms)
         frame = PCMFrame(
-            pcm=pcm,
+            pcm=normalized_pcm,
             timestamp=timestamp,
-            rms=rms,
+            rms=adjusted_rms,
             duration=duration,
             sequence=accumulator.sequence,
             sample_rate=sample_rate,
@@ -205,7 +206,7 @@ class AudioPipeline:
             "voice.frame_buffered",
             user_id=user_id,
             sequence=frame.sequence,
-            rms=rms,
+            rms=frame.rms,
             duration=duration,
             sample_rate=sample_rate,
         )
@@ -326,6 +327,29 @@ class AudioPipeline:
         except Exception as exc:  # noqa: BLE001
             self._logger.warning("voice.vad_error", error=str(exc))
             return False
+
+    def _normalize_pcm(self, pcm: bytes, rms: float, *, target_rms: float = 2000.0) -> Tuple[bytes, float]:
+        """Bring audio closer to a target RMS to reduce overly quiet or loud frames."""
+
+        if not pcm:
+            return pcm, rms
+        array = np.frombuffer(pcm, dtype=np.int16)
+        if array.size == 0:
+            return pcm, rms
+        current_rms = rms
+        if current_rms <= 0.0:
+            current_rms = float(np.sqrt(np.mean(np.square(array.astype(np.float32))))) or 0.0
+        if current_rms <= 0.0:
+            return pcm, current_rms
+        scale = target_rms / current_rms
+        scale = float(np.clip(scale, 0.5, 4.0))
+        if abs(scale - 1.0) <= 0.05:
+            return pcm, current_rms
+        scaled = array.astype(np.float32) * scale
+        np.clip(scaled, -32768.0, 32767.0, out=scaled)
+        normalized = scaled.astype(np.int16)
+        new_rms = float(np.sqrt(np.mean(np.square(normalized.astype(np.float32))))) if normalized.size else 0.0
+        return normalized.tobytes(), new_rms
 
 
 def rms_from_pcm(pcm: bytes) -> float:

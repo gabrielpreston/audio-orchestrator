@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 from typing import Awaitable, Callable, Optional
 
+from structlog.stdlib import BoundLogger
+
 from services.common.logging import get_logger
 
 try:
@@ -17,7 +19,14 @@ else:
 
 FrameCallback = Callable[[int, bytes, float, int], Awaitable[None]]
 
-LOGGER = get_logger(__name__, service_name="discord")
+_LOGGER: Optional[BoundLogger] = None
+
+
+def _get_logger() -> BoundLogger:
+    global _LOGGER
+    if _LOGGER is None:
+        _LOGGER = get_logger(__name__, service_name="discord")
+    return _LOGGER
 
 
 def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voice_recv.BasicSink":  # type: ignore[misc]
@@ -29,13 +38,15 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voi
             message = f"{message}: {type(_IMPORT_ERROR).__name__}: {_IMPORT_ERROR}"
         raise RuntimeError(message)
 
+    logger = _get_logger()
+
     def handler(user: Optional[object], data: "voice_recv.VoiceData") -> None:  # type: ignore[valid-type]
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
         if not pcm:
             return
         user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
         if user_id is None:
-            LOGGER.debug("voice.receiver_unknown_user")
+            logger.debug("voice.receiver_unknown_user")
             return
         sample_rate = getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
         frame_count = len(pcm) // 2  # 16-bit mono
@@ -51,7 +62,7 @@ def _consume_result(future: "asyncio.Future[None]") -> None:
     try:
         future.result()
     except Exception as exc:  # noqa: BLE001
-        LOGGER.error("voice.receiver_callback_failed", error=str(exc))
+        _get_logger().error("voice.receiver_callback_failed", error=str(exc))
 
 
 __all__ = ["build_sink"]

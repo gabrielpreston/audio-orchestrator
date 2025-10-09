@@ -39,6 +39,5 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./logs:/app/logs
       - ./services/llm/models:/app/models:ro
     restart: unless-stopped

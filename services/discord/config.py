@@ -27,7 +27,7 @@ class DiscordConfig:
 class AudioConfig:
     """Audio pipeline knobs."""
 
-    silence_timeout_seconds: float = 0.75
+    silence_timeout_seconds: float = 1.0
     max_segment_duration_seconds: float = 15.0
     min_segment_duration_seconds: float = 0.3
     aggregation_window_seconds: float = 1.5
@@ -35,7 +35,7 @@ class AudioConfig:
     input_sample_rate_hz: int = 48000
     vad_sample_rate_hz: int = 16000
     vad_frame_duration_ms: int = 30
-    vad_aggressiveness: int = 2
+    vad_aggressiveness: int = 1
 
 
 @dataclass(slots=True)
@@ -159,7 +159,7 @@ def load_config() -> BotConfig:
     wake_model_paths = [Path(part) for part in _split_csv(os.getenv("WAKE_MODEL_PATHS", ""))]
     wake = WakeConfig(
         wake_phrases=_split_csv(
-            os.getenv("WAKE_PHRASES", os.getenv("ORCHESTRATOR_WAKE_PHRASES", "hey atlas,ok atlas"))
+            os.getenv("WAKE_PHRASES", "hey atlas,ok atlas")
         ),
         model_paths=wake_model_paths,
         activation_threshold=float(os.getenv("WAKE_THRESHOLD", "0.5")),
