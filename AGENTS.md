@@ -108,6 +108,9 @@ via MCP manifests; document and test them when introduced.
 - Align architectural diagrams and process descriptions with the actual service
   behavior described above. Update `docs/MCP_MANIFEST.md`, `ROADMAP.md`, and any
   proposals if your change affects them.
+- Whenever a proposal is requested, author it as a Markdown file under
+  `docs/proposals/` (e.g., `docs/proposals/<topic>.md`) so it can be reviewed
+  alongside other documentation artifacts.
 
 ## 8. Observability, security, & performance
 
