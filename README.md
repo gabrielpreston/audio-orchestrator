@@ -46,6 +46,19 @@ Before you start the bot, update `services/discord/.env.service` with your Disco
 
 All Python services share the `services.common.logging` helpers to emit JSON logs to stdout by default. Configure verbosity with `LOG_LEVEL` (e.g., `DEBUG`, `INFO`) and toggle JSON output via `LOG_JSON`. Docker Compose surfaces these logs through `docker compose logs`, making it easy to aggregate or ship them to your preferred observability stack.
 
+## Voice connection tuning
+
+The Discord bot now retries voice handshakes automatically if the gateway or media edge takes too long
+to respond. Adjust retry behavior with `DISCORD_VOICE_CONNECT_TIMEOUT`, `DISCORD_VOICE_CONNECT_ATTEMPTS`,
+`DISCORD_VOICE_RECONNECT_BASE_DELAY`, and `DISCORD_VOICE_RECONNECT_MAX_DELAY` in
+`services/discord/.env.service`.
+
+## Wake phrase detection
+
+Wake phrase matching now tolerates extra punctuation or spacing in STT transcripts, and ignored
+segments log a short `transcript_preview` so you can inspect what was heard without cranking global
+log levels.
+
 ## Quickstart — Docker Compose services
 
 Populate each `services/**/.env.service` file (see `.env.sample`) with production-ready values, then adjust `.env.docker` if you need custom UID/GID ownership for mounted volumes. When everything is in place, build and run the stack:

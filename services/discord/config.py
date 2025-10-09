@@ -17,6 +17,10 @@ class DiscordConfig:
     voice_channel_id: int
     intents: List[str] = field(default_factory=lambda: ["guilds", "voice_states", "guild_messages"])
     auto_join: bool = False
+    voice_connect_timeout_seconds: float = 15.0
+    voice_connect_max_attempts: int = 3
+    voice_reconnect_initial_backoff_seconds: float = 5.0
+    voice_reconnect_max_backoff_seconds: float = 60.0
 
 
 @dataclass(slots=True)
@@ -119,6 +123,14 @@ def load_config() -> BotConfig:
         voice_channel_id=_get_int("DISCORD_VOICE_CHANNEL_ID"),
         intents=_split_csv(os.getenv("DISCORD_INTENTS", "guilds,voice_states")),
         auto_join=os.getenv("DISCORD_AUTO_JOIN", "false").lower() == "true",
+        voice_connect_timeout_seconds=float(os.getenv("DISCORD_VOICE_CONNECT_TIMEOUT", "15")),
+        voice_connect_max_attempts=max(1, int(os.getenv("DISCORD_VOICE_CONNECT_ATTEMPTS", "3"))),
+        voice_reconnect_initial_backoff_seconds=float(
+            os.getenv("DISCORD_VOICE_RECONNECT_BASE_DELAY", "5")
+        ),
+        voice_reconnect_max_backoff_seconds=float(
+            os.getenv("DISCORD_VOICE_RECONNECT_MAX_DELAY", "60")
+        ),
     )
 
     allowlist_raw = os.getenv("AUDIO_ALLOWLIST", "")

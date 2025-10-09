@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import io
+import random
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import Awaitable, Callable, Dict, Optional
+from typing import Awaitable, Callable, Dict, Optional, Set
 
 import httpx
 import discord
@@ -48,6 +49,15 @@ class SegmentContext:
 TranscriptPublisher = Callable[[Dict[str, object]], Awaitable[None]]
 
 
+def _truncate_text(value: Optional[str], *, limit: int = 120) -> Optional[str]:
+    if not value:
+        return None
+    compact = " ".join(value.split())
+    if len(compact) <= limit:
+        return compact
+    return compact[: limit - 3] + "..."
+
+
 class VoiceBot(discord.Client):
     """Discord client that orchestrates voice capture and downstream processing."""
 
@@ -73,6 +83,9 @@ class VoiceBot(discord.Client):
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._voice_receivers: Dict[int, object] = {}
         self._voice_contexts: Dict[int, tuple[int, int]] = {}
+        self._voice_join_locks: Dict[int, asyncio.Lock] = {}
+        self._voice_reconnect_tasks: Dict[int, asyncio.Task[None]] = {}
+        self._suppress_reconnect: Set[int] = set()
         if discord_voice_recv is None:
             self._logger.critical(
                 "voice.recv_extension_missing",
@@ -90,6 +103,15 @@ class VoiceBot(discord.Client):
 
     async def close(self) -> None:
         self._shutdown.set()
+        reconnect_tasks = list(self._voice_reconnect_tasks.values())
+        self._voice_reconnect_tasks.clear()
+        for task in reconnect_tasks:
+            task.cancel()
+        for task in reconnect_tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         if self._segment_task:
             self._segment_task.cancel()
             try:
@@ -116,9 +138,22 @@ class VoiceBot(discord.Client):
             guilds=[guild.id for guild in self.guilds],
         )
         if self.config.discord.auto_join:
-            await self.join_voice_channel(
-                self.config.discord.guild_id, self.config.discord.voice_channel_id
-            )
+            try:
+                await self.join_voice_channel(
+                    self.config.discord.guild_id, self.config.discord.voice_channel_id
+                )
+            except Exception as exc:  # noqa: BLE001
+                self._logger.error(
+                    "discord.voice_auto_join_failed",
+                    guild_id=self.config.discord.guild_id,
+                    channel_id=self.config.discord.voice_channel_id,
+                    error=str(exc),
+                )
+                self._schedule_voice_reconnect(
+                    self.config.discord.guild_id,
+                    self.config.discord.voice_channel_id,
+                    reason="auto_join_failed",
+                )
 
     async def join_voice_channel(self, guild_id: int, channel_id: int) -> Dict[str, object]:
         await self.wait_until_ready()
@@ -129,45 +164,99 @@ class VoiceBot(discord.Client):
         if not isinstance(channel, discord.VoiceChannel):
             raise ValueError(f"Channel {channel_id} is not a voice channel")
 
-        voice_client = self._voice_client_for_guild(guild_id)
-        desired_cls = (discord_voice_recv.VoiceRecvClient if discord_voice_recv else discord.VoiceClient)  # type: ignore[attr-defined]
+        lock = self._voice_join_locks.setdefault(guild_id, asyncio.Lock())
+        async with lock:
+            self._cancel_pending_reconnect(guild_id)
+            voice_client = self._voice_client_for_guild(guild_id)
+            desired_cls = (
+                discord_voice_recv.VoiceRecvClient if discord_voice_recv else discord.VoiceClient
+            )  # type: ignore[attr-defined]
 
-        if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
-            if discord_voice_recv and not isinstance(voice_client, discord_voice_recv.VoiceRecvClient):  # type: ignore[attr-defined]
-                await voice_client.disconnect()
-                voice_client = None
-            else:
-                self._logger.info(
-                    "discord.voice_already_connected",
-                    guild_id=guild_id,
-                    channel_id=channel_id,
-                )
-                self._ensure_voice_receiver(voice_client)
-                return {"status": "already_connected", "guild_id": guild_id, "channel_id": channel_id}
-
-        try:
-            if voice_client and voice_client.channel:
-                await voice_client.move_to(channel)
-                self._ensure_voice_receiver(voice_client)
-            else:
-                connect_kwargs = {"cls": desired_cls} if discord_voice_recv else {}
-                voice_client = await channel.connect(**connect_kwargs)
-                if voice_client:
+            if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
+                if (
+                    discord_voice_recv is not None
+                    and not isinstance(
+                        voice_client,
+                        discord_voice_recv.VoiceRecvClient,  # type: ignore[attr-defined]
+                    )
+                ):
+                    await voice_client.disconnect()
+                    voice_client = None
+                else:
+                    self._logger.info(
+                        "discord.voice_already_connected",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                    )
                     self._ensure_voice_receiver(voice_client)
-        except Exception as exc:  # noqa: BLE001
+                    return {
+                        "status": "already_connected",
+                        "guild_id": guild_id,
+                        "channel_id": channel_id,
+                    }
+
+            timeout = max(1.0, self.config.discord.voice_connect_timeout_seconds)
+            max_attempts = max(1, self.config.discord.voice_connect_max_attempts)
+            base_backoff = max(0.5, self.config.discord.voice_reconnect_initial_backoff_seconds)
+            max_backoff = max(base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds)
+
+            attempt = 0
+            delay = 0.0
+            last_exc: Optional[Exception] = None
+            while attempt < max_attempts:
+                if delay > 0:
+                    await asyncio.sleep(delay)
+                attempt += 1
+                connect_kwargs = {
+                    "cls": desired_cls,
+                    "timeout": timeout,
+                    "reconnect": False,
+                }
+                try:
+                    voice_client = self._voice_client_for_guild(guild_id)
+                    if voice_client and voice_client.channel:
+                        await voice_client.move_to(channel)
+                    else:
+                        voice_client = await channel.connect(**connect_kwargs)
+                    if voice_client is None:
+                        raise RuntimeError("Voice client unavailable after connect attempt")
+                    if not voice_client.is_connected():
+                        raise RuntimeError("Voice client reported disconnected immediately")
+                    self._ensure_voice_receiver(voice_client)
+                    self._logger.info(
+                        "discord.voice_connected",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        attempt=attempt,
+                    )
+                    return {"status": "connected", "guild_id": guild_id, "channel_id": channel_id}
+                except Exception as exc:  # noqa: BLE001
+                    last_exc = exc
+                    self._logger.warning(
+                        "discord.voice_connect_retry",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                        error=str(exc),
+                    )
+                    await self._cleanup_failed_voice_client(guild_id)
+                    if attempt >= max_attempts:
+                        break
+                    exponential = base_backoff * (2 ** (attempt - 1))
+                    delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
+                    continue
+
             self._logger.error(
                 "discord.voice_connect_failed",
                 guild_id=guild_id,
                 channel_id=channel_id,
-                error=str(exc),
+                attempts=max_attempts,
+                error=str(last_exc) if last_exc else None,
             )
-            raise
-        self._logger.info(
-            "discord.voice_connected",
-            guild_id=guild_id,
-            channel_id=channel_id,
-        )
-        return {"status": "connected", "guild_id": guild_id, "channel_id": channel_id}
+            if last_exc:
+                raise last_exc
+            raise RuntimeError("Voice connection attempts exhausted")
 
     async def leave_voice_channel(self, guild_id: int) -> Dict[str, object]:
         await self.wait_until_ready()
@@ -180,14 +269,51 @@ class VoiceBot(discord.Client):
             return {"status": "not_connected", "guild_id": guild_id}
 
         channel_id = voice_client.channel.id if voice_client.channel else None
-        self._stop_voice_receiver(guild_id, voice_client)
-        await voice_client.disconnect()
+        self._cancel_pending_reconnect(guild_id)
+        self._suppress_reconnect.add(guild_id)
+        try:
+            self._stop_voice_receiver(guild_id, voice_client)
+            await voice_client.disconnect()
+        finally:
+            self._suppress_reconnect.discard(guild_id)
         self._logger.info(
             "discord.voice_disconnected",
             guild_id=guild_id,
             channel_id=channel_id,
         )
         return {"status": "disconnected", "guild_id": guild_id, "channel_id": channel_id}
+
+    async def on_voice_state_update(  # type: ignore[override]
+        self,
+        member: discord.Member,
+        before: discord.VoiceState,
+        after: discord.VoiceState,
+    ) -> None:
+        if self.user is None or member.id != self.user.id:
+            return
+        guild_id = member.guild.id
+        if guild_id in self._suppress_reconnect:
+            return
+        if self._shutdown.is_set():
+            return
+        if not self.config.discord.auto_join or guild_id != self.config.discord.guild_id:
+            return
+        target_channel_id = self.config.discord.voice_channel_id
+        if after.channel is not None:
+            return
+        previous_channel_id = before.channel.id if before.channel else None
+        if previous_channel_id is not None and previous_channel_id != target_channel_id:
+            return
+        self._logger.warning(
+            "discord.voice_connection_lost",
+            guild_id=guild_id,
+            channel_id=previous_channel_id,
+        )
+        self._schedule_voice_reconnect(
+            guild_id,
+            target_channel_id,
+            reason="voice_state_disconnected",
+        )
 
     async def send_text_message(self, channel_id: int, content: str) -> Dict[str, object]:
         await self.wait_until_ready()
@@ -202,7 +328,12 @@ class VoiceBot(discord.Client):
         )
         return {"status": "sent", "channel_id": channel_id, "message_id": message.id}
 
-    async def play_audio_from_url(self, guild_id: int, channel_id: int, audio_url: str) -> Dict[str, object]:
+    async def play_audio_from_url(
+        self,
+        guild_id: int,
+        channel_id: int,
+        audio_url: str,
+    ) -> Dict[str, object]:
         await self.wait_until_ready()
         if not self._http_session:
             timeout = httpx.Timeout(30.0, connect=10.0)
@@ -366,6 +497,7 @@ class VoiceBot(discord.Client):
                 "voice.segment_ignored",
                 correlation_id=transcript.correlation_id,
                 reason="wake_not_detected",
+                transcript_preview=_truncate_text(transcript.text),
             )
             return
 
@@ -448,6 +580,77 @@ class VoiceBot(discord.Client):
                 return voice_client
         return None
 
+    def _cancel_pending_reconnect(self, guild_id: int) -> None:
+        task = self._voice_reconnect_tasks.get(guild_id)
+        if not task:
+            return
+        current_task = asyncio.current_task()
+        if current_task is task:
+            return
+        self._voice_reconnect_tasks.pop(guild_id, None)
+        task.cancel()
+
+    def _schedule_voice_reconnect(self, guild_id: int, channel_id: int, *, reason: str) -> None:
+        if self._shutdown.is_set():
+            return
+        if guild_id in self._voice_reconnect_tasks:
+            return
+        if self._loop is None:
+            try:
+                self._loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+        self._logger.info(
+            "discord.voice_reconnect_scheduled",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            reason=reason,
+        )
+        task = self._loop.create_task(self._voice_reconnect_worker(guild_id, channel_id, reason))
+        self._voice_reconnect_tasks[guild_id] = task
+
+        def _finalizer(completed: asyncio.Task[None], gid: int = guild_id) -> None:
+            self._voice_reconnect_tasks.pop(gid, None)
+            with suppress(Exception):
+                completed.result()
+
+        task.add_done_callback(_finalizer)
+
+    async def _voice_reconnect_worker(self, guild_id: int, channel_id: int, reason: str) -> None:
+        base_backoff = max(0.5, self.config.discord.voice_reconnect_initial_backoff_seconds)
+        max_backoff = max(base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds)
+        attempt = 0
+        while not self._shutdown.is_set():
+            attempt += 1
+            try:
+                await self.join_voice_channel(guild_id, channel_id)
+            except Exception as exc:  # noqa: BLE001
+                exponential = base_backoff * (2 ** max(0, attempt - 1))
+                delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
+                self._logger.warning(
+                    "discord.voice_reconnect_retry",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    attempt=attempt,
+                    reason=reason,
+                    error=str(exc),
+                    next_delay=delay,
+                )
+                try:
+                    await asyncio.wait_for(self._shutdown.wait(), timeout=delay)
+                    return
+                except asyncio.TimeoutError:
+                    continue
+            else:
+                self._logger.info(
+                    "discord.voice_reconnect_success",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    attempts=attempt,
+                    reason=reason,
+                )
+                return
+
     def _ensure_voice_receiver(self, voice_client: discord.VoiceClient) -> None:
         if self._loop is None:
             self._logger.warning(
@@ -483,7 +686,11 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
         )
 
-    def _stop_voice_receiver(self, guild_id: int, voice_client: Optional[discord.VoiceClient]) -> None:
+    def _stop_voice_receiver(
+        self,
+        guild_id: int,
+        voice_client: Optional[discord.VoiceClient],
+    ) -> None:
         receiver = self._voice_receivers.pop(guild_id, None)
         if not receiver:
             return
@@ -498,6 +705,14 @@ class VoiceBot(discord.Client):
             guild_id=guild_id,
             channel_id=voice_client.channel.id if voice_client and voice_client.channel else None,
         )
+
+    async def _cleanup_failed_voice_client(self, guild_id: int) -> None:
+        voice_client = self._voice_client_for_guild(guild_id)
+        if not voice_client:
+            return
+        self._stop_voice_receiver(guild_id, voice_client)
+        with suppress(Exception):
+            await voice_client.disconnect(force=True)
 
     @staticmethod
     def _build_intents(config: DiscordConfig) -> discord.Intents:

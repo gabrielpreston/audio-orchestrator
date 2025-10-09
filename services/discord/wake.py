@@ -43,10 +43,24 @@ class WakeDetector:
         self._model = self._load_model(config.model_paths)
 
     def _compile_pattern(self, phrases: Iterable[str]) -> Optional[Pattern[str]]:
-        cleaned = [re.escape(phrase.strip()) for phrase in phrases if phrase.strip()]
-        if not cleaned:
+        """Allow wake phrases to match even with punctuation or repeated whitespace between words."""
+
+        pattern_parts: List[str] = []
+        for phrase in phrases:
+            normalized = phrase.strip()
+            if not normalized:
+                continue
+            tokens = [token for token in re.split(r"\s+", normalized) if token]
+            if not tokens:
+                continue
+            word_patterns = [rf"\b{re.escape(token)}\b" for token in tokens]
+            phrase_pattern = word_patterns[0]
+            for token_pattern in word_patterns[1:]:
+                phrase_pattern = rf"{phrase_pattern}(?:[\W_]+){token_pattern}"
+            pattern_parts.append(phrase_pattern)
+        if not pattern_parts:
             return None
-        return re.compile(r"(?:^|\b)(" + "|".join(cleaned) + r")(?:\b|$)", re.IGNORECASE)
+        return re.compile(r"(?:" + "|".join(pattern_parts) + r")", re.IGNORECASE)
 
     def _load_model(self, paths: Iterable[Path]):
         model_paths = [str(path) for path in paths if path]
