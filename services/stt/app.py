@@ -29,6 +29,21 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="stt")
 
+
+@app.on_event("startup")
+async def _warm_model() -> None:
+    """Ensure the Whisper model is loaded before serving traffic."""
+
+    try:
+        _lazy_load_model()
+        logger.info("stt.model_preloaded", model_name=MODEL_NAME)
+    except HTTPException:
+        # _lazy_load_model already logged and raised; propagate to fail fast.
+        raise
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc))
+        raise
+
 def _parse_bool(value: Optional[str]) -> bool:
     if value is None:
         return False
@@ -117,12 +132,12 @@ async def _transcribe_request(
     language = lang_q
     include_word_ts = _parse_bool(word_ts_q)
     # default beam size (if not provided) — keep it modest to balance quality/latency
-    beam_size = 5
+    beam_size = 6
     if beam_size_q:
         try:
             beam_size = int(beam_size_q)
             if beam_size < 1:
-                beam_size = 5
+                beam_size = 6
         except Exception:
             raise HTTPException(status_code=400, detail="invalid beam_size query param")
 
