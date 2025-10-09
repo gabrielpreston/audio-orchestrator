@@ -74,10 +74,11 @@ class VoiceBot(discord.Client):
         self._voice_receivers: Dict[int, object] = {}
         self._voice_contexts: Dict[int, tuple[int, int]] = {}
         if discord_voice_recv is None:
-            self._logger.warning(
+            self._logger.critical(
                 "voice.recv_extension_missing",
                 message="discord-ext-voice-recv not available; voice receive disabled",
             )
+            raise RuntimeError("discord-ext-voice-recv not available; voice receive disabled")
 
     async def setup_hook(self) -> None:
         self._loop = asyncio.get_running_loop()

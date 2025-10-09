@@ -47,8 +47,8 @@ def _load_llama() -> Optional[Llama]:
 
     model_path = os.getenv("LLAMA_MODEL_PATH", "/app/models/llama2-7b.gguf")
     if not os.path.exists(model_path):
-        logger.warning("llm.model_missing", model_path=model_path)
-        return None
+        logger.critical("llm.model_missing", model_path=model_path)
+        raise RuntimeError(f"LLM model not found at {model_path}")
 
     try:
         ctx = int(os.getenv("LLAMA_CTX", "2048"))
@@ -64,8 +64,9 @@ def _load_llama() -> Optional[Llama]:
         _LLAMA_INFO = {"model_path": model_path, "ctx": ctx, "threads": threads}
         logger.info("llm.model_loaded", model_path=model_path, ctx=ctx, threads=threads)
     except Exception as exc:  # noqa: BLE001
-        logger.exception("llm.model_load_failed", model_path=model_path, error=str(exc))
+        logger.critical("llm.model_load_failed", model_path=model_path, error=str(exc))
         _LLAMA = None
+        raise RuntimeError(f"Failed to load LLM model from {model_path}")
     return _LLAMA
 
 
@@ -84,7 +85,7 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
         raise HTTPException(status_code=400, detail="messages required")
 
     prompt_bytes = len("\n".join(message.content for message in req.messages).encode("utf-8"))
-    logger.info(
+    logger.debug(
         "llm.request_received",
         model=req.model,
         messages=len(req.messages),
@@ -128,7 +129,9 @@ async def chat_completions(req: ChatRequest, authorization: str | None = Header(
         processing_ms=processing_ms,
         total_ms=total_ms,
         prompt_bytes=prompt_bytes,
+        text_length=len(content or ""),
     )
+    logger.debug("llm.response_text", text=content)
 
     usage_payload = {
         "prompt_tokens": usage.get("prompt_tokens", 0),
