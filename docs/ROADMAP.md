@@ -25,7 +25,7 @@ Build an AI agent that:
 - ✅ Audio pipeline / Opus decode / POST to STT (`services/discord/audio.py`, `services/discord/transcription.py`).
 - ✅ Discord integration and resolver wired (`services/discord/discord_voice.py`, `services/discord/main.py`).
 - ✅ Centralized logging helpers (`services/common/logging.py`).
-- ✅ Local dev helpers (`Makefile`): `dev-discord`, `dev-stt`, `run`, `logs`.
+- ✅ Docker helpers (`Makefile`): `run`, `logs`, `docker-build`.
 
 Additional implemented pieces discovered in the codebase:
 - ✅ Allow-listing of users via `AUDIO_ALLOWLIST` (`services/discord/config.py`, `services/discord/audio.py`).
@@ -47,7 +47,7 @@ Objective: Establish two-way communication between the voice agent and Cursor’
 
 - ⬜ Cursor context access — Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. (Agent can “see” the project and reason about it.)
 - ⬜ Codegen orchestration — Define how agent proposals (from LLM) are written into files or suggested as diffs. (AI can write code directly into the repo.)
-- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `dev-discord`, `dev-stt`, `run`.)
+- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `run`, `logs`.)
 
 ---
 
