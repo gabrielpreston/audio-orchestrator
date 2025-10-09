@@ -29,29 +29,46 @@ def _get_logger() -> BoundLogger:
     return _LOGGER
 
 
-def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> "voice_recv.BasicSink":  # type: ignore[misc]
+def build_sink(
+    loop: asyncio.AbstractEventLoop,
+    callback: FrameCallback,
+) -> "voice_recv.BasicSink":  # type: ignore[misc]
     """Return a BasicSink that forwards decoded PCM frames to the pipeline."""
 
     if voice_recv is None:  # pragma: no cover - safety net for missing dependency
-        message = "discord-ext-voice-recv is not available; install to enable voice receive"
+        message = (
+            "discord-ext-voice-recv is not available; install to enable voice receive"
+        )
         if _IMPORT_ERROR:
             message = f"{message}: {type(_IMPORT_ERROR).__name__}: {_IMPORT_ERROR}"
         raise RuntimeError(message)
 
     logger = _get_logger()
 
-    def handler(user: Optional[object], data: "voice_recv.VoiceData") -> None:  # type: ignore[valid-type]
+    def handler(
+        user: Optional[object],
+        data: "voice_recv.VoiceData",
+    ) -> None:  # type: ignore[valid-type]
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
         if not pcm:
             return
-        user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
+        user_id = (
+            getattr(user, "id", None) if user else getattr(data, "user_id", None)
+        )
         if user_id is None:
             logger.debug("voice.receiver_unknown_user")
             return
-        sample_rate = getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
+        sample_rate = (
+            getattr(data, "sample_rate", None)
+            or getattr(data, "sampling_rate", None)
+            or 48000
+        )
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
-        future = asyncio.run_coroutine_threadsafe(callback(user_id, pcm, duration, int(sample_rate)), loop)
+        future = asyncio.run_coroutine_threadsafe(
+            callback(user_id, pcm, duration, int(sample_rate)),
+            loop,
+        )
         future.add_done_callback(_consume_result)
 
     # BasicSink accepts the callback and supports decode option.

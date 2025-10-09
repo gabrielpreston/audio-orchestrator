@@ -125,10 +125,10 @@ async def _transcribe_request(
     # Allow clients to optionally request a translation task by passing
     # the `task=translate` query parameter. We also accept `beam_size` and
     # `language` query params to tune faster-whisper behavior at runtime.
-    task = request.query_params.get('task')
-    beam_size_q = request.query_params.get('beam_size')
-    lang_q = request.query_params.get('language')
-    word_ts_q = request.query_params.get('word_timestamps')
+    task = request.query_params.get("task")
+    beam_size_q = request.query_params.get("beam_size")
+    lang_q = request.query_params.get("language")
+    word_ts_q = request.query_params.get("word_timestamps")
     language = lang_q
     include_word_ts = _parse_bool(word_ts_q)
     # default beam size (if not provided) — keep it modest to balance quality/latency
@@ -144,9 +144,16 @@ async def _transcribe_request(
     tmp_path = None
     # metadata for response payload
     input_bytes = len(wav_bytes)
-    request_id = request.headers.get('X-Correlation-ID') or request.query_params.get('correlation_id')
-    headers_correlation = request.headers.get('X-Correlation-ID')
-    correlation_id = correlation_id or headers_correlation or request.query_params.get('correlation_id')
+    request_id = (
+        request.headers.get("X-Correlation-ID")
+        or request.query_params.get("correlation_id")
+    )
+    headers_correlation = request.headers.get("X-Correlation-ID")
+    correlation_id = (
+        correlation_id
+        or headers_correlation
+        or request.query_params.get("correlation_id")
+    )
     try:
         logger.debug(
             "stt.request_received",
@@ -172,16 +179,15 @@ async def _transcribe_request(
         # implementations accept a word_timestamps=True parameter).
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
-        if task == 'translate':
-            if include_word_ts:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=language, word_timestamps=True)
-            else:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, task='translate', language=language)
+        transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
+        if task == "translate":
+            transcribe_kwargs.update({"task": "translate", "language": language})
         else:
-            if include_word_ts:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=language, word_timestamps=True)
-            else:
-                segments, info = model.transcribe(tmp_path, beam_size=beam_size, language=language)
+            if language is not None:
+                transcribe_kwargs["language"] = language
+        if include_word_ts:
+            transcribe_kwargs["word_timestamps"] = True
+        segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
         # optionally include word-level timestamps).
@@ -307,7 +313,10 @@ async def transcribe(request: Request):
     try:
         form = await request.form()
     except ClientDisconnect:
-        correlation_id = request.headers.get("X-Correlation-ID") or request.query_params.get("correlation_id")
+        correlation_id = (
+            request.headers.get("X-Correlation-ID")
+            or request.query_params.get("correlation_id")
+        )
         logger.info(
             "stt.client_disconnect",
             correlation_id=correlation_id,

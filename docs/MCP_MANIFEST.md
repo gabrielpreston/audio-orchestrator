@@ -1,6 +1,8 @@
 # MCP manifest (mcp.json)
 
-This document shows the `mcp.json` manifest shape used by the bot to discover and connect to MCP servers. The bot reads manifests in the following order (override -> workspace -> user):
+This document shows the `mcp.json` manifest shape used by the bot to discover
+and connect to MCP servers. The bot reads manifests in the following order
+(override -> workspace -> user):
 
 - MCP_CONFIG_PATH (environment override)
 - workspace `.discord-voice-lab/mcp.json` (project-scoped)
@@ -10,7 +12,9 @@ The parsed manifest is merged and normalized by `services/discord/mcp.py`.
 
 Top-level shape
 
-The manifest is a JSON object with an `mcpServers` map of named server entries. Each server entry may specify either a `transport` (remote websocket) or a `command` (subprocess) connection.
+The manifest is a JSON object with an `mcpServers` map of named server entries.
+Each server entry may specify either a `transport` (remote websocket) or a
+`command` (subprocess) connection.
 
 Example manifest (two servers)
 
@@ -41,7 +45,9 @@ Field reference
 
 - `mcpServers` (object): map of server name -> server config.
 - ServerConfig fields:
-  - `transport` (object, optional): when present and `type` is `websocket` the bot will attempt to connect by websocket. Use the `url` field to provide the websocket endpoint (e.g. `wss://host/mcp/ws`).
+- `transport` (object, optional): when present and `type` is `websocket` the
+  bot attempts to connect by websocket. Use the `url` field to provide the
+  websocket endpoint (e.g. `wss://host/mcp/ws`).
     - `type` (string): currently `websocket` is supported.
     - `url` (string): websocket URL (http(s) will be normalized to ws/wss automatically by the client).
   - `command` (string, optional): executable to spawn from the bot container. If provided, the bot starts the process and wires stdio as the MCP transport.
@@ -57,8 +63,12 @@ Behavior and fallbacks
 Notes and recommendations
 
 - Use absolute paths in `command` to avoid path/lookup surprises; the manifest loader expands `~` and similar paths when present.
-- For production MCP servers prefer `wss://` and protect the endpoint (authentication/tokens) — the current client wrapper dials without additional headers by default.
-- When running MCP server processes via `command`, ensure the binary speaks the MCP JSON-RPC protocol over stdio. The client expects newline-delimited JSON messages and frames them with the upstream `jsonrpc` helper.
+- For production MCP servers prefer `wss://` and protect the endpoint
+  (authentication/tokens) — the current client wrapper dials without additional
+  headers by default.
+- When running MCP server processes via `command`, ensure the binary speaks the
+  MCP JSON-RPC protocol over stdio. The client expects newline-delimited JSON
+  messages and frames them with the upstream `jsonrpc` helper.
 
 Example: minimal `mcp.json` entry
 

@@ -61,12 +61,15 @@ Consult the user only when:
 `discord-voice-lab` delivers a voice-first Discord assistant composed of three Python services
 plus shared helpers:
 
-| Service/Module | Language | Role |
-| -------------- | -------- | ---- |
-| `services/discord` | Python (discord.py, MCP) | Captures voice from Discord, detects wake phrases, forwards audio to STT, exposes Discord control tools, and plays orchestrator/TTS audio responses. |
-| `services/stt` | Python (FastAPI, faster-whisper) | Provides HTTP transcription with streaming-friendly latencies for the Discord bot and other clients. |
-| `services/llm` | Python (FastAPI) | Presents an OpenAI-compatible endpoint that can broker MCP tool invocations and return reasoning output to the bot. |
-| `services/common` | Python package | Houses shared logging and HTTP utilities to keep service behavior consistent. |
+- `services/discord` (Python; `discord.py`, MCP) — Captures voice from Discord,
+  detects wake phrases, forwards audio to STT, exposes Discord control tools,
+  and plays orchestrator/TTS audio responses.
+- `services/stt` (Python; FastAPI, faster-whisper) — Provides HTTP transcription
+  with streaming-friendly latencies for the Discord bot and other clients.
+- `services/llm` (Python; FastAPI) — Presents an OpenAI-compatible endpoint that
+  can broker MCP tool invocations and return reasoning output to the bot.
+- `services/common` (Python package) — Houses shared logging and HTTP utilities
+  to keep service behavior consistent.
 
 Optional capability servers (e.g., text-to-speech or file tooling) can integrate via MCP
 manifests; document and test them when introduced.
@@ -93,8 +96,7 @@ manifests; document and test them when introduced.
 - When introducing new environment variables, update `.env.sample`, copy the values into each
   affected `services/**/.env.service` file, and call out the requirement in README/docs so local and
   containerized runs stay aligned.
-- Document breaking or notable configuration changes in `README.md` and the matching guide under
-  `docs/`.
+- Document all configuration changes in `README.md` and the matching guide under `docs/`.
 
 ## 6. Tooling & workflow standards
 

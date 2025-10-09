@@ -85,7 +85,8 @@ class Accumulator:
             if self.silence_started_at is None:
                 self.silence_started_at = timestamp
                 new_silence = True
-        # When frames exist we intentionally avoid mutating last_activity so silence can trigger flushes.
+        # When frames exist we intentionally avoid mutating last_activity
+        # so silence can trigger flushes.
         return new_silence
 
     def should_flush(self, timestamp: float) -> Optional[FlushDecision]:
@@ -176,7 +177,10 @@ class AudioPipeline:
             return None
 
         timestamp = time.monotonic()
-        accumulator = self._accumulators.setdefault(user_id, Accumulator(user_id=user_id, config=self._config))
+        accumulator = self._accumulators.setdefault(
+            user_id,
+            Accumulator(user_id=user_id, config=self._config),
+        )
         accumulator.sequence += 1
         normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, rms)
         frame = PCMFrame(
@@ -328,7 +332,13 @@ class AudioPipeline:
             self._logger.warning("voice.vad_error", error=str(exc))
             return False
 
-    def _normalize_pcm(self, pcm: bytes, rms: float, *, target_rms: float = 2000.0) -> Tuple[bytes, float]:
+    def _normalize_pcm(
+        self,
+        pcm: bytes,
+        rms: float,
+        *,
+        target_rms: float = 2000.0,
+    ) -> Tuple[bytes, float]:
         """Bring audio closer to a target RMS to reduce overly quiet or loud frames."""
 
         if not pcm:
@@ -348,7 +358,11 @@ class AudioPipeline:
         scaled = array.astype(np.float32) * scale
         np.clip(scaled, -32768.0, 32767.0, out=scaled)
         normalized = scaled.astype(np.int16)
-        new_rms = float(np.sqrt(np.mean(np.square(normalized.astype(np.float32))))) if normalized.size else 0.0
+        new_rms = (
+            float(np.sqrt(np.mean(np.square(normalized.astype(np.float32)))))
+            if normalized.size
+            else 0.0
+        )
         return normalized.tobytes(), new_rms
 
 

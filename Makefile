@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status
+.PHONY: help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -41,6 +41,13 @@ COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked 'docker compose
 # Enable BuildKit by default for faster builds when Docker is available.
 DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
+
+PYTHON_SOURCES := services
+DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile
+MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
+LINT_IMAGE ?= discord-voice-lab/lint:latest
+LINT_DOCKERFILE := services/linter/Dockerfile
+LINT_WORKDIR := /workspace
 
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
@@ -138,5 +145,51 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 docker-status: ## Show status of docker-compose services
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) ps
+
+lint: lint-container ## Run all linters inside the lint toolchain container
+
+lint-container: lint-image ## Build lint container (if needed) and run lint suite
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE)
+
+lint-image: ## Build the lint toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
+
+lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown ## Run all linters using locally installed tooling
+
+lint-python: ## Run Python linters and type checks (black, isort, ruff, mypy)
+	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
+	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
+	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
+	@black --check $(PYTHON_SOURCES)
+	@isort --check-only $(PYTHON_SOURCES)
+	@ruff check $(PYTHON_SOURCES)
+	@mypy $(PYTHON_SOURCES)
+
+lint-dockerfiles: ## Lint service Dockerfiles with hadolint
+	@command -v hadolint >/dev/null 2>&1 || { \
+		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
+	@hadolint $(DOCKERFILES)
+
+lint-compose: ## Lint docker-compose.yml with yamllint
+	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found; install it (e.g. pip install yamllint)." >&2; exit 1; }
+	@yamllint docker-compose.yml
+
+lint-makefile: ## Lint Makefile with checkmake
+	@command -v checkmake >/dev/null 2>&1 || { \
+		echo "checkmake not found; install via 'go install github.com/mrtazz/checkmake/cmd/checkmake@latest'." >&2; exit 1; }
+	@checkmake Makefile
+
+lint-markdown: ## Lint Markdown docs with markdownlint
+	@command -v markdownlint >/dev/null 2>&1 || { \
+		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
+	@markdownlint $(MARKDOWN_FILES)
 
 .DEFAULT_GOAL := help

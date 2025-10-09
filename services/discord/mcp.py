@@ -338,8 +338,18 @@ class MCPServer:
     async def _send_response(self, request_id: Any, result: Any) -> None:
         await self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
-    async def _send_error(self, request_id: Any, code: int, message: str, data: Any = None) -> None:
-        payload: Dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+    async def _send_error(
+        self,
+        request_id: Any,
+        code: int,
+        message: str,
+        data: Any = None,
+    ) -> None:
+        payload: Dict[str, Any] = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "error": {"code": code, "message": message},
+        }
         if data is not None:
             payload["error"]["data"] = data
         await self._send(payload)

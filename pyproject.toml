@@ -1,0 +1,20 @@
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.isort]
+line_length = 100
+profile = "black"
+known_first_party = ["services"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["services/llm/models"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+exclude = ["^services/llm/models/"]

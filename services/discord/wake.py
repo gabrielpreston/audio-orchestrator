@@ -42,7 +42,9 @@ class WakeDetector:
         self._phrases: List[str] = [
             phrase.strip() for phrase in config.wake_phrases if phrase and phrase.strip()
         ]
-        self._normalized_phrases: List[str] = [self._normalize_phrase(phrase) for phrase in self._phrases]
+        self._normalized_phrases: List[str] = [
+            self._normalize_phrase(phrase) for phrase in self._phrases
+        ]
         self._target_sample_rate = config.target_sample_rate_hz
         self._threshold = config.activation_threshold
         self._model = self._load_model(config.model_paths)
@@ -67,7 +69,11 @@ class WakeDetector:
             )
             return None
 
-    def detect(self, segment: "AudioSegment", transcript: Optional[str]) -> Optional[WakeDetectionResult]:
+    def detect(
+        self,
+        segment: "AudioSegment",
+        transcript: Optional[str],
+    ) -> Optional[WakeDetectionResult]:
         """Detect a wake phrase from audio first, then fall back to transcripts."""
 
         audio_result = self._detect_audio(segment.pcm, segment.sample_rate)
@@ -86,7 +92,10 @@ class WakeDetector:
         try:
             scores = self._model.predict(payload)  # type: ignore[arg-type]
         except TypeError:
-            scores = self._model.predict(payload, sample_rate=self._target_sample_rate)  # type: ignore[arg-type]
+            scores = self._model.predict(
+                payload,
+                sample_rate=self._target_sample_rate,
+            )  # type: ignore[arg-type]
         except Exception as exc:  # noqa: BLE001
             self._logger.error("wake.audio_inference_failed", error=str(exc))
             return None

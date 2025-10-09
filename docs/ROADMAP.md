@@ -2,8 +2,13 @@
 ## AI Development Agent — 2-Week Strategic Roadmap
 
 **Goal:**  
-Transition from an experimental voice-enabled Discord bot into the foundation of a **Cursor-centric AI development agent** — one capable of understanding spoken commands, iterating on ideas, writing and testing code, and driving the software delivery lifecycle (SDLC) end-to-end.  
-Discord (or similar platforms) become optional interfaces; the core system’s value is its ability to act as a **hands-on, voice-driven collaborator inside the development environment itself.**
+Transition from an experimental voice-enabled Discord bot into the foundation
+of a **Cursor-centric AI development agent** — one capable of understanding
+spoken commands, iterating on ideas, writing and testing code, and driving the
+software delivery lifecycle (SDLC) end-to-end.  
+Discord (or similar platforms) become optional interfaces; the core system’s
+value is its ability to act as a **hands-on, voice-driven collaborator inside
+the development environment itself.**
 
 ---
 
