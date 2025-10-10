@@ -142,6 +142,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+      - name: Prepare environment defaults
+        run: python3 scripts/prepare_env_files.py
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95dbbcefb5d1d5668564ca4d9974c3984bfb0fb
       - name: Build and validate Compose stack

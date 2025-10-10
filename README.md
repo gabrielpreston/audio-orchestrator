@@ -103,9 +103,12 @@ request to `main` exercises the same checks you run locally:
    the lint/test packages, `npm install -g markdownlint-cli`, `go install
    github.com/checkmake/checkmake/cmd/checkmake@latest`, and download the
    Hadolint binary).
-2. Run `make lint-local`, `make test-local`, and `make docker-smoke` in that
+2. Run `python scripts/prepare_env_files.py` to materialize the `.env.common`,
+   `.env.docker`, and `services/**/.env.service` files expected by
+   `docker-compose`.
+3. Run `make lint-local`, `make test-local`, and `make docker-smoke` in that
    order to match the GitHub Actions jobs.
-3. When a job fails in CI, download the corresponding artifact (`pytest-log`,
+4. When a job fails in CI, download the corresponding artifact (`pytest-log`,
    `docker-smoke-artifacts`, or `pip-audit-reports`) from the Actions run for
    additional diagnostics.
 
