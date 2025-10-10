@@ -20,16 +20,19 @@ in the MCP user journey proposal so we can deliver a cohesive, voice-first DevOp
 2. [ ] **Tool-Agnostic Execution Fabric** — Maintain adapters that let the orchestrator swap
    seamlessly between Cursor, other MCP editing environments, or local tooling for code edits, test
    runs, and git flows while Discord provides the conversational shell.
-3. [ ] **Persona-Locked Orchestration** — Anchor the LLM orchestrator in a consistent
+3. [ ] **Adaptive Orchestrator Runtime** — Reinforce the existing FastAPI path with Redis-backed
+   state, structured streaming, and OpenTelemetry so MCP tools stay portable across managed and
+   self-hosted contexts while replicating today’s cadence, persona prompts, and payload contracts.
+4. [ ] **Persona-Locked Orchestration** — Anchor the LLM orchestrator in a consistent
    project-manager/personal-assistant persona that plans, delegates, and confirms while routing
    specialized work to clearly defined expert personas (e.g., reviewer, deployer).
-4. [ ] **MCP Workflow Mesh** — Treat MCP tools as modular building blocks that let the orchestrator
+5. [ ] **MCP Workflow Mesh** — Treat MCP tools as modular building blocks that let the orchestrator
    span GitHub, Monday.com, AWS, and Discord text channels without bespoke integrations per
    workflow.
-5. [ ] **Stateful Follow-through** — Persist intent, action status, and accountability trails inside
+6. [ ] **Stateful Follow-through** — Persist intent, action status, and accountability trails inside
    Monday.com so every workflow has a living source of truth that captures ownership, due dates,
    escalation paths, and closure evidence.
-6. [ ] **Progressive Safety, Memory, and Governance** — Apply only the minimal confirmations needed
+7. [ ] **Progressive Safety, Memory, and Governance** — Apply only the minimal confirmations needed
    for core functionality early on, then layer deeper role checks, audit logs, and hardening toward
    the end of the program when broader adoption is imminent.
 
@@ -49,6 +52,11 @@ Platform investments:
 
 - [ ] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
   with retry/backoff controls already present in the bot code.
+- [ ] Stand up a Redis-backed orchestrator sandbox and companion Make target that proxies Discord
+  transcripts, captures event payloads, parity gaps, and benchmarks end-to-end latency deltas versus
+  the current local Llama loop.
+- [ ] Introduce Redis conversation and tool-state storage plus structured streaming envelopes
+  instrumented with OpenTelemetry to deliver the Option A progress events.
 - [ ] Introduce a lightweight intent schema that maps speech into structured actions (e.g.,
   read-only status queries vs. write actions requiring confirmation).
 - [ ] Implement short-term conversation memory to carry entity references across turns (“Move the
@@ -56,11 +64,15 @@ Platform investments:
 - [ ] Build lightweight confirmation heuristics for state-changing operations before touching
   external systems so the project-manager persona verifies intent without blocking iteration; defer
   robust policy enforcement to Wave 3.
+- [ ] Capture a parity ledger that inventories today’s orchestrator behaviors (persona prompts,
+  payload schema, streaming cadence, fallback messaging) and annotate which elements the Redis
+  runtime must emulate during sandbox and rollout phases.
 - [ ] Stand up a Monday.com-linked state ledger that records intent, current status, assignee,
   follow-up checkpoints, and agreed escalation cadences for every orchestrated workflow.
 - [ ] Publish a capability registry that maps development actions to available tooling (Cursor
   sessions, alternative MCP editors, or local execution) with health signals so the orchestrator can
-  choose the appropriate implementation detail at run time.
+  choose the appropriate implementation detail at run time and flag functionality gaps to backfill
+  before full migration.
 
 User journey enablement:
 
@@ -75,6 +87,8 @@ User journey enablement:
 - [ ] **AWS observability hooks** — Provide `aws.cloudwatch_get_metric` for latency triage with rate
   limiting and structured incident payloads. Mirror incident triage sessions into Monday.com
   timelines with automatic reminders for validation tasks.
+- [ ] **Runtime sandbox evaluation** — Document setup, env keys, parity checklists, and regression
+  results for the Redis runtime so Discord reviewers can compare streaming behavior before rollout.
 
 Milestone definition of done:
 
@@ -92,14 +106,21 @@ Platform investments:
   `github.create_comment`, `aws.autoscaling_set_desired_capacity`, Monday.com incident templates,
   and Discord embeds for rich responses, relying on playbook confirmations while postponing deeper
   control-plane hardening to the final wave.
+- [ ] Add a feature-flagged Redis state and streaming layer inside `services/llm` that registers
+  existing MCP tooling, emits structured progress events, and falls back to the local Llama runtime
+  when Redis or telemetry paths are unavailable while replaying transcript fixtures to confirm the new
+  path replicates the legacy orchestration contract.
 - [ ] Teach the capability registry to rank and select execution tools based on latency,
   availability, and required affordances (e.g., batch refactors vs. quick edits) so workflows stay
   portable if Cursor is unavailable or a local-only stack is preferred.
 - [ ] Stand up a checklist manifest engine that declaratively encodes multi-step flows (release
   handoff, incident response) with success criteria, branching logic, and persona responsibilities so
-  the orchestrator can call in reviewer/deployer experts when needed.
+  the orchestrator can call in reviewer/deployer experts when needed, matching the automation hooks
+  already exercised in the local ecosystem.
 - [ ] Add repository/workspace scoping metadata so the orchestrator selects the correct GitHub repo
   or Monday board based on channel context.
+- [ ] Extend regression harnesses with golden Discord transcripts and tool outputs so the Redis path
+  and the legacy runtime produce equivalent responses before flipping the default runtime.
 - [ ] Layer CI log summarization skills to convert check-run output into concise voice narratives
   with links back to raw artifacts.
 - [ ] Expand the Monday.com state ledger into a lifecycle tracker that captures planned actions,
@@ -118,6 +139,9 @@ User journey enablement:
 - [ ] **AWS incident response** — Execute autoscaling adjustments with guard rails, generate Discord
   embeds for incident context, and log incidents into Monday.com with tagging conventions, status
   transitions, reminder loops, and post-incident verification checklists so nothing drops.
+- [ ] **Dual-mode orchestrator rollout** — Ship structured logs, regression tests, transcript replay
+  harnesses, and documentation covering Redis runtime enablement, fallback behavior, and operational
+  dashboards.
 
 Milestone definition of done:
 
@@ -137,6 +161,8 @@ Platform investments:
   hardening investments.
 - [ ] Expand conversation memory into session-level context with persistence hooks for postmortem
   review.
+- [ ] Run Redis-vs-local bakeoffs on representative release and incident scripts, documenting any
+  residual gaps and sign-offs required before removing the local executor.
 - [ ] Implement blocker escalation logic that routes unresolved items into follow-up workflows
   (task creation, paging) without losing context, guided by the project-manager persona’s escalation
   play.
@@ -145,6 +171,9 @@ Platform investments:
 - [ ] Provide an onboarding kit for new development tools, including manifest templates and
   validation harnesses, so the capability registry can add or swap execution surfaces without
   destabilizing the orchestrator.
+- [ ] Promote the Redis-backed orchestrator runtime to the default path, remove the legacy Llama
+  dependency, and harden observability, failover messaging, and documentation for production use once
+  parity checklists clear across sandbox, dual-mode, and production transcripts.
 - [ ] Provide Monday.com cadences that track release readiness artifacts, attach generated reports,
   and notify owners when voice-driven tasks remain incomplete, including automated reminders and
   escalations when response SLAs slip.
@@ -162,6 +191,9 @@ User journey enablement:
 - [ ] **Continuous improvement hooks** — Capture incident learnings and roadmap updates to seed
   future conversations and memory, linking lessons learned to living Monday.com improvement tasks so
   they remain actionable and assigned.
+- [ ] **Redis-runtime operations** — Demonstrate that the Redis-backed runtime meets latency targets,
+  auditability expectations, and fallback protocols across release handoff, collaboration, and
+  improvement workflows while keeping voice UX consistent.
 
 Milestone definition of done:
 
