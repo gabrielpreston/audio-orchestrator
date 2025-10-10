@@ -36,7 +36,7 @@ else
 HAS_DOCKER_COMPOSE := 1
 endif
 
-COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked 'docker compose' and 'docker-compose'); please install Docker Compose.
+COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose.
 
 # Enable BuildKit by default for faster builds when Docker is available.
 DOCKER_BUILDKIT ?= 1
@@ -61,16 +61,6 @@ if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 |
 else
 	if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but docker buildx is missing; running without BuildKit."; fi
 	$(DOCKER_COMPOSE) up -d --build --remove-orphans
-fi
-endef
-
-define SHELL_LOGS_COMMAND
-echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"
-if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-if [ -z "$(SERVICE)" ]; then
-	$(DOCKER_COMPOSE) logs -f --tail=100
-else
-	$(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE)
 fi
 endef
 
@@ -111,7 +101,9 @@ stop: ## Stop and remove containers for the compose stack
 	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
-	@bash -eo pipefail -c '$(SHELL_LOGS_COMMAND)'
+	@echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"; \
+	if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi; \
+	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs -f --tail=100; else $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); fi
 
 logs-dump: ## Capture docker logs to ./docker.logs
 	@echo -e "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)"
