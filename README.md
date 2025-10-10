@@ -101,3 +101,15 @@ toolchain with host-installed binaries. Install the Python packages via
 `pip install black isort ruff mypy yamllint`, the Dockerfile linter with
 `hadolint`, the Makefile linter using `go install github.com/checkmake/checkmake/cmd/checkmake@latest`,
 and the Markdown linter with `npm install -g markdownlint-cli`.
+
+## Testing
+
+Run `make test` to execute the Python test suite inside a dedicated container
+(`services/tester/`). Docker builds the `discord-voice-lab/test` image (cached
+after the first run), mounts the repository into `/workspace`, and runs
+`pytest`. Pass arguments to `pytest` by setting `PYTEST_ARGS`, for example
+`make test PYTEST_ARGS="-k wake_phrase"`.
+
+Need to debug with locally installed tooling? Use `make test-local` to run the
+same `pytest` invocation on the host. Set `PYTHONPATH` to include the repository
+root if you call `pytest` directly.
