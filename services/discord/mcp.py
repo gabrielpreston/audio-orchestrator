@@ -230,9 +230,7 @@ class MCPServer:
             ),
             "discord.send_message": ToolDefinition(
                 name="discord.send_message",
-                description=(
-                    "Send a message into a Discord text channel or voice channel chat."
-                ),
+                description=("Send a message into a Discord text channel or voice channel chat."),
                 input_schema={
                     "type": "object",
                     "properties": {

@@ -6,9 +6,9 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
+import httpx
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
-import httpx
 from llama_cpp import Llama
 from pydantic import BaseModel
 

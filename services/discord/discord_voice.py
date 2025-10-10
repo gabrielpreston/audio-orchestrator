@@ -7,6 +7,7 @@ import io
 import random
 from contextlib import suppress
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, Optional, Set
 
 import discord
@@ -332,13 +333,11 @@ class VoiceBot(discord.Client):
                 discord.Thread,
             ),
         ):
-            raise ValueError(
-                f"Channel {channel_id} does not support text messages"
-            )
+            raise ValueError(f"Channel {channel_id} does not support text messages")
         message = await channel.send(content)
         channel_type = getattr(channel, "type", None)
-        if hasattr(channel_type, "name"):
-            channel_type_name = channel_type.name  # type: ignore[assignment]
+        if isinstance(channel_type, Enum):
+            channel_type_name = channel_type.name
         elif channel_type is None:
             channel_type_name = None
         else:

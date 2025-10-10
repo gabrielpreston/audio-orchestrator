@@ -12,9 +12,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel, Field, root_validator
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from piper import PiperVoice
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from pydantic import BaseModel, Field, root_validator
 
 from services.common.logging import configure_logging, get_logger
 
@@ -226,7 +226,9 @@ def _load_voice() -> None:
 
     if _DEFAULT_VOICE:
         if _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
-            raise RuntimeError(f"Configured default voice {_DEFAULT_VOICE!r} is not present in model")
+            raise RuntimeError(
+                f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
+            )
 
     logger.info(
         "tts.voice_loaded",
@@ -372,5 +374,6 @@ async def synthesize(
         duration_ms=int(duration * 1000),
     )
     return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
+
 
 __all__ = ["app"]
