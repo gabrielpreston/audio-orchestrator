@@ -28,10 +28,10 @@ navigational spine while preserving existing content.
 | --- | --- | --- | --- |
 | `README.md` | High-level overview, quickstart, and navigation pointers into deeper guides. | New contributors | Add "Documentation Index" section linking to `docs/index.md`. |
 | `docs/index.md` | Entry hub describing documentation taxonomy and cross-linking major sections. | All roles | New file consolidating table of contents, version history, and contribution rules. |
-| `docs/getting-started/` | Environment setup, service bootstrap, make targets, troubleshooting. | New contributors, platform engineers | Fold existing README sections and future onboarding guides here. |
-| `docs/architecture/` | System diagrams, service descriptions, messaging contracts. | Developers, architects | House reorganized content from README, `docs/MCP_MANIFEST.md`, and new diagrams per service. |
+| `docs/getting-started/` | Environment setup, service bootstrap, make targets, troubleshooting. | New contributors, platform engineers | Fold core README setup plus future onboarding guides here. |
+| `docs/architecture/` | System diagrams, service descriptions, messaging contracts. | Developers, architects | Rehome README architecture sections, `docs/MCP_MANIFEST.md`, and new service diagrams. |
 | `docs/operations/` | Runbooks, observability guides, deployment procedures, incident response. | Operators, SREs | Include structured logging, metrics, health endpoints, TTS/STT tuning. |
-| `docs/reference/` | API schemas, configuration catalogs, manifest specifications. | Integrators, platform engineers | Move `MCP_MANIFEST.md`, environment variable tables, and service endpoint references. |
+| `docs/reference/` | API schemas, configuration catalogs, manifest specifications. | Integrators, platform engineers | Collect env var tables, service endpoints, and manifest specs. |
 | `docs/roadmaps/` | Strategic plans and execution waves with changelog anchors. | Leadership, planners | Migrate `docs/ROADMAP.md` and future planning docs, include index by date. |
 | `docs/reports/` | Implementation reviews, retrospectives, performance evaluations. | Stakeholders, QA | Relocate `docs/implemented/tts_service_evaluation.md` and similar artifacts. |
 | `docs/proposals/` | In-flight and historical proposals, each with status metadata. | Architects, reviewers | Maintain existing proposal files with front matter summarizing decision state. |
@@ -94,4 +94,3 @@ navigational spine while preserving existing content.
   taxonomy in the README plus team channels before moving files.
 - **Drift between service READMEs and canonical docs** — Keep service READMEs scoped to quickstart
   steps and surface deeper detail exclusively from architecture/operations guides.
-
