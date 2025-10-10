@@ -1,5 +1,7 @@
 # Discord Voice Lab — Quickstart
 
+[![CI](https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml/badge.svg)](https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml)
+
 This repository provides a Python-based Discord voice agent alongside supporting
 services for speech-to-text (STT) and lightweight orchestration. The Python bot
 handles audio capture, wake-word filtering, transcription requests, and exposes
@@ -80,6 +82,32 @@ to bring the bot into the target voice channel before sending follow-up text.
 That's all you need to get started. Update environment defaults and
 documentation in tandem with any behavior changes to keep the project
 consistent.
+
+## Continuous integration
+
+GitHub Actions now mirrors the local Makefile workflow so every push and pull
+request to `main` exercises the same checks you run locally:
+
+- `Lint` — executes `make lint-local`, covering Black, isort, Ruff, MyPy,
+  Hadolint, Yamllint, Checkmake, and Markdownlint.
+- `Tests` — calls `make test-local` with the repository root on `PYTHONPATH`
+  so pytest behavior matches the `services/tester` container.
+- `Docker smoke` — runs `make docker-smoke` to render the Compose config, list
+  services, and build all images with BuildKit enabled.
+- `Security scan` — runs `pip-audit` against every `services/**/requirements.txt`
+  file and uploads JSON reports as workflow artifacts.
+
+### Reproducing CI locally
+
+1. Pull the latest `main` branch and install host dependencies (`pip install`
+   the lint/test packages, `npm install -g markdownlint-cli`, `go install
+   github.com/checkmake/checkmake/cmd/checkmake@latest`, and download the
+   Hadolint binary).
+2. Run `make lint-local`, `make test-local`, and `make docker-smoke` in that
+   order to match the GitHub Actions jobs.
+3. When a job fails in CI, download the corresponding artifact (`pytest-log`,
+   `docker-smoke-artifacts`, or `pip-audit-reports`) from the Actions run for
+   additional diagnostics.
 
 ## Linting
 
