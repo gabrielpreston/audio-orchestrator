@@ -1,3 +1,13 @@
+---
+title: Documentation Restructure Proposal
+author: Discord Voice Lab Team
+status: accepted
+last-updated: 2024-07-05
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Proposals ▸ Documentation Restructure Proposal
+
 # Documentation Restructure Proposal
 
 ## Purpose

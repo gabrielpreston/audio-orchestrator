@@ -1,3 +1,13 @@
+---
+title: Discord Voice MCP User Journeys
+author: Discord Voice Lab Team
+status: draft
+last-updated: 2024-07-05
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Proposals ▸ Discord Voice MCP User Journeys
+
 # Discord Voice MCP User Journeys
 
 ## Overview

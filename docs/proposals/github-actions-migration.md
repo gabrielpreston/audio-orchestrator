@@ -1,3 +1,13 @@
+---
+title: GitHub Actions Migration
+author: Discord Voice Lab Team
+status: draft
+last-updated: 2024-07-05
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Proposals ▸ GitHub Actions Migration
+
 # Proposal: GitHub Actions Migration for Discord Voice Lab
 
 ## Executive Summary

@@ -1,3 +1,12 @@
+---
+title: 2024 Integrated Voice DevOps
+author: Discord Voice Lab Team
+status: active
+last-updated: 2024-07-05
+---
+
+> Docs ▸ Roadmaps ▸ 2024 Integrated Voice DevOps
+
 # Project Roadmap
 
 ## Integrated Voice-Driven DevOps Roadmap
