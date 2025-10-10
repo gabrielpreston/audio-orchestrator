@@ -1,112 +1,207 @@
 # Project Roadmap
 
-## AI Development Agent — 2-Week Strategic Roadmap
+## Integrated Voice-Driven DevOps Roadmap
 
-**Goal:**  
-Transition from an experimental voice-enabled Discord bot into the foundation
-of a **Cursor-centric AI development agent** — one capable of understanding
-spoken commands, iterating on ideas, writing and testing code, and driving the
-software delivery lifecycle (SDLC) end-to-end.  
-Discord (or similar platforms) become optional interfaces; the core system’s
-value is its ability to act as a **hands-on, voice-driven collaborator inside
-the development environment itself.**
+**North Star:**
+Evolve the Discord voice lab into an **agnostic multi-tool AI development agent** that understands
+speech, selects the right execution surface (Cursor, alternative MCP tools, or a local workspace),
+executes workflows across GitHub, Monday.com, and AWS, and reliably closes the SDLC loop from
+ideation to deployment.
 
----
-
-## 1. Strategic Vision
-
-Build an AI agent that:
-
-- 🧠 **Understands context deeply** — not just natural language, but project structure, architecture, and constraints.
-- 🛠️ **Writes, tests, builds, and ships code autonomously** — able to operate as a “pair programmer++” that closes loops without needing manual follow-up.
-- 🎙️ **Takes spoken direction** — letting developers guide work conversationally while staying in flow.
-- 🔄 **Integrates seamlessly with the developer toolchain** — particularly Cursor, Git, build pipelines, and test harnesses.
-- 🚀 **Improves over time** — learning from past decisions, style guides, and review feedback.
+This roadmap blends the original 14-day acceleration plan with the cross-domain workflows captured
+in the MCP user journey proposal so we can deliver a cohesive, voice-first DevOps assistant.
 
 ---
 
-## 2. 14-Day Roadmap (Strategic Focus)
+## 1. Strategic Themes
 
-### Current status (codebase)
-
-- ✅ STT service available (`services/stt/app.py`) and configured via `STT_BASE_URL`.
-- ✅ Audio pipeline / Opus decode / POST to STT (`services/discord/audio.py`, `services/discord/transcription.py`).
-- ✅ Discord integration and resolver wired (`services/discord/discord_voice.py`, `services/discord/main.py`).
-- ✅ Centralized logging helpers (`services/common/logging.py`).
-- ✅ Docker helpers (`Makefile`): `run`, `logs`, `docker-build`.
-
-Additional implemented pieces discovered in the codebase:
-
-- ✅ Allow-listing of users via `AUDIO_ALLOWLIST` (`services/discord/config.py`, `services/discord/audio.py`).
-- ✅ Wake phrase configuration and filtering (`services/discord/wake.py`, `services/discord/config.py`).
-- ✅ Transcript aggregation with retry/backoff when calling STT (`services/discord/transcription.py`).
-- ✅ Structured MCP manifest loading for downstream tools (`services/discord/mcp.py`).
-
-### Phase 1 — Stabilize the Core Voice Layer (Days 1-3)
-
-Objective: Finalize the base voice ingestion pipeline so the agent can reliably hear and understand instructions.
-
-- ✅ Voice input pipeline — Finalize PCM → STT → text pipeline, ensuring stable transcription from microphone or Discord. (Agent reliably receives commands in text form.)
-- ✅ Command framing — Define a lightweight schema for “intent parsing” (e.g., `action: create_file`, `action: run_tests`). (Voice commands map to actionable tasks.)
-- ⬜ Optional: Multi-channel input — Support local mic input *and* Discord voice input with identical downstream handling. (Voice source becomes interchangeable.)
+1. **Voice as Intent Interface** — Maintain low-latency, high-accuracy transcription and intent
+   framing so spoken requests seamlessly translate into executable plans.
+2. **Tool-Agnostic Execution Fabric** — Maintain adapters that let the orchestrator swap seamlessly
+   between Cursor, other MCP editing environments, or local tooling for code edits, test runs, and
+   git flows while Discord provides the conversational shell.
+3. **Persona-Locked Orchestration** — Anchor the LLM orchestrator in a consistent
+   project-manager/personal-assistant persona that plans, delegates, and confirms while routing
+   specialized work to clearly defined expert personas (e.g., reviewer, deployer).
+4. **MCP Workflow Mesh** — Treat MCP tools as modular building blocks that let the orchestrator span
+   GitHub, Monday.com, AWS, and Discord text channels without bespoke integrations per workflow.
+5. **Stateful Follow-through** — Persist intent, action status, and accountability trails inside
+   Monday.com so every workflow has a living source of truth that captures ownership, due dates,
+   escalation paths, and closure evidence.
+6. **Safety, Memory, and Governance** — Embed confirmation prompts, role checks, audit logs, and
+   short-term conversation memory so the agent can operate responsibly across sensitive surfaces.
 
 ---
 
-### Phase 2 — Cursor Environment Integration (Days 4-7)
+## 2. Execution Horizon
 
-Objective: Establish two-way communication between the voice agent and Cursor’s API / local environment.
+The plan is structured into three execution waves that layer foundational capabilities, workflow
+automation, and operational maturity. Each wave includes platform work plus the user-journey
+deliverables required to unlock business value.
 
-- ⬜ Cursor context access — Implement connection to Cursor API / local workspace to read project files, structure, and open buffers. (Agent can “see” the project and reason about it.)
-- ⬜ Codegen orchestration — Define how agent proposals (from LLM) are written into files or suggested as diffs. (AI can write code directly into the repo.)
-- ✅ Action verification layer — Implement test harness commands: e.g., “run unit tests”, “check for linter errors”. (Infrastructure present: `Makefile` targets `run`, `logs`.)
+### Wave 1 — Platform Stabilization (Weeks 1-2)
 
----
+**Goal:** Harden the voice/MCP core so it can support multi-service workflows.
 
-### Phase 3 — Voice-Driven Dev Flows (Days 8-11)
+Platform investments:
 
-Objective: Prototype meaningful real-world use cases driven entirely by voice.
+- Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion, with
+  retry/backoff controls already present in the bot code.
+- Introduce a lightweight intent schema that maps speech into structured actions (e.g., read-only
+  status queries vs. write actions requiring confirmation).
+- Implement short-term conversation memory to carry entity references across turns (“Move the API
+  hardening task”).
+- Build confirmation heuristics and safety rails for state-changing operations before touching
+  external systems, reinforcing the project-manager persona’s responsibility to verify owner intent.
+- Stand up a Monday.com-linked state ledger that records intent, current status, assignee, follow-up
+  checkpoints, and agreed escalation cadences for every orchestrated workflow.
+- Publish a capability registry that maps development actions to available tooling (Cursor sessions,
+  alternative MCP editors, or local execution) with health signals so the orchestrator can choose the
+  appropriate implementation detail at run time.
 
-- ⬜ Voice-to-feature workflow — Example: “Add a new `/healthz` endpoint” → design, generate code, run tests, commit. (End-to-end task completion by voice.)
-- ⬜ Task chaining — Allow multi-step workflows (e.g., “refactor this service and write tests for it”). (Agent executes chained commands without micromanagement.)
-- ⬜ Feedback refinement loop — Add conversational refinement (“make that function generic”, “try a different error strategy”). (Voice iteration feels natural and productive.)
+User journey enablement:
 
----
+- **Monday.com sprint planning basics** — Ship MCP tools for `monday.board_summary`,
+  `monday.update_item`, and `monday.create_update`, plus a Discord text bridge (`discord.message`)
+  for channel notifications. Automatically tag affected items with the originating Discord channel,
+  ensure every voice request assigns or reaffirms an owner and due date,
+  and log confirmation prompts so follow-ups are visible on the board.
+- **GitHub status readouts** — Deliver authenticated MCP coverage for `github.list_pull_requests`
+  and `github.get_check_runs`, including pagination and retry behavior. Capture unresolved review
+  questions as Monday.com action items linked to the PR.
+- **AWS observability hooks** — Provide `aws.cloudwatch_get_metric` for latency triage with rate
+  limiting and structured incident payloads. Mirror incident triage sessions into Monday.com
+  timelines with automatic reminders for validation tasks.
 
-### Phase 4 — Developer Workflow Integration (Days 12-14)
+Milestone definition of done:
 
-Objective: Tighten the feedback loop so the agent operates as a “team member” inside the SDLC.
+- Spoken sprint summaries, PR status reports, and latency snapshots can be requested end-to-end via
+  Discord voice with safety prompts for write actions.
 
-- ⬜ Git integration — Voice-triggered git actions (branch creation, commits, PR prep). (Agent contributes changes like a human developer.)
-- ⬜ Build + deploy hooks — Voice commands trigger builds, CI runs, and deployment workflows. (AI can close the loop and ship code.)
-- ⬜ Onboarding doc + demo — Document current capabilities, limitations, and roadmap to next iteration. (Ready for next contributors or productization phase.)
+### Wave 2 — Workflow Automation (Weeks 3-5)
+
+**Goal:** Expand from read-heavy interactions to action-oriented, chained workflows spanning Monday,
+GitHub, and AWS.
+
+Platform investments:
+
+- Extend MCP toolset with write actions:
+  `github.create_comment`, `aws.autoscaling_set_desired_capacity`, Monday.com incident templates,
+  and Discord embeds for rich responses.
+- Teach the capability registry to rank and select execution tools based on latency, availability, and
+  required affordances (e.g., batch refactors vs. quick edits) so workflows stay portable if Cursor is
+  unavailable or a local-only stack is preferred.
+- Stand up a checklist manifest engine that declaratively encodes multi-step flows (release handoff,
+  incident response) with success criteria, branching logic, and persona responsibilities so the
+  orchestrator can call in reviewer/deployer experts when needed.
+- Add repository/workspace scoping metadata so the orchestrator selects the correct GitHub repo or
+  Monday board based on channel context.
+- Layer CI log summarization skills to convert check-run output into concise voice narratives with
+  links back to raw artifacts.
+- Expand the Monday.com state ledger into a lifecycle tracker that captures planned actions,
+  execution timestamps, persona hand-offs, and outstanding follow-ups, including escalations when
+  deadlines lapse.
+
+User journey enablement:
+
+- **Sprint planning with updates** — Support status transitions and note creation with confirmation
+  prompts and conversation memory while appending subitems that list every requested follow-up task
+  plus owner, due date, and escalation trigger.
+- **GitHub code review assistant** — Allow follow-up questions on failing PRs, summarizing CI logs,
+  and posting review comments with policy checks. When blockers remain, auto-create Monday.com tasks
+  referencing the PR comment thread and assign them to the responsible persona/owner with reminder
+  cadences.
+- **AWS incident response** — Execute autoscaling adjustments with guard rails, generate Discord
+  embeds for incident context, and log incidents into Monday.com with tagging conventions, status
+  transitions, reminder loops, and post-incident verification checklists so nothing drops.
+
+Milestone definition of done:
+
+- Voice-driven requests can modify Monday.com items, comment on PRs, and perform scoped AWS changes
+  while producing multimodal feedback (speech + Discord text/embeds).
+
+### Wave 3 — Operational Maturity (Weeks 6-8)
+
+**Goal:** Deliver a cohesive, auditable DevOps copilot capable of orchestrating release handoffs and
+continuous improvement loops.
+
+Platform investments:
+
+- Integrate access governance:
+  role verification before deployment-sensitive actions, plus audit logs for all MCP calls that
+  document which persona executed the step and what approvals were gathered.
+- Expand conversation memory into session-level context with persistence hooks for postmortem
+  review.
+- Implement blocker escalation logic that routes unresolved items into follow-up workflows (task
+  creation, paging) without losing context, guided by the project-manager persona’s escalation play.
+- Wire git automation (branching, commits, PR scaffolding) into the voice interface with reversible
+  operations and summary diffs.
+- Provide an onboarding kit for new development tools, including manifest templates and validation
+  harnesses, so the capability registry can add or swap execution surfaces without destabilizing the
+  orchestrator.
+- Provide Monday.com cadences that track release readiness artifacts, attach generated reports, and
+  notify owners when voice-driven tasks remain incomplete,
+  including automated reminders and escalations when response SLAs slip.
+
+User journey enablement:
+
+- **Cross-service release handoff** — Use the checklist manifest to run release readiness checks
+  (GitHub deployments, Monday blockers, AWS preflight) and produce Markdown reports via
+  `discord.message`. Archive the full run (inputs, MCP calls, confirmations) into the Monday.com
+  release board for audit and future retros, including the persona roster that handled each step.
+- **Team-aware collaboration** — Allow the agent to brief teams, generate meeting-ready summaries,
+  and surface blockers proactively through Discord text bridges. Sync those summaries to Monday.com
+  dashboards so async participants can pick up next steps without voice context, tagging accountable
+  owners and reminding them until closure.
+- **Continuous improvement hooks** — Capture incident learnings and roadmap updates to seed future
+  conversations and memory, linking lessons learned to living Monday.com improvement tasks so they
+  remain actionable and assigned.
+
+Milestone definition of done:
+
+- Release handoffs run via a single voice request, produce auditable reports, escalate blockers, and
+  maintain safe operations through confirmations and role checks.
 
 ---
 
 ## 3. Guiding Principles
 
-- **Cursor as the “operating system”:** The IDE is the primary surface where AI acts. Voice input is just one modality.
-- **Voice is command, not gimmick:** Voice should translate to *intent* — “generate”, “test”, “refactor” — not just text input.
-- **Autonomy over assistance:** Aim for the agent to complete tasks end-to-end without manual hand-offs.
-- **LLM as orchestrator, not executor:** LLM plans and reasons; deterministic code and tools actually execute.
-- **Safety and reviewability:** All AI actions should be inspectable and reversible. Every change should go through version control.
+- **Tool choice is contextual:** Route code edits and git flows through the best-fit workspace
+  (Cursor, other MCP editors, or a local stack) while keeping every action inspectable.
+- **Voice expresses intent, not raw text:** Convert speech into structured plans that tools execute.
+- **Deterministic tools, reasoning orchestrator:** Keep the LLM focused on planning while MCP tools
+  deliver side-effecting operations.
+- **Safety and observability first:** Confirmation prompts, audit trails, and structured logs are
+  prerequisites for every new capability.
+- **Multimodal feedback:** Pair spoken responses with Discord text/embeds for metrics, diffs, and
+  incident artifacts while treating Monday.com as the canonical ledger for follow-ups.
+- **Persona clarity:** Make the project-manager/personal-assistant orchestrator narrate delegations,
+  confirm accountability, and explicitly call on expert personas when workflows demand deep focus.
 
 ---
 
-## 4. Stretch Goals (Beyond 2 Weeks)
+## 4. Stretch Initiatives (Beyond 2 Months)
 
-- 🤝 Team-aware collaboration: Allow the agent to join standups, write summaries, or propose tickets.  
-- 🧠 Persistent memory: Track architectural decisions and coding style over time.  
-- 🌐 Multi-agent workflows: Split tasks into “planner”, “coder”, “reviewer”, and “deployer” personas.  
-- 🗣️ Natural dialogue understanding: Handle ambiguous or incomplete instructions through clarifying questions.
+- **Persistent memory and personalization** — Track architectural decisions, coding style, and past
+  incidents to adapt future reasoning.
+- **Multi-agent specializations** — Introduce planner/reviewer/deployer personas that collaborate
+  through shared manifests.
+- **Proactive operations** — Allow the agent to monitor metrics, detect anomalies, and surface
+  suggestions without explicit prompts.
+- **Onboarding playbooks** — Package demo flows, environment setup, and troubleshooting guides so
+  new teams can adopt the system quickly.
 
 ---
 
-## 5. Definition of Success
+## 5. Success Criteria
 
-By the end of this 2-week sprint:
+By the end of Wave 3 the agent can:
 
-- The agent can **accept a spoken request**, **plan a solution**, **generate code**, **test it**, and **commit it** — all without leaving Cursor.
-- The integration is **stable, modular, and extensible** enough to evolve into a full autonomous SDLC agent.
-- There is enough documentation and architectural clarity for new contributors (or future you) to build on top confidently.
+- Accept spoken requests, plan multi-service workflows, execute MCP actions, and surface results via
+  voice and Discord text without manual intervention.
+- Demonstrate auditability and safety guardrails acceptable for production incident and release
+  management.
+- Provide clear documentation and manifests that let new contributors extend the workflow mesh with
+  additional MCP tools or domains.
 
 ---
