@@ -45,6 +45,7 @@ _TTS_CLIENT: Optional[httpx.AsyncClient] = None
 
 _TTS_BASE_URL = os.getenv("TTS_BASE_URL")
 _TTS_VOICE = os.getenv("TTS_VOICE")
+_TTS_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
 
 
 def _tts_timeout() -> float:
@@ -107,8 +108,16 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
     payload: Dict[str, Any] = {"text": text}
     if _TTS_VOICE:
         payload["voice"] = _TTS_VOICE
+    headers: Dict[str, str] = {}
+    if _TTS_AUTH_TOKEN:
+        headers["Authorization"] = f"Bearer {_TTS_AUTH_TOKEN}"
     try:
-        async with client.stream("POST", "/synthesize", json=payload) as response:
+        async with client.stream(
+            "POST",
+            "/synthesize",
+            json=payload,
+            headers=headers,
+        ) as response:
             response.raise_for_status()
             audio_bytes = await response.aread()
             headers = response.headers
