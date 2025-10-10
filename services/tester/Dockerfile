@@ -6,14 +6,26 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
+        ca-certificates \
         cmake \
-        git \
-        ninja-build \
         ffmpeg \
-        pkg-config \
+        git \
+        libavcodec-dev \
+        libavdevice-dev \
+        libavfilter-dev \
+        libavformat-dev \
+        libavutil-dev \
+        libcurl4-openssl-dev \
         libffi-dev \
+        libgomp1 \
+        libopenblas-dev \
+        libopus0 \
+        libsndfile1 \
+        libsodium-dev \
+        ninja-build \
+        pkg-config \
         python3-dev \
-        libsodium-dev && \
+        wget && \
     rm -rf /var/lib/apt/lists/*
 
 COPY services/tester/requirements.txt /tmp/requirements.txt
