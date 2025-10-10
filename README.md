@@ -67,6 +67,14 @@ tear them down.
   APIs.
 - `docs/` — architecture and development guides shared between runtimes.
 
+## MCP tools
+
+The Discord service exposes a small set of MCP tools for orchestration. The
+`discord.send_message` tool now works with both traditional text channels and
+voice channel chats—pass either channel ID and the bot will post the supplied
+content directly into the active conversation. Pair this with `discord.join_voice`
+to bring the bot into the target voice channel before sending follow-up text.
+
 That's all you need to get started. Update environment defaults and
 documentation in tandem with any behavior changes to keep the project
 consistent.
