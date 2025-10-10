@@ -1,5 +1,5 @@
 fastapi==0.95.2
 uvicorn[standard]==0.23.2
-llama-cpp-python>=0.2.60
+piper-tts>=1.2.0
+prometheus_client>=0.17.0
 structlog>=24.1.0
-httpx>=0.26.0
