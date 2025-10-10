@@ -1,3 +1,12 @@
+---
+title: TTS Service Evaluation
+author: Discord Voice Lab Team
+status: published
+last-updated: 2024-07-05
+---
+
+> Docs ▸ Reports ▸ TTS Service Evaluation
+
 # Text-to-Speech Service Review
 
 ## Overview
