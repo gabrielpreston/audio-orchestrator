@@ -53,17 +53,6 @@ TEST_DOCKERFILE := services/tester/Dockerfile
 TEST_WORKDIR := /workspace
 PYTEST_ARGS ?=
 
-define SHELL_RUN_COMMAND
-echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"
-if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans
-else
-	if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but docker buildx is missing; running without BuildKit."; fi
-	$(DOCKER_COMPOSE) up -d --build --remove-orphans
-fi
-endef
-
 define SHELL_CLEAN_COMMAND
 echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
 if [ -d "logs" ]; then
@@ -92,7 +81,14 @@ help: ## Show this help (default)
 	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 run: stop ## Start docker-compose stack (Discord bot + STT + orchestrator)
-	@bash -eo pipefail -c '$(SHELL_RUN_COMMAND)'
+	@echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"; \
+	if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi; \
+	if [ "$(DOCKER_BUILDKIT)" = "1" ] && (command -v docker-buildx >/dev/null 2>&1 || docker buildx version >/dev/null 2>&1 2>/dev/null); then \
+		DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --build --remove-orphans; \
+	else \
+		if [ "$(DOCKER_BUILDKIT)" = "1" ]; then echo "Warning: BuildKit requested but docker buildx is missing; running without BuildKit."; fi; \
+		$(DOCKER_COMPOSE) up -d --build --remove-orphans; \
+	fi
 
 
 stop: ## Stop and remove containers for the compose stack
