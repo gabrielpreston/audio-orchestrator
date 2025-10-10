@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -48,6 +48,10 @@ MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -pr
 LINT_IMAGE ?= discord-voice-lab/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
+TEST_IMAGE ?= discord-voice-lab/test:latest
+TEST_DOCKERFILE := services/tester/Dockerfile
+TEST_WORKDIR := /workspace
+PYTEST_ARGS ?=
 
 define SHELL_RUN_COMMAND
 echo -e "$(COLOR_GREEN)🚀 Bringing up containers (press Ctrl+C to stop)$(COLOR_OFF)"
@@ -88,7 +92,7 @@ endef
 
 all: help ## Default aggregate target
 
-test: lint ## Run lint suite as the default test harness
+test: test-container ## Run tests inside the test toolchain container
 
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
@@ -163,6 +167,31 @@ docker-status: ## Show status of docker-compose services
 	@$(DOCKER_COMPOSE) ps
 
 lint: lint-container ## Run all linters inside the lint toolchain container
+
+test-container: test-image ## Build test container (if needed) and run the test suite
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(TEST_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo tester) \
+		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
+		-v "$(CURDIR)":$(TEST_WORKDIR) \
+		$(TEST_IMAGE)
+
+test-image: ## Build the test toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
+	@docker build --pull --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
+
+test-local: ## Run tests using locally installed tooling
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest $(PYTEST_ARGS) || { \
+		status=$$?; \
+		if [ $$status -eq 5 ]; then \
+			echo "pytest reported that no tests were collected; treating this as success." >&2; \
+			exit 0; \
+		fi; \
+		exit $$status; \
+	}
 
 lint-container: lint-image ## Build lint container (if needed) and run lint suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
