@@ -134,7 +134,10 @@ docker-config: ## Render the effective docker-compose configuration
 	@$(DOCKER_COMPOSE) config
 
 clean: ## Remove logs and cached audio artifacts
-	@bash -eo pipefail -c '$(SHELL_CLEAN_COMMAND)'
+	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
+	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
+	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
+	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
 
 docker-clean: ## Bring down compose stack and prune unused docker resources
 	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
