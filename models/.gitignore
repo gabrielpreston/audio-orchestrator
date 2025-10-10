@@ -1,0 +1,14 @@
+# Model artifacts for STT/TTS/LLM pipelines stay out of source control.
+*.bin
+*.ckpt
+*.gguf
+*.onnx
+*.pth
+*.pt
+*.tflite
+*.tar
+*.tar.gz
+*.zip
+*.zst
+*
+!.gitignore

@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import base64
 import os
 import time
+import uuid
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse
+import httpx
 from llama_cpp import Llama
 from pydantic import BaseModel
 
@@ -38,6 +41,17 @@ logger = get_logger(__name__, service_name="llm")
 
 _LLAMA: Optional[Llama] = None
 _LLAMA_INFO: Dict[str, Any] = {}
+_TTS_CLIENT: Optional[httpx.AsyncClient] = None
+
+_TTS_BASE_URL = os.getenv("TTS_BASE_URL")
+_TTS_VOICE = os.getenv("TTS_VOICE")
+
+
+def _tts_timeout() -> float:
+    try:
+        return float(os.getenv("TTS_TIMEOUT", "30"))
+    except ValueError:
+        return 30.0
 
 
 def _load_llama() -> Optional[Llama]:
@@ -68,6 +82,70 @@ def _load_llama() -> Optional[Llama]:
         _LLAMA = None
         raise RuntimeError(f"Failed to load LLM model from {model_path}")
     return _LLAMA
+
+
+async def _ensure_tts_client() -> Optional[httpx.AsyncClient]:
+    global _TTS_CLIENT
+    if not _TTS_BASE_URL:
+        return None
+    if _TTS_CLIENT is None:
+        timeout_value = _tts_timeout()
+        timeout = httpx.Timeout(
+            connect=5.0,
+            read=timeout_value,
+            write=timeout_value,
+            pool=timeout_value,
+        )
+        _TTS_CLIENT = httpx.AsyncClient(base_url=_TTS_BASE_URL, timeout=timeout)
+    return _TTS_CLIENT
+
+
+async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
+    client = await _ensure_tts_client()
+    if not client:
+        return None
+    payload: Dict[str, Any] = {"text": text}
+    if _TTS_VOICE:
+        payload["voice"] = _TTS_VOICE
+    try:
+        async with client.stream("POST", "/synthesize", json=payload) as response:
+            response.raise_for_status()
+            audio_bytes = await response.aread()
+            headers = response.headers
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("llm.tts_failed", error=str(exc))
+        return None
+    if not audio_bytes:
+        logger.warning("llm.tts_empty_audio")
+        return None
+    audio_id = headers.get("X-Audio-Id") or uuid.uuid4().hex
+    voice = headers.get("X-Audio-Voice")
+    sample_rate_header = headers.get("X-Audio-Sample-Rate")
+    try:
+        sample_rate = int(sample_rate_header) if sample_rate_header else 0
+    except ValueError:
+        sample_rate = 0
+    size_bytes = len(audio_bytes)
+    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+    content_type = headers.get("content-type", "audio/wav")
+    return {
+        "audio_id": audio_id,
+        "voice": voice,
+        "sample_rate": sample_rate,
+        "size_bytes": size_bytes,
+        "content_type": content_type,
+        "base64": audio_b64,
+        "text_length": len(text),
+        "url": None,
+    }
+
+
+@app.on_event("shutdown")
+async def _shutdown_event() -> None:
+    global _TTS_CLIENT
+    if _TTS_CLIENT is not None:
+        await _TTS_CLIENT.aclose()
+        _TTS_CLIENT = None
 
 
 @app.post("/v1/chat/completions")
@@ -107,6 +185,7 @@ async def chat_completions(
     usage: Dict[str, Any] = {}
     used_model = req.model or _LLAMA_INFO.get("model_path", "local-llama")
     processing_ms: Optional[int] = None
+    audio: Optional[Dict[str, Any]] = None
 
     if llama is not None:
         try:
@@ -128,6 +207,17 @@ async def chat_completions(
     if content is None:
         fallback = req.messages[-1].content if req.messages else ""
         content = f"(local-model) {fallback}"
+
+    if content and _TTS_BASE_URL:
+        audio = await _synthesize_tts(content)
+        if audio:
+            logger.info(
+                "llm.tts_ready",
+                audio_id=audio.get("audio_id"),
+                size_bytes=audio.get("size_bytes"),
+            )
+        else:
+            logger.warning("llm.tts_unavailable")
 
     total_ms = int((time.time() - req_start) * 1000)
     if processing_ms is None:
@@ -167,11 +257,22 @@ async def chat_completions(
         "prompt_bytes": prompt_bytes,
     }
 
+    if audio:
+        response["audio"] = audio
+
     headers = {
         "X-Processing-Time-ms": str(processing_ms),
         "X-Total-Time-ms": str(total_ms),
         "X-Prompt-Bytes": str(prompt_bytes),
     }
+    if audio and audio.get("audio_id"):
+        headers["X-Audio-Id"] = str(audio["audio_id"])
+    if audio and audio.get("sample_rate"):
+        headers["X-Audio-Sample-Rate"] = str(audio["sample_rate"])
+    if audio and audio.get("size_bytes"):
+        headers["X-Audio-Size"] = str(audio["size_bytes"])
+    if audio and audio.get("content_type"):
+        headers["X-Audio-Content-Type"] = str(audio["content_type"])
     return JSONResponse(response, headers=headers)
 
 

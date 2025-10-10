@@ -13,6 +13,7 @@ services:
     depends_on:
       - stt
       - orch
+      - tts
     restart: unless-stopped
 
   stt:
@@ -41,4 +42,21 @@ services:
       - "8000:8000"
     volumes:
       - ./services/llm/models:/app/models:ro
+    depends_on:
+      - tts
+    restart: unless-stopped
+
+  tts:
+    build:
+      context: .
+      dockerfile: services/tts/Dockerfile
+    image: discord-voice-tts:latest
+    env_file:
+      - ./.env.common
+      - ./.env.docker
+      - ./services/tts/.env.service
+    ports:
+      - "7000:7000"
+    volumes:
+      - ./models:/app/models:ro
     restart: unless-stopped

@@ -65,6 +65,8 @@ tear them down.
 - `services/stt/` — FastAPI-based STT service using faster-whisper.
 - `services/llm/` — lightweight orchestrator service exposing OpenAI-compatible
   APIs.
+- `services/tts/` — FastAPI-based text-to-speech service backed by Piper that
+  streams synthesized audio for orchestrator responses.
 - `docs/` — architecture and development guides shared between runtimes.
 
 That's all you need to get started. Update environment defaults and
