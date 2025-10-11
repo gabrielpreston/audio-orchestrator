@@ -1,12 +1,14 @@
 # Structured Intent, Memory, and Confirmation Safeguards Plan
 
 ## Objective
+
 - Introduce structured intent schemas, short-term conversation memory, and confirmation heuristics so
   the orchestrator validates user goals before performing write actions against external systems.
 - Ensure safety scaffolding works across both the legacy orchestrator runtime and the Redis-backed
   sandbox so adoption can progress without regressions.
 
 ## Success Criteria
+
 - Voice transcripts map into intent objects that classify read vs. write actions, target systems,
   confidence, and required confirmations.
 - Short-term memory preserves referenced entities (tasks, PRs, incidents) across turns with decay
@@ -17,6 +19,7 @@
   and rollback decisions.
 
 ## Scope
+
 - Services: `services/llm` orchestrator, `services/discord` voice bot confirmation prompts,
   Monday.com ledger worker, Redis sandbox runtime.
 - Integrations: Monday.com state ledger, GitHub MCP tools, AWS observability hooks, Discord text
@@ -25,6 +28,7 @@
   configuration updates, telemetry dashboards, documentation, regression harness extensions.
 
 ## Constraints & Assumptions
+
 - Redis sandbox remains optional until parity sign-off; new components must run in-process when Redis
   is disabled.
 - Monday.com continues as the canonical audit ledger for actions; confirmation logs replicate there.
@@ -35,6 +39,7 @@
 ## Workstreams & Requirements
 
 ### 1. Intent Schema Modeling
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Intent taxonomy | Current orchestrator reasons in free-form text, making safety checks unreliable. | Define JSON schema capturing action type, target system, operation (read/write), confidence, entities, and required confirmations; store in `services/llm/intent_schema.py`. | All requests emit structured intents that downstream components can validate deterministically. |
@@ -43,6 +48,7 @@
 | Configurability | Different environments require tuned confidence thresholds. | Expose thresholds and feature flags through `.env.sample`, `.env.docker`, and service env files; document defaults. | Operators adjust sensitivity without code changes. |
 
 ### 2. Short-Term Memory Layer
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Memory store abstraction | Context references vanish between turns. | Implement memory interface supporting in-memory and Redis backends; store conversation entities keyed by session/channel. | Agent recalls referenced entities across turns irrespective of runtime. |
@@ -51,6 +57,7 @@
 | Monday.com ledger sync | Memory updates not logged for audit. | Mirror memory writes tied to Monday.com items into ledger metadata for traceability. | Ledger reflects context references, aiding audits and follow-ups. |
 
 ### 3. Confirmation Heuristics & Safeguards
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Write-action gating | Write tools can run without validation. | Tag MCP tools with required confirmation levels; orchestrator checks intent + tool metadata before execution. | State-changing actions pause until confirmation completes. |
@@ -59,6 +66,7 @@
 | Failure handling | Declined or timed-out confirmations lack escalation. | Route declined/timeouts to Monday.com follow-up tasks with owner/due date; notify Discord channel. | Unconfirmed actions become trackable tasks instead of silent failures. |
 
 ### 4. Toolchain & Telemetry Integration
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Legacy runtime compatibility | Redis sandbox features must not break legacy path. | Implement feature flags ensuring intent, memory, and confirmations operate in both runtimes; add regression fixtures covering both. | New safeguards coexist with current orchestrator until rollout completes. |
@@ -67,6 +75,7 @@
 | Config propagation | Missing env keys break deployments. | Update `.env.sample`, `.env.docker`, and service `.env` files with new flags; document changes in README and ops guides. | Deployments start with correct configuration across environments. |
 
 ### 5. Testing, Documentation, and Enablement
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Regression harness updates | Safety regressions could ship unnoticed. | Add unit/integration tests for intent validation, memory persistence, confirmation flows; run in CI for both runtimes. | Automated checks block regressions before release. |
@@ -75,6 +84,7 @@
 | Rollout checklist | Adoption may stall without gating criteria. | Publish checklist covering schema validation, memory accuracy, confirmation telemetry, and ledger reconciliation. | Teams know when safeguards are ready for production use. |
 
 ## Milestones & Sequencing
+
 | Milestone | Target | Key Deliverables |
 | --- | --- | --- |
 | M1 — Intent Schema Baseline | Week 1 | Intent taxonomy, parser, configuration flags |
@@ -84,6 +94,7 @@
 | M5 — Enablement Sign-off | Week 5 | Tests, documentation, rollout checklist |
 
 ## Risks & Mitigations
+
 - **Model misclassification**: LLM may mislabel intent types. → Add deterministic rules for
   high-risk tools and require manual review for low-confidence outputs.
 - **Memory staleness**: Entities could linger past relevance. → Apply TTL decay, user reset commands,
@@ -94,6 +105,7 @@
   parity dashboards to catch behavioral differences.
 
 ## Exit Criteria
+
 - Structured intents drive all MCP tool selections with confidence metrics and logged outcomes.
 - Memory-backed conversations resolve entity references accurately across at least three-turn flows
   in both runtimes with parity telemetry.

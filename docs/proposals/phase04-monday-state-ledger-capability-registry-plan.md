@@ -1,12 +1,14 @@
 # Monday.com State Ledger and Capability Registry Plan
 
 ## Objective
+
 - Build a Monday.com-linked state ledger and capability registry that keep cross-surface workflows
   synchronized on ownership, status, and available execution tools.
 - Ensure Discord voice journeys, MCP tooling, and Redis sandbox runtimes can rely on the ledger for
   persistent accountability and on the registry for tooling coverage before production rollout.
 
 ## Success Criteria
+
 - Voice and MCP-triggered actions automatically create or update Monday.com items with current owner,
   due date, status, and escalation metadata.
 - Capability registry reflects the available tooling per workflow (Discord voice, MCP, Cursor/local),
@@ -17,6 +19,7 @@
   Redis sandbox and legacy runtimes with no unresolved discrepancies for a full regression week.
 
 ## Scope
+
 - Services: Monday ledger worker, `services/llm` orchestrator, `services/discord` prompts, Redis
   sandbox instrumentation, documentation under `docs/`.
 - Integrations: Monday.com GraphQL API, Discord webhooks/messages, MCP tooling catalog, capability
@@ -25,6 +28,7 @@
   documentation, telemetry dashboards, rollout checklist, regression harness updates.
 
 ## Constraints & Assumptions
+
 - Monday.com remains the canonical source of truth; external replicas (Redis, caches) must reconcile
   back to Monday before closing workflows.
 - Capability registry should operate in-memory with optional Redis persistence to match sandbox
@@ -37,6 +41,7 @@
 ## Workstreams & Requirements
 
 ### 1. Ledger Architecture & Data Modeling
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Canonical schema | Current workflows lack a normalized record of intent, owner, and due dates. | Design Monday item schema (groups, columns, tags) for workflow ledger; document in `docs/operations/monday-ledger.md`. | Every voice/MCP workflow maps to a predictable Monday structure with required accountability fields. |
@@ -45,6 +50,7 @@
 | Data retention | Historical actions need traceable archives. | Configure Monday board archives or mirrored storage for closed items; add purge policy documentation. | Teams can audit past workflows without bloating active boards. |
 
 ### 2. Monday.com Synchronization & Automation
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Ingestion pipeline | Voice actions may not reach Monday ledger reliably. | Implement worker consuming orchestrator events (webhook or queue) and reconciling Monday updates with idempotency keys. | All actions produce ledger entries even if transient failures occur. |
@@ -53,6 +59,7 @@
 | Privacy & permissions | Sensitive boards require scoped access. | Use board-specific tokens/permissions and document least-privilege setup in `.env.sample` and ops guide. | Ledger worker operates with minimal necessary access and clear rotation steps. |
 
 ### 3. Capability Registry Foundation
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Registry schema | Orchestrator lacks visibility into available execution surfaces. | Define registry schema capturing workflow, tool surface, health, latency, feature flags; persist in Redis + file fallback. | Agent can select appropriate tooling based on real-time capability data. |
@@ -61,6 +68,7 @@
 | Registry management API | Operators cannot adjust registry without code deploys. | Provide CLI/HTTP admin endpoints secured via feature flags for manual overrides (e.g., disable Cursor). | Operations can adjust tooling coverage quickly during incidents. |
 
 ### 4. Cross-Surface Workflow Integration
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Discord prompts | Users need visibility into ledger and registry state. | Update Discord bot to announce ledger updates, tooling availability, and escalation notices via embeds or follow-up messages. | Participants stay informed about ownership changes and tooling status in real time. |
@@ -69,6 +77,7 @@
 | Security review | New data flows require compliance checks. | Conduct lightweight security review covering Monday scopes, data residency, and audit logging; record findings in proposal appendix. | Stakeholders sign off on ledger/registry launch with documented mitigations. |
 
 ### 5. Telemetry, Testing, and Enablement
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Telemetry dashboards | Hard to assess ledger/registry health. | Instrument structured logs/metrics (success rates, latency, escalations) and build Grafana or equivalent dashboards. | Operators monitor system health and spot regressions quickly. |
@@ -77,6 +86,7 @@
 | Launch checklist | Adoption may stall without gating criteria. | Create checklist ensuring schema migration, telemetry readiness, replay parity, and stakeholder sign-offs before enabling globally. | Decision-makers know when ledger/registry are production-ready. |
 
 ## Milestones & Sequencing
+
 | Milestone | Target | Key Deliverables |
 | --- | --- | --- |
 | M1 — Ledger Schema Finalized | Week 1 | Canonical Monday schema, status taxonomy, API facade |
@@ -86,6 +96,7 @@
 | M5 — Enablement Complete | Week 5 | Telemetry dashboards, regression harness, rollout checklist |
 
 ## Risks & Mitigations
+
 - **Monday API constraints**: Rate limits or schema changes could delay sync jobs. → Implement caching,
   backoff, and schema validation tests; monitor Monday changelog.
 - **Data drift between runtimes**: Legacy and sandbox paths may diverge. → Use replay parity reports
@@ -96,6 +107,7 @@
   early and document data flows with mitigation steps.
 
 ## Exit Criteria
+
 - Monday.com ledger reflects every orchestrated workflow with accurate ownership, status, due dates,
   and escalation trails updated automatically from voice/MCP interactions.
 - Capability registry drives tooling selection for Redis sandbox and legacy runtimes with telemetry
