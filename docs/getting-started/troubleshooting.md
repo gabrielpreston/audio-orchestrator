@@ -39,4 +39,4 @@ Use this checklist to resolve the most common setup issues when running the stac
 ## Support
 
 Capture failing commands and relevant log excerpts, then open an issue or drop them into the
-[reports index](../reports/index.md) if the problem uncovered new operational insights.
+[reports index](../reports/README.md) if the problem uncovered new operational insights.

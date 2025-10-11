@@ -36,8 +36,8 @@ navigational spine while preserving existing content.
 
 | Path | Description | Primary Audience | Notes |
 | --- | --- | --- | --- |
-| `README.md` | High-level overview, quickstart, and navigation pointers into deeper guides. | New contributors | Add "Documentation Index" section linking to `docs/index.md`. |
-| `docs/index.md` | Entry hub describing documentation taxonomy and cross-linking major sections. | All roles | New file consolidating table of contents, version history, and contribution rules. |
+| `README.md` | High-level overview, quickstart, and navigation pointers into deeper guides. | New contributors | Add "Documentation Index" section linking to `docs/README.md`. |
+| `docs/README.md` | Entry hub describing documentation taxonomy and cross-linking major sections. | All roles | New file consolidating table of contents, version history, and contribution rules. |
 | `docs/getting-started/` | Environment setup, service bootstrap, make targets, troubleshooting. | New contributors, platform engineers | Fold core README setup plus future onboarding guides here. |
 | `docs/architecture/` | System diagrams, service descriptions, messaging contracts. | Developers, architects | Rehome README architecture sections, `docs/MCP_MANIFEST.md`, and new service diagrams. |
 | `docs/operations/` | Runbooks, observability guides, deployment procedures, incident response. | Operators, SREs | Include structured logging, metrics, health endpoints, TTS/STT tuning. |
@@ -49,7 +49,7 @@ navigational spine while preserving existing content.
 
 ## Content Migration Plan
 
-1. **Create `docs/index.md`** summarizing the voice lab purpose, documentation taxonomy, change
+1. **Create `docs/README.md`** summarizing the voice lab purpose, documentation taxonomy, change
    log, and contribution conventions (including proposal location rules from `AGENTS.md`).
 2. **Refactor `README.md`** into three sections: overview, "Run the Stack" (linking into
    `docs/getting-started/runtime.md`), and "Documentation Index" referencing the new hub.
@@ -70,12 +70,12 @@ navigational spine while preserving existing content.
 6. **Move planning documents** by:
    - Relocating `docs/ROADMAP.md` to `docs/roadmaps/2024-integrated-voice-devops.md` with front
      matter specifying authorship, date, and status.
-   - Adding `docs/roadmaps/index.md` listing active and archived roadmaps with revision history.
+   - Adding `docs/roadmaps/README.md` listing active and archived roadmaps with revision history.
 7. **Rehome implementation reviews** by converting `docs/implemented/tts_service_evaluation.md` into
    `docs/reports/tts-service-evaluation.md` and creating an index page summarizing lessons learned.
 8. **Standardize proposals** by:
    - Adding YAML front matter (title, author, status, last-updated) to each file in
-     `docs/proposals/` and inserting a table that links them from a new `docs/proposals/index.md`.
+     `docs/proposals/` and inserting a table that links them from a new `docs/proposals/README.md`.
    - Adding guidelines for proposal lifecycle (draft → review → accepted/rejected) within the index.
 9. **Centralize configuration references** by compiling environment variables from `.env.sample` and
    service READMEs into `docs/reference/configuration-catalog.md` with per-service tables and
@@ -100,7 +100,7 @@ navigational spine while preserving existing content.
 
 - **Link rot during migration** — Use automated link check (e.g., `markdown-link-check`) in CI and
   include redirects (`docs/legacy/README.md` with pointers) for heavily referenced paths.
-- **Contributor confusion** — Publish the restructuring plan in `docs/index.md` and announce the
+- **Contributor confusion** — Publish the restructuring plan in `docs/README.md` and announce the
   taxonomy in the README plus team channels before moving files.
 - **Drift between service READMEs and canonical docs** — Keep service READMEs scoped to quickstart
   steps and surface deeper detail exclusively from architecture/operations guides.

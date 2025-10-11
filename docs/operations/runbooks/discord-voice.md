@@ -31,7 +31,7 @@ Use this runbook when operating the Discord bot and companion services in stagin
 ## Escalation
 
 - Capture timestamps, service logs, and failing request IDs.
-- File an incident report under [reports](../../reports/index.md) with root-cause hypotheses.
+- File an incident report under [reports](../../reports/README.md) with root-cause hypotheses.
 - Page the on-call integrator when the bot cannot respond to wake phrases for more than 15 minutes.
 
 ## Post-Incident Tasks

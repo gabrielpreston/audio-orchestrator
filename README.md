@@ -13,7 +13,7 @@ synthesized responses.
 
 ## Documentation Index
 
-Navigate deeper using the [documentation hub](docs/index.md):
+Navigate deeper using the [documentation hub](docs/README.md):
 
 - Getting started — onboarding, environment management, troubleshooting.
 - Architecture — system overview, service deep dives, MCP integrations.

@@ -29,7 +29,7 @@ voice lab stack.
 
 - Avoid persisting raw audio unless debugging requires it; prefer ephemeral streams.
 - Scrub personally identifiable information from logs before sharing incident reports.
-- Use the [reports](../reports/index.md) section to document investigations without leaking secrets.
+- Use the [reports](../reports/README.md) section to document investigations without leaking secrets.
 
 ## Compliance Checklist
 
