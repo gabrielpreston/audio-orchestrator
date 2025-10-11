@@ -3,24 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from concurrent.futures import Future as ThreadFuture
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any, Callable, Coroutine, Optional
 
 from structlog.stdlib import BoundLogger
 
 from services.common.logging import get_logger
 
+voice_recv: Optional[Any]
 try:
-    from discord.ext import voice_recv as _voice_recv
+    voice_recv = importlib.import_module("discord.ext.voice_recv")
 except ImportError as exc:  # pragma: no cover - handled at runtime
-    _voice_recv = None
+    voice_recv = None
     _IMPORT_ERROR: Optional[ImportError] = exc
 else:
     _IMPORT_ERROR = None
 
-voice_recv: Optional[Any] = _voice_recv
-
-FrameCallback = Callable[[int, bytes, float, int], Awaitable[None]]
+FrameCallback = Callable[[int, bytes, float, int], Coroutine[Any, Any, None]]
 
 _LOGGER: Optional[BoundLogger] = None
 
@@ -56,7 +56,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
         )
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
-        future = asyncio.run_coroutine_threadsafe(
+        future: ThreadFuture[None] = asyncio.run_coroutine_threadsafe(
             callback(user_id, pcm, duration, int(sample_rate)),
             loop,
         )
