@@ -34,4 +34,4 @@ This guide documents logging, metrics, and tracing expectations for the voice la
 
 - Propagate correlation IDs via log `extra` fields when adding new HTTP clients or background workers.
 - Include MCP tool names and request IDs in logs to track automation paths end-to-end.
-- Capture incident-specific traces in the [reports](../reports/index.md) section for retrospective analysis.
+- Capture incident-specific traces in the [reports](../reports/README.md) section for retrospective analysis.

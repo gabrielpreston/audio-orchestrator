@@ -38,4 +38,4 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 - Keep the lint container warm by running `make lint` once before frequent edits; subsequent runs reuse the cached image.
 - For debugging outside Docker, export `PYTHONPATH=$PWD` so Python resolves the monorepo modules.
 - Use feature branches and small commits to keep diffs reviewable; reference affected docs in your PR summary.
-- Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/index.md).
+- Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/README.md).

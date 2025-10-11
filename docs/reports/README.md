@@ -20,4 +20,4 @@ Implementation reviews, postmortems, and evaluation notes live here.
 
 - Add YAML front matter (title, author, status, last-updated) to every report.
 - Link newly added reports in this index with a one-line summary.
-- Capture mitigation follow-ups in the [roadmap](../roadmaps/index.md) or [operations runbooks](../operations/README.md).
+- Capture mitigation follow-ups in the [roadmap](../roadmaps/README.md) or [operations runbooks](../operations/README.md).

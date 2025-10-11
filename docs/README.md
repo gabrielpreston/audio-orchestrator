@@ -23,9 +23,9 @@ and reference content aligned with the current repository layout.
 | Understand the system | [Architecture overview](architecture/system-overview.md) | Service relationships, audio and transcript flows. |
 | Operate the stack | [Operations landing page](operations/README.md) | Runbooks, observability, security posture. |
 | Extend & integrate | [Reference catalog](reference/configuration-catalog.md) | Environment variables, API endpoints, manifests. |
-| Track strategy | [Roadmap index](roadmaps/index.md) | Active plans, historical revisions. |
-| Review research | [Reports index](reports/index.md) | Implementation notes, evaluation findings. |
-| Propose changes | [Proposal index](proposals/index.md) | Submission rules, lifecycle states. |
+| Track strategy | [Roadmap index](roadmaps/README.md) | Active plans, historical revisions. |
+| Review research | [Reports index](reports/README.md) | Implementation notes, evaluation findings. |
+| Propose changes | [Proposal index](proposals/README.md) | Submission rules, lifecycle states. |
 
 ## Version History
 
