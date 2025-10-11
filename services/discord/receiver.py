@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 from concurrent.futures import Future as ThreadFuture
 from typing import Any, Callable, Coroutine, Optional
 
@@ -10,15 +11,14 @@ from structlog.stdlib import BoundLogger
 
 from services.common.logging import get_logger
 
+voice_recv: Optional[Any]
 try:
-    from discord.ext import voice_recv as _voice_recv
+    voice_recv = importlib.import_module("discord.ext.voice_recv")
 except ImportError as exc:  # pragma: no cover - handled at runtime
-    _voice_recv = None
+    voice_recv = None
     _IMPORT_ERROR: Optional[ImportError] = exc
 else:
     _IMPORT_ERROR = None
-
-voice_recv: Optional[Any] = _voice_recv
 
 FrameCallback = Callable[[int, bytes, float, int], Coroutine[Any, Any, None]]
 

@@ -14,7 +14,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from pydantic import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, model_validator
 
 from services.common.logging import configure_logging, get_logger
 
@@ -123,15 +123,17 @@ class SynthesisRequest(BaseModel):
     noise_scale: Optional[float] = Field(None, ge=0.0, le=2.0)
     noise_w: Optional[float] = Field(None, ge=0.0, le=2.0)
 
-    @root_validator(pre=False)
-    def _check_text_or_ssml(cls, values: Dict[str, Any]) -> Dict[str, Any]:
-        text = (values.get("text") or "").strip()
-        ssml = (values.get("ssml") or "").strip()
-        if not text and not ssml:
-            raise ValueError("either text or ssml must be provided")
-        values["text"] = text or None
-        values["ssml"] = ssml or None
-        return values
+    @model_validator(mode="before")
+    @classmethod
+    def _check_text_or_ssml(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            text = (data.get("text") or "").strip()
+            ssml = (data.get("ssml") or "").strip()
+            if not text and not ssml:
+                raise ValueError("either text or ssml must be provided")
+            data["text"] = text or None
+            data["ssml"] = ssml or None
+        return data
 
 
 class VoiceListResponse(BaseModel):
