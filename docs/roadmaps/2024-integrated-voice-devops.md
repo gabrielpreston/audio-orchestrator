@@ -59,8 +59,10 @@ deliverables required to unlock business value.
 
 Platform investments:
 
-- [ ] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
+- [x] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
   with retry/backoff controls already present in the bot code.
+  - Discord capture now segments PCM audio, retries STT delivery, and publishes wake-filtered
+    transcripts; implement the optional local mic ingestion path as a follow-up.
 - [ ] Stand up a Redis-backed orchestrator sandbox and companion Make target that proxies Discord
   transcripts, captures event payloads, parity gaps, and benchmarks end-to-end latency deltas versus
   the current local Llama loop.
@@ -252,3 +254,24 @@ By the end of Wave 3 the agent can:
   with additional MCP tools or domains.
 
 ---
+
+## 6. Progress Snapshot and Next Steps
+
+### Completed Capabilities
+
+- Discord voice ingestion batches PCM frames, transcribes speech through the FastAPI STT service,
+  and emits wake-filtered transcripts with retry/backoff handling already wired into the bot
+  pipeline.
+
+### Next Steps
+
+- Stand up the Redis-backed orchestrator sandbox, telemetry, and parity ledger so Discord traffic
+  can be replayed through the adaptive runtime before rollout, guided by the
+  [Redis-Orchestrator Sandbox Rollout Plan](../proposals/redis-orchestrator-sandbox-plan.md).
+- Implement MCP tooling for Monday.com, GitHub status readouts, and AWS observability to unlock the
+  Wave 1 user journeys called out above, following the
+  [MCP Tooling Wave 1 Enablement Plan](../proposals/mcp-tooling-wave1-plan.md).
+- Add structured intent schemas, short-term memory, and confirmation heuristics before the agent
+  performs write actions across external systems.
+- Build the Monday.com-linked state ledger and capability registry so cross-surface workflows can
+  persist ownership and tooling coverage.
