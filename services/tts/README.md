@@ -34,7 +34,7 @@ required fields, and keep shared logging defaults in `.env.common`.
 | `TTS_NOISE_W` | Adjusts breathiness for unvoiced phonemes. |
 
 The Piper runtime caches loaded voices under `/app/models`. Mount a host
-`./models/piper/` directory with the desired voices and reference them using the
+`./services/models/piper/` directory with the desired voices and reference them using the
 paths above.
 
 ## Orchestrator integration

@@ -26,7 +26,8 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 COPY services/common /app/services/common
 COPY services/tts /app/services/tts
 
-RUN mkdir -p /app/models/piper
+# Create models directory (Piper models will be mounted via volume)
+RUN mkdir -p /app/models
 
 EXPOSE 7000
 

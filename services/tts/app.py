@@ -201,16 +201,16 @@ def _load_voice() -> None:
         _VOICE_LOOKUP = {}
         return
 
-    with open(_MODEL_PATH, "rb") as model_file:
-        model_bytes = model_file.read()
+    # Load the voice model using file paths directly
+    _VOICE = PiperVoice.load(_MODEL_PATH, _MODEL_CONFIG_PATH)
+    
+    # Read config for metadata extraction
     with open(_MODEL_CONFIG_PATH, "r", encoding="utf-8") as config_file:
-        config_text = config_file.read()
-    config_data = json.loads(config_text)
-
-    _VOICE = PiperVoice.load(io.BytesIO(model_bytes), io.StringIO(config_text))
+        config_data = json.load(config_file)
     sample_rate = (
         config_data.get("sample_rate")
         or config_data.get("sampleRate")
+        or config_data.get("audio", {}).get("sample_rate")
         or getattr(_VOICE, "sample_rate", None)
     )
     if not sample_rate:
