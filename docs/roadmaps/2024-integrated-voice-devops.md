@@ -79,11 +79,11 @@ Platform investments:
   payload schema, streaming cadence, fallback messaging) and annotate which elements the Redis
   runtime must emulate during sandbox and rollout phases.
 - [ ] Stand up a Monday.com-linked state ledger that records intent, current status, assignee,
-  follow-up checkpoints, and agreed escalation cadences for every orchestrated workflow ([plan](../proposals/monday-state-ledger-capability-registry-plan.md)).
+  follow-up checkpoints, and agreed escalation cadences for every orchestrated workflow ([plan](../proposals/phase04-monday-state-ledger-capability-registry-plan.md)).
 - [ ] Publish a capability registry that maps development actions to available tooling (Cursor
   sessions, alternative MCP editors, or local execution) with health signals so the orchestrator can
   choose the appropriate implementation detail at run time and flag functionality gaps to backfill
-  before full migration ([plan](../proposals/monday-state-ledger-capability-registry-plan.md)).
+  before full migration ([plan](../proposals/phase04-monday-state-ledger-capability-registry-plan.md)).
 
 User journey enablement:
 
@@ -267,12 +267,13 @@ By the end of Wave 3 the agent can:
 
 - Stand up the Redis-backed orchestrator sandbox, telemetry, and parity ledger so Discord traffic
   can be replayed through the adaptive runtime before rollout, guided by the
-  [Redis-Orchestrator Sandbox Rollout Plan](../proposals/redis-orchestrator-sandbox-plan.md).
+  [Redis-Orchestrator Sandbox Rollout Plan](../proposals/phase01-redis-orchestrator-sandbox-plan.md).
 - Implement MCP tooling for Monday.com, GitHub status readouts, and AWS observability to unlock the
   Wave 1 user journeys called out above, following the
-  [MCP Tooling Wave 1 Enablement Plan](../proposals/mcp-tooling-wave1-plan.md).
+  [MCP Tooling Wave 1 Enablement Plan](../proposals/phase02-mcp-tooling-wave1-plan.md).
 - Add structured intent schemas, short-term memory, and confirmation heuristics before the agent
   performs write actions across external systems, guided by the
-  [Structured Intent, Memory, and Confirmation Safeguards Plan](../proposals/structured-intent-memory-confirmation-plan.md).
+  [Structured Intent, Memory, and Confirmation Safeguards Plan](../proposals/phase03-structured-intent-memory-confirmation-plan.md).
 - Build the Monday.com-linked state ledger and capability registry so cross-surface workflows can
-  persist ownership and tooling coverage.
+  persist ownership and tooling coverage, guided by the
+  [Monday.com State Ledger and Capability Registry Plan](../proposals/phase04-monday-state-ledger-capability-registry-plan.md).
