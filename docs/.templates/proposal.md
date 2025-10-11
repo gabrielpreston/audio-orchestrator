@@ -1,12 +1,12 @@
 ---
-title: <Working Title>
-author: <Name>
+title: "REPLACE_WITH_WORKING_TITLE"
+author: "REPLACE_WITH_AUTHOR"
 status: draft
-last-updated: <YYYY-MM-DD>
+last-updated: YYYY-MM-DD
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
-> Docs ▸ Proposals ▸ <Working Title>
+> Docs ▸ Proposals ▸ REPLACE_WITH_WORKING_TITLE
 
 # Overview
 
