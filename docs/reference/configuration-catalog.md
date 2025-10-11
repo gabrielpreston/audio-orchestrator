@@ -56,7 +56,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `STT_FORCED_LANGUAGE` | Optional language code override. | `en` |
 | `WAKE_MODEL_PATHS` | Additional wake model files. | *(empty)* |
 | `WAKE_PHRASES` | Comma-separated list of wake phrases. | `hey atlas,ok atlas` |
-| `ORCHESTRATOR_WAKE_PHRASES` | Wake phrases forwarded to the orchestrator. | *(empty)* |
 | `WAKE_THRESHOLD` | Wake detection confidence threshold (0-1). | `0.5` |
 | `WAKE_SAMPLE_RATE` | Sample rate for wake model (Hz). | `16000` |
 | `MCP_MANIFESTS` | Comma-separated list of manifest paths. | *(empty)* |

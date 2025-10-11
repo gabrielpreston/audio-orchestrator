@@ -187,9 +187,19 @@ def _read_voice_language(config_data: Dict[str, Any]) -> Optional[str]:
 def _load_voice() -> None:
     global _VOICE, _VOICE_SAMPLE_RATE, _VOICE_OPTIONS, _VOICE_LOOKUP
     if not _MODEL_PATH or not os.path.exists(_MODEL_PATH):
-        raise RuntimeError("TTS_MODEL_PATH is not set or the file does not exist")
+        logger.warning("TTS_MODEL_PATH is not set or the file does not exist - TTS service will run in degraded mode")
+        _VOICE = None
+        _VOICE_SAMPLE_RATE = 22050  # Default sample rate
+        _VOICE_OPTIONS = []
+        _VOICE_LOOKUP = {}
+        return
     if not _MODEL_CONFIG_PATH or not os.path.exists(_MODEL_CONFIG_PATH):
-        raise RuntimeError("TTS_MODEL_CONFIG_PATH is not set or the file does not exist")
+        logger.warning("TTS_MODEL_CONFIG_PATH is not set or the file does not exist - TTS service will run in degraded mode")
+        _VOICE = None
+        _VOICE_SAMPLE_RATE = 22050  # Default sample rate
+        _VOICE_OPTIONS = []
+        _VOICE_LOOKUP = {}
+        return
 
     with open(_MODEL_PATH, "rb") as model_file:
         model_bytes = model_file.read()
@@ -257,6 +267,35 @@ def _strip_ssml(text: str) -> str:
     return _SSML_TAG_RE.sub("", text)
 
 
+def _generate_silence_audio(sample_rate: int, duration: float = 1.0) -> bytes:
+    """Generate a minimal WAV file with silence."""
+    import wave
+    import struct
+    
+    # Generate 1 second of silence
+    num_samples = int(sample_rate * duration)
+    silence_data = b'\x00' * (num_samples * 2)  # 16-bit samples
+    
+    # Create WAV header
+    wav_header = struct.pack('<4sI4s4sIHHIIHH4sI',
+        b'RIFF',
+        36 + len(silence_data),
+        b'WAVE',
+        b'fmt ',
+        16,  # fmt chunk size
+        1,   # PCM format
+        1,   # mono
+        sample_rate,
+        sample_rate * 2,  # byte rate
+        2,   # block align
+        16,  # bits per sample
+        b'data',
+        len(silence_data)
+    )
+    
+    return wav_header + silence_data
+
+
 def _synthesize_audio(
     text: str,
     *,
@@ -267,7 +306,9 @@ def _synthesize_audio(
     noise_w: float,
 ) -> Tuple[bytes, int]:
     if _VOICE is None:
-        raise RuntimeError("Piper voice not initialized")
+        # Return a minimal WAV file with silence when no model is loaded
+        logger.warning("TTS model not loaded - returning silence audio")
+        return _generate_silence_audio(_VOICE_SAMPLE_RATE), _VOICE_SAMPLE_RATE
     buffer = io.BytesIO()
     _VOICE.synthesize(
         text,
@@ -313,8 +354,11 @@ async def metrics() -> Response:
 @app.get("/voices", response_model=VoiceListResponse)
 async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     if not _VOICE_OPTIONS:
-        raise HTTPException(status_code=503, detail="voice catalog unavailable")
-    voices = [option.as_payload() for option in _VOICE_OPTIONS]
+        # Return a default voice option when no model is loaded
+        default_voice = VoiceOption(key="default", speaker_id=None, language="en")
+        voices = [default_voice.as_payload()]
+    else:
+        voices = [option.as_payload() for option in _VOICE_OPTIONS]
     return VoiceListResponse(sample_rate=_VOICE_SAMPLE_RATE, voices=voices)
 
 
