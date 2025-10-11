@@ -23,6 +23,7 @@ Track design discussions and decisions across the voice lab.
 
 | Title | Status | Last Updated |
 | --- | --- | --- |
+| [Monday.com State Ledger and Capability Registry Plan](monday-state-ledger-capability-registry-plan.md) | draft | 2024-07-05 |
 | [Structured Intent, Memory, and Confirmation Safeguards Plan](structured-intent-memory-confirmation-plan.md) | draft | 2024-07-05 |
 | [MCP Tooling Wave 1 Enablement Plan](mcp-tooling-wave1-plan.md) | draft | 2024-07-05 |
 | [Discord Voice MCP User Journeys](discord-voice-mcp-user-journeys.md) | draft | 2024-07-05 |

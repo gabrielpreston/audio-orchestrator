@@ -79,11 +79,11 @@ Platform investments:
   payload schema, streaming cadence, fallback messaging) and annotate which elements the Redis
   runtime must emulate during sandbox and rollout phases.
 - [ ] Stand up a Monday.com-linked state ledger that records intent, current status, assignee,
-  follow-up checkpoints, and agreed escalation cadences for every orchestrated workflow.
+  follow-up checkpoints, and agreed escalation cadences for every orchestrated workflow ([plan](../proposals/monday-state-ledger-capability-registry-plan.md)).
 - [ ] Publish a capability registry that maps development actions to available tooling (Cursor
   sessions, alternative MCP editors, or local execution) with health signals so the orchestrator can
   choose the appropriate implementation detail at run time and flag functionality gaps to backfill
-  before full migration.
+  before full migration ([plan](../proposals/monday-state-ledger-capability-registry-plan.md)).
 
 User journey enablement:
 
