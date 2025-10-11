@@ -1,12 +1,14 @@
 # Redis-Orchestrator Sandbox Rollout Plan
 
 ## Objective
+
 - Deliver a Redis-backed orchestrator sandbox capable of replaying Discord event traffic
   through the adaptive runtime prior to production rollout.
 - Establish telemetry and parity ledger foundations so replay sessions capture state deltas,
   outcomes, and reliability metrics aligned with the target production behavior.
 
 ## Success Criteria
+
 - Docker Compose (or Makefile) target provisions Redis, orchestrator, and telemetry exporters
   in an isolated sandbox environment using repository-standard configuration files.
 - Discord capture pipeline can inject previously recorded traffic or live-mirrored events into
@@ -17,6 +19,7 @@
   tool invocation success rates) to validate replay fidelity.
 
 ## Scope
+
 - Services: `services/llm` orchestrator runtime, Redis broker/cache, telemetry exporters,
   Discord ingestion tooling for replay, parity ledger process (likely Python worker).
 - Environments: Local Docker Compose sandbox and CI smoke tests validating Redis migrations
@@ -25,6 +28,7 @@
   automated smoke tests, initial dashboards.
 
 ## Constraints & Assumptions
+
 - Redis will be the canonical store for session state and replay buffers; no alternative
   persistence layer is in scope for this milestone.
 - Discord traffic is replayed from stored PCM/transcript artifacts captured via existing
@@ -36,6 +40,7 @@
 ## Workstreams & Tasks
 
 ### 1. Sandbox Infrastructure
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Provision Redis sandbox | The orchestrator cannot exercise Redis-backed flows locally, preventing parity testing. | Add Redis service definition to `docker-compose.yml`, persist data via volume mounts, and publish metrics through `redis_exporter`. | Local sandbox offers durable Redis storage and visibility for orchestrator experiments. |
@@ -44,6 +49,7 @@
 | Redis health assurance | Orchestrator failures go undetected until runtime when Redis is unreachable. | Implement startup health checks and retry logic within `services/llm`, surfacing structured errors if Redis is offline or misconfigured. | Orchestrator detects Redis availability issues early and logs actionable diagnostics. |
 
 ### 2. Orchestrator Redis Integration
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Redis data model | Lack of agreed-upon key structure makes replay state inconsistent. | Design schema for session state, tool queues, and replay buffers; codify TTLs and naming conventions in docs. | All components write/read Redis data consistently, enabling deterministic replays. |
@@ -52,6 +58,7 @@
 | Test coverage | Redis regressions could ship undetected. | Add unit/integration tests for Redis operations (set/get, pipelines, failure modes) and run them in CI. | CI enforces Redis contract fidelity before release. |
 
 ### 3. Telemetry & Observability
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Metrics instrumentation | Redis usage lacks visibility, hindering capacity planning. | Emit Prometheus metrics for command rates, latency, and errors; add correlation IDs and Redis context to structlog events. | Operators can quantify Redis load and trace replay flows end to end. |
@@ -60,6 +67,7 @@
 | Alerting runbook | Failures lack standardized triage steps. | Publish runbook entries detailing alert thresholds, escalation, and remediation workflows. | On-call responders resolve sandbox incidents quickly using documented playbooks. |
 
 ### 4. Parity Ledger Implementation
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Ledger schema | Without a canonical schema, parity comparisons are ad hoc and incomplete. | Define schema capturing Discord metadata, orchestrator decisions, tool responses, and Redis state snapshots; select storage (Postgres/S3/append-only JSON) and document retention. | Ledger captures consistent replay records suited for diff analysis. |
@@ -68,6 +76,7 @@
 | Data governance | Ledger data may accumulate indefinitely or violate access policies. | Establish retention windows, access controls, and scrubbing/anonymization processes for stored artifacts. | Ledger remains compliant and maintainable over time. |
 
 ### 5. Replay Harness & Validation
+
 | Requirement | Problem Being Solved | Implementation Details | Expected Outcome |
 | --- | --- | --- | --- |
 | Replay bundle export | Sandbox lacks reusable Discord sessions for regression testing. | Enhance Discord bot to package audio chunks, transcripts, and metadata into structured bundles (JSON manifest + blobs). | Engineers can capture and share canonical replay datasets. |
@@ -76,6 +85,7 @@
 | Continuous validation | Sandbox may drift without ongoing checks. | Schedule nightly replay job using sample bundles and report results to telemetry/ledger dashboards. | Sandbox freshness is maintained and regressions are detected promptly. |
 
 ## Milestones & Sequencing
+
 | Milestone | Target | Key Deliverables |
 | --- | --- | --- |
 | M1 — Sandbox Bootstrap | Week 1 | Compose/Makefile updates, Redis health checks, basic telemetry |
@@ -85,6 +95,7 @@
 | M5 — Replay Automation | Week 5 | Replay harness, validation matrix, nightly job |
 
 ## Risks & Mitigations
+
 - **Redis resource contention**: Sandbox may require memory tuning; configure resource limits
   and eviction policies, and document scaling thresholds.
 - **Replay data privacy**: Ensure captured Discord content is sanitized and access-restricted;
@@ -95,6 +106,7 @@
   thresholds and whitelist acceptable variances.
 
 ## Exit Criteria
+
 - Replay harness demonstrates parity within ±5% latency and success variance compared to
   production runs for at least three representative Discord sessions.
 - Telemetry dashboards and parity ledger reports are reviewed and signed off by the platform
