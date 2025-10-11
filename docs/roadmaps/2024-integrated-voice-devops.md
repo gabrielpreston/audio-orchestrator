@@ -59,7 +59,9 @@ deliverables required to unlock business value.
 
 Platform investments:
 
-- [x] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
+- [x] Stand up GitHub Actions CI with lint, test, docker smoke, and security
+  scanning aligned to the Makefile workflow (`.github/workflows/ci.yaml`).
+- [ ] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
   with retry/backoff controls already present in the bot code.
   - Discord capture now segments PCM audio, retries STT delivery, and publishes wake-filtered
     transcripts; implement the optional local mic ingestion path as a follow-up.
