@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -238,5 +238,8 @@ lint-markdown: ## Lint Markdown docs with markdownlint
 	@command -v markdownlint >/dev/null 2>&1 || { \
 		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
 	@markdownlint $(MARKDOWN_FILES)
+
+docs-verify: ## Validate documentation last-updated metadata and indexes
+	@./scripts/verify_last_updated.py $(ARGS)
 
 .DEFAULT_GOAL := help

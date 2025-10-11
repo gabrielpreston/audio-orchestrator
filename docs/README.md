@@ -2,7 +2,7 @@
 title: Documentation Hub
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-11
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -29,6 +29,8 @@ and reference content aligned with the current repository layout.
 
 ## Version History
 
+- **2025-10-11** — Added automated `last-updated` validation (`make docs-verify`) covering
+  front matter, index tables, version history bullets, and commit recency checks.
 - **2024-07-05** — Adopted the documentation restructure proposal, centralizing onboarding,
   architecture, operations, and governance guides under this hub.
 
@@ -38,7 +40,9 @@ and reference content aligned with the current repository layout.
 2. Include YAML front matter (title, author, status, last-updated) for new guides.
 3. Update the relevant index page whenever you add or relocate documentation.
 4. Run `make lint` or `make lint-local` to exercise `markdownlint` before committing.
-5. Submit proposals under `docs/proposals/` using the template provided in
+5. Validate metadata freshness with `make docs-verify`; pass `--allow-divergence` to the
+   underlying script only when a deliberate date offset is justified.
+6. Submit proposals under `docs/proposals/` using the template provided in
    `docs/.templates/` (create one if you need a new format).
 
 ## Related Assets

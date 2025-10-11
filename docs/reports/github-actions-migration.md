@@ -1,4 +1,19 @@
+---
+title: GitHub Actions Migration — Implementation Notes
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-11
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Reports ▸ GitHub Actions Migration — Implementation Notes
+
 # GitHub Actions Migration — Implementation Notes
+
+## Version History
+
+- **2025-10-11** — Added YAML front matter, breadcrumbs, and metadata validation references for
+  the CI migration notes.
 
 The initial CI pipeline now lives at `.github/workflows/ci.yaml` and mirrors the
 Makefile-first workflow for linting, testing, Docker validation, and security
