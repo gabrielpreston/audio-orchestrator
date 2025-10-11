@@ -59,6 +59,8 @@ deliverables required to unlock business value.
 
 Platform investments:
 
+- [x] Stand up GitHub Actions CI with lint, test, docker smoke, and security
+  scanning aligned to the Makefile workflow (`.github/workflows/ci.yaml`).
 - [ ] Finalize PCM → STT → transcript pipeline for both Discord and optional local mic ingestion,
   with retry/backoff controls already present in the bot code.
 - [ ] Stand up a Redis-backed orchestrator sandbox and companion Make target that proxies Discord

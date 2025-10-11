@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_PYTHON_VERSION_WARNING: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  changes:
+    name: Detect affected areas
+    runs-on: ubuntu-latest
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      docker: ${{ steps.filter.outputs.docker }}
+      docs: ${{ steps.filter.outputs.docs }}
+      workflows: ${{ steps.filter.outputs.workflows }}
+      security: ${{ steps.filter.outputs.security }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+        with:
+          fetch-depth: 2
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@0e3f742aa1e01959e3353732f7a6fd3c8d5cb5bd
+        with:
+          filters: |
+            python:
+              - 'Makefile'
+              - 'pyproject.toml'
+              - 'services/**/*.py'
+              - 'services/**/requirements.txt'
+            docker:
+              - 'docker-compose.yml'
+              - 'services/**/Dockerfile'
+              - 'services/**/requirements.txt'
+            docs:
+              - 'README.md'
+              - 'docs/**'
+              - 'AGENTS.md'
+            workflows:
+              - '.github/workflows/**'
+            security:
+              - 'pyproject.toml'
+              - 'services/**/requirements.txt'
+
+  lint:
+    name: Lint
+    needs: changes
+    if: |
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.docs == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+      - name: Set up Python
+        uses: actions/setup-python@65d7b7ab2cbbe6c5b34d337d9c9091d1790c4804
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install Python tooling
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort ruff mypy yamllint
+      - name: Install Hadolint
+        run: |
+          curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          chmod +x /usr/local/bin/hadolint
+      - name: Install Checkmake
+        run: |
+          go install github.com/checkmake/checkmake/cmd/checkmake@v0.3.4
+          echo "${HOME}/go/bin" >> $GITHUB_PATH
+      - name: Install Markdownlint
+        run: npm install -g markdownlint-cli
+      - name: Run Makefile lint suite
+        run: make lint-local
+
+  test:
+    name: Tests
+    needs: changes
+    if: |
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+      - name: Set up Python
+        uses: actions/setup-python@65d7b7ab2cbbe6c5b34d337d9c9091d1790c4804
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install service dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/tester/requirements.txt
+          pip install -r services/discord/requirements.txt
+          pip install -r services/stt/requirements.txt
+          pip install -r services/llm/requirements.txt
+          pip install -r services/tts/requirements.txt
+      - name: Run pytest via Makefile
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: make test-local | tee pytest.log
+      - name: Upload pytest log
+        if: always()
+        uses: actions/upload-artifact@6544b8579c7306b259c658887896a2f3682f3c02
+        with:
+          name: pytest-log
+          path: pytest.log
+
+  docker-smoke:
+    name: Docker smoke
+    needs: changes
+    if: |
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+      - name: Prepare environment defaults
+        run: python3 scripts/prepare_env_files.py --force
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95dbbcefb5d1d5668564ca4d9974c3984bfb0fb
+      - name: Build and validate Compose stack
+        run: make docker-smoke | tee docker-smoke.log
+      - name: Capture rendered Compose config
+        run: docker compose config > docker-compose.config.yaml
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@6544b8579c7306b259c658887896a2f3682f3c02
+        with:
+          name: docker-smoke-artifacts
+          path: |
+            docker-smoke.log
+            docker-compose.config.yaml
+
+  security-scan:
+    name: Security scan
+    needs: changes
+    if: |
+      needs.changes.outputs.security == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@b4ffde65f46336ab0b640a22189f8e81b4c70d25
+      - name: Set up Python
+        uses: actions/setup-python@65d7b7ab2cbbe6c5b34d337d9c9091d1790c4804
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      - name: Run pip-audit across requirements
+        run: |
+          mkdir -p security-reports
+          for req in services/*/requirements.txt; do
+            report="security-reports/$(basename $(dirname "$req"))-requirements.json"
+            echo "Auditing $req"
+            pip-audit --progress-spinner off --format json --requirement "$req" > "$report" || audit_status=$?
+          done
+          if [ "${audit_status:-0}" -ne 0 ]; then
+            echo "pip-audit reported vulnerabilities" >&2
+            exit $audit_status
+          fi
+      - name: Upload pip-audit reports
+        if: always()
+        uses: actions/upload-artifact@6544b8579c7306b259c658887896a2f3682f3c02
+        with:
+          name: pip-audit-reports
+          path: security-reports

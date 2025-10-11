@@ -12,6 +12,10 @@ last-updated: 2024-07-05
 
 ## Executive Summary
 
+- **Status:** Implemented via `.github/workflows/ci.yaml` with supporting docs in
+  `docs/reports/github-actions-migration.md` and onboarding updates in the
+  repository root.
+
 - Stand up a `ci.yaml` workflow that mirrors the Makefile-driven lint, test, and Docker checks
   you already rely on while baking in GitHub Actions guardrails (least-privilege permissions,
   concurrency cancellation, reproducible environments).

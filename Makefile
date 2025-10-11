@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -122,6 +122,13 @@ docker-shell: ## Open an interactive shell inside a running service (SERVICE=nam
 docker-config: ## Render the effective docker-compose configuration
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) config
+
+docker-smoke: ## Build images and validate docker-compose configuration for CI parity
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@echo -e "$(COLOR_GREEN)→ Validating docker-compose stack$(COLOR_OFF)"
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) config >/dev/null
+	@$(DOCKER_COMPOSE) config --services
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --pull --progress=plain
 
 clean: ## Remove logs and cached audio artifacts
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
