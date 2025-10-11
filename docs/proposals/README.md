@@ -23,6 +23,7 @@ Track design discussions and decisions across the voice lab.
 
 | Title | Status | Last Updated |
 | --- | --- | --- |
+| [Structured Intent, Memory, and Confirmation Safeguards Plan](structured-intent-memory-confirmation-plan.md) | draft | 2024-07-05 |
 | [MCP Tooling Wave 1 Enablement Plan](mcp-tooling-wave1-plan.md) | draft | 2024-07-05 |
 | [Discord Voice MCP User Journeys](discord-voice-mcp-user-journeys.md) | draft | 2024-07-05 |
 | [Documentation Restructure Proposal](documentation-restructure.md) | accepted | 2024-07-05 |

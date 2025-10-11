@@ -272,6 +272,7 @@ By the end of Wave 3 the agent can:
   Wave 1 user journeys called out above, following the
   [MCP Tooling Wave 1 Enablement Plan](../proposals/mcp-tooling-wave1-plan.md).
 - Add structured intent schemas, short-term memory, and confirmation heuristics before the agent
-  performs write actions across external systems.
+  performs write actions across external systems, guided by the
+  [Structured Intent, Memory, and Confirmation Safeguards Plan](../proposals/structured-intent-memory-confirmation-plan.md).
 - Build the Monday.com-linked state ledger and capability registry so cross-surface workflows can
   persist ownership and tooling coverage.
