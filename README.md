@@ -103,9 +103,10 @@ request to `main` exercises the same checks you run locally:
    the lint/test packages, `npm install -g markdownlint-cli`, `go install
    github.com/checkmake/checkmake/cmd/checkmake@latest`, and download the
    Hadolint binary).
-2. Run `python scripts/prepare_env_files.py` to materialize the `.env.common`,
-   `.env.docker`, and `services/**/.env.service` files expected by
-   `docker-compose`.
+2. Run `python scripts/prepare_env_files.py` to materialize any missing
+   `.env.common`, `.env.docker`, and `services/**/.env.service` files expected by
+   `docker-compose`. Pass `--force` if you want to regenerate files that already
+   exist (the CI workflow does this so every run starts from the sample defaults).
 3. Run `make lint-local`, `make test-local`, and `make docker-smoke` in that
    order to match the GitHub Actions jobs.
 4. When a job fails in CI, download the corresponding artifact (`pytest-log`,

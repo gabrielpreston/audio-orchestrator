@@ -50,8 +50,10 @@ All jobs inherit the default GitHub-hosted Ubuntu runner with Docker enabled.
    - `npm install -g markdownlint-cli`
 2. Install service dependencies: `pip install -r services/<service>/requirements.txt`
    for each service plus `services/tester/requirements.txt`.
-3. Run `python scripts/prepare_env_files.py` to write the `.env` files consumed
-   by `docker compose`.
+3. Run `python scripts/prepare_env_files.py` to create any missing `.env`
+   files consumed by `docker compose`. Pass `--force` to refresh files that
+   already exist (the CI workflow invokes the script with this flag so every run
+   starts from the sample defaults).
 4. Run `make lint-local`, `make test-local`, and `make docker-smoke`.
 5. When Docker validation fails, inspect `docker-smoke.log` and the rendered
    `docker-compose.config.yaml` artifact from the workflow run.
