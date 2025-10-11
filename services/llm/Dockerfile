@@ -15,8 +15,11 @@ RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt
 COPY services/common /app/services/common
 COPY services/llm /app/services/llm
 
+# Create models directory (models will be mounted via volume)
+RUN mkdir -p /app/models
+
 ENV PORT=8000
-ENV LLAMA_MODEL_PATH=/app/models/llama2-7b.gguf
+ENV LLAMA_MODEL_PATH=/app/models/llama-2-7b.Q4_K_M.gguf
 ENV LLAMA_CTX=2048
 ENV LLAMA_THREADS=4
 

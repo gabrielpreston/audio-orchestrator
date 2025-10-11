@@ -41,7 +41,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./services/llm/models:/app/models:ro
+      - ./services/models/llm:/app/models:ro
     depends_on:
       - tts
     restart: unless-stopped
@@ -58,5 +58,5 @@ services:
     ports:
       - "7000:7000"
     volumes:
-      - ./models:/app/models:ro
+      - ./services/models/tts:/app/models:ro
     restart: unless-stopped

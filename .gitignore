@@ -20,3 +20,5 @@ services/bot/bot
 services/mcp-server/mcp-server
 mcp.json
 .cache/
+*.onnx
+*.onnx.json

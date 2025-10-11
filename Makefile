@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify models-download models-clean
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -241,5 +241,47 @@ lint-markdown: ## Lint Markdown docs with markdownlint
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)
+
+models-download: ## Download required models to ./services/models/ subdirectories
+	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
+	@mkdir -p ./services/models/llm ./services/models/tts
+	@echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
+	@if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then \
+		wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
+		"https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" || \
+		echo "Failed to download LLM model. You may need to download it manually."; \
+	else \
+		echo "LLM model already exists, skipping download."; \
+	fi
+	@echo "Downloading TTS model (en_US-amy-medium)..."
+	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx" ]; then \
+		wget -O ./services/models/tts/en_US-amy-medium.onnx \
+		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx" || \
+		echo "Failed to download TTS model. You may need to download it manually."; \
+	else \
+		echo "TTS model already exists, skipping download."; \
+	fi
+	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx.json" ]; then \
+		wget -O ./services/models/tts/en_US-amy-medium.onnx.json \
+		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || \
+		echo "Failed to download TTS model config. You may need to download it manually."; \
+	else \
+		echo "TTS model config already exists, skipping download."; \
+	fi
+	@echo -e "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)"
+	@echo "Models downloaded to:"
+	@echo "  - LLM: ./services/models/llama-2-7b.Q4_K_M.gguf"
+	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
+	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
+
+models-clean: ## Remove downloaded models from ./services/models/
+	@echo -e "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)"
+	@if [ -d "./services/models" ]; then \
+		echo "Removing models from ./services/models/"; \
+		rm -rf ./services/models/* || true; \
+		echo "Models cleaned."; \
+	else \
+		echo "No models directory found."; \
+	fi
 
 .DEFAULT_GOAL := help
