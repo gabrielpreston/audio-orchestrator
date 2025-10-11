@@ -31,6 +31,15 @@ Navigate deeper using the [documentation hub](docs/README.md):
 Keep repository updates in sync with the relevant documentation section to maintain a single
 source of truth.
 
+### Documentation freshness checks
+
+- Run `make docs-verify` after editing any guide under `docs/` to confirm front matter,
+  index tables, and version history entries align with the new content.
+- Use `make docs-verify ARGS="--allow-divergence"` (or call
+  `./scripts/verify_last_updated.py --allow-divergence`) only when you intentionally keep a
+  `last-updated` value offset from the most recent changes and have documented the rationale in
+  the affected page.
+
 ## Structured logging
 
 All Python services share the `services.common.logging` helpers to emit JSON logs
