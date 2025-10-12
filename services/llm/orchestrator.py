@@ -8,7 +8,6 @@ import asyncio
 import json
 import os
 import struct
-import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -16,8 +15,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 from llama_cpp import Llama
 
-from services.common.logging import get_logger
 from services.common.debug import get_debug_manager
+from services.common.logging import get_logger
 
 from .mcp_manager import MCPManager
 
@@ -106,15 +105,15 @@ class Orchestrator:
     ) -> bytes:
         """Convert raw PCM audio data to proper WAV format using standardized audio processing."""
         from services.common.audio import AudioProcessor
-        
+
         processor = AudioProcessor("orchestrator")
         processor.set_logger(self._logger)
-        
+
         try:
             # Use standardized audio processing
             wav_data = processor.pcm_to_wav(raw_audio_data, sample_rate, num_channels, sample_width)
             return wav_data
-            
+
         except Exception as exc:
             self._logger.error(
                 "orchestrator.wav_conversion_failed",
@@ -225,14 +224,15 @@ class Orchestrator:
         """Process a transcript from Discord service."""
         try:
             from services.common.correlation import generate_orchestrator_correlation_id
-            
+
             # Create transcript data in the expected format
             transcript_data = {
                 "text": transcript,
                 "user_id": user_id,
                 "channel_id": channel_id,
                 "guild_id": guild_id,
-                "correlation_id": correlation_id or generate_orchestrator_correlation_id(user_id=user_id),
+                "correlation_id": correlation_id
+                or generate_orchestrator_correlation_id(user_id=user_id),
             }
 
             # Process the transcript
@@ -497,7 +497,7 @@ class Orchestrator:
                     client=client_name,
                     tool=tool_name,
                 )
-                
+
                 # Save debug data for successful MCP tool calls
                 self._save_debug_mcp_tool_call(
                     client_name=client_name,
@@ -524,7 +524,7 @@ class Orchestrator:
                         "success": False,
                     }
                 )
-                
+
                 # Save debug data for failed MCP tool calls
                 self._save_debug_mcp_tool_call(
                     client_name=client_name,
@@ -592,7 +592,11 @@ Provide a natural, conversational response."""
             # Call TTS service
             response = await self._http_client.post(
                 f"{self.tts_base_url}/synthesize",
-                json={"text": text, "voice": "default", "correlation_id": context.get("correlation_id")},
+                json={
+                    "text": text,
+                    "voice": "default",
+                    "correlation_id": context.get("correlation_id"),
+                },
                 headers=headers,
                 timeout=30.0,
             )
@@ -664,9 +668,11 @@ Provide a natural, conversational response."""
         """Save debug data for MCP tool calls."""
         try:
             from services.common.correlation import generate_mcp_correlation_id
-            
+
             base_correlation_id = context.get("correlation_id", "unknown")
-            correlation_id = generate_mcp_correlation_id(base_correlation_id, client_name, tool_name)
+            correlation_id = generate_mcp_correlation_id(
+                base_correlation_id, client_name, tool_name
+            )
             debug_manager = get_debug_manager("orchestrator")
 
             # Save tool call details

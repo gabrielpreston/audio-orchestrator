@@ -17,7 +17,41 @@ voice lab stack.
 
 - Store Discord bot tokens, orchestrator auth tokens, and MCP secrets outside version control.
 - Rotate tokens whenever access is revoked or incidents occur; update `.env.service` files accordingly.
+- Use the automated token rotation script for consistent AUTH_TOKEN management across all services.
 - Limit Discord bot scopes to required intents (`guilds`, `guild_voice_states`).
+
+### Token Rotation
+
+The `discord-voice-lab` includes an automated script for rotating AUTH_TOKEN values across all environment files:
+
+```bash
+# Rotate all AUTH_TOKENs
+make rotate-tokens
+
+# Preview changes without modifying files
+make rotate-tokens-dry-run
+
+# Validate token consistency across all environment files
+make validate-tokens
+```
+
+The rotation script:
+
+- Generates cryptographically secure random tokens (32 characters by default)
+- Updates all relevant environment files (`.env.sample`, service-specific `.env.service` files)
+- Validates token consistency after rotation
+- Supports dry-run mode for safe testing
+- Can rotate specific tokens or all tokens at once
+
+For manual rotation or custom token lengths:
+
+```bash
+# Rotate only specific tokens
+./scripts/rotate_auth_tokens.py --tokens ORCH_AUTH_TOKEN
+
+# Use custom token length
+./scripts/rotate_auth_tokens.py --length 64
+```
 
 ## Network & Access Control
 

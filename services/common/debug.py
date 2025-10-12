@@ -46,7 +46,7 @@ class DebugFileManager:
     ) -> None:
         """
         Append an entry to the consolidated debug log file.
-        
+
         Args:
             correlation_id: Unique identifier for grouping files
             entry_type: Type of debug entry (e.g., "text", "metadata", "audio_info")
@@ -59,17 +59,17 @@ class DebugFileManager:
         try:
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             debug_log_path = correlation_dir / "debug_log.json"
-            
+
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # Include milliseconds
-            
+
             # Create log entry
             log_entry = {
                 "timestamp": timestamp,
                 "type": entry_type,
                 "content": content,
-                "metadata": metadata or {}
+                "metadata": metadata or {},
             }
-            
+
             # Load existing entries or create new list
             existing_entries = []
             if debug_log_path.exists():
@@ -83,23 +83,23 @@ class DebugFileManager:
                 except (json.JSONDecodeError, KeyError):
                     # If file is corrupted or in old format, start fresh
                     existing_entries = []
-            
+
             # Add new entry
             existing_entries.append(log_entry)
-            
+
             # Create structured debug log
             debug_log = {
                 "correlation_id": correlation_id,
                 "created_at": datetime.now().isoformat(),
                 "updated_at": datetime.now().isoformat(),
                 "total_entries": len(existing_entries),
-                "entries": existing_entries
+                "entries": existing_entries,
             }
-            
+
             # Save to JSON file
             with open(debug_log_path, "w", encoding="utf-8") as f:
                 json.dump(debug_log, f, indent=2, default=str)
-            
+
             self._logger.info(
                 "debug.log_entry_appended",
                 correlation_id=correlation_id,
@@ -107,7 +107,7 @@ class DebugFileManager:
                 log_path=str(debug_log_path),
                 total_entries=len(existing_entries),
             )
-            
+
         except Exception as exc:
             self._logger.error(
                 "debug.log_append_failed",
@@ -146,7 +146,7 @@ class DebugFileManager:
                 content=content,
                 metadata=metadata,
             )
-            
+
             # Return path to the consolidated debug log
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             return correlation_dir / "debug_log.json"
@@ -230,7 +230,7 @@ Sample Rate: {sample_rate} Hz"""
                     "size_bytes": len(wav_data),
                     "original_size_bytes": len(audio_data),
                     "converted": convert_to_wav,
-                    "format": "WAV"
+                    "format": "WAV",
                 },
             )
 
@@ -274,7 +274,7 @@ Sample Rate: {sample_rate} Hz"""
         try:
             # Format JSON data for the consolidated log
             json_content = json.dumps(data, indent=2)
-            
+
             # Append to consolidated debug log
             self._append_to_debug_log(
                 correlation_id=correlation_id,
@@ -282,10 +282,10 @@ Sample Rate: {sample_rate} Hz"""
                 content=json_content,
                 metadata={
                     "data_keys": list(data.keys()) if isinstance(data, dict) else "non-dict",
-                    "data_type": "json"
+                    "data_type": "json",
                 },
             )
-            
+
             # Return path to the consolidated debug log
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             return correlation_dir / "debug_log.json"
@@ -350,7 +350,7 @@ Statistics:
                 content=manifest_content,
                 metadata=manifest,
             )
-            
+
             # Return path to the consolidated debug log
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             return correlation_dir / "debug_log.json"
@@ -366,7 +366,7 @@ Statistics:
     def _ensure_correlation_dir(self, correlation_id: str) -> Path:
         """Ensure the correlation directory exists with hierarchical structure."""
         self.base_dir.mkdir(exist_ok=True)
-        
+
         # Create hierarchical directory structure based on correlation_id
         # Format: debug/YYYY/MM/DD/correlation_id/
         now = datetime.now()
@@ -374,7 +374,7 @@ Statistics:
         month_dir = year_dir / f"{now.month:02d}"
         day_dir = month_dir / f"{now.day:02d}"
         correlation_dir = day_dir / correlation_id
-        
+
         # Create all directories in the hierarchy
         correlation_dir.mkdir(parents=True, exist_ok=True)
         return correlation_dir
@@ -382,10 +382,10 @@ Statistics:
     def find_correlation_dir(self, correlation_id: str) -> Optional[Path]:
         """
         Find a correlation directory in the hierarchical structure.
-        
+
         Args:
             correlation_id: The correlation ID to find
-            
+
         Returns:
             Path to the correlation directory if found, None otherwise
         """
@@ -407,22 +407,22 @@ Statistics:
     def list_correlation_ids(self, date_filter: Optional[str] = None) -> List[str]:
         """
         List all correlation IDs in the hierarchical structure.
-        
+
         Args:
             date_filter: Optional date filter in YYYY-MM-DD format
-            
+
         Returns:
             List of correlation IDs found
         """
         correlation_ids = []
-        
+
         if date_filter:
             try:
                 filter_date = datetime.strptime(date_filter, "%Y-%m-%d")
                 year_dir = self.base_dir / str(filter_date.year)
                 month_dir = year_dir / f"{filter_date.month:02d}"
                 day_dir = month_dir / f"{filter_date.day:02d}"
-                
+
                 if day_dir.exists():
                     for item in day_dir.iterdir():
                         if item.is_dir():
@@ -430,7 +430,7 @@ Statistics:
             except ValueError:
                 # Invalid date format, search all directories
                 pass
-        
+
         if not correlation_ids:
             # Search all directories if no filter or filter failed
             for year_dir in self.base_dir.iterdir():
@@ -445,7 +445,7 @@ Statistics:
                         for item in day_dir.iterdir():
                             if item.is_dir():
                                 correlation_ids.append(item.name)
-        
+
         return sorted(correlation_ids)
 
     def _convert_raw_to_wav(self, audio_data: bytes, sample_rate: int = 48000) -> bytes:

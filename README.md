@@ -68,15 +68,16 @@ accessed via the `/audio/{filename}` endpoint for audio playback.
 
 ### Consolidated Debug Logs
 
-All debug data (except WAV files) is now consolidated into a single structured 
-`debug_log.json` file per correlation ID, making it easier to analyze the complete 
-voice pipeline execution in one place. WAV audio files are still saved separately 
+All debug data (except WAV files) is now consolidated into a single structured
+`debug_log.json` file per correlation ID, making it easier to analyze the complete
+voice pipeline execution in one place. WAV audio files are still saved separately
 for playback.
 
-Debug files are organized in a hierarchical structure (`debug/YYYY/MM/DD/correlation_id/`) 
+Debug files are organized in a hierarchical structure (`debug/YYYY/MM/DD/correlation_id/`)
 to avoid filesystem limitations and enable efficient archiving of old data.
 
 Use the debug manager utility for maintenance:
+
 ```bash
 python3 scripts/debug_manager.py --stats          # Show statistics
 python3 scripts/debug_manager.py --archive 30     # Archive data older than 30 days
@@ -94,6 +95,7 @@ All services now use a unified audio processing library (`services.common.audio`
 - **Service Defaults**: Optimized parameters for each service
 
 **Service-Specific Audio Parameters**:
+
 - **Discord**: 48kHz, mono, 16-bit PCM
 - **STT**: 16kHz, mono, 16-bit WAV  
 - **TTS**: 22.05kHz, mono, 16-bit WAV
@@ -111,6 +113,7 @@ All services now use a unified correlation ID generation system (`services.commo
 - **Timestamp Tracking**: Chronological ordering of operations
 
 **Correlation ID Formats**:
+
 - **Discord**: `discord-{user_id}-{guild_id}-{timestamp_ms}`
 - **STT**: `stt-{source_id}` or `stt-{timestamp_ms}`
 - **TTS**: `tts-{source_id}` or `tts-{timestamp_ms}`
@@ -129,6 +132,18 @@ The Discord bot now retries voice handshakes automatically if the gateway or med
 Adjust retry behavior with `DISCORD_VOICE_CONNECT_TIMEOUT`, `DISCORD_VOICE_CONNECT_ATTEMPTS`,
 `DISCORD_VOICE_RECONNECT_BASE_DELAY`, and `DISCORD_VOICE_RECONNECT_MAX_DELAY` in
 `services/discord/.env.service`.
+
+## Security & Token Management
+
+Rotate AUTH_TOKEN values across all services with the automated script:
+
+```bash
+make rotate-tokens          # Rotate all tokens
+make rotate-tokens-dry-run  # Preview changes
+make validate-tokens        # Check consistency
+```
+
+See the [security guidelines](docs/operations/security.md) for comprehensive credential management practices.
 
 ## Wake phrase detection
 

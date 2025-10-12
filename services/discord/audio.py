@@ -8,7 +8,6 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Deque, Dict, List, Literal, Optional, Tuple
 
-import numpy as np
 import webrtcvad
 
 from services.common.logging import get_logger
@@ -278,7 +277,7 @@ class AudioPipeline:
         override_reason: Optional[str] = None,
     ) -> Optional[AudioSegment]:
         from services.common.correlation import generate_discord_correlation_id
-        
+
         correlation_id = generate_discord_correlation_id(accumulator.user_id)
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
@@ -338,20 +337,20 @@ class AudioPipeline:
     ) -> Tuple[bytes, float]:
         """Bring audio closer to a target RMS to reduce overly quiet or loud frames using standardized audio processing."""
         from services.common.audio import AudioProcessor
-        
+
         processor = AudioProcessor("discord")
         processor.set_logger(self._logger)
-        
+
         # Use standardized normalization
         normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2)
-        
+
         return normalized_pcm, new_rms
 
 
 def rms_from_pcm(pcm: bytes) -> float:
     """Compute RMS value for PCM audio using standardized audio processing."""
     from services.common.audio import AudioProcessor
-    
+
     processor = AudioProcessor("discord")
     return processor.calculate_rms(pcm, 2)
 
