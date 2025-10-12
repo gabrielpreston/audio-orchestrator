@@ -8,6 +8,7 @@ import json
 import os
 import time
 import uuid
+import struct
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -80,8 +81,10 @@ class Orchestrator:
             audio_file = None
             if audio_data:
                 audio_file = debug_dir / "audio" / f"{timestamp}_{session_id}_audio.wav"
+                # Convert raw PCM to proper WAV format
+                wav_data = self._convert_raw_to_wav(audio_data)
                 with open(audio_file, "wb") as f:
-                    f.write(audio_data)
+                    f.write(wav_data)
             
             # Create manifest with metadata
             manifest = {
@@ -118,6 +121,88 @@ class Orchestrator:
                 "orchestrator.debug_save_failed",
                 error=str(exc),
             )
+    
+    def _convert_raw_to_wav(self, raw_audio_data: bytes, sample_rate: int = 22050, num_channels: int = 1, sample_width: int = 2) -> bytes:
+        """Convert raw PCM audio data to proper WAV format with RIFF headers."""
+        try:
+            # Calculate number of frames
+            num_frames = len(raw_audio_data) // (num_channels * sample_width)
+            
+            # Create WAV header
+            wav_header = self._create_wav_header(sample_rate, num_channels, sample_width, num_frames)
+            
+            # Combine header with audio data
+            return wav_header + raw_audio_data
+            
+        except Exception as exc:
+            self._logger.error(
+                "orchestrator.wav_conversion_failed",
+                error=str(exc),
+            )
+            # Return original data if conversion fails
+            return raw_audio_data
+    
+    def _create_wav_header(self, sample_rate: int, num_channels: int, sample_width: int, num_frames: int) -> bytes:
+        """Create a WAV file header."""
+        # RIFF header
+        riff_id = b'RIFF'
+        riff_format = b'WAVE'
+        
+        # fmt chunk
+        fmt_id = b'fmt '
+        fmt_size = 16
+        audio_format = 1  # PCM
+        byte_rate = num_channels * sample_rate * sample_width
+        block_align = num_channels * sample_width
+        
+        fmt_chunk = struct.pack('<4sIHHIIHH', 
+                               fmt_id, fmt_size, audio_format, num_channels, 
+                               sample_rate, byte_rate, block_align, sample_width * 8)
+        
+        # data chunk
+        data_id = b'data'
+        data_size = num_frames * num_channels * sample_width
+        
+        # Total file size
+        file_size = 36 + data_size
+        
+        riff_chunk = struct.pack('<4sI4s', riff_id, file_size, riff_format)
+        
+        return riff_chunk + fmt_chunk + struct.pack('<4sI', data_id, data_size)
+    
+    def _save_audio_file(self, audio_data: bytes, correlation_id: str) -> str:
+        """Save audio data to a temporary file and return the file path."""
+        try:
+            # Create audio directory
+            audio_dir = Path("/app/audio")
+            audio_dir.mkdir(exist_ok=True)
+            
+            # Generate filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{timestamp}_{correlation_id}_audio.wav"
+            file_path = audio_dir / filename
+            
+            # Convert raw PCM to WAV and save
+            wav_data = self._convert_raw_to_wav(audio_data)
+            with open(file_path, "wb") as f:
+                f.write(wav_data)
+            
+            self._logger.info(
+                "orchestrator.audio_file_saved",
+                file_path=str(file_path),
+                size_bytes=len(wav_data),
+                correlation_id=correlation_id,
+            )
+            
+            return str(file_path)
+            
+        except Exception as exc:
+            self._logger.error(
+                "orchestrator.audio_file_save_failed",
+                error=str(exc),
+                correlation_id=correlation_id,
+            )
+            raise
     
     async def process_transcript(
         self, 
@@ -190,6 +275,7 @@ class Orchestrator:
         correlation_id = transcript_data.get("correlation_id", "unknown")
         text = transcript_data.get("text", "")
         context = {
+            "text": text,
             "guild_id": transcript_data.get("guild_id"),
             "channel_id": transcript_data.get("channel_id"),
             "user_id": transcript_data.get("user_id"),
@@ -473,10 +559,9 @@ Provide a natural, conversational response."""
                 metadata=debug_metadata
             )
             
-            # Create temporary audio URL (in production, you'd serve this via HTTP)
-            # For now, we'll use a data URI
-            audio_b64 = base64.b64encode(audio_data).decode("ascii")
-            audio_url = f"data:audio/wav;base64,{audio_b64}"
+            # Save audio file and create HTTP URL
+            audio_file_path = self._save_audio_file(audio_data, context.get("correlation_id", "unknown"))
+            audio_url = f"http://orch:8000/audio/{os.path.basename(audio_file_path)}"
             
             # Play audio in Discord
             await self.mcp_manager.call_discord_tool(

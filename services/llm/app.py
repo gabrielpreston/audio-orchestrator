@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from llama_cpp import Llama
 from pydantic import BaseModel
 
@@ -413,6 +413,27 @@ async def handle_transcript(request: TranscriptRequest):
             user_id=request.user_id
         )
         return {"error": str(exc)}
+
+
+@app.get("/audio/{filename}")
+async def serve_audio(filename: str):
+    """Serve audio files for Discord playback."""
+    try:
+        from pathlib import Path
+        audio_dir = Path("/app/audio")
+        file_path = audio_dir / filename
+        
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        return FileResponse(
+            path=str(file_path),
+            media_type="audio/wav",
+            filename=filename
+        )
+    except Exception as exc:
+        logger.error("llm.audio_serve_failed", error=str(exc), filename=filename)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

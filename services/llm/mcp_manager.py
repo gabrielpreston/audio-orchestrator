@@ -67,6 +67,7 @@ class MCPManager:
                 self.is_connected = True
                 self.base_url = "http://discord:8001"  # Discord service port
                 self._http_client = None
+                self._logger = get_logger(__name__, service_name="llm")
             
             async def _get_http_client(self):
                 """Get or create HTTP client."""

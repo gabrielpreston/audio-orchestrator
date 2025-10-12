@@ -41,27 +41,65 @@ async def startup_event():
     """Initialize Discord bot and HTTP API on startup."""
     global _bot
     
+    logger.info("discord.startup_event_called")
+    
     try:
         # Check if we should run the full Discord bot
         run_full_bot = os.getenv("DISCORD_FULL_BOT", "false").lower() == "true"
+        logger.info("discord.full_bot_check", run_full_bot=run_full_bot)
         
         if run_full_bot:
             # Initialize full Discord bot with voice capabilities
-            from .discord_voice import run_bot
-            config = load_config()
-            
-            # Start the bot in a background task
-            asyncio.create_task(run_bot(config))
-            _bot = {"status": "starting", "mode": "full_bot"}
             logger.info("discord.full_bot_starting")
+            from .discord_voice import VoiceBot
+            from .config import load_config
+            from services.common.logging import configure_logging
+            from .audio import AudioPipeline
+            from .wake import WakeDetector
+            from .orchestrator_client import OrchestratorClient
+            
+            logger.info("discord.imports_complete")
+            config = load_config()
+            logger.info("discord.config_loaded")
+            configure_logging(
+                config.telemetry.log_level,
+                json_logs=config.telemetry.log_json,
+                service_name="discord",
+            )
+            logger.info("discord.logging_configured")
+            
+            audio_pipeline = AudioPipeline(config.audio)
+            logger.info("discord.audio_pipeline_created")
+            wake_detector = WakeDetector(config.wake)
+            logger.info("discord.wake_detector_created")
+            
+            async def dummy_transcript_publisher(transcript_data: Dict[str, Any]) -> None:
+                logger.info("discord.dummy_transcript_published", **transcript_data)
+            
+            orchestrator_client = OrchestratorClient(orchestrator_url=os.getenv("ORCHESTRATOR_URL", "http://orch:8000"))
+            logger.info("discord.orchestrator_client_created")
+            
+            _bot = VoiceBot(
+                config=config,
+                audio_pipeline=audio_pipeline,
+                wake_detector=wake_detector,
+                transcript_publisher=dummy_transcript_publisher,
+            )
+            logger.info("discord.voicebot_created")
+            
+            asyncio.create_task(_bot.start(config.discord.token))
+            logger.info("discord.full_bot_started")
         else:
-            # HTTP API mode only
             _bot = {"status": "ready", "mode": "http"}
             logger.info("discord.http_api_started")
             
     except Exception as exc:
-        logger.error("discord.startup_failed", error=str(exc))
-        raise
+        logger.error("discord.http_startup_failed", error=str(exc))
+        import traceback
+        logger.error("discord.startup_traceback", traceback=traceback.format_exc())
+        # Don't raise the exception to prevent the service from crashing
+        _bot = {"status": "error", "mode": "http", "error": str(exc)}
+        logger.info("discord.http_api_started_with_error")
 
 @app.on_event("shutdown")
 async def shutdown_event():
