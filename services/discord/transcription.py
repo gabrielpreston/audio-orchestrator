@@ -134,9 +134,9 @@ def _pcm_to_wav(
 ) -> bytes:
     """Encode raw PCM bytes into a WAV container using standardized audio processing."""
     from services.common.audio import AudioProcessor
-    
+
     processor = AudioProcessor("discord")
-    
+
     # Convert audio format using standardized processing
     result = processor.convert_audio_format(
         audio_data=pcm,
@@ -147,9 +147,9 @@ def _pcm_to_wav(
         from_channels=channels,
         to_channels=channels,
         from_sample_width=2,
-        to_sample_width=2
+        to_sample_width=2,
     )
-    
+
     if result.success:
         return result.audio_data
     else:

@@ -243,6 +243,18 @@ lint-markdown: ## Lint Markdown docs with markdownlint
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)
 
+rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files
+	@echo -e "$(COLOR_CYAN)→ Rotating AUTH_TOKEN values$(COLOR_OFF)"
+	@./scripts/rotate_auth_tokens.py
+
+rotate-tokens-dry-run: ## Show what token rotation would change without modifying files
+	@echo -e "$(COLOR_CYAN)→ Dry run: AUTH_TOKEN rotation preview$(COLOR_OFF)"
+	@./scripts/rotate_auth_tokens.py --dry-run
+
+validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
+	@echo -e "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)"
+	@./scripts/rotate_auth_tokens.py --validate-only
+
 models-download: ## Download required models to ./services/models/ subdirectories
 	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
 	@mkdir -p ./services/models/llm ./services/models/tts

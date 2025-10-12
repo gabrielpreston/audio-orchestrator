@@ -6,7 +6,6 @@ import json
 import os
 import re
 import time
-import uuid
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,8 +15,8 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
-from services.common.logging import configure_logging, get_logger
 from services.common.debug import get_debug_manager
+from services.common.logging import configure_logging, get_logger
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -279,22 +278,22 @@ def _strip_ssml(text: str) -> str:
 def _generate_silence_audio(sample_rate: int, duration: float = 1.0) -> bytes:
     """Generate a minimal WAV file with silence using standardized audio processing."""
     from services.common.audio import AudioProcessor
-    
+
     processor = AudioProcessor("tts")
-    
+
     try:
         # Generate silence data
         num_samples = int(sample_rate * duration)
         silence_data = b"\x00" * (num_samples * 2)  # 16-bit samples
-        
+
         # Use standardized audio processing to create WAV
         wav_data = processor.pcm_to_wav(silence_data, sample_rate, 1, 2)
         return wav_data
-        
+
     except Exception:
         # Fallback to original implementation
         import struct
-        
+
         # Generate 1 second of silence
         num_samples = int(sample_rate * duration)
         silence_data = b"\x00" * (num_samples * 2)  # 16-bit samples
@@ -426,7 +425,7 @@ async def synthesize(
     _SYNTHESIS_SIZE.observe(size_bytes)
 
     from services.common.correlation import generate_tts_correlation_id
-    
+
     audio_id = payload.correlation_id or generate_tts_correlation_id()
     headers = {
         "X-Audio-Id": audio_id,
@@ -444,7 +443,7 @@ async def synthesize(
         size_bytes=size_bytes,
         duration_ms=int(duration * 1000),
     )
-    
+
     # Save debug data for TTS synthesis
     _save_debug_synthesis(
         audio_id=audio_id,
@@ -460,7 +459,7 @@ async def synthesize(
         size_bytes=size_bytes,
         duration=duration,
     )
-    
+
     return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
 
 
@@ -482,21 +481,21 @@ def _save_debug_synthesis(
     try:
         # Use audio_id as correlation_id for TTS debug files
         correlation_id = audio_id
-        
+
         # Save input text/SSML
         _debug_manager.save_text_file(
             correlation_id=correlation_id,
             content=f"TTS Input ({'SSML' if is_ssml else 'Text'}):\n{text_source}",
             filename_prefix="tts_input",
         )
-        
+
         # Save generated audio
         _debug_manager.save_audio_file(
             correlation_id=correlation_id,
             audio_data=audio_bytes,
             filename_prefix="tts_output",
         )
-        
+
         # Save synthesis parameters
         _debug_manager.save_json_file(
             correlation_id=correlation_id,
@@ -519,7 +518,7 @@ def _save_debug_synthesis(
             },
             filename_prefix="tts_parameters",
         )
-        
+
         # Save manifest
         files = {}
         audio_file = _debug_manager.save_audio_file(
@@ -529,7 +528,7 @@ def _save_debug_synthesis(
         )
         if audio_file:
             files["tts_output"] = str(audio_file)
-            
+
         _debug_manager.save_manifest(
             correlation_id=correlation_id,
             metadata={
@@ -547,7 +546,7 @@ def _save_debug_synthesis(
                 "sample_rate": sample_rate,
             },
         )
-        
+
     except Exception as exc:
         logger.error(
             "tts.debug_synthesis_save_failed",
