@@ -285,36 +285,24 @@ models-clean: ## Remove downloaded models from ./services/models/
 		echo "No models directory found."; \
 	fi
 
-# --- Cursor CI integration targets -------------------------------------------
+# --- Auto-fix targets --------------------------------------------------------
 
-cursor-fix: ## Apply Cursor fixes to codebase
-	@echo -e "$(COLOR_BLUE)→ Applying Cursor fixes$(COLOR_OFF)"
-	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=all --auto-commit
+auto-fix: ## Apply auto-fixes using existing tools (black, isort, ruff, etc.)
+	@echo -e "$(COLOR_BLUE)→ Applying auto-fixes$(COLOR_OFF)"
+	@black services/ || true
+	@isort services/ || true
+	@ruff check --fix services/ || true
+	@echo "Auto-fixes applied. Review changes with 'git diff'"
 
-cursor-fix-lint: ## Apply Cursor fixes to linting issues only
-	@echo -e "$(COLOR_BLUE)→ Applying Cursor lint fixes$(COLOR_OFF)"
-	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=lint --auto-commit
-
-cursor-fix-test: ## Apply Cursor fixes to test issues only
-	@echo -e "$(COLOR_BLUE)→ Applying Cursor test fixes$(COLOR_OFF)"
-	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=test --auto-commit
-
-cursor-fix-docker: ## Apply Cursor fixes to Docker issues only
-	@echo -e "$(COLOR_BLUE)→ Applying Cursor Docker fixes$(COLOR_OFF)"
-	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=docker --auto-commit
-
-cursor-dry-run: ## Show what Cursor would fix without applying
-	@echo -e "$(COLOR_CYAN)→ Dry run - showing what would be fixed$(COLOR_OFF)"
-	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=all --dry-run
-
-cursor-install: ## Install Cursor CLI
-	@echo -e "$(COLOR_GREEN)→ Installing Cursor CLI$(COLOR_OFF)"
-	@curl -fsSL https://cursor.sh/install.sh | sh
-	@echo "Cursor CLI installed. Add ~/.cursor/bin to your PATH."
+auto-fix-commit: ## Apply auto-fixes and commit them
+	@echo -e "$(COLOR_BLUE)→ Applying auto-fixes and committing$(COLOR_OFF)"
+	@make auto-fix
+	@if ! git diff --quiet; then \
+		git add . && \
+		git commit -m "fix: apply auto-fixes for linting issues"; \
+		echo "Changes committed"; \
+	else \
+		echo "No changes to commit"; \
+	fi
 
 .DEFAULT_GOAL := help

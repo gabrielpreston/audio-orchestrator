@@ -1,0 +1,35 @@
+name: Cursor Fix CI
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    name: Apply Cursor fixes
+    runs-on: ubuntu-latest
+    if: |
+      github.event.workflow_run.conclusion == 'failure' ||
+      github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Install Cursor CLI
+        run: |
+          # TODO: Replace with actual Cursor CLI installation when available
+          echo "Cursor CLI not yet available - skipping fixes"
+          exit 0
+      
+      - name: Apply fixes
+        run: |
+          # TODO: Replace with actual cursor fix-ci command when available
+          echo "Would run: cursor fix-ci --auto-commit"
