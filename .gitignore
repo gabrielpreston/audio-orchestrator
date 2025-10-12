@@ -22,3 +22,4 @@ mcp.json
 .cache/
 *.onnx
 *.onnx.json
+debug/
