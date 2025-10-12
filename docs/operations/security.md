@@ -36,6 +36,7 @@ make validate-tokens
 ```
 
 The rotation script:
+
 - Generates cryptographically secure random tokens (32 characters by default)
 - Updates all relevant environment files (`.env.sample`, service-specific `.env.service` files)
 - Validates token consistency after rotation
@@ -43,6 +44,7 @@ The rotation script:
 - Can rotate specific tokens or all tokens at once
 
 For manual rotation or custom token lengths:
+
 ```bash
 # Rotate only specific tokens
 ./scripts/rotate_auth_tokens.py --tokens ORCH_AUTH_TOKEN

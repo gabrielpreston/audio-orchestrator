@@ -32,7 +32,7 @@ RUN curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hado
     -o /usr/local/bin/hadolint && \
     chmod +x /usr/local/bin/hadolint
 
-RUN go install github.com/checkmake/checkmake/cmd/checkmake@v0.2.2
+RUN go install github.com/checkmake/checkmake/cmd/checkmake@latest
 
 COPY services/linter/run-lint.sh /usr/local/bin/run-lint.sh
 RUN chmod +x /usr/local/bin/run-lint.sh
