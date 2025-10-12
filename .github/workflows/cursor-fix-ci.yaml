@@ -124,29 +124,44 @@ jobs:
       
       - name: Install Cursor CLI
         run: |
-          # Install Cursor CLI (placeholder - replace with actual installation)
+          # Install Cursor CLI
           echo "Installing Cursor CLI..."
+          # Note: Replace with actual Cursor CLI installation when available
           # curl -fsSL https://cursor.sh/install.sh | sh
           # echo "$HOME/.cursor/bin" >> $GITHUB_PATH
           
-          # For now, create a mock cursor command
+          # For now, create a simple wrapper that uses existing tools
           cat > /usr/local/bin/cursor << 'EOF'
           #!/bin/bash
-          echo "Mock Cursor CLI - would apply fixes for: $*"
+          set -e
           
-          # Apply basic fixes using existing tools
           case "$1" in
             "fix-ci")
-              echo "Applying automated fixes..."
-              if [[ "$*" == *"lint"* ]]; then
-                echo "Fixing linting issues..."
-                black services/ || true
-                isort services/ || true
-                ruff check --fix services/ || true
-              fi
+              target="${2:-all}"
+              echo "Applying fixes for target: $target"
+              
+              case "$target" in
+                "lint"|"all")
+                  echo "Fixing linting issues..."
+                  black services/ || true
+                  isort services/ || true
+                  ruff check --fix services/ || true
+                  ;;
+                "test"|"all")
+                  echo "Fixing test issues..."
+                  # Add test-specific fixes here
+                  ;;
+                "docker"|"all")
+                  echo "Fixing Docker issues..."
+                  # Add Docker-specific fixes here
+                  ;;
+              esac
+              ;;
+            "--version")
+              echo "Cursor CLI (mock) 1.0.0"
               ;;
             *)
-              echo "Unknown command: $1"
+              echo "Usage: cursor fix-ci [target]"
               exit 1
               ;;
           esac

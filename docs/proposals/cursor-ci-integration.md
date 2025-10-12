@@ -37,7 +37,9 @@ This proposal outlines a strategy to integrate Cursor's `fix-ci` functionality i
 
 ## Proposed Integration Strategy
 
-### Phase 1: Lint-Fix Integration (Immediate)
+### Simple CLI-Based Approach
+
+The integration should be much simpler than initially proposed. Instead of complex analysis, we use Cursor CLI directly:
 
 #### New Workflow: `cursor-fix-ci.yaml`
 
@@ -64,33 +66,14 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  issues: write
 
 jobs:
-  detect-failures:
-    name: Detect CI failures
-    runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
-    outputs:
-      failed_jobs: ${{ steps.analyze.outputs.failed_jobs }}
-      should_fix: ${{ steps.analyze.outputs.should_fix }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-      
-      - name: Analyze failed jobs
-        id: analyze
-        run: |
-          # Analyze workflow run results and determine fixable issues
-          # Output failed_jobs and should_fix flags
-
   cursor-fix:
     name: Apply Cursor fixes
-    needs: detect-failures
-    if: needs.detect-failures.outputs.should_fix == 'true'
     runs-on: ubuntu-latest
+    if: |
+      github.event.workflow_run.conclusion == 'failure' ||
+      github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -100,26 +83,19 @@ jobs:
       
       - name: Install Cursor CLI
         run: |
-          # Install Cursor CLI based on official documentation
+          # Install Cursor CLI (when available)
           curl -fsSL https://cursor.sh/install.sh | sh
           echo "$HOME/.cursor/bin" >> $GITHUB_PATH
       
-      - name: Configure Cursor
-        run: |
-          # Set up Cursor with appropriate API keys and configuration
-          cursor config set api-key ${{ secrets.CURSOR_API_KEY }}
-      
       - name: Apply automated fixes
         run: |
-          # Use Cursor CLI to fix identified issues
-          cursor fix-ci --target="${{ needs.detect-failures.outputs.failed_jobs }}" --auto-commit
+          # Simple direct CLI call - let Cursor handle the analysis
+          cursor fix-ci --target="${{ github.event.inputs.target_job || 'lint' }}" --auto-commit
       
       - name: Create fix summary
         run: |
-          # Generate summary of applied fixes
           echo "## Cursor CI Fixes Applied" >> $GITHUB_STEP_SUMMARY
-          echo "- Fixed linting issues" >> $GITHUB_STEP_SUMMARY
-          echo "- Applied formatting corrections" >> $GITHUB_STEP_SUMMARY
+          echo "- Target: ${{ github.event.inputs.target_job || 'lint' }}" >> $GITHUB_STEP_SUMMARY
 ```
 
 #### Enhanced Lint Job with Fix Capability

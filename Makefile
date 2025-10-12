@@ -290,7 +290,6 @@ models-clean: ## Remove downloaded models from ./services/models/
 cursor-fix: ## Apply Cursor fixes to codebase
 	@echo -e "$(COLOR_BLUE)→ Applying Cursor fixes$(COLOR_OFF)"
 	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=all --dry-run
 	@cursor fix-ci --target=all --auto-commit
 
 cursor-fix-lint: ## Apply Cursor fixes to linting issues only
@@ -306,12 +305,12 @@ cursor-fix-test: ## Apply Cursor fixes to test issues only
 cursor-fix-docker: ## Apply Cursor fixes to Docker issues only
 	@echo -e "$(COLOR_BLUE)→ Applying Cursor Docker fixes$(COLOR_OFF)"
 	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor fix-ci --target=docker-smoke --auto-commit
+	@cursor fix-ci --target=docker --auto-commit
 
-cursor-analyze: ## Analyze CI failures and suggest fixes
-	@echo -e "$(COLOR_CYAN)→ Analyzing CI failures$(COLOR_OFF)"
+cursor-dry-run: ## Show what Cursor would fix without applying
+	@echo -e "$(COLOR_CYAN)→ Dry run - showing what would be fixed$(COLOR_OFF)"
 	@command -v cursor >/dev/null 2>&1 || { echo "Cursor CLI not found; install it first." >&2; exit 1; }
-	@cursor analyze-ci --target=all --output=json
+	@cursor fix-ci --target=all --dry-run
 
 cursor-install: ## Install Cursor CLI
 	@echo -e "$(COLOR_GREEN)→ Installing Cursor CLI$(COLOR_OFF)"
