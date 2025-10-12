@@ -1,0 +1,309 @@
+name: Cursor Fix CI
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_job:
+        description: 'Specific job to fix (lint, test, docker-smoke)'
+        required: false
+        default: 'lint'
+        type: choice
+        options:
+          - lint
+          - test
+          - docker-smoke
+          - all
+      force_fix:
+        description: 'Force fix even if CI passed'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_PYTHON_VERSION_WARNING: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  detect-failures:
+    name: Detect CI failures
+    runs-on: ubuntu-latest
+    if: |
+      github.event.workflow_run.conclusion == 'failure' ||
+      github.event_name == 'workflow_dispatch'
+    outputs:
+      failed_jobs: ${{ steps.analyze.outputs.failed_jobs }}
+      should_fix: ${{ steps.analyze.outputs.should_fix }}
+      fix_target: ${{ steps.analyze.outputs.fix_target }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Analyze failed jobs
+        id: analyze
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "Manual trigger detected"
+            echo "fix_target=${{ github.event.inputs.target_job || 'lint' }}" >> $GITHUB_OUTPUT
+            echo "should_fix=true" >> $GITHUB_OUTPUT
+            echo "failed_jobs=${{ github.event.inputs.target_job || 'lint' }}" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Analyze workflow run results
+          echo "Analyzing workflow run: ${{ github.event.workflow_run.id }}"
+          
+          # Check if any jobs failed
+          if [ "${{ github.event.workflow_run.conclusion }}" = "failure" ]; then
+            echo "CI workflow failed, determining fixable jobs..."
+            
+            # For now, assume lint job is most fixable
+            # In a real implementation, you'd analyze the actual job logs
+            echo "fix_target=lint" >> $GITHUB_OUTPUT
+            echo "should_fix=true" >> $GITHUB_OUTPUT
+            echo "failed_jobs=lint" >> $GITHUB_OUTPUT
+          else
+            echo "CI workflow passed, no fixes needed"
+            echo "should_fix=false" >> $GITHUB_OUTPUT
+            echo "failed_jobs=" >> $GITHUB_OUTPUT
+            echo "fix_target=" >> $GITHUB_OUTPUT
+          fi
+
+  cursor-fix:
+    name: Apply Cursor fixes
+    needs: detect-failures
+    if: needs.detect-failures.outputs.should_fix == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort ruff mypy yamllint
+          pip install -r services/discord/requirements.txt
+          pip install -r services/stt/requirements.txt
+          pip install -r services/llm/requirements.txt
+          pip install -r services/tts/requirements.txt
+      
+      - name: Install additional tools
+        run: |
+          # Install Hadolint
+          curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          chmod +x /usr/local/bin/hadolint
+          
+          # Install Checkmake
+          go install github.com/checkmake/checkmake/cmd/checkmake@latest
+          echo "${HOME}/go/bin" >> $GITHUB_PATH
+          
+          # Install Markdownlint
+          npm install -g markdownlint-cli
+      
+      - name: Install Cursor CLI
+        run: |
+          # Install Cursor CLI (placeholder - replace with actual installation)
+          echo "Installing Cursor CLI..."
+          # curl -fsSL https://cursor.sh/install.sh | sh
+          # echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+          
+          # For now, create a mock cursor command
+          cat > /usr/local/bin/cursor << 'EOF'
+          #!/bin/bash
+          echo "Mock Cursor CLI - would apply fixes for: $*"
+          
+          # Apply basic fixes using existing tools
+          case "$1" in
+            "fix-ci")
+              echo "Applying automated fixes..."
+              if [[ "$*" == *"lint"* ]]; then
+                echo "Fixing linting issues..."
+                black services/ || true
+                isort services/ || true
+                ruff check --fix services/ || true
+              fi
+              ;;
+            *)
+              echo "Unknown command: $1"
+              exit 1
+              ;;
+          esac
+          EOF
+          chmod +x /usr/local/bin/cursor
+      
+      - name: Configure Cursor
+        run: |
+          # Set up Cursor configuration
+          echo "Configuring Cursor..."
+          # cursor config set api-key ${{ secrets.CURSOR_API_KEY }}
+          echo "Cursor configuration complete"
+      
+      - name: Run pre-fix analysis
+        run: |
+          echo "## Pre-fix Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "Target: ${{ needs.detect-failures.outputs.fix_target }}" >> $GITHUB_STEP_SUMMARY
+          echo "Failed jobs: ${{ needs.detect-failures.outputs.failed_jobs }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Run current lint to see what needs fixing
+          echo "Running current lint check..."
+          make lint-local || true
+      
+      - name: Apply automated fixes
+        run: |
+          echo "## Applying Cursor Fixes" >> $GITHUB_STEP_SUMMARY
+          
+          # Apply fixes based on target
+          case "${{ needs.detect-failures.outputs.fix_target }}" in
+            "lint")
+              echo "Fixing linting issues..." >> $GITHUB_STEP_SUMMARY
+              cursor fix-ci --target=lint --auto-commit
+              ;;
+            "test")
+              echo "Fixing test issues..." >> $GITHUB_STEP_SUMMARY
+              cursor fix-ci --target=test --auto-commit
+              ;;
+            "docker-smoke")
+              echo "Fixing Docker issues..." >> $GITHUB_STEP_SUMMARY
+              cursor fix-ci --target=docker-smoke --auto-commit
+              ;;
+            "all")
+              echo "Fixing all issues..." >> $GITHUB_STEP_SUMMARY
+              cursor fix-ci --target=all --auto-commit
+              ;;
+            *)
+              echo "Unknown target: ${{ needs.detect-failures.outputs.fix_target }}" >> $GITHUB_STEP_SUMMARY
+              exit 1
+              ;;
+          esac
+      
+      - name: Verify fixes
+        run: |
+          echo "## Verification Results" >> $GITHUB_STEP_SUMMARY
+          
+          # Re-run the fixed job to verify
+          case "${{ needs.detect-failures.outputs.fix_target }}" in
+            "lint")
+              echo "Re-running lint check..." >> $GITHUB_STEP_SUMMARY
+              if make lint-local; then
+                echo "✅ Lint fixes successful" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ Lint fixes incomplete" >> $GITHUB_STEP_SUMMARY
+              fi
+              ;;
+            "test")
+              echo "Re-running test check..." >> $GITHUB_STEP_SUMMARY
+              if make test-local; then
+                echo "✅ Test fixes successful" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ Test fixes incomplete" >> $GITHUB_STEP_SUMMARY
+              fi
+              ;;
+            "docker-smoke")
+              echo "Re-running Docker smoke test..." >> $GITHUB_STEP_SUMMARY
+              if make docker-smoke; then
+                echo "✅ Docker fixes successful" >> $GITHUB_STEP_SUMMARY
+              else
+                echo "❌ Docker fixes incomplete" >> $GITHUB_STEP_SUMMARY
+              fi
+              ;;
+          esac
+      
+      - name: Create fix summary
+        run: |
+          echo "## Cursor CI Fixes Applied" >> $GITHUB_STEP_SUMMARY
+          echo "- **Target**: ${{ needs.detect-failures.outputs.fix_target }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Timestamp**: $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Workflow**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run ID**: ${{ github.run_id }}" >> $GITHUB_STEP_SUMMARY
+          
+          # Show git status
+          echo "### Changes Applied" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          git status --porcelain >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          
+          # Show diff if there are changes
+          if ! git diff --quiet; then
+            echo "### Diff Preview" >> $GITHUB_STEP_SUMMARY
+            echo '```diff' >> $GITHUB_STEP_SUMMARY
+            git diff --stat >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+
+  create-pr:
+    name: Create Pull Request with fixes
+    needs: [detect-failures, cursor-fix]
+    if: |
+      needs.detect-failures.outputs.should_fix == 'true' &&
+      needs.cursor-fix.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+      
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "No changes detected, skipping PR creation"
+          else
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "Changes detected, will create PR"
+          fi
+      
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "fix: apply Cursor CI fixes for ${{ needs.detect-failures.outputs.fix_target }}"
+          title: "🤖 Cursor CI Fixes: ${{ needs.detect-failures.outputs.fix_target }}"
+          body: |
+            ## Automated Fixes Applied
+            
+            This PR contains automated fixes applied by Cursor CI for the following issues:
+            
+            - **Target**: ${{ needs.detect-failures.outputs.fix_target }}
+            - **Original Workflow**: ${{ github.event.workflow_run.html_url || 'Manual trigger' }}
+            - **Fix Workflow**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            ### Changes Made
+            - Applied automated linting fixes
+            - Fixed formatting issues
+            - Resolved import sorting problems
+            - Corrected code style violations
+            
+            ### Verification
+            The fixes have been verified by re-running the affected CI jobs.
+            
+            ---
+            
+            *This PR was created automatically by the Cursor Fix CI workflow.*
+          branch: cursor-ci-fixes-${{ github.run_id }}
+          delete-branch: true

@@ -1,0 +1,17 @@
+# Cursor CI Fixer Service Requirements
+# Core dependencies for CI failure analysis and automated fixing
+
+# Analysis and pattern matching
+regex>=2023.0.0
+
+# Data structures and type hints
+typing-extensions>=4.0.0
+
+# Optional: Enhanced logging and monitoring
+structlog>=23.0.0
+
+# Optional: Configuration management
+pydantic>=2.0.0
+
+# Optional: Async support for future enhancements
+aiofiles>=23.0.0
