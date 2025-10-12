@@ -18,9 +18,10 @@ logger = get_logger(__name__, service_name="llm")
 class StdioMCPClient:
     """MCP client that connects to a subprocess via stdio using the official SDK."""
 
-    def __init__(self, name: str, command: str, env: Optional[Dict[str, str]] = None):
+    def __init__(self, name: str, command: str, args: List[str] = None, env: Optional[Dict[str, str]] = None):
         self.name = name
         self.command = command
+        self.args = args or []
         self.env = env or {}
         self._session: Optional[ClientSession] = None
         self._client = None
@@ -36,21 +37,28 @@ class StdioMCPClient:
 
             server_params = StdioServerParameters(
                 command=self.command,
+                args=self.args,
                 env=env,
             )
 
             self._client = stdio_client(server_params)
             if self._client is None:
                 raise RuntimeError("Failed to create stdio client")
-            self._session = await self._client.__aenter__()
-
+            
+            # Enter the context manager and get the streams
+            read_stream, write_stream = await self._client.__aenter__()
+            
+            # Create a session from the streams
+            from mcp import ClientSession
+            self._session = ClientSession(read_stream, write_stream)
+            
             # Initialize the session
             await self._session.initialize()
 
             self._logger.info(
                 "mcp.client_connected",
                 name=self.name,
-                command=" ".join(self.command),
+                command=f"{self.command} {' '.join(self.args)}",
             )
 
             # Start listening for notifications

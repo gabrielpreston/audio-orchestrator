@@ -83,14 +83,9 @@ class Orchestrator:
                 f.write(f"Original Transcript: {transcript}\n\n")
                 f.write(f"LLM Response: {response}\n")
 
-            # Save audio file if provided
+            # Note: Audio file is saved separately by _save_audio_file method
+            # to avoid duplication. Reference it via correlation_id instead.
             audio_file = None
-            if audio_data:
-                audio_file = debug_dir / "audio" / f"{timestamp}_{session_id}_audio.wav"
-                # Convert raw PCM to proper WAV format
-                wav_data = self._convert_raw_to_wav(audio_data)
-                with open(audio_file, "wb") as f:
-                    f.write(wav_data)
 
             # Create manifest with metadata
             manifest = {
@@ -197,9 +192,9 @@ class Orchestrator:
     def _save_audio_file(self, audio_data: bytes, correlation_id: str) -> str:
         """Save audio data to a temporary file and return the file path."""
         try:
-            # Create audio directory
-            audio_dir = Path("/app/audio")
-            audio_dir.mkdir(exist_ok=True)
+            # Create audio directory in debug folder
+            audio_dir = Path("/app/debug/audio")
+            audio_dir.mkdir(parents=True, exist_ok=True)
 
             # Generate filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

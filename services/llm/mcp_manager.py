@@ -157,11 +157,11 @@ class MCPManager:
                 continue  # Already connected
 
             try:
-                # Join command and args into a single string
-                full_command = f"{server_config.command} {' '.join(server_config.args)}"
+                # Pass command and args separately
                 client = StdioMCPClient(
                     name=name,
-                    command=full_command,
+                    command=server_config.command,
+                    args=server_config.args,
                     env=server_config.env,
                 )
 

@@ -421,7 +421,7 @@ async def serve_audio(filename: str):
     try:
         from pathlib import Path
 
-        audio_dir = Path("/app/audio")
+        audio_dir = Path("/app/debug/audio")
         file_path = audio_dir / filename
 
         if not file_path.exists():
