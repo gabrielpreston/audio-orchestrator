@@ -6,10 +6,46 @@ services:
       context: .
       dockerfile: services/discord/Dockerfile
     image: discord-voice-bot:latest
-    env_file:
-      - ./.env.common
-      - ./.env.docker
-      - ./services/discord/.env.service
+    ports:
+      - "8001:8001"
+    environment:
+      - DISCORD_HTTP_MODE=true
+      - DISCORD_FULL_BOT=true
+      - LOG_LEVEL=info
+      - LOG_JSON=true
+      - DISCORD_BOT_TOKEN=MTQyMTc0MDY5OTQ5NzM5ODM1Mw.GoVAIh.ww5TwYRqrdtUVFVevFj5-9YpLElCIDiFRwhl3s
+      - DISCORD_GUILD_ID=413170136170758147
+      - DISCORD_VOICE_CHANNEL_ID=1421742481413902430
+      - DISCORD_AUTO_JOIN=true
+      - DISCORD_INTENTS=guilds,guild_voice_states
+      - DISCORD_VOICE_CONNECT_TIMEOUT=15
+      - DISCORD_VOICE_CONNECT_ATTEMPTS=3
+      - DISCORD_VOICE_RECONNECT_BASE_DELAY=5
+      - DISCORD_VOICE_RECONNECT_MAX_DELAY=60
+      - AUDIO_ALLOWLIST=
+      - AUDIO_SILENCE_TIMEOUT=0.75
+      - AUDIO_MAX_SEGMENT_DURATION=15
+      - AUDIO_MIN_SEGMENT_DURATION=0.3
+      - AUDIO_AGGREGATION_WINDOW=1.5
+      - AUDIO_SAMPLE_RATE=48000
+      - AUDIO_VAD_SAMPLE_RATE=16000
+      - AUDIO_VAD_FRAME_MS=30
+      - AUDIO_VAD_AGGRESSIVENESS=2
+      - STT_BASE_URL=http://stt:9000
+      - STT_TIMEOUT=45
+      - STT_MAX_RETRIES=3
+      - STT_FORCED_LANGUAGE=en
+      - WAKE_MODEL_PATHS=
+      - WAKE_PHRASES=hey computer,ok computer,hello computer
+      - WAKE_THRESHOLD=0.5
+      - WAKE_SAMPLE_RATE=16000
+      - MCP_MANIFESTS=
+      - MCP_WEBSOCKET_URL=
+      - MCP_COMMAND_PATH=
+      - MCP_REGISTRATION_URL=
+      - MCP_HEARTBEAT_INTERVAL=30
+      - METRICS_PORT=
+      - WAVEFORM_DEBUG_DIR=
     depends_on:
       - stt
       - orch
@@ -42,6 +78,10 @@ services:
       - "8000:8000"
     volumes:
       - ./services/models/llm:/app/models:ro
+      - ./mcp.json:/app/mcp.json:ro
+      - ./services/discord:/app/services/discord:ro
+      - ./debug:/app/debug
+      - ./audio:/app/audio
     depends_on:
       - tts
     restart: unless-stopped

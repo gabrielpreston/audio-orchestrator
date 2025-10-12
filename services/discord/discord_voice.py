@@ -18,6 +18,7 @@ from services.common.logging import get_logger
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig
 from .mcp import MCPServer
+from .orchestrator_client import OrchestratorClient
 from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
@@ -87,6 +88,9 @@ class VoiceBot(discord.Client):
         self._voice_join_locks: Dict[int, asyncio.Lock] = {}
         self._voice_reconnect_tasks: Dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: Set[int] = set()
+        
+        # Initialize orchestrator client
+        self._orchestrator_client = OrchestratorClient()
         if discord_voice_recv is None:
             self._logger.critical(
                 "voice.recv_extension_missing",
@@ -557,6 +561,37 @@ class VoiceBot(discord.Client):
             guild_id=context.guild_id,
             channel_id=context.channel_id,
         )
+        # Send transcript to orchestrator for processing
+        try:
+            orchestrator_result = await self._orchestrator_client.process_transcript(
+                guild_id=str(context.guild_id),
+                channel_id=str(context.channel_id),
+                user_id=str(context.segment.user_id),
+                transcript=transcript.text,
+                correlation_id=transcript.correlation_id
+            )
+            
+            self._logger.info(
+                "voice.transcript_sent_to_orchestrator",
+                correlation_id=transcript.correlation_id,
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
+                orchestrator_result=orchestrator_result
+            )
+            
+            # TODO: Handle orchestrator response (TTS audio, tool calls, etc.)
+            # For now, just log the result
+            
+        except Exception as exc:
+            self._logger.error(
+                "voice.orchestrator_communication_failed",
+                correlation_id=transcript.correlation_id,
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
+                error=str(exc)
+            )
+        
+        # Also publish to the original transcript publisher for compatibility
         await self._publish_transcript(payload)
         self._logger.info(
             "voice.transcript_published",
@@ -579,30 +614,25 @@ class VoiceBot(discord.Client):
         if voice_client.is_playing():
             voice_client.stop()
         try:
-            assert self._http_session is not None
-            response = await self._http_session.get(audio_url)
-            response.raise_for_status()
-            data = await response.aread()
-            await response.aclose()
+            # Use FFmpegPCMAudio for automatic format conversion
+            # This handles the conversion from TTS format to Discord's required format
+            audio_source = discord.FFmpegPCMAudio(audio_url)
+            voice_client.play(audio_source)
+            
+            self._logger.info(
+                "tts.audio_playback_started",
+                audio_url=audio_url,
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
+            )
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
-                "tts.download_failed",
+                "tts.playback_failed",
                 audio_url=audio_url,
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
                 error=str(exc),
             )
-            return
-
-        class MemoryAudio(discord.AudioSource):
-            def __init__(self, payload: bytes) -> None:
-                self._buffer = io.BytesIO(payload)
-
-            def read(self) -> bytes:
-                return self._buffer.read(3840)
-
-            def is_opus(self) -> bool:
-                return False
-
-        voice_client.play(MemoryAudio(data))
 
     def _voice_client_for_guild(self, guild_id: int) -> Optional[discord.VoiceClient]:
         for voice_client in self.voice_clients:

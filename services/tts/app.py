@@ -314,15 +314,14 @@ def _synthesize_audio(
         logger.warning("TTS model not loaded - returning silence audio")
         return _generate_silence_audio(_VOICE_SAMPLE_RATE), _VOICE_SAMPLE_RATE
     buffer = io.BytesIO()
-    _VOICE.synthesize(
-        text,
-        buffer,
-        speaker_id=option.speaker_id,
-        length_scale=length_scale,
-        noise_scale=noise_scale,
-        noise_w=noise_w,
-        ssml=is_ssml,
-    )
+    
+    # The Piper library synthesize method only accepts text and optional syn_config
+    # We need to use the synthesize method that returns an iterable of audio chunks
+    audio_chunks = _VOICE.synthesize(text)
+    
+    # Write the audio chunks to the buffer
+    for chunk in audio_chunks:
+        buffer.write(chunk.audio_int16_bytes)
     audio_bytes = buffer.getvalue()
     if not audio_bytes:
         raise RuntimeError("Piper returned an empty audio buffer")

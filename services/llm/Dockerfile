@@ -9,8 +9,10 @@ RUN apt-get update && \
         rm -rf /var/lib/apt/lists/*
 
 COPY services/llm/requirements.txt /app/services/llm/requirements.txt
+COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 # hadolint ignore=DL3013
-RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt
+RUN pip install --no-cache-dir -r /app/services/llm/requirements.txt && \
+    pip install --no-cache-dir -r /app/services/discord/requirements.txt
 
 COPY services/common /app/services/common
 COPY services/llm /app/services/llm
