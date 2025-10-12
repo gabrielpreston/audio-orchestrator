@@ -48,6 +48,81 @@ to stdout by default. Configure verbosity with `LOG_LEVEL` (e.g., `DEBUG`,
 logs through `docker-compose logs`, making it easy to aggregate or ship them to
 your preferred observability stack.
 
+## Debug capabilities
+
+The voice pipeline includes comprehensive debug saving across all services to help
+with troubleshooting and analysis. Debug files are organized by correlation ID and
+include audio data, transcripts, processing metadata, and tool call results.
+
+### Enabling debug saves
+
+Set the appropriate environment variable for each service:
+
+- `DISCORD_DEBUG_SAVE=true` - Save voice segments, wake detection, and MCP calls
+- `STT_DEBUG_SAVE=true` - Save input audio, transcription results, and metadata
+- `TTS_DEBUG_SAVE=true` - Save synthesis requests, generated audio, and parameters
+- `ORCHESTRATOR_DEBUG_SAVE=true` - Save LLM responses, MCP tool calls, and TTS integration
+
+Debug files are saved to `/app/debug/` in the orchestrator container and can be
+accessed via the `/audio/{filename}` endpoint for audio playback.
+
+### Consolidated Debug Logs
+
+All debug data (except WAV files) is now consolidated into a single structured 
+`debug_log.json` file per correlation ID, making it easier to analyze the complete 
+voice pipeline execution in one place. WAV audio files are still saved separately 
+for playback.
+
+Debug files are organized in a hierarchical structure (`debug/YYYY/MM/DD/correlation_id/`) 
+to avoid filesystem limitations and enable efficient archiving of old data.
+
+Use the debug manager utility for maintenance:
+```bash
+python3 scripts/debug_manager.py --stats          # Show statistics
+python3 scripts/debug_manager.py --archive 30     # Archive data older than 30 days
+python3 scripts/debug_manager.py --cleanup        # Remove empty directories
+```
+
+### Standardized Audio Processing
+
+All services now use a unified audio processing library (`services.common.audio`) that provides:
+
+- **Format Conversion**: PCM ↔ WAV conversion with proper headers
+- **Resampling**: High-quality sample rate conversion (48kHz → 16kHz)
+- **Normalization**: RMS-based audio level adjustment
+- **Metadata Extraction**: Consistent audio property detection
+- **Service Defaults**: Optimized parameters for each service
+
+**Service-Specific Audio Parameters**:
+- **Discord**: 48kHz, mono, 16-bit PCM
+- **STT**: 16kHz, mono, 16-bit WAV  
+- **TTS**: 22.05kHz, mono, 16-bit WAV
+- **Orchestrator**: 22.05kHz, mono, 16-bit WAV
+
+See the [audio processing documentation](services/common/AUDIO_PROCESSING.md) for detailed usage examples.
+
+### Standardized Correlation IDs
+
+All services now use a unified correlation ID generation system (`services.common.correlation`) that provides:
+
+- **End-to-End Tracing**: Complete visibility through the voice pipeline
+- **Service Identification**: Easy identification of originating service
+- **Hierarchical Organization**: Natural grouping in debug directories
+- **Timestamp Tracking**: Chronological ordering of operations
+
+**Correlation ID Formats**:
+- **Discord**: `discord-{user_id}-{guild_id}-{timestamp_ms}`
+- **STT**: `stt-{source_id}` or `stt-{timestamp_ms}`
+- **TTS**: `tts-{source_id}` or `tts-{timestamp_ms}`
+- **Orchestrator**: `orchestrator-{source_id}` or `orchestrator-{user_id}-{timestamp_ms}`
+- **MCP Tools**: `mcp-{client_name}-{tool_name}-{source_id}`
+- **Manual**: `manual-{service}-{context}-{timestamp_ms}`
+
+See the [correlation ID documentation](services/common/CORRELATION_IDS.md) for detailed usage examples.
+
+See the [debug documentation](services/common/DEBUG_README.md) for detailed
+usage examples and file organization.
+
 ## Voice connection tuning
 
 The Discord bot now retries voice handshakes automatically if the gateway or media edge stalls.

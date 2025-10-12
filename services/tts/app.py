@@ -17,6 +17,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel, Field, model_validator
 
 from services.common.logging import configure_logging, get_logger
+from services.common.debug import get_debug_manager
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -81,6 +82,9 @@ _VOICE_SAMPLE_RATE: int = 0
 _VOICE_OPTIONS: List["VoiceOption"] = []
 _VOICE_LOOKUP: Dict[str, "VoiceOption"] = {}
 
+# Debug manager for saving debug files
+_debug_manager = get_debug_manager("tts")
+
 _SYNTHESIS_COUNTER = Counter(
     "tts_requests_total",
     "Total TTS synthesis requests",
@@ -122,6 +126,7 @@ class SynthesisRequest(BaseModel):
     length_scale: Optional[float] = Field(None, ge=0.1, le=3.0)
     noise_scale: Optional[float] = Field(None, ge=0.0, le=2.0)
     noise_w: Optional[float] = Field(None, ge=0.0, le=2.0)
+    correlation_id: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -205,16 +210,16 @@ def _load_voice() -> None:
         _VOICE_LOOKUP = {}
         return
 
-    with open(_MODEL_PATH, "rb") as model_file:
-        model_bytes = model_file.read()
-    with open(_MODEL_CONFIG_PATH, "r", encoding="utf-8") as config_file:
-        config_text = config_file.read()
-    config_data = json.loads(config_text)
+    # Load the voice model using file paths directly
+    _VOICE = PiperVoice.load(_MODEL_PATH, _MODEL_CONFIG_PATH)
 
-    _VOICE = PiperVoice.load(io.BytesIO(model_bytes), io.StringIO(config_text))
+    # Read config for metadata extraction
+    with open(_MODEL_CONFIG_PATH, "r", encoding="utf-8") as config_file:
+        config_data = json.load(config_file)
     sample_rate = (
         config_data.get("sample_rate")
         or config_data.get("sampleRate")
+        or config_data.get("audio", {}).get("sample_rate")
         or getattr(_VOICE, "sample_rate", None)
     )
     if not sample_rate:
@@ -272,32 +277,47 @@ def _strip_ssml(text: str) -> str:
 
 
 def _generate_silence_audio(sample_rate: int, duration: float = 1.0) -> bytes:
-    """Generate a minimal WAV file with silence."""
-    import struct
+    """Generate a minimal WAV file with silence using standardized audio processing."""
+    from services.common.audio import AudioProcessor
+    
+    processor = AudioProcessor("tts")
+    
+    try:
+        # Generate silence data
+        num_samples = int(sample_rate * duration)
+        silence_data = b"\x00" * (num_samples * 2)  # 16-bit samples
+        
+        # Use standardized audio processing to create WAV
+        wav_data = processor.pcm_to_wav(silence_data, sample_rate, 1, 2)
+        return wav_data
+        
+    except Exception:
+        # Fallback to original implementation
+        import struct
+        
+        # Generate 1 second of silence
+        num_samples = int(sample_rate * duration)
+        silence_data = b"\x00" * (num_samples * 2)  # 16-bit samples
 
-    # Generate 1 second of silence
-    num_samples = int(sample_rate * duration)
-    silence_data = b"\x00" * (num_samples * 2)  # 16-bit samples
+        # Create WAV header
+        wav_header = struct.pack(
+            "<4sI4s4sIHHIIHH4sI",
+            b"RIFF",
+            36 + len(silence_data),
+            b"WAVE",
+            b"fmt ",
+            16,  # fmt chunk size
+            1,  # PCM format
+            1,  # mono
+            sample_rate,
+            sample_rate * 2,  # byte rate
+            2,  # block align
+            16,  # bits per sample
+            b"data",
+            len(silence_data),
+        )
 
-    # Create WAV header
-    wav_header = struct.pack(
-        "<4sI4s4sIHHIIHH4sI",
-        b"RIFF",
-        36 + len(silence_data),
-        b"WAVE",
-        b"fmt ",
-        16,  # fmt chunk size
-        1,  # PCM format
-        1,  # mono
-        sample_rate,
-        sample_rate * 2,  # byte rate
-        2,  # block align
-        16,  # bits per sample
-        b"data",
-        len(silence_data),
-    )
-
-    return wav_header + silence_data
+        return wav_header + silence_data
 
 
 def _synthesize_audio(
@@ -314,15 +334,14 @@ def _synthesize_audio(
         logger.warning("TTS model not loaded - returning silence audio")
         return _generate_silence_audio(_VOICE_SAMPLE_RATE), _VOICE_SAMPLE_RATE
     buffer = io.BytesIO()
-    _VOICE.synthesize(
-        text,
-        buffer,
-        speaker_id=option.speaker_id,
-        length_scale=length_scale,
-        noise_scale=noise_scale,
-        noise_w=noise_w,
-        ssml=is_ssml,
-    )
+
+    # The Piper library synthesize method only accepts text and optional syn_config
+    # We need to use the synthesize method that returns an iterable of audio chunks
+    audio_chunks = _VOICE.synthesize(text)
+
+    # Write the audio chunks to the buffer
+    for chunk in audio_chunks:
+        buffer.write(chunk.audio_int16_bytes)
     audio_bytes = buffer.getvalue()
     if not audio_bytes:
         raise RuntimeError("Piper returned an empty audio buffer")
@@ -406,7 +425,9 @@ async def synthesize(
     _SYNTHESIS_DURATION.observe(duration)
     _SYNTHESIS_SIZE.observe(size_bytes)
 
-    audio_id = uuid.uuid4().hex
+    from services.common.correlation import generate_tts_correlation_id
+    
+    audio_id = payload.correlation_id or generate_tts_correlation_id()
     headers = {
         "X-Audio-Id": audio_id,
         "X-Audio-Voice": option.key,
@@ -423,7 +444,116 @@ async def synthesize(
         size_bytes=size_bytes,
         duration_ms=int(duration * 1000),
     )
+    
+    # Save debug data for TTS synthesis
+    _save_debug_synthesis(
+        audio_id=audio_id,
+        text_source=text_source,
+        is_ssml=is_ssml,
+        text_length=text_length,
+        option=option,
+        length_scale=length_scale,
+        noise_scale=noise_scale,
+        noise_w=noise_w,
+        audio_bytes=audio_bytes,
+        sample_rate=sample_rate,
+        size_bytes=size_bytes,
+        duration=duration,
+    )
+    
     return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
+
+
+def _save_debug_synthesis(
+    audio_id: str,
+    text_source: str,
+    is_ssml: bool,
+    text_length: int,
+    option: "VoiceOption",
+    length_scale: float,
+    noise_scale: float,
+    noise_w: float,
+    audio_bytes: bytes,
+    sample_rate: int,
+    size_bytes: int,
+    duration: float,
+) -> None:
+    """Save debug data for TTS synthesis requests."""
+    try:
+        # Use audio_id as correlation_id for TTS debug files
+        correlation_id = audio_id
+        
+        # Save input text/SSML
+        _debug_manager.save_text_file(
+            correlation_id=correlation_id,
+            content=f"TTS Input ({'SSML' if is_ssml else 'Text'}):\n{text_source}",
+            filename_prefix="tts_input",
+        )
+        
+        # Save generated audio
+        _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=audio_bytes,
+            filename_prefix="tts_output",
+        )
+        
+        # Save synthesis parameters
+        _debug_manager.save_json_file(
+            correlation_id=correlation_id,
+            data={
+                "audio_id": audio_id,
+                "text_source": text_source,
+                "is_ssml": is_ssml,
+                "text_length": text_length,
+                "voice_key": option.key,
+                "voice_speaker_id": option.speaker_id,
+                "voice_language": option.language,
+                "length_scale": length_scale,
+                "noise_scale": noise_scale,
+                "noise_w": noise_w,
+                "sample_rate": sample_rate,
+                "size_bytes": size_bytes,
+                "duration_seconds": duration,
+                "model_path": _MODEL_PATH,
+                "model_config_path": _MODEL_CONFIG_PATH,
+            },
+            filename_prefix="tts_parameters",
+        )
+        
+        # Save manifest
+        files = {}
+        audio_file = _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=audio_bytes,
+            filename_prefix="tts_output",
+        )
+        if audio_file:
+            files["tts_output"] = str(audio_file)
+            
+        _debug_manager.save_manifest(
+            correlation_id=correlation_id,
+            metadata={
+                "service": "tts",
+                "event": "synthesis_complete",
+                "audio_id": audio_id,
+                "voice": option.key,
+                "is_ssml": is_ssml,
+            },
+            files=files,
+            stats={
+                "text_length": text_length,
+                "size_bytes": size_bytes,
+                "duration_seconds": duration,
+                "sample_rate": sample_rate,
+            },
+        )
+        
+    except Exception as exc:
+        logger.error(
+            "tts.debug_synthesis_save_failed",
+            audio_id=audio_id,
+            error=str(exc),
+        )
 
 
 __all__ = ["app"]

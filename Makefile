@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify models-download models-clean
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -130,10 +130,11 @@ docker-smoke: ## Build images and validate docker-compose configuration for CI p
 	@$(DOCKER_COMPOSE) config --services
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --pull --progress=plain
 
-clean: ## Remove logs and cached audio artifacts
+clean: ## Remove logs, cached audio artifacts, and debug files
 	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
 	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
 	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
+	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
 	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
 
 docker-clean: ## Bring down compose stack and prune unused docker resources
@@ -253,5 +254,47 @@ rotate-tokens-dry-run: ## Show what token rotation would change without modifyin
 validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
 	@echo -e "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)"
 	@./scripts/rotate_auth_tokens.py --validate-only
+
+models-download: ## Download required models to ./services/models/ subdirectories
+	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
+	@mkdir -p ./services/models/llm ./services/models/tts
+	@echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
+	@if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then \
+		wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
+		"https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" || \
+		echo "Failed to download LLM model. You may need to download it manually."; \
+	else \
+		echo "LLM model already exists, skipping download."; \
+	fi
+	@echo "Downloading TTS model (en_US-amy-medium)..."
+	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx" ]; then \
+		wget -O ./services/models/tts/en_US-amy-medium.onnx \
+		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx" || \
+		echo "Failed to download TTS model. You may need to download it manually."; \
+	else \
+		echo "TTS model already exists, skipping download."; \
+	fi
+	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx.json" ]; then \
+		wget -O ./services/models/tts/en_US-amy-medium.onnx.json \
+		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || \
+		echo "Failed to download TTS model config. You may need to download it manually."; \
+	else \
+		echo "TTS model config already exists, skipping download."; \
+	fi
+	@echo -e "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)"
+	@echo "Models downloaded to:"
+	@echo "  - LLM: ./services/models/llama-2-7b.Q4_K_M.gguf"
+	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
+	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
+
+models-clean: ## Remove downloaded models from ./services/models/
+	@echo -e "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)"
+	@if [ -d "./services/models" ]; then \
+		echo "Removing models from ./services/models/"; \
+		rm -rf ./services/models/* || true; \
+		echo "Models cleaned."; \
+	else \
+		echo "No models directory found."; \
+	fi
 
 .DEFAULT_GOAL := help

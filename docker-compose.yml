@@ -6,10 +6,14 @@ services:
       context: .
       dockerfile: services/discord/Dockerfile
     image: discord-voice-bot:latest
+    ports:
+      - "8001:8001"
     env_file:
       - ./.env.common
       - ./.env.docker
       - ./services/discord/.env.service
+    volumes:
+      - ./debug:/app/debug
     depends_on:
       - stt
       - orch
@@ -27,6 +31,8 @@ services:
       - ./.env.common
       - ./.env.docker
       - ./services/stt/.env.service
+    volumes:
+      - ./debug:/app/debug
     restart: unless-stopped
 
   orch:
@@ -41,7 +47,10 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./services/llm/models:/app/models:ro
+      - ./services/models/llm:/app/models:ro
+      - ./mcp.json:/app/mcp.json:ro
+      - ./services/discord:/app/services/discord:ro
+      - ./debug:/app/debug
     depends_on:
       - tts
     restart: unless-stopped
@@ -58,5 +67,6 @@ services:
     ports:
       - "7000:7000"
     volumes:
-      - ./models:/app/models:ro
+      - ./services/models/tts:/app/models:ro
+      - ./debug:/app/debug
     restart: unless-stopped

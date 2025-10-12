@@ -277,7 +277,9 @@ class AudioPipeline:
         trigger: Optional[str] = None,
         override_reason: Optional[str] = None,
     ) -> Optional[AudioSegment]:
-        correlation_id = f"discord-{accumulator.user_id}-{int(time.time() * 1000)}"
+        from services.common.correlation import generate_discord_correlation_id
+        
+        correlation_id = generate_discord_correlation_id(accumulator.user_id)
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
@@ -334,43 +336,24 @@ class AudioPipeline:
         *,
         target_rms: float = 2000.0,
     ) -> Tuple[bytes, float]:
-        """Bring audio closer to a target RMS to reduce overly quiet or loud frames."""
-
-        if not pcm:
-            return pcm, rms
-        array = np.frombuffer(pcm, dtype=np.int16)
-        if array.size == 0:
-            return pcm, rms
-        current_rms = rms
-        if current_rms <= 0.0:
-            current_rms = float(np.sqrt(np.mean(np.square(array.astype(np.float32))))) or 0.0
-        if current_rms <= 0.0:
-            return pcm, current_rms
-        scale = target_rms / current_rms
-        scale = float(np.clip(scale, 0.5, 4.0))
-        if abs(scale - 1.0) <= 0.05:
-            return pcm, current_rms
-        scaled = array.astype(np.float32) * scale
-        np.clip(scaled, -32768.0, 32767.0, out=scaled)
-        normalized = scaled.astype(np.int16)
-        new_rms = (
-            float(np.sqrt(np.mean(np.square(normalized.astype(np.float32)))))
-            if normalized.size
-            else 0.0
-        )
-        return normalized.tobytes(), new_rms
+        """Bring audio closer to a target RMS to reduce overly quiet or loud frames using standardized audio processing."""
+        from services.common.audio import AudioProcessor
+        
+        processor = AudioProcessor("discord")
+        processor.set_logger(self._logger)
+        
+        # Use standardized normalization
+        normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2)
+        
+        return normalized_pcm, new_rms
 
 
 def rms_from_pcm(pcm: bytes) -> float:
-    """Compute RMS value for PCM audio."""
-
-    if not pcm:
-        return 0.0
-    array = np.frombuffer(pcm, dtype=np.int16)
-    if array.size == 0:
-        return 0.0
-    mean_square = float(np.mean(np.square(array.astype(np.float32))))
-    return float(np.sqrt(mean_square))
+    """Compute RMS value for PCM audio using standardized audio processing."""
+    from services.common.audio import AudioProcessor
+    
+    processor = AudioProcessor("discord")
+    return processor.calculate_rms(pcm, 2)
 
 
 __all__ = ["AudioPipeline", "PCMFrame", "AudioSegment", "Accumulator", "rms_from_pcm"]

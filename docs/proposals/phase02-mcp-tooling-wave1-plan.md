@@ -1,3 +1,12 @@
+---
+title: MCP Tooling Wave 1 Enablement Plan
+description: Deliver MCP tooling that unlocks Wave 1 voice-first user journeys across Monday.com sprint planning, GitHub status readouts, and AWS latency triage.
+status: proposed
+created: 2025-01-27
+updated: 2025-01-27
+last-updated: 2025-10-11
+---
+
 # MCP Tooling Wave 1 Enablement Plan
 
 ## Objective

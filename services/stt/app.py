@@ -10,12 +10,15 @@ from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
 from services.common.logging import configure_logging, get_logger
+from services.common.debug import get_debug_manager
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
 # Module-level cached model to avoid repeated loads
 _model: Any = None
+# Debug manager for saving debug files
+_debug_manager = get_debug_manager("stt")
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -89,18 +92,34 @@ def _lazy_load_model() -> Any:
 
 
 def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
+    """Extract audio metadata using standardized audio processing."""
+    from services.common.audio import AudioProcessor
+    
+    processor = AudioProcessor("stt")
+    
     try:
-        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
-            channels = wf.getnchannels()
-            sampwidth = wf.getsampwidth()
-            framerate = wf.getframerate()
-            wf.getnframes()  # consume to ensure header validity
-    except wave.Error as e:
-        raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
+        metadata = processor.extract_metadata(wav_bytes, "wav")
+        
+        # Validate sample width (only 16-bit supported)
+        if metadata.sample_width != 2:
+            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+        
+        return metadata.channels, metadata.sample_width, metadata.sample_rate
+        
+    except Exception as e:
+        # Fallback to original implementation
+        try:
+            with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+                channels = wf.getnchannels()
+                sampwidth = wf.getsampwidth()
+                framerate = wf.getframerate()
+                wf.getnframes()  # consume to ensure header validity
+        except wave.Error as e:
+            raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
 
-    if sampwidth != 2:
-        raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
-    return channels, sampwidth, framerate
+        if sampwidth != 2:
+            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+        return channels, sampwidth, framerate
 
 
 async def _transcribe_request(
@@ -146,6 +165,8 @@ async def _transcribe_request(
     tmp_path = None
     # metadata for response payload
     input_bytes = len(wav_bytes)
+    from services.common.correlation import generate_stt_correlation_id
+    
     request_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
         "correlation_id"
     )
@@ -153,6 +174,10 @@ async def _transcribe_request(
     correlation_id = (
         correlation_id or headers_correlation or request.query_params.get("correlation_id")
     )
+    
+    # Generate STT correlation ID if none provided
+    if not correlation_id:
+        correlation_id = generate_stt_correlation_id()
     processing_ms: Optional[int] = None
     info: Any = None
     segments_list: List[Any] = []
@@ -255,6 +280,24 @@ async def _transcribe_request(
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
+
+    # Save debug data for transcription
+    _save_debug_transcription(
+        correlation_id=correlation_id,
+        wav_bytes=wav_bytes,
+        text=text,
+        segments=segments_out,
+        processing_ms=processing_ms,
+        total_ms=total_ms,
+        input_bytes=input_bytes,
+        channels=channels,
+        framerate=framerate,
+        language=getattr(info, "language", None),
+        confidence=getattr(info, "language_probability", None),
+        task=task,
+        beam_size=beam_size,
+        filename=filename,
+    )
 
     resp: Dict[str, Any] = {
         "text": text,
@@ -375,3 +418,115 @@ async def transcribe(request: Request):
         correlation_id=metadata_value,
         filename=filename,
     )
+
+
+def _save_debug_transcription(
+    correlation_id: Optional[str],
+    wav_bytes: bytes,
+    text: str,
+    segments: List[Dict[str, Any]],
+    processing_ms: Optional[int],
+    total_ms: int,
+    input_bytes: int,
+    channels: int,
+    framerate: int,
+    language: Optional[str],
+    confidence: Optional[float],
+    task: Optional[str],
+    beam_size: int,
+    filename: Optional[str],
+) -> None:
+    """Save debug data for transcription requests."""
+    if not correlation_id:
+        return
+        
+    try:
+        # Save incoming audio
+        _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=wav_bytes,
+            filename_prefix="input_audio",
+            sample_rate=framerate,
+        )
+        
+        # Save transcription result
+        _debug_manager.save_text_file(
+            correlation_id=correlation_id,
+            content=f"Transcription Result:\n{text}\n\nLanguage: {language}\nConfidence: {confidence}",
+            filename_prefix="transcription_result",
+        )
+        
+        # Save detailed segments if available
+        if segments:
+            segments_content = "Transcription Segments:\n"
+            for i, segment in enumerate(segments):
+                segments_content += f"\nSegment {i+1}:\n"
+                segments_content += f"  Start: {segment.get('start', 'N/A')}\n"
+                segments_content += f"  End: {segment.get('end', 'N/A')}\n"
+                segments_content += f"  Text: {segment.get('text', '')}\n"
+                if 'words' in segment:
+                    segments_content += f"  Words: {segment['words']}\n"
+            
+            _debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=segments_content,
+                filename_prefix="transcription_segments",
+            )
+        
+        # Save processing metadata
+        _debug_manager.save_json_file(
+            correlation_id=correlation_id,
+            data={
+                "filename": filename,
+                "input_bytes": input_bytes,
+                "channels": channels,
+                "sample_rate": framerate,
+                "language": language,
+                "confidence": confidence,
+                "task": task,
+                "beam_size": beam_size,
+                "processing_ms": processing_ms,
+                "total_ms": total_ms,
+                "text_length": len(text),
+                "segments_count": len(segments),
+                "model_name": MODEL_NAME,
+                "device": os.environ.get("FW_DEVICE", "cpu"),
+            },
+            filename_prefix="transcription_metadata",
+        )
+        
+        # Save manifest
+        files = {}
+        audio_file = _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=wav_bytes,
+            filename_prefix="input_audio",
+            sample_rate=framerate,
+        )
+        if audio_file:
+            files["input_audio"] = str(audio_file)
+            
+        _debug_manager.save_manifest(
+            correlation_id=correlation_id,
+            metadata={
+                "service": "stt",
+                "event": "transcription_complete",
+                "filename": filename,
+                "language": language,
+            },
+            files=files,
+            stats={
+                "input_bytes": input_bytes,
+                "processing_ms": processing_ms or 0,
+                "total_ms": total_ms,
+                "text_length": len(text),
+                "segments_count": len(segments),
+            },
+        )
+        
+    except Exception as exc:
+        logger.error(
+            "stt.debug_transcription_save_failed",
+            correlation_id=correlation_id,
+            error=str(exc),
+        )
