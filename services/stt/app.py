@@ -9,8 +9,8 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
-from services.common.logging import configure_logging, get_logger
 from services.common.debug import get_debug_manager
+from services.common.logging import configure_logging, get_logger
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
@@ -94,19 +94,19 @@ def _lazy_load_model() -> Any:
 def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
     """Extract audio metadata using standardized audio processing."""
     from services.common.audio import AudioProcessor
-    
+
     processor = AudioProcessor("stt")
-    
+
     try:
         metadata = processor.extract_metadata(wav_bytes, "wav")
-        
+
         # Validate sample width (only 16-bit supported)
         if metadata.sample_width != 2:
             raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
-        
+
         return metadata.channels, metadata.sample_width, metadata.sample_rate
-        
-    except Exception as e:
+
+    except Exception:
         # Fallback to original implementation
         try:
             with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
@@ -166,7 +166,7 @@ async def _transcribe_request(
     # metadata for response payload
     input_bytes = len(wav_bytes)
     from services.common.correlation import generate_stt_correlation_id
-    
+
     request_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
         "correlation_id"
     )
@@ -174,7 +174,7 @@ async def _transcribe_request(
     correlation_id = (
         correlation_id or headers_correlation or request.query_params.get("correlation_id")
     )
-    
+
     # Generate STT correlation ID if none provided
     if not correlation_id:
         correlation_id = generate_stt_correlation_id()
@@ -439,7 +439,7 @@ def _save_debug_transcription(
     """Save debug data for transcription requests."""
     if not correlation_id:
         return
-        
+
     try:
         # Save incoming audio
         _debug_manager.save_audio_file(
@@ -448,14 +448,14 @@ def _save_debug_transcription(
             filename_prefix="input_audio",
             sample_rate=framerate,
         )
-        
+
         # Save transcription result
         _debug_manager.save_text_file(
             correlation_id=correlation_id,
             content=f"Transcription Result:\n{text}\n\nLanguage: {language}\nConfidence: {confidence}",
             filename_prefix="transcription_result",
         )
-        
+
         # Save detailed segments if available
         if segments:
             segments_content = "Transcription Segments:\n"
@@ -464,15 +464,15 @@ def _save_debug_transcription(
                 segments_content += f"  Start: {segment.get('start', 'N/A')}\n"
                 segments_content += f"  End: {segment.get('end', 'N/A')}\n"
                 segments_content += f"  Text: {segment.get('text', '')}\n"
-                if 'words' in segment:
+                if "words" in segment:
                     segments_content += f"  Words: {segment['words']}\n"
-            
+
             _debug_manager.save_text_file(
                 correlation_id=correlation_id,
                 content=segments_content,
                 filename_prefix="transcription_segments",
             )
-        
+
         # Save processing metadata
         _debug_manager.save_json_file(
             correlation_id=correlation_id,
@@ -494,7 +494,7 @@ def _save_debug_transcription(
             },
             filename_prefix="transcription_metadata",
         )
-        
+
         # Save manifest
         files = {}
         audio_file = _debug_manager.save_audio_file(
@@ -505,7 +505,7 @@ def _save_debug_transcription(
         )
         if audio_file:
             files["input_audio"] = str(audio_file)
-            
+
         _debug_manager.save_manifest(
             correlation_id=correlation_id,
             metadata={
@@ -523,7 +523,7 @@ def _save_debug_transcription(
                 "segments_count": len(segments),
             },
         )
-        
+
     except Exception as exc:
         logger.error(
             "stt.debug_transcription_save_failed",
