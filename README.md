@@ -55,6 +55,17 @@ Adjust retry behavior with `DISCORD_VOICE_CONNECT_TIMEOUT`, `DISCORD_VOICE_CONNE
 `DISCORD_VOICE_RECONNECT_BASE_DELAY`, and `DISCORD_VOICE_RECONNECT_MAX_DELAY` in
 `services/discord/.env.service`.
 
+## Security & Token Management
+
+Rotate AUTH_TOKEN values across all services with the automated script:
+```bash
+make rotate-tokens          # Rotate all tokens
+make rotate-tokens-dry-run  # Preview changes
+make validate-tokens        # Check consistency
+```
+
+See the [security guidelines](docs/operations/security.md) for comprehensive credential management practices.
+
 ## Wake phrase detection
 
 Wake phrase matching now tolerates extra punctuation or spacing in STT transcripts. Ignored
