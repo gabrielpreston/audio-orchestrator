@@ -17,6 +17,7 @@ import httpx
 from llama_cpp import Llama
 
 from services.common.logging import get_logger
+from services.common.debug import get_debug_manager
 
 from .mcp_manager import MCPManager
 
@@ -103,26 +104,42 @@ class Orchestrator:
         num_channels: int = 1,
         sample_width: int = 2,
     ) -> bytes:
-        """Convert raw PCM audio data to proper WAV format with RIFF headers."""
+        """Convert raw PCM audio data to proper WAV format using standardized audio processing."""
+        from services.common.audio import AudioProcessor
+        
+        processor = AudioProcessor("orchestrator")
+        processor.set_logger(self._logger)
+        
         try:
-            # Calculate number of frames
-            num_frames = len(raw_audio_data) // (num_channels * sample_width)
-
-            # Create WAV header
-            wav_header = self._create_wav_header(
-                sample_rate, num_channels, sample_width, num_frames
-            )
-
-            # Combine header with audio data
-            return wav_header + raw_audio_data
-
+            # Use standardized audio processing
+            wav_data = processor.pcm_to_wav(raw_audio_data, sample_rate, num_channels, sample_width)
+            return wav_data
+            
         except Exception as exc:
             self._logger.error(
                 "orchestrator.wav_conversion_failed",
                 error=str(exc),
             )
-            # Return original data if conversion fails
-            return raw_audio_data
+            # Fallback to original implementation
+            try:
+                # Calculate number of frames
+                num_frames = len(raw_audio_data) // (num_channels * sample_width)
+
+                # Create WAV header
+                wav_header = self._create_wav_header(
+                    sample_rate, num_channels, sample_width, num_frames
+                )
+
+                # Combine header with audio data
+                return wav_header + raw_audio_data
+
+            except Exception as fallback_exc:
+                self._logger.error(
+                    "orchestrator.wav_conversion_fallback_failed",
+                    error=str(fallback_exc),
+                )
+                # Return original data if conversion fails
+                return raw_audio_data
 
     def _create_wav_header(
         self, sample_rate: int, num_channels: int, sample_width: int, num_frames: int
@@ -207,13 +224,15 @@ class Orchestrator:
     ) -> Dict[str, Any]:
         """Process a transcript from Discord service."""
         try:
+            from services.common.correlation import generate_orchestrator_correlation_id
+            
             # Create transcript data in the expected format
             transcript_data = {
                 "text": transcript,
                 "user_id": user_id,
                 "channel_id": channel_id,
                 "guild_id": guild_id,
-                "correlation_id": correlation_id or f"discord-{user_id}-{int(time.time() * 1000)}",
+                "correlation_id": correlation_id or generate_orchestrator_correlation_id(user_id=user_id),
             }
 
             # Process the transcript
@@ -478,6 +497,16 @@ class Orchestrator:
                     client=client_name,
                     tool=tool_name,
                 )
+                
+                # Save debug data for successful MCP tool calls
+                self._save_debug_mcp_tool_call(
+                    client_name=client_name,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result=result,
+                    success=True,
+                    context=context,
+                )
 
             except Exception as exc:
                 self._logger.error(
@@ -494,6 +523,16 @@ class Orchestrator:
                         "result": {"error": str(exc)},
                         "success": False,
                     }
+                )
+                
+                # Save debug data for failed MCP tool calls
+                self._save_debug_mcp_tool_call(
+                    client_name=client_name,
+                    tool_name=tool_name,
+                    arguments=arguments,
+                    result={"error": str(exc)},
+                    success=False,
+                    context=context,
                 )
 
         return results
@@ -553,7 +592,7 @@ Provide a natural, conversational response."""
             # Call TTS service
             response = await self._http_client.post(
                 f"{self.tts_base_url}/synthesize",
-                json={"text": text, "voice": "default"},
+                json={"text": text, "voice": "default", "correlation_id": context.get("correlation_id")},
                 headers=headers,
                 timeout=30.0,
             )
@@ -610,6 +649,61 @@ Provide a natural, conversational response."""
         except Exception as exc:
             self._logger.error(
                 "orchestrator.audio_playback_failed",
+                error=str(exc),
+            )
+
+    def _save_debug_mcp_tool_call(
+        self,
+        client_name: str,
+        tool_name: str,
+        arguments: Dict[str, Any],
+        result: Dict[str, Any],
+        success: bool,
+        context: Dict[str, Any],
+    ) -> None:
+        """Save debug data for MCP tool calls."""
+        try:
+            from services.common.correlation import generate_mcp_correlation_id
+            
+            base_correlation_id = context.get("correlation_id", "unknown")
+            correlation_id = generate_mcp_correlation_id(base_correlation_id, client_name, tool_name)
+            debug_manager = get_debug_manager("orchestrator")
+
+            # Save tool call details
+            tool_call_content = f"""MCP Tool Call:
+Client: {client_name}
+Tool: {tool_name}
+Arguments: {json.dumps(arguments, indent=2)}
+Success: {success}
+Result: {json.dumps(result, indent=2)}
+Context: {json.dumps(context, indent=2)}"""
+
+            debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=tool_call_content,
+                filename_prefix=f"mcp_tool_call_{client_name}_{tool_name}",
+            )
+
+            # Save tool call metadata
+            debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "client_name": client_name,
+                    "tool_name": tool_name,
+                    "arguments": arguments,
+                    "result": result,
+                    "success": success,
+                    "context": context,
+                    "timestamp": datetime.now().isoformat(),
+                },
+                filename_prefix=f"mcp_metadata_{client_name}_{tool_name}",
+            )
+
+        except Exception as exc:
+            self._logger.error(
+                "orchestrator.debug_mcp_tool_call_save_failed",
+                client_name=client_name,
+                tool_name=tool_name,
                 error=str(exc),
             )
 

@@ -3,6 +3,9 @@ Debug file utilities for saving debug data across all services.
 
 This module provides a centralized way to save debug files grouped by correlation_id
 in a flattened directory structure: debug/correlation_id/
+
+All debug data (except WAV files) is consolidated into a single debug log file
+per correlation ID for easier analysis and debugging.
 """
 
 import json
@@ -10,9 +13,9 @@ import os
 import struct
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-import structlog
+from services.common.logging import get_logger
 
 
 class DebugFileManager:
@@ -28,11 +31,90 @@ class DebugFileManager:
         """
         self.base_dir = Path(base_dir)
         self.enabled_env_var = enabled_env_var
-        self._logger = structlog.get_logger(service="common", component="debug")
+        self._logger = get_logger("debug", service_name="common")
 
     def is_enabled(self) -> bool:
         """Check if debug saving is enabled via environment variable."""
         return os.getenv(self.enabled_env_var, "false").lower() == "true"
+
+    def _append_to_debug_log(
+        self,
+        correlation_id: str,
+        entry_type: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """
+        Append an entry to the consolidated debug log file.
+        
+        Args:
+            correlation_id: Unique identifier for grouping files
+            entry_type: Type of debug entry (e.g., "text", "metadata", "audio_info")
+            content: Content to append
+            metadata: Optional metadata to include
+        """
+        if not self.is_enabled():
+            return
+
+        try:
+            correlation_dir = self._ensure_correlation_dir(correlation_id)
+            debug_log_path = correlation_dir / "debug_log.json"
+            
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # Include milliseconds
+            
+            # Create log entry
+            log_entry = {
+                "timestamp": timestamp,
+                "type": entry_type,
+                "content": content,
+                "metadata": metadata or {}
+            }
+            
+            # Load existing entries or create new list
+            existing_entries = []
+            if debug_log_path.exists():
+                try:
+                    with open(debug_log_path, "r", encoding="utf-8") as f:
+                        existing_data = json.load(f)
+                        if isinstance(existing_data, dict) and "entries" in existing_data:
+                            existing_entries = existing_data["entries"]
+                        elif isinstance(existing_data, list):
+                            existing_entries = existing_data
+                except (json.JSONDecodeError, KeyError):
+                    # If file is corrupted or in old format, start fresh
+                    existing_entries = []
+            
+            # Add new entry
+            existing_entries.append(log_entry)
+            
+            # Create structured debug log
+            debug_log = {
+                "correlation_id": correlation_id,
+                "created_at": datetime.now().isoformat(),
+                "updated_at": datetime.now().isoformat(),
+                "total_entries": len(existing_entries),
+                "entries": existing_entries
+            }
+            
+            # Save to JSON file
+            with open(debug_log_path, "w", encoding="utf-8") as f:
+                json.dump(debug_log, f, indent=2, default=str)
+            
+            self._logger.info(
+                "debug.log_entry_appended",
+                correlation_id=correlation_id,
+                entry_type=entry_type,
+                log_path=str(debug_log_path),
+                total_entries=len(existing_entries),
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "debug.log_append_failed",
+                correlation_id=correlation_id,
+                entry_type=entry_type,
+                error=str(exc),
+            )
 
     def save_text_file(
         self,
@@ -42,42 +124,32 @@ class DebugFileManager:
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[Path]:
         """
-        Save text content to a debug file.
+        Save text content to the consolidated debug log.
 
         Args:
             correlation_id: Unique identifier for grouping files
             content: Text content to save
-            filename_prefix: Prefix for the filename (default: "debug")
-            metadata: Optional metadata to include in filename
+            filename_prefix: Prefix for the filename (used for entry type)
+            metadata: Optional metadata to include
 
         Returns:
-            Path to saved file, or None if debug saving is disabled
+            Path to consolidated debug log file, or None if debug saving is disabled
         """
         if not self.is_enabled():
             return None
 
         try:
-            correlation_dir = self._ensure_correlation_dir(correlation_id)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            # Create filename with optional metadata suffix
-            metadata_suffix = (
-                f"_{metadata.get('suffix', '')}" if metadata and metadata.get("suffix") else ""
-            )
-            filename = f"{timestamp}_{filename_prefix}{metadata_suffix}.txt"
-            file_path = correlation_dir / filename
-
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-
-            self._logger.info(
-                "debug.text_file_saved",
+            # Append to consolidated debug log
+            self._append_to_debug_log(
                 correlation_id=correlation_id,
-                file_path=str(file_path),
-                content_length=len(content),
+                entry_type=f"text_{filename_prefix}",
+                content=content,
+                metadata=metadata,
             )
-
-            return file_path
+            
+            # Return path to the consolidated debug log
+            correlation_dir = self._ensure_correlation_dir(correlation_id)
+            return correlation_dir / "debug_log.json"
 
         except Exception as exc:
             self._logger.error(
@@ -93,36 +165,74 @@ class DebugFileManager:
         audio_data: bytes,
         filename_prefix: str = "audio",
         convert_to_wav: bool = True,
+        sample_rate: int = 48000,
     ) -> Optional[Path]:
         """
-        Save audio data to a debug file.
+        Save audio data to a separate WAV file and log audio info to consolidated log.
 
         Args:
             correlation_id: Unique identifier for grouping files
             audio_data: Raw audio data bytes
             filename_prefix: Prefix for the filename (default: "audio")
             convert_to_wav: Whether to convert raw PCM to WAV format
+            sample_rate: Sample rate for WAV conversion (default: 48000)
 
         Returns:
-            Path to saved file, or None if debug saving is disabled
+            Path to saved WAV file, or None if debug saving is disabled
         """
         if not self.is_enabled():
             return None
 
         try:
             correlation_dir = self._ensure_correlation_dir(correlation_id)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{filename_prefix}.wav"
+            filename = f"{filename_prefix}.wav"
             file_path = correlation_dir / filename
 
             # Convert raw PCM to WAV if requested
             if convert_to_wav:
-                wav_data = self._convert_raw_to_wav(audio_data)
+                logger = get_logger("debug", correlation_id=correlation_id, service_name="common")
+                logger.info(
+                    "debug.audio_conversion_start",
+                    correlation_id=correlation_id,
+                    filename_prefix=filename_prefix,
+                    sample_rate=sample_rate,
+                    original_size=len(audio_data),
+                )
+                wav_data = self._convert_raw_to_wav(audio_data, sample_rate)
+                logger.info(
+                    "debug.audio_conversion_complete",
+                    correlation_id=correlation_id,
+                    filename_prefix=filename_prefix,
+                    sample_rate=sample_rate,
+                    wav_size=len(wav_data),
+                )
             else:
                 wav_data = audio_data
 
+            # Save WAV file separately
             with open(file_path, "wb") as f:
                 f.write(wav_data)
+
+            # Log audio information to consolidated debug log
+            audio_info = f"""Audio File: {filename}
+Size: {len(wav_data)} bytes
+Format: WAV
+Original Size: {len(audio_data)} bytes
+Converted: {convert_to_wav}
+Sample Rate: {sample_rate} Hz"""
+
+            self._append_to_debug_log(
+                correlation_id=correlation_id,
+                entry_type=f"audio_{filename_prefix}",
+                content=audio_info,
+                metadata={
+                    "filename": filename,
+                    "size_bytes": len(wav_data),
+                    "original_size_bytes": len(audio_data),
+                    "converted": convert_to_wav,
+                    "format": "WAV"
+                },
+            )
 
             self._logger.info(
                 "debug.audio_file_saved",
@@ -148,36 +258,37 @@ class DebugFileManager:
         filename_prefix: str = "data",
     ) -> Optional[Path]:
         """
-        Save JSON data to a debug file.
+        Save JSON data to the consolidated debug log.
 
         Args:
             correlation_id: Unique identifier for grouping files
             data: Dictionary to save as JSON
-            filename_prefix: Prefix for the filename (default: "data")
+            filename_prefix: Prefix for the filename (used for entry type)
 
         Returns:
-            Path to saved file, or None if debug saving is disabled
+            Path to consolidated debug log file, or None if debug saving is disabled
         """
         if not self.is_enabled():
             return None
 
         try:
-            correlation_dir = self._ensure_correlation_dir(correlation_id)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{filename_prefix}.json"
-            file_path = correlation_dir / filename
-
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
-
-            self._logger.info(
-                "debug.json_file_saved",
+            # Format JSON data for the consolidated log
+            json_content = json.dumps(data, indent=2)
+            
+            # Append to consolidated debug log
+            self._append_to_debug_log(
                 correlation_id=correlation_id,
-                file_path=str(file_path),
-                data_keys=list(data.keys()) if isinstance(data, dict) else "non-dict",
+                entry_type=f"metadata_{filename_prefix}",
+                content=json_content,
+                metadata={
+                    "data_keys": list(data.keys()) if isinstance(data, dict) else "non-dict",
+                    "data_type": "json"
+                },
             )
-
-            return file_path
+            
+            # Return path to the consolidated debug log
+            correlation_dir = self._ensure_correlation_dir(correlation_id)
+            return correlation_dir / "debug_log.json"
 
         except Exception as exc:
             self._logger.error(
@@ -195,7 +306,7 @@ class DebugFileManager:
         stats: Optional[Dict[str, Any]] = None,
     ) -> Optional[Path]:
         """
-        Save a manifest file with metadata about the debug session.
+        Save manifest data to the consolidated debug log.
 
         Args:
             correlation_id: Unique identifier for grouping files
@@ -204,36 +315,45 @@ class DebugFileManager:
             stats: Statistics about the session
 
         Returns:
-            Path to saved manifest file, or None if debug saving is disabled
+            Path to consolidated debug log file, or None if debug saving is disabled
         """
         if not self.is_enabled():
             return None
 
         try:
-            correlation_dir = self._ensure_correlation_dir(correlation_id)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_manifest.json"
-            file_path = correlation_dir / filename
-
             manifest = {
                 "correlation_id": correlation_id,
-                "timestamp": timestamp,
-                "datetime": datetime.now().isoformat(),
+                "created_at": datetime.now().isoformat(),
                 "metadata": metadata,
                 "files": files or {},
                 "stats": stats or {},
             }
 
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(manifest, f, indent=2)
+            # Format manifest for the consolidated log
+            manifest_content = f"""Manifest Summary:
+Correlation ID: {correlation_id}
+Created: {manifest['created_at']}
 
-            self._logger.info(
-                "debug.manifest_saved",
+Metadata:
+{json.dumps(metadata, indent=2)}
+
+Files:
+{json.dumps(files or {}, indent=2)}
+
+Statistics:
+{json.dumps(stats or {}, indent=2)}"""
+
+            # Append to consolidated debug log
+            self._append_to_debug_log(
                 correlation_id=correlation_id,
-                file_path=str(file_path),
+                entry_type="manifest",
+                content=manifest_content,
+                metadata=manifest,
             )
-
-            return file_path
+            
+            # Return path to the consolidated debug log
+            correlation_dir = self._ensure_correlation_dir(correlation_id)
+            return correlation_dir / "debug_log.json"
 
         except Exception as exc:
             self._logger.error(
@@ -244,21 +364,98 @@ class DebugFileManager:
             return None
 
     def _ensure_correlation_dir(self, correlation_id: str) -> Path:
-        """Ensure the correlation directory exists."""
+        """Ensure the correlation directory exists with hierarchical structure."""
         self.base_dir.mkdir(exist_ok=True)
-        correlation_dir = self.base_dir / correlation_id
-        correlation_dir.mkdir(exist_ok=True)
+        
+        # Create hierarchical directory structure based on correlation_id
+        # Format: debug/YYYY/MM/DD/correlation_id/
+        now = datetime.now()
+        year_dir = self.base_dir / str(now.year)
+        month_dir = year_dir / f"{now.month:02d}"
+        day_dir = month_dir / f"{now.day:02d}"
+        correlation_dir = day_dir / correlation_id
+        
+        # Create all directories in the hierarchy
+        correlation_dir.mkdir(parents=True, exist_ok=True)
         return correlation_dir
 
-    def _convert_raw_to_wav(self, audio_data: bytes) -> bytes:
+    def find_correlation_dir(self, correlation_id: str) -> Optional[Path]:
+        """
+        Find a correlation directory in the hierarchical structure.
+        
+        Args:
+            correlation_id: The correlation ID to find
+            
+        Returns:
+            Path to the correlation directory if found, None otherwise
+        """
+        # Search through the hierarchical structure
+        for year_dir in self.base_dir.iterdir():
+            if not year_dir.is_dir():
+                continue
+            for month_dir in year_dir.iterdir():
+                if not month_dir.is_dir():
+                    continue
+                for day_dir in month_dir.iterdir():
+                    if not day_dir.is_dir():
+                        continue
+                    correlation_dir = day_dir / correlation_id
+                    if correlation_dir.exists():
+                        return correlation_dir
+        return None
+
+    def list_correlation_ids(self, date_filter: Optional[str] = None) -> List[str]:
+        """
+        List all correlation IDs in the hierarchical structure.
+        
+        Args:
+            date_filter: Optional date filter in YYYY-MM-DD format
+            
+        Returns:
+            List of correlation IDs found
+        """
+        correlation_ids = []
+        
+        if date_filter:
+            try:
+                filter_date = datetime.strptime(date_filter, "%Y-%m-%d")
+                year_dir = self.base_dir / str(filter_date.year)
+                month_dir = year_dir / f"{filter_date.month:02d}"
+                day_dir = month_dir / f"{filter_date.day:02d}"
+                
+                if day_dir.exists():
+                    for item in day_dir.iterdir():
+                        if item.is_dir():
+                            correlation_ids.append(item.name)
+            except ValueError:
+                # Invalid date format, search all directories
+                pass
+        
+        if not correlation_ids:
+            # Search all directories if no filter or filter failed
+            for year_dir in self.base_dir.iterdir():
+                if not year_dir.is_dir():
+                    continue
+                for month_dir in year_dir.iterdir():
+                    if not month_dir.is_dir():
+                        continue
+                    for day_dir in month_dir.iterdir():
+                        if not day_dir.is_dir():
+                            continue
+                        for item in day_dir.iterdir():
+                            if item.is_dir():
+                                correlation_ids.append(item.name)
+        
+        return sorted(correlation_ids)
+
+    def _convert_raw_to_wav(self, audio_data: bytes, sample_rate: int = 48000) -> bytes:
         """
         Convert raw PCM audio data to WAV format.
 
         This is a simplified version - in production you might want to use
         a proper audio library like pydub or librosa.
         """
-        # Assume 16-bit PCM, 48kHz, mono for now
-        sample_rate = 48000
+        # Use provided sample rate, default to 48kHz
         num_channels = 1
         sample_width = 2  # 16-bit = 2 bytes per sample
 

@@ -15,6 +15,7 @@ import discord
 import httpx
 
 from services.common.logging import get_logger
+from services.common.debug import get_debug_manager
 
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig
@@ -92,6 +93,9 @@ class VoiceBot(discord.Client):
 
         # Initialize orchestrator client
         self._orchestrator_client = OrchestratorClient()
+        
+        # Initialize debug manager
+        self._debug_manager = get_debug_manager("discord")
         if discord_voice_recv is None:
             self._logger.critical(
                 "voice.recv_extension_missing",
@@ -372,13 +376,15 @@ class VoiceBot(discord.Client):
         if not self._http_session:
             timeout = httpx.Timeout(30.0, connect=10.0)
             self._http_session = httpx.AsyncClient(timeout=timeout)
+        from services.common.correlation import generate_manual_correlation_id
+        
         context = SegmentContext(
             segment=AudioSegment(
                 user_id=0,
                 pcm=b"",
                 start_timestamp=0.0,
                 end_timestamp=0.0,
-                correlation_id="manual",
+                correlation_id=generate_manual_correlation_id("discord", "play_audio"),
                 frame_count=0,
                 sample_rate=self.config.audio.input_sample_rate_hz,
             ),
@@ -449,6 +455,10 @@ class VoiceBot(discord.Client):
             duration=segment.duration,
             queue_depth=pending_segments + 1,
         )
+        
+        # Save debug audio segment
+        self._save_debug_voice_segment(segment_context)
+        
         await self._segment_queue.put(segment_context)
 
     def _resolve_voice_state(self, user_id: int) -> Optional[discord.VoiceState]:
@@ -533,6 +543,8 @@ class VoiceBot(discord.Client):
                 reason="wake_not_detected",
                 transcript_preview=_truncate_text(transcript.text),
             )
+            # Save debug data for ignored segments
+            self._save_debug_ignored_segment(context, transcript)
             return
 
         payload: Dict[str, object] = {
@@ -562,6 +574,9 @@ class VoiceBot(discord.Client):
             guild_id=context.guild_id,
             channel_id=context.channel_id,
         )
+        
+        # Save debug data for wake detection
+        self._save_debug_wake_detection(context, transcript, detection)
         # Send transcript to orchestrator for processing
         try:
             orchestrator_result = await self._orchestrator_client.process_transcript(
@@ -579,6 +594,9 @@ class VoiceBot(discord.Client):
                 channel_id=context.channel_id,
                 orchestrator_result=orchestrator_result,
             )
+
+            # Save debug data for orchestrator communication
+            self._save_debug_orchestrator_communication(context, transcript, orchestrator_result)
 
             # TODO: Handle orchestrator response (TTS audio, tool calls, etc.)
             # For now, just log the result
@@ -626,6 +644,9 @@ class VoiceBot(discord.Client):
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
             )
+            
+            # Save debug data for TTS playback
+            self._save_debug_tts_playback(context, audio_url)
         except Exception as exc:  # noqa: BLE001
             self._logger.error(
                 "tts.playback_failed",
@@ -803,6 +824,180 @@ class VoiceBot(discord.Client):
             if hasattr(intents, name):
                 setattr(intents, name, True)
         return intents
+
+    def _save_debug_voice_segment(self, context: SegmentContext) -> None:
+        """Save debug data for voice segments."""
+        try:
+            correlation_id = context.segment.correlation_id
+            
+            # Save audio segment
+            self._debug_manager.save_audio_file(
+                correlation_id=correlation_id,
+                audio_data=context.segment.pcm,
+                filename_prefix="voice_segment",
+                sample_rate=context.segment.sample_rate,
+            )
+            
+            # Save segment metadata
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "start_timestamp": context.segment.start_timestamp,
+                    "end_timestamp": context.segment.end_timestamp,
+                    "duration": context.segment.duration,
+                    "frame_count": context.segment.frame_count,
+                    "sample_rate": context.segment.sample_rate,
+                    "pcm_size_bytes": len(context.segment.pcm),
+                },
+                filename_prefix="voice_metadata",
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_voice_segment_save_failed",
+                correlation_id=context.segment.correlation_id,
+                error=str(exc),
+            )
+
+    def _save_debug_ignored_segment(self, context: SegmentContext, transcript: TranscriptResult) -> None:
+        """Save debug data for ignored segments (no wake word detected)."""
+        try:
+            correlation_id = transcript.correlation_id
+            
+            # Save transcript text
+            self._debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=f"Transcript: {transcript.text}\nConfidence: {transcript.confidence}\nLanguage: {transcript.language}",
+                filename_prefix="ignored_transcript",
+            )
+            
+            # Save ignored segment metadata
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "transcript": transcript.text,
+                    "confidence": transcript.confidence,
+                    "language": transcript.language,
+                    "reason": "wake_not_detected",
+                    "segment_duration": context.segment.duration,
+                },
+                filename_prefix="ignored_metadata",
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_ignored_segment_save_failed",
+                correlation_id=transcript.correlation_id,
+                error=str(exc),
+            )
+
+    def _save_debug_wake_detection(self, context: SegmentContext, transcript: TranscriptResult, detection) -> None:
+        """Save debug data for wake word detection."""
+        try:
+            correlation_id = transcript.correlation_id
+            
+            # Save wake detection details
+            self._debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=f"Wake Phrase: {detection.phrase}\nConfidence: {detection.confidence}\nSource: {detection.source}\nTranscript: {transcript.text}",
+                filename_prefix="wake_detection",
+            )
+            
+            # Save wake detection metadata
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "wake_phrase": detection.phrase,
+                    "wake_confidence": detection.confidence,
+                    "wake_source": detection.source,
+                    "transcript": transcript.text,
+                    "transcript_confidence": transcript.confidence,
+                    "language": transcript.language,
+                    "segment_duration": context.segment.duration,
+                },
+                filename_prefix="wake_metadata",
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_wake_detection_save_failed",
+                correlation_id=transcript.correlation_id,
+                error=str(exc),
+            )
+
+    def _save_debug_orchestrator_communication(self, context: SegmentContext, transcript: TranscriptResult, orchestrator_result: Dict[str, Any]) -> None:
+        """Save debug data for orchestrator communication."""
+        try:
+            correlation_id = transcript.correlation_id
+            
+            # Save orchestrator response
+            self._debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=f"Orchestrator Response:\n{orchestrator_result}",
+                filename_prefix="orchestrator_response",
+            )
+            
+            # Save orchestrator communication metadata
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "transcript": transcript.text,
+                    "orchestrator_result": orchestrator_result,
+                    "timestamp": transcript.start_timestamp,
+                },
+                filename_prefix="orchestrator_metadata",
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_orchestrator_communication_save_failed",
+                correlation_id=transcript.correlation_id,
+                error=str(exc),
+            )
+
+    def _save_debug_tts_playback(self, context: SegmentContext, audio_url: str) -> None:
+        """Save debug data for TTS playback."""
+        try:
+            correlation_id = context.segment.correlation_id
+            
+            # Save TTS playback details
+            self._debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=f"TTS Audio URL: {audio_url}\nGuild ID: {context.guild_id}\nChannel ID: {context.channel_id}",
+                filename_prefix="tts_playback",
+            )
+            
+            # Save TTS playback metadata
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "audio_url": audio_url,
+                    "timestamp": context.segment.start_timestamp,
+                },
+                filename_prefix="tts_metadata",
+            )
+            
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_tts_playback_save_failed",
+                correlation_id=context.segment.correlation_id,
+                error=str(exc),
+            )
 
 
 async def run_bot(config: BotConfig) -> None:

@@ -6,3 +6,5 @@ structlog>=24.1.0
 httpx>=0.26.0
 mcp>=1.0.0
 instructor>=1.0.0
+librosa>=0.10.0
+soundfile>=0.12.0

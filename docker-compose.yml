@@ -8,6 +8,12 @@ services:
     image: discord-voice-bot:latest
     ports:
       - "8001:8001"
+    env_file:
+      - ./.env.common
+      - ./.env.docker
+      - ./services/discord/.env.service
+    volumes:
+      - ./debug:/app/debug
     depends_on:
       - stt
       - orch
@@ -25,6 +31,8 @@ services:
       - ./.env.common
       - ./.env.docker
       - ./services/stt/.env.service
+    volumes:
+      - ./debug:/app/debug
     restart: unless-stopped
 
   orch:
@@ -60,4 +68,5 @@ services:
       - "7000:7000"
     volumes:
       - ./services/models/tts:/app/models:ro
+      - ./debug:/app/debug
     restart: unless-stopped

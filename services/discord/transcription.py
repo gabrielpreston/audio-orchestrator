@@ -132,23 +132,43 @@ def _pcm_to_wav(
     channels: int = 1,
     target_sample_rate: int = 16000,
 ) -> bytes:
-    """Encode raw PCM bytes into a WAV container."""
+    """Encode raw PCM bytes into a WAV container using standardized audio processing."""
+    from services.common.audio import AudioProcessor
+    
+    processor = AudioProcessor("discord")
+    
+    # Convert audio format using standardized processing
+    result = processor.convert_audio_format(
+        audio_data=pcm,
+        from_format="pcm",
+        to_format="wav",
+        from_sample_rate=sample_rate,
+        to_sample_rate=target_sample_rate,
+        from_channels=channels,
+        to_channels=channels,
+        from_sample_width=2,
+        to_sample_width=2
+    )
+    
+    if result.success:
+        return result.audio_data
+    else:
+        # Fallback to original implementation if conversion fails
+        if sample_rate != target_sample_rate and pcm:
+            try:
+                pcm, _ = audioop.ratecv(pcm, 2, channels, sample_rate, target_sample_rate, None)
+                sample_rate = target_sample_rate
+            except Exception:
+                # Fall back to the original sample rate if resampling fails.
+                pass
 
-    if sample_rate != target_sample_rate and pcm:
-        try:
-            pcm, _ = audioop.ratecv(pcm, 2, channels, sample_rate, target_sample_rate, None)
-            sample_rate = target_sample_rate
-        except Exception:
-            # Fall back to the original sample rate if resampling fails.
-            pass
-
-    buffer = io.BytesIO()
-    with wave.open(buffer, "wb") as wav_file:
-        wav_file.setnchannels(channels)
-        wav_file.setsampwidth(2)
-        wav_file.setframerate(sample_rate)
-        wav_file.writeframes(pcm)
-    return buffer.getvalue()
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(channels)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(pcm)
+        return buffer.getvalue()
 
 
 __all__ = ["TranscriptionClient", "TranscriptResult"]
