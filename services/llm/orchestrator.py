@@ -9,7 +9,6 @@ import json
 import os
 import struct
 import time
-import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -59,68 +58,42 @@ class Orchestrator:
     def _save_debug_data(
         self, transcript: str, response: str, audio_data: bytes, metadata: Dict[str, Any]
     ) -> None:
-        """Save debug data to disk for analysis."""
-        # Check if debug saving is enabled
-        debug_enabled = os.getenv("ORCHESTRATOR_DEBUG_SAVE", "false").lower() == "true"
-        if not debug_enabled:
-            return
+        """Save debug data to disk for analysis, grouped by correlation_id."""
+        from services.common.debug import get_debug_manager
 
         try:
-            # Create debug directory structure
-            debug_dir = Path("/app/debug")
-            debug_dir.mkdir(exist_ok=True)
-            (debug_dir / "responses").mkdir(exist_ok=True)
-            (debug_dir / "audio").mkdir(exist_ok=True)
-            (debug_dir / "manifests").mkdir(exist_ok=True)
-
-            # Generate unique session ID
-            session_id = str(uuid.uuid4())[:8]
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            correlation_id = metadata.get("correlation_id", "unknown")
+            debug_manager = get_debug_manager("orchestrator")
 
             # Save text response
-            response_file = debug_dir / "responses" / f"{timestamp}_{session_id}_response.txt"
-            with open(response_file, "w", encoding="utf-8") as f:
-                f.write(f"Original Transcript: {transcript}\n\n")
-                f.write(f"LLM Response: {response}\n")
+            response_content = f"Original Transcript: {transcript}\n\nLLM Response: {response}"
+            response_file = debug_manager.save_text_file(
+                correlation_id=correlation_id,
+                content=response_content,
+                filename_prefix="response",
+            )
 
-            # Note: Audio file is saved separately by _save_audio_file method
-            # to avoid duplication. Reference it via correlation_id instead.
-            audio_file = None
+            # Save manifest with metadata
+            files = {}
+            if response_file:
+                files["response_file"] = str(response_file)
 
-            # Create manifest with metadata
-            manifest = {
-                "session_id": session_id,
-                "timestamp": timestamp,
-                "datetime": datetime.now().isoformat(),
-                "metadata": metadata,
-                "files": {
-                    "response_file": str(response_file),
-                    "audio_file": str(audio_file) if audio_file else None,
-                },
-                "stats": {
+            debug_manager.save_manifest(
+                correlation_id=correlation_id,
+                metadata=metadata,
+                files=files,
+                stats={
                     "transcript_length": len(transcript),
                     "response_length": len(response),
                     "audio_size_bytes": len(audio_data) if audio_data else 0,
                 },
-            }
-
-            # Save manifest
-            manifest_file = debug_dir / "manifests" / f"{timestamp}_{session_id}_manifest.json"
-            with open(manifest_file, "w", encoding="utf-8") as f:
-                json.dump(manifest, f, indent=2)
-
-            self._logger.info(
-                "orchestrator.debug_data_saved",
-                session_id=session_id,
-                response_file=str(response_file),
-                audio_file=str(audio_file) if audio_file else None,
-                manifest_file=str(manifest_file),
             )
 
         except Exception as exc:
             self._logger.error(
                 "orchestrator.debug_save_failed",
                 error=str(exc),
+                correlation_id=metadata.get("correlation_id", "unknown"),
             )
 
     def _convert_raw_to_wav(
@@ -191,29 +164,30 @@ class Orchestrator:
 
     def _save_audio_file(self, audio_data: bytes, correlation_id: str) -> str:
         """Save audio data to a temporary file and return the file path."""
+        from services.common.debug import get_debug_manager
+
         try:
-            # Create audio directory in debug folder
-            audio_dir = Path("/app/debug/audio")
-            audio_dir.mkdir(parents=True, exist_ok=True)
-
-            # Generate filename
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"{timestamp}_{correlation_id}_audio.wav"
-            file_path = audio_dir / filename
-
-            # Convert raw PCM to WAV and save
-            wav_data = self._convert_raw_to_wav(audio_data)
-            with open(file_path, "wb") as f:
-                f.write(wav_data)
-
-            self._logger.info(
-                "orchestrator.audio_file_saved",
-                file_path=str(file_path),
-                size_bytes=len(wav_data),
+            debug_manager = get_debug_manager("orchestrator")
+            file_path = debug_manager.save_audio_file(
                 correlation_id=correlation_id,
+                audio_data=audio_data,
+                filename_prefix="audio",
+                convert_to_wav=True,
             )
 
-            return str(file_path)
+            if file_path:
+                return str(file_path)
+            else:
+                # Fallback to old method if debug saving is disabled
+                correlation_dir = Path("/app/debug") / correlation_id
+                correlation_dir.mkdir(parents=True, exist_ok=True)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"{timestamp}_audio.wav"
+                file_path = correlation_dir / filename
+                wav_data = self._convert_raw_to_wav(audio_data)
+                with open(file_path, "wb") as f:
+                    f.write(wav_data)
+                return str(file_path)
 
         except Exception as exc:
             self._logger.error(

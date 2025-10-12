@@ -12,12 +12,13 @@ RUN apt-get update && \
                 && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js and npm for MCP servers
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-        apt-get install -y nodejs
+        apt-get install -y --no-install-recommends nodejs=18.*
 
 # Install Rust for MCP servers that use Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-        . $HOME/.cargo/env && \
+        . "$HOME/.cargo/env" && \
         rustup default stable
 
 # Install Go tools for MCP servers

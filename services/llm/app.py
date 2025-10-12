@@ -419,13 +419,19 @@ async def handle_transcript(request: TranscriptRequest):
 async def serve_audio(filename: str):
     """Serve audio files for Discord playback."""
     try:
+        import glob
         from pathlib import Path
 
-        audio_dir = Path("/app/debug/audio")
-        file_path = audio_dir / filename
+        # Search for audio file in flattened correlation-based directory structure
+        debug_dir = Path("/app/debug")
+        audio_pattern = str(debug_dir / "*" / filename)
+        matching_files = glob.glob(audio_pattern)
 
-        if not file_path.exists():
+        if not matching_files:
             raise HTTPException(status_code=404, detail="Audio file not found")
+
+        # Use the first matching file
+        file_path = Path(matching_files[0])
 
         return FileResponse(path=str(file_path), media_type="audio/wav", filename=filename)
     except Exception as exc:
