@@ -1,3 +1,12 @@
+---
+title: Monday.com State Ledger and Capability Registry Plan
+description: Build a Monday.com-linked state ledger and capability registry that keep cross-surface workflows synchronized on ownership, status, and available execution tools.
+status: proposed
+created: 2025-01-27
+updated: 2025-01-27
+last-updated: 2025-10-11
+---
+
 # Monday.com State Ledger and Capability Registry Plan
 
 ## Objective

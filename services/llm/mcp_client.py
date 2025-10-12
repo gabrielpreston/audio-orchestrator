@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import logging
+
+# import logging  # Unused import
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
+
 from services.common.logging import get_logger
 
 logger = get_logger(__name__, service_name="llm")
@@ -31,27 +33,29 @@ class StdioMCPClient:
             # Ensure PYTHONPATH is set for the subprocess
             env = self.env.copy()
             env.setdefault("PYTHONPATH", "/app")
-            
+
             server_params = StdioServerParameters(
                 command=self.command,
                 env=env,
             )
-            
+
             self._client = stdio_client(server_params)
+            if self._client is None:
+                raise RuntimeError("Failed to create stdio client")
             self._session = await self._client.__aenter__()
-            
+
             # Initialize the session
             await self._session.initialize()
-            
+
             self._logger.info(
                 "mcp.client_connected",
                 name=self.name,
                 command=" ".join(self.command),
             )
-            
+
             # Start listening for notifications
             asyncio.create_task(self._listen_for_notifications())
-            
+
         except Exception as exc:
             self._logger.error(
                 "mcp.client_connection_failed",
@@ -80,7 +84,7 @@ class StdioMCPClient:
         """List available tools from the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
-        
+
         try:
             result = await self._session.list_tools()
             tools = result.tools
@@ -89,7 +93,14 @@ class StdioMCPClient:
                 name=self.name,
                 tool_count=len(tools),
             )
-            return [{"name": tool.name, "description": tool.description, "inputSchema": tool.inputSchema} for tool in tools]
+            return [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "inputSchema": tool.inputSchema,
+                }
+                for tool in tools
+            ]
         except Exception as exc:
             self._logger.error(
                 "mcp.list_tools_failed",
@@ -102,7 +113,7 @@ class StdioMCPClient:
         """Call a tool on the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
-        
+
         try:
             result = await self._session.call_tool(name, arguments)
             self._logger.debug(
@@ -121,7 +132,9 @@ class StdioMCPClient:
             )
             raise
 
-    def subscribe_notifications(self, handler: Callable[[str, Dict[str, Any]], Awaitable[None]]) -> None:
+    def subscribe_notifications(
+        self, handler: Callable[[str, Dict[str, Any]], Awaitable[None]]
+    ) -> None:
         """Subscribe to MCP notifications."""
         self._notification_handlers.append(handler)
         self._logger.debug(
@@ -134,17 +147,17 @@ class StdioMCPClient:
         """Background task to listen for notifications from the MCP server."""
         if not self._session:
             return
-        
+
         try:
             # The MCP SDK handles notification listening internally
             # We need to implement a custom notification handler
             # For now, we'll use a polling approach or implement custom notification handling
             self._logger.debug("mcp.notification_listener_started", name=self.name)
-            
+
             # Note: The official MCP SDK may not expose direct notification handling
             # We may need to implement this differently or use the server's notification system
             # This is a placeholder for the notification handling mechanism
-            
+
         except Exception as exc:
             self._logger.error(
                 "mcp.notification_listener_failed",

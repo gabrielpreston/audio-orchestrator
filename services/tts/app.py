@@ -207,7 +207,7 @@ def _load_voice() -> None:
 
     # Load the voice model using file paths directly
     _VOICE = PiperVoice.load(_MODEL_PATH, _MODEL_CONFIG_PATH)
-    
+
     # Read config for metadata extraction
     with open(_MODEL_CONFIG_PATH, "r", encoding="utf-8") as config_file:
         config_data = json.load(config_file)
@@ -314,11 +314,11 @@ def _synthesize_audio(
         logger.warning("TTS model not loaded - returning silence audio")
         return _generate_silence_audio(_VOICE_SAMPLE_RATE), _VOICE_SAMPLE_RATE
     buffer = io.BytesIO()
-    
+
     # The Piper library synthesize method only accepts text and optional syn_config
     # We need to use the synthesize method that returns an iterable of audio chunks
     audio_chunks = _VOICE.synthesize(text)
-    
+
     # Write the audio chunks to the buffer
     for chunk in audio_chunks:
         buffer.write(chunk.audio_int16_bytes)

@@ -3,7 +3,6 @@
 .vscode/
 .env.*
 bin/
-./bot
 .venv-*/
 .venv/
 .tmpvenv/
@@ -12,14 +11,10 @@ cache/
 __pycache__/
 logs/
 .wavs/
-services/llm/models/
-services/llm/models-src/
 *.gguf
-bot
-services/bot/bot
-services/mcp-server/mcp-server
 mcp.json
 .cache/
 *.onnx
-*.onnx.json
+mak*.onnx.json
 debug/
+services/models/

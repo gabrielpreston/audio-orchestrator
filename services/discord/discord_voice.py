@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-import io
+
+# import io  # Unused import
 import random
 from contextlib import suppress
 from dataclasses import dataclass
@@ -88,7 +89,7 @@ class VoiceBot(discord.Client):
         self._voice_join_locks: Dict[int, asyncio.Lock] = {}
         self._voice_reconnect_tasks: Dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: Set[int] = set()
-        
+
         # Initialize orchestrator client
         self._orchestrator_client = OrchestratorClient()
         if discord_voice_recv is None:
@@ -568,29 +569,29 @@ class VoiceBot(discord.Client):
                 channel_id=str(context.channel_id),
                 user_id=str(context.segment.user_id),
                 transcript=transcript.text,
-                correlation_id=transcript.correlation_id
+                correlation_id=transcript.correlation_id,
             )
-            
+
             self._logger.info(
                 "voice.transcript_sent_to_orchestrator",
                 correlation_id=transcript.correlation_id,
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
-                orchestrator_result=orchestrator_result
+                orchestrator_result=orchestrator_result,
             )
-            
+
             # TODO: Handle orchestrator response (TTS audio, tool calls, etc.)
             # For now, just log the result
-            
+
         except Exception as exc:
             self._logger.error(
                 "voice.orchestrator_communication_failed",
                 correlation_id=transcript.correlation_id,
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
-                error=str(exc)
+                error=str(exc),
             )
-        
+
         # Also publish to the original transcript publisher for compatibility
         await self._publish_transcript(payload)
         self._logger.info(
@@ -618,7 +619,7 @@ class VoiceBot(discord.Client):
             # This handles the conversion from TTS format to Discord's required format
             audio_source = discord.FFmpegPCMAudio(audio_url)
             voice_client.play(audio_source)
-            
+
             self._logger.info(
                 "tts.audio_playback_started",
                 audio_url=audio_url,

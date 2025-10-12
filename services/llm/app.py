@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import asyncio
+# import asyncio  # Unused import
 import base64
 import os
 import time
@@ -9,7 +9,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from llama_cpp import Llama
 from pydantic import BaseModel
 
@@ -83,10 +83,10 @@ def _load_llama() -> Optional[Llama]:
 
     try:
         _LLAMA = Llama(
-            model_path=model_path, 
-            n_ctx=ctx, 
+            model_path=model_path,
+            n_ctx=ctx,
             n_threads=threads,
-            verbose=False  # Reduce verbose output
+            verbose=False,  # Reduce verbose output
         )
         _LLAMA_INFO = {"model_path": model_path, "ctx": ctx, "threads": threads}
         logger.info("llm.model_loaded", model_path=model_path, ctx=ctx, threads=threads)
@@ -165,12 +165,12 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
 async def _startup_event() -> None:
     """Initialize MCP manager and orchestrator on startup."""
     global _MCP_MANAGER, _ORCHESTRATOR
-    
+
     try:
         # Initialize MCP manager
         _MCP_MANAGER = MCPManager(_MCP_CONFIG_PATH)
         await _MCP_MANAGER.initialize()
-        
+
         # Initialize orchestrator
         llama = _load_llama()
         if llama:
@@ -179,7 +179,7 @@ async def _startup_event() -> None:
             logger.info("orchestrator.initialized")
         else:
             logger.warning("orchestrator.llm_unavailable")
-            
+
     except Exception as exc:
         logger.error("orchestrator.startup_failed", error=str(exc))
         # Continue without MCP integration for compatibility
@@ -189,15 +189,15 @@ async def _startup_event() -> None:
 async def _shutdown_event() -> None:
     """Shutdown MCP manager and orchestrator."""
     global _TTS_CLIENT, _MCP_MANAGER, _ORCHESTRATOR
-    
+
     if _TTS_CLIENT is not None:
         await _TTS_CLIENT.aclose()
         _TTS_CLIENT = None
-    
+
     if _ORCHESTRATOR is not None:
         await _ORCHESTRATOR.shutdown()
         _ORCHESTRATOR = None
-    
+
     if _MCP_MANAGER is not None:
         await _MCP_MANAGER.shutdown()
         _MCP_MANAGER = None
@@ -337,7 +337,7 @@ async def health_check():
     mcp_status = {}
     if _MCP_MANAGER:
         mcp_status = _MCP_MANAGER.get_client_status()
-    
+
     return {
         "status": "healthy",
         "llm_loaded": _LLAMA is not None,
@@ -352,7 +352,7 @@ async def list_mcp_tools():
     """List available MCP tools."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
-    
+
     try:
         tools = await _MCP_MANAGER.list_all_tools()
         return {"tools": tools}
@@ -365,7 +365,7 @@ async def list_mcp_connections():
     """List MCP connection status."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
-    
+
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
@@ -382,7 +382,7 @@ async def handle_transcript(request: TranscriptRequest):
     """Handle transcript from Discord service."""
     if not _ORCHESTRATOR:
         return {"error": "Orchestrator not initialized"}
-    
+
     try:
         # Process the transcript through the orchestrator
         result = await _ORCHESTRATOR.process_transcript(
@@ -390,27 +390,27 @@ async def handle_transcript(request: TranscriptRequest):
             channel_id=request.channel_id,
             user_id=request.user_id,
             transcript=request.transcript,
-            correlation_id=request.correlation_id
+            correlation_id=request.correlation_id,
         )
-        
+
         logger.info(
             "orchestrator.transcript_processed",
             guild_id=request.guild_id,
             channel_id=request.channel_id,
             user_id=request.user_id,
             transcript=request.transcript,
-            correlation_id=request.correlation_id
+            correlation_id=request.correlation_id,
         )
-        
+
         return result
-        
+
     except Exception as exc:
         logger.error(
             "orchestrator.transcript_processing_failed",
             error=str(exc),
             guild_id=request.guild_id,
             channel_id=request.channel_id,
-            user_id=request.user_id
+            user_id=request.user_id,
         )
         return {"error": str(exc)}
 
@@ -420,17 +420,14 @@ async def serve_audio(filename: str):
     """Serve audio files for Discord playback."""
     try:
         from pathlib import Path
+
         audio_dir = Path("/app/audio")
         file_path = audio_dir / filename
-        
+
         if not file_path.exists():
             raise HTTPException(status_code=404, detail="Audio file not found")
-        
-        return FileResponse(
-            path=str(file_path),
-            media_type="audio/wav",
-            filename=filename
-        )
+
+        return FileResponse(path=str(file_path), media_type="audio/wav", filename=filename)
     except Exception as exc:
         logger.error("llm.audio_serve_failed", error=str(exc), filename=filename)
         raise HTTPException(status_code=500, detail=str(exc))

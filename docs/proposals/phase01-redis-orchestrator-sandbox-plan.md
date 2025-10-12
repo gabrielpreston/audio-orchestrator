@@ -1,3 +1,12 @@
+---
+title: Redis-Orchestrator Sandbox Rollout Plan
+description: Deliver a Redis-backed orchestrator sandbox capable of replaying Discord event traffic through the adaptive runtime prior to production rollout.
+status: proposed
+created: 2025-01-27
+updated: 2025-01-27
+last-updated: 2025-10-11
+---
+
 # Redis-Orchestrator Sandbox Rollout Plan
 
 ## Objective

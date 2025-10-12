@@ -1,3 +1,12 @@
+---
+title: Structured Intent, Memory, and Confirmation Safeguards Plan
+description: Introduce structured intent schemas, short-term conversation memory, and confirmation heuristics so the orchestrator validates user goals before performing write actions against external systems.
+status: proposed
+created: 2025-01-27
+updated: 2025-01-27
+last-updated: 2025-10-11
+---
+
 # Structured Intent, Memory, and Confirmation Safeguards Plan
 
 ## Objective
