@@ -1,0 +1,62 @@
+# Workflow: Auto-Analyze CI Failures using Cursor Agent
+# Purpose: Automatically run AI-assisted root-cause analysis & propose fixes when CI fails.
+# Maintainers: Core Services Team
+name: Auto-Analyze CI Failures
+
+on:
+  workflow_run:
+    workflows: [ CI ]  # Triggers on the existing CI workflow
+    types: [ completed ]
+
+jobs:
+  analyze-failure:
+    # Only run if the upstream CI failed, and skip self-trigger loops
+    if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Auto-Analyze CI Failures' }}
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for branch context / diffs
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Configure git identity
+        run: |
+          git config user.name "Cursor Agent"
+          git config user.email "cursoragent@your-org.com"
+
+      - name: Run Cursor Agent to analyze failure
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}   # stored in GH repo secrets
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          # for agent to comment / branch
+          MODEL: gpt-5                                    # explicitly set model
+          BRANCH_PREFIX: ci-fix                           # prefix for fix branches
+        run: |
+          # Using non-interactive prompt mode for CI automation
+          cursor-agent -p \
+            "You are operating in a GitHub Actions runner.
+
+             Context:
+             - Repo: ${{ github.repository }}
+             - Workflow Run ID: ${{ github.event.workflow_run.id }}
+             - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
+             - Fix Branch Prefix: ${{ env.BRANCH_PREFIX }}
+
+             Goal:
+             - Analyze the failure logs for the workflow run (ID above).
+             - Identify likely root cause(s) specific to this failure.
+             - Propose minimal targeted changes consistent with existing code style to fix the failure.
+             - Create (or update) a branch named \"${{ env.BRANCH_PREFIX }}-<short-desc>\" off the head of the failed workflow's branch.
+             - Make edits, commit, push in that branch.
+             - Post a comment on the corresponding Pull Request (or commit) with a summary of the fix and a link to create a PR if needed." \
+            --model "$MODEL" --output-format=text
