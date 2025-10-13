@@ -17,6 +17,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
+from services.common.audio_pipeline import create_audio_pipeline
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -83,6 +84,9 @@ _VOICE_LOOKUP: Dict[str, "VoiceOption"] = {}
 
 # Debug manager for saving debug files
 _debug_manager = get_debug_manager("tts")
+
+# Canonical audio pipeline for TTS processing
+_canonical_pipeline = create_audio_pipeline("tts")
 
 _SYNTHESIS_COUNTER = Counter(
     "tts_requests_total",
@@ -463,6 +467,120 @@ async def synthesize(
     return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
 
 
+@app.post("/synthesize-canonical")
+async def synthesize_canonical(
+    payload: SynthesisRequest,
+    _: None = Depends(_require_auth),
+    __: None = Depends(_enforce_rate_limit),
+):
+    """
+    Synthesize TTS audio using canonical audio pipeline.
+    
+    This endpoint processes TTS audio through the canonical audio pipeline
+    with proper loudness normalization and 48kHz mono framing.
+    """
+    start_time = time.perf_counter()
+
+    text_source = payload.ssml if payload.ssml else payload.text or ""
+    is_ssml = bool(payload.ssml)
+    text_length = len(_strip_ssml(text_source)) if is_ssml else len(text_source)
+
+    option = _resolve_voice(payload.voice)
+    length_scale = payload.length_scale or _DEFAULT_LENGTH_SCALE
+    noise_scale = payload.noise_scale or _DEFAULT_NOISE_SCALE
+    noise_w = payload.noise_w or _DEFAULT_NOISE_W
+
+    async with _CONCURRENCY_SEMAPHORE:
+        try:
+            # First synthesize using Piper
+            audio_bytes, sample_rate = await asyncio.to_thread(
+                _synthesize_audio,
+                text_source,
+                is_ssml=is_ssml,
+                option=option,
+                length_scale=length_scale,
+                noise_scale=noise_scale,
+                noise_w=noise_w,
+            )
+            
+            # Process through canonical audio pipeline
+            canonical_frames = _canonical_pipeline.process_tts_audio(
+                audio_bytes=audio_bytes,
+                input_format="wav"
+            )
+            
+            if not canonical_frames:
+                logger.warning("tts.canonical_processing_failed", audio_id=payload.correlation_id)
+                # Fallback to original audio
+                canonical_audio_bytes = audio_bytes
+            else:
+                # Convert back to WAV format for response
+                canonical_audio_bytes = _canonical_pipeline.frames_to_discord_playback(canonical_frames)
+                
+                # Convert to WAV format
+                import io
+                import wave
+                wav_buffer = io.BytesIO()
+                with wave.open(wav_buffer, 'wb') as wav_file:
+                    wav_file.setnchannels(1)  # mono
+                    wav_file.setsampwidth(2)  # 16-bit
+                    wav_file.setframerate(48000)  # 48kHz
+                    wav_file.writeframes(canonical_audio_bytes)
+                canonical_audio_bytes = wav_buffer.getvalue()
+            
+        except HTTPException:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("tts.canonical_synthesize_failed", error=str(exc))
+            _SYNTHESIS_COUNTER.labels(status="error").inc()
+            raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
+
+    size_bytes = len(canonical_audio_bytes)
+    duration = time.perf_counter() - start_time
+    _SYNTHESIS_DURATION.observe(duration)
+    _SYNTHESIS_SIZE.observe(size_bytes)
+
+    from services.common.correlation import generate_tts_correlation_id
+
+    audio_id = payload.correlation_id or generate_tts_correlation_id()
+    headers = {
+        "X-Audio-Id": audio_id,
+        "X-Audio-Voice": option.key,
+        "X-Audio-Sample-Rate": "48000",  # Canonical sample rate
+        "X-Audio-Size": str(size_bytes),
+        "X-Audio-Format": "canonical",
+    }
+    _SYNTHESIS_COUNTER.labels(status="success").inc()
+    logger.info(
+        "tts.canonical_synthesize_success",
+        audio_id=audio_id,
+        voice=option.key,
+        ssml=is_ssml,
+        text_length=text_length,
+        size_bytes=size_bytes,
+        duration_ms=int(duration * 1000),
+        canonical_frames=len(canonical_frames) if canonical_frames else 0,
+    )
+
+    # Save debug data for canonical TTS synthesis
+    _save_debug_canonical_synthesis(
+        audio_id=audio_id,
+        text_source=text_source,
+        is_ssml=is_ssml,
+        text_length=text_length,
+        option=option,
+        length_scale=length_scale,
+        noise_scale=noise_scale,
+        noise_w=noise_w,
+        audio_bytes=canonical_audio_bytes,
+        canonical_frames=canonical_frames,
+        size_bytes=size_bytes,
+        duration=duration,
+    )
+
+    return StreamingResponse(iter([canonical_audio_bytes]), media_type="audio/wav", headers=headers)
+
+
 def _save_debug_synthesis(
     audio_id: str,
     text_source: str,
@@ -550,6 +668,103 @@ def _save_debug_synthesis(
     except Exception as exc:
         logger.error(
             "tts.debug_synthesis_save_failed",
+            audio_id=audio_id,
+            error=str(exc),
+        )
+
+
+def _save_debug_canonical_synthesis(
+    audio_id: str,
+    text_source: str,
+    is_ssml: bool,
+    text_length: int,
+    option: "VoiceOption",
+    length_scale: float,
+    noise_scale: float,
+    noise_w: float,
+    audio_bytes: bytes,
+    canonical_frames,
+    size_bytes: int,
+    duration: float,
+) -> None:
+    """Save debug data for canonical TTS synthesis requests."""
+    try:
+        # Use audio_id as correlation_id for TTS debug files
+        correlation_id = audio_id
+
+        # Save input text/SSML
+        _debug_manager.save_text_file(
+            correlation_id=correlation_id,
+            content=f"Canonical TTS Input ({'SSML' if is_ssml else 'Text'}):\n{text_source}",
+            filename_prefix="tts_canonical_input",
+        )
+
+        # Save generated audio
+        _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=audio_bytes,
+            filename_prefix="tts_canonical_output",
+        )
+
+        # Save canonical frames info
+        _debug_manager.save_json_file(
+            correlation_id=correlation_id,
+            data={
+                "audio_id": audio_id,
+                "text_source": text_source,
+                "is_ssml": is_ssml,
+                "text_length": text_length,
+                "voice_key": option.key,
+                "voice_speaker_id": option.speaker_id,
+                "voice_language": option.language,
+                "length_scale": length_scale,
+                "noise_scale": noise_scale,
+                "noise_w": noise_w,
+                "canonical_frames": len(canonical_frames) if canonical_frames else 0,
+                "frame_duration_ms": 20.0,
+                "sample_rate": 48000,
+                "channels": 1,
+                "size_bytes": size_bytes,
+                "duration_seconds": duration,
+                "model_path": _MODEL_PATH,
+                "model_config_path": _MODEL_CONFIG_PATH,
+            },
+            filename_prefix="tts_canonical_parameters",
+        )
+
+        # Save manifest
+        files = {}
+        audio_file = _debug_manager.save_audio_file(
+            correlation_id=correlation_id,
+            audio_data=audio_bytes,
+            filename_prefix="tts_canonical_output",
+        )
+        if audio_file:
+            files["tts_canonical_output"] = str(audio_file)
+
+        _debug_manager.save_manifest(
+            correlation_id=correlation_id,
+            metadata={
+                "service": "tts",
+                "event": "canonical_synthesis_complete",
+                "audio_id": audio_id,
+                "voice": option.key,
+                "is_ssml": is_ssml,
+                "canonical_format": True,
+            },
+            files=files,
+            stats={
+                "text_length": text_length,
+                "size_bytes": size_bytes,
+                "duration_seconds": duration,
+                "canonical_frames": len(canonical_frames) if canonical_frames else 0,
+                "sample_rate": 48000,
+            },
+        )
+
+    except Exception as exc:
+        logger.error(
+            "tts.debug_canonical_synthesis_save_failed",
             audio_id=audio_id,
             error=str(exc),
         )

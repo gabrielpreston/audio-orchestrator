@@ -11,6 +11,8 @@ from starlette.requests import ClientDisconnect
 
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
+from services.common.audio_pipeline import create_audio_pipeline
+from prometheus_client import Counter, Histogram, Gauge
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
@@ -19,6 +21,22 @@ MODEL_NAME = os.environ.get("FW_MODEL", "small")
 _model: Any = None
 # Debug manager for saving debug files
 _debug_manager = get_debug_manager("stt")
+
+# Metrics
+_requests_total = Counter(
+    "stt_requests_total",
+    "Total STT requests",
+    ["status"]
+)
+_request_duration = Histogram(
+    "stt_request_duration_seconds",
+    "STT request duration",
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, float("inf"))
+)
+_segments_in_flight = Gauge(
+    "stt_segments_in_flight",
+    "Number of segments currently being processed"
+)
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -131,6 +149,10 @@ async def _transcribe_request(
 ) -> JSONResponse:
     # Top-level timing for the request (includes validation, file I/O, model work)
     req_start = time.time()
+    
+    # Update metrics
+    _segments_in_flight.inc()
+    _requests_total.labels(status="started").inc()
 
     if not wav_bytes:
         raise HTTPException(status_code=400, detail="empty request body")
@@ -270,6 +292,8 @@ async def _transcribe_request(
                 segments_out.append(segment_entry)
     except Exception as e:
         logger.exception("stt.transcription_error", correlation_id=correlation_id, error=str(e))
+        _segments_in_flight.dec()
+        _requests_total.labels(status="error").inc()
         raise HTTPException(status_code=500, detail=f"transcription error: {e}")
     finally:
         if tmp_path:
@@ -280,6 +304,11 @@ async def _transcribe_request(
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
+    
+    # Update metrics
+    _segments_in_flight.dec()
+    _request_duration.observe(req_end - req_start)
+    _requests_total.labels(status="success").inc()
 
     # Save debug data for transcription
     _save_debug_transcription(
@@ -346,6 +375,14 @@ async def _transcribe_request(
             text=resp["text"],
         )
     return JSONResponse(resp, headers=headers)
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint."""
+    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+    from fastapi.responses import Response
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.post("/asr")

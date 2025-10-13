@@ -11,6 +11,12 @@ from typing import Deque, Dict, List, Literal, Optional, Tuple
 import webrtcvad
 
 from services.common.logging import get_logger
+from services.common.audio_pipeline import (
+    AudioPipeline as CanonicalAudioPipeline,
+    CanonicalFrame,
+    AudioSegment as CanonicalAudioSegment,
+    create_audio_pipeline
+)
 
 from .config import AudioConfig
 
@@ -125,12 +131,17 @@ class Accumulator:
 
 
 class AudioPipeline:
-    """Manages audio accumulation per Discord speaker."""
+    """Manages audio accumulation per Discord speaker using canonical audio pipeline."""
 
     def __init__(self, config: AudioConfig) -> None:
         self._config = config
         self._accumulators: Dict[int, Accumulator] = {}
         self._logger = get_logger(__name__, service_name="discord")
+        
+        # Initialize canonical audio pipeline
+        self._canonical_pipeline = create_audio_pipeline("discord")
+        
+        # Legacy VAD configuration for backward compatibility
         frame_ms = config.vad_frame_duration_ms
         if frame_ms not in (10, 20, 30):
             nearest = min((10, 20, 30), key=lambda value: abs(value - frame_ms))
@@ -158,6 +169,66 @@ class AudioPipeline:
         if not self._config.allowlist_user_ids:
             return True
         return user_id in self._config.allowlist_user_ids
+    
+    def process_discord_audio_canonical(
+        self, 
+        audio_data: bytes, 
+        user_id: int,
+        input_format: str = "opus"
+    ) -> List[CanonicalAudioSegment]:
+        """
+        Process Discord audio data using the canonical audio pipeline.
+        
+        This is the new A2T pipeline implementation that follows the canonical
+        audio contract: 48kHz mono float32, 20ms frames.
+        
+        Args:
+            audio_data: Raw audio data from Discord
+            user_id: Discord user ID
+            input_format: Input format (opus, pcm, etc.)
+            
+        Returns:
+            List of speech segments ready for STT processing
+        """
+        if not self._allowed(user_id):
+            self._logger.debug(
+                "voice.audio_rejected",
+                user_id=user_id,
+                reason="allowlist",
+            )
+            return []
+        
+        # Use canonical audio pipeline for processing
+        segments = self._canonical_pipeline.process_discord_audio(
+            audio_data=audio_data,
+            user_id=user_id,
+            input_format=input_format
+        )
+        
+        # Update user_id in segments (canonical pipeline uses placeholder)
+        for segment in segments:
+            segment.user_id = user_id
+        
+        self._logger.debug(
+            "voice.canonical_audio_processed",
+            user_id=user_id,
+            input_bytes=len(audio_data),
+            segments_created=len(segments)
+        )
+        
+        return segments
+    
+    def prepare_stt_audio_canonical(self, segment: CanonicalAudioSegment) -> bytes:
+        """
+        Prepare canonical audio segment for STT processing.
+        
+        Args:
+            segment: Canonical audio segment
+            
+        Returns:
+            PCM bytes at 16kHz mono for STT
+        """
+        return self._canonical_pipeline.prepare_stt_audio(segment)
 
     def register_frame(
         self,

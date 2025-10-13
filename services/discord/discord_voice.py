@@ -18,6 +18,7 @@ from services.common.debug import get_debug_manager
 from services.common.logging import get_logger
 
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
+from services.common.audio_pipeline import CanonicalAudioSegment
 from .config import BotConfig, DiscordConfig
 from .mcp import MCPServer
 from .orchestrator_client import OrchestratorClient
@@ -48,6 +49,7 @@ class SegmentContext:
     segment: AudioSegment
     guild_id: int
     channel_id: int
+    canonical_segment: Optional[CanonicalAudioSegment] = None
 
 
 TranscriptPublisher = Callable[[Dict[str, object]], Awaitable[None]]
@@ -423,6 +425,103 @@ class VoiceBot(discord.Client):
         if not segment:
             return
         await self._enqueue_segment(segment, context=(guild_id, channel_id))
+    
+    async def ingest_voice_packet_canonical(
+        self,
+        user_id: int,
+        audio_data: bytes,
+        input_format: str = "opus",
+    ) -> None:
+        """
+        Entry point for voice receivers using canonical audio pipeline.
+        
+        This method processes Discord audio data through the new canonical
+        audio pipeline (A2T) with proper 48kHz mono float32 framing.
+        
+        Args:
+            user_id: Discord user ID
+            audio_data: Raw audio data from Discord
+            input_format: Input format (opus, pcm, etc.)
+        """
+        voice_state = self._resolve_voice_state(user_id)
+        if not voice_state or not voice_state.channel:
+            self._logger.debug(
+                "discord.voice_state_unavailable_canonical",
+                user_id=user_id,
+                audio_bytes=len(audio_data),
+                input_format=input_format,
+            )
+            return
+
+        guild_id = voice_state.channel.guild.id
+        channel_id = voice_state.channel.id
+        self._voice_contexts[user_id] = (guild_id, channel_id)
+
+        # Process through canonical audio pipeline
+        segments = self.audio_pipeline.process_discord_audio_canonical(
+            audio_data=audio_data,
+            user_id=user_id,
+            input_format=input_format
+        )
+        
+        # Enqueue each segment for STT processing
+        for segment in segments:
+            await self._enqueue_canonical_segment(segment, context=(guild_id, channel_id))
+    
+    async def _enqueue_canonical_segment(
+        self,
+        segment: CanonicalAudioSegment,
+        *,
+        context: Optional[tuple[int, int]] = None,
+    ) -> None:
+        """Enqueue canonical audio segment for STT processing."""
+        if context is None:
+            context = self._voice_contexts.get(segment.user_id)
+        if context is None:
+            self._logger.warning(
+                "discord.voice_context_missing_canonical",
+                user_id=segment.user_id,
+            )
+            return
+        guild_id, channel_id = context
+        
+        # Create segment context for processing
+        from .audio import AudioSegment as LegacyAudioSegment
+        legacy_segment = LegacyAudioSegment(
+            user_id=segment.user_id,
+            pcm=b"",  # Will be prepared for STT when needed
+            start_timestamp=segment.start_timestamp,
+            end_timestamp=segment.end_timestamp,
+            correlation_id=segment.correlation_id,
+            frame_count=len(segment.frames),
+            sample_rate=48000,  # Canonical sample rate
+        )
+        
+        segment_context = SegmentContext(
+            segment=legacy_segment,
+            guild_id=guild_id,
+            channel_id=channel_id,
+        )
+        
+        # Store canonical segment for STT preparation
+        segment_context.canonical_segment = segment
+        
+        pending_segments = self._segment_queue.qsize()
+        self._logger.debug(
+            "voice.canonical_segment_enqueued",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            guild_id=segment_context.guild_id,
+            channel_id=segment_context.channel_id,
+            frames=len(segment.frames),
+            duration=segment.duration,
+            queue_depth=pending_segments + 1,
+        )
+
+        # Save debug audio segment
+        self._save_debug_voice_segment(segment_context)
+
+        await self._segment_queue.put(segment_context)
 
     async def _enqueue_segment(
         self,
@@ -507,7 +606,25 @@ class VoiceBot(discord.Client):
                         channel_id=context.channel_id,
                         frames=context.segment.frame_count,
                     )
-                    transcript = await stt_client.transcribe(context.segment)
+                    # Prepare audio for STT based on segment type
+                    if context.canonical_segment:
+                        # Use canonical audio pipeline for STT preparation
+                        stt_audio = self.audio_pipeline.prepare_stt_audio_canonical(context.canonical_segment)
+                        # Create a temporary segment with the prepared audio
+                        from .audio import AudioSegment as LegacyAudioSegment
+                        temp_segment = LegacyAudioSegment(
+                            user_id=context.segment.user_id,
+                            pcm=stt_audio,
+                            start_timestamp=context.segment.start_timestamp,
+                            end_timestamp=context.segment.end_timestamp,
+                            correlation_id=context.segment.correlation_id,
+                            frame_count=context.segment.frame_count,
+                            sample_rate=16000,  # STT sample rate
+                        )
+                        transcript = await stt_client.transcribe(temp_segment)
+                    else:
+                        # Use legacy segment processing
+                        transcript = await stt_client.transcribe(context.segment)
                     self._logger.info(
                         "voice.segment_processing_complete",
                         correlation_id=transcript.correlation_id,
@@ -653,6 +770,88 @@ class VoiceBot(discord.Client):
                 audio_url=audio_url,
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
+                error=str(exc),
+            )
+    
+    async def _play_tts_canonical(
+        self, 
+        audio_bytes: bytes, 
+        context: SegmentContext,
+        input_format: str = "wav"
+    ) -> None:
+        """
+        Play TTS audio using canonical audio pipeline.
+        
+        This method processes TTS audio through the new canonical
+        audio pipeline (T2A) with proper loudness normalization
+        and 48kHz mono framing for Discord playback.
+        
+        Args:
+            audio_bytes: TTS audio data
+            context: Segment context
+            input_format: Input format (wav, mp3, etc.)
+        """
+        voice_client = self._voice_client_for_guild(context.guild_id)
+        if not voice_client:
+            self._logger.warning(
+                "tts.voice_client_missing_canonical",
+                guild_id=context.guild_id,
+            )
+            return
+        if voice_client.is_playing():
+            voice_client.stop()
+        
+        try:
+            # Process TTS audio through canonical pipeline
+            canonical_frames = self.audio_pipeline._canonical_pipeline.process_tts_audio(
+                audio_bytes=audio_bytes,
+                input_format=input_format
+            )
+            
+            if not canonical_frames:
+                self._logger.warning(
+                    "tts.canonical_processing_failed",
+                    guild_id=context.guild_id,
+                    input_bytes=len(audio_bytes)
+                )
+                return
+            
+            # Convert to Discord playback format
+            discord_pcm = self.audio_pipeline._canonical_pipeline.frames_to_discord_playback(
+                canonical_frames
+            )
+            
+            if not discord_pcm:
+                self._logger.warning(
+                    "tts.discord_pcm_conversion_failed",
+                    guild_id=context.guild_id,
+                    frames=len(canonical_frames)
+                )
+                return
+            
+            # Create audio source from PCM data
+            import io
+            audio_source = discord.PCMAudio(io.BytesIO(discord_pcm))
+            voice_client.play(audio_source)
+            
+            self._logger.info(
+                "tts.canonical_audio_playback_started",
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
+                input_bytes=len(audio_bytes),
+                output_bytes=len(discord_pcm),
+                frames=len(canonical_frames)
+            )
+            
+            # Save debug data for canonical TTS playback
+            self._save_debug_canonical_tts_playback(context, audio_bytes, canonical_frames)
+            
+        except Exception as exc:  # noqa: BLE001
+            self._logger.error(
+                "tts.canonical_playback_failed",
+                guild_id=context.guild_id,
+                channel_id=context.channel_id,
+                input_bytes=len(audio_bytes),
                 error=str(exc),
             )
 
@@ -1004,6 +1203,47 @@ class VoiceBot(discord.Client):
         except Exception as exc:
             self._logger.error(
                 "discord.debug_tts_playback_save_failed",
+                correlation_id=context.segment.correlation_id,
+                error=str(exc),
+            )
+    
+    def _save_debug_canonical_tts_playback(
+        self, 
+        context: SegmentContext, 
+        audio_bytes: bytes, 
+        canonical_frames
+    ) -> None:
+        """Save debug data for canonical TTS playback."""
+        try:
+            correlation_id = context.segment.correlation_id
+
+            # Save input TTS audio
+            self._debug_manager.save_audio_file(
+                correlation_id=correlation_id,
+                audio_data=audio_bytes,
+                filename_prefix="tts_input_canonical",
+            )
+
+            # Save canonical frames info
+            self._debug_manager.save_json_file(
+                correlation_id=correlation_id,
+                data={
+                    "user_id": context.segment.user_id,
+                    "guild_id": context.guild_id,
+                    "channel_id": context.channel_id,
+                    "input_bytes": len(audio_bytes),
+                    "canonical_frames": len(canonical_frames),
+                    "frame_duration_ms": 20.0,
+                    "sample_rate": 48000,
+                    "channels": 1,
+                    "total_duration": len(canonical_frames) * 0.02,
+                },
+                filename_prefix="tts_canonical_metadata",
+            )
+
+        except Exception as exc:
+            self._logger.error(
+                "discord.debug_canonical_tts_playback_save_failed",
                 correlation_id=context.segment.correlation_id,
                 error=str(exc),
             )

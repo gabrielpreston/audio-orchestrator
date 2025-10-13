@@ -36,6 +36,20 @@ class AudioConfig:
     vad_sample_rate_hz: int = 16000
     vad_frame_duration_ms: int = 30
     vad_aggressiveness: int = 1
+    
+    # Audio I/O Pipeline Configuration
+    canonical_sample_rate: int = 48000
+    canonical_frame_ms: int = 20
+    canonical_samples_per_frame: int = 960
+    jitter_target_frames: int = 3
+    jitter_max_frames: int = 8
+    vad_padding_ms: int = 200
+    loudnorm_enabled: bool = True
+    loudnorm_target_lufs: float = -16.0
+    loudnorm_target_tp: float = -1.5
+    loudnorm_lra: int = 11
+    underrun_silence_frames: int = 1
+    overflow_drop_oldest: bool = True
 
 
 @dataclass(slots=True)
@@ -146,6 +160,19 @@ def load_config() -> BotConfig:
         vad_sample_rate_hz=int(os.getenv("AUDIO_VAD_SAMPLE_RATE", "16000")),
         vad_frame_duration_ms=int(os.getenv("AUDIO_VAD_FRAME_MS", "30")),
         vad_aggressiveness=int(os.getenv("AUDIO_VAD_AGGRESSIVENESS", "2")),
+        # Audio I/O Pipeline Configuration
+        canonical_sample_rate=int(os.getenv("AUDIO_CANONICAL_SAMPLE_RATE", "48000")),
+        canonical_frame_ms=int(os.getenv("AUDIO_CANONICAL_FRAME_MS", "20")),
+        canonical_samples_per_frame=int(os.getenv("AUDIO_CANONICAL_SAMPLES_PER_FRAME", "960")),
+        jitter_target_frames=int(os.getenv("AUDIO_JITTER_TARGET_FRAMES", "3")),
+        jitter_max_frames=int(os.getenv("AUDIO_JITTER_MAX_FRAMES", "8")),
+        vad_padding_ms=int(os.getenv("AUDIO_VAD_PADDING_MS", "200")),
+        loudnorm_enabled=os.getenv("AUDIO_LOUDNORM_ENABLED", "true").lower() == "true",
+        loudnorm_target_lufs=float(os.getenv("AUDIO_LOUDNORM_TARGET_LUFS", "-16.0")),
+        loudnorm_target_tp=float(os.getenv("AUDIO_LOUDNORM_TARGET_TP", "-1.5")),
+        loudnorm_lra=int(os.getenv("AUDIO_LOUDNORM_LRA", "11")),
+        underrun_silence_frames=int(os.getenv("AUDIO_UNDERRUN_SILENCE_FRAMES", "1")),
+        overflow_drop_oldest=os.getenv("AUDIO_OVERFLOW_DROP_OLDEST", "true").lower() == "true",
     )
 
     stt_forced_language = os.getenv("STT_FORCED_LANGUAGE", "en")
