@@ -4,7 +4,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# Install system dependencies required for Piper + espeak phonemizer
+# Install system dependencies required for Piper + espeak phonemizer + webrtcvad
 # hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng \
@@ -12,6 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2 \
     libsndfile1 \
     ca-certificates \
+    build-essential \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
