@@ -6,13 +6,12 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from prometheus_client import Counter, Gauge, Histogram
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
-from services.common.audio_pipeline import create_audio_pipeline
-from prometheus_client import Counter, Histogram, Gauge
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
@@ -23,19 +22,14 @@ _model: Any = None
 _debug_manager = get_debug_manager("stt")
 
 # Metrics
-_requests_total = Counter(
-    "stt_requests_total",
-    "Total STT requests",
-    ["status"]
-)
+_requests_total = Counter("stt_requests_total", "Total STT requests", ["status"])
 _request_duration = Histogram(
     "stt_request_duration_seconds",
     "STT request duration",
-    buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, float("inf"))
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, float("inf")),
 )
 _segments_in_flight = Gauge(
-    "stt_segments_in_flight",
-    "Number of segments currently being processed"
+    "stt_segments_in_flight", "Number of segments currently being processed"
 )
 
 
@@ -149,7 +143,7 @@ async def _transcribe_request(
 ) -> JSONResponse:
     # Top-level timing for the request (includes validation, file I/O, model work)
     req_start = time.time()
-    
+
     # Update metrics
     _segments_in_flight.inc()
     _requests_total.labels(status="started").inc()
@@ -304,7 +298,7 @@ async def _transcribe_request(
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
-    
+
     # Update metrics
     _segments_in_flight.dec()
     _request_duration.observe(req_end - req_start)
@@ -380,8 +374,9 @@ async def _transcribe_request(
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics endpoint."""
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
     from fastapi.responses import Response
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 

@@ -15,9 +15,9 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
+from services.common.audio_pipeline import create_audio_pipeline
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
-from services.common.audio_pipeline import create_audio_pipeline
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -475,7 +475,7 @@ async def synthesize_canonical(
 ):
     """
     Synthesize TTS audio using canonical audio pipeline.
-    
+
     This endpoint processes TTS audio through the canonical audio pipeline
     with proper loudness normalization and 48kHz mono framing.
     """
@@ -502,32 +502,34 @@ async def synthesize_canonical(
                 noise_scale=noise_scale,
                 noise_w=noise_w,
             )
-            
+
             # Process through canonical audio pipeline
             canonical_frames = _canonical_pipeline.process_tts_audio(
-                audio_bytes=audio_bytes,
-                input_format="wav"
+                audio_bytes=audio_bytes, input_format="wav"
             )
-            
+
             if not canonical_frames:
                 logger.warning("tts.canonical_processing_failed", audio_id=payload.correlation_id)
                 # Fallback to original audio
                 canonical_audio_bytes = audio_bytes
             else:
                 # Convert back to WAV format for response
-                canonical_audio_bytes = _canonical_pipeline.frames_to_discord_playback(canonical_frames)
-                
+                canonical_audio_bytes = _canonical_pipeline.frames_to_discord_playback(
+                    canonical_frames
+                )
+
                 # Convert to WAV format
                 import io
                 import wave
+
                 wav_buffer = io.BytesIO()
-                with wave.open(wav_buffer, 'wb') as wav_file:
+                with wave.open(wav_buffer, "wb") as wav_file:
                     wav_file.setnchannels(1)  # mono
                     wav_file.setsampwidth(2)  # 16-bit
                     wav_file.setframerate(48000)  # 48kHz
                     wav_file.writeframes(canonical_audio_bytes)
                 canonical_audio_bytes = wav_buffer.getvalue()
-            
+
         except HTTPException:
             raise
         except Exception as exc:  # noqa: BLE001

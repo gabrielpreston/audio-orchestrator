@@ -36,7 +36,7 @@ class AudioConfig:
     vad_sample_rate_hz: int = 16000
     vad_frame_duration_ms: int = 30
     vad_aggressiveness: int = 1
-    
+
     # Audio I/O Pipeline Configuration
     canonical_sample_rate: int = 48000
     canonical_frame_ms: int = 20
