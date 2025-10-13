@@ -44,6 +44,8 @@ jobs:
           BRANCH_PREFIX: ci-fix                           # prefix for fix branches
         run: |
           # Using non-interactive prompt mode for CI automation
+          cursor-agent --version
+          cursor-agent status
           cursor-agent -p \
             "You are operating in a GitHub Actions runner.
 
