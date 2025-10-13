@@ -13,6 +13,7 @@ jobs:
     # Only run if the upstream CI failed, and skip self-trigger loops
     if: ${{ github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.name != 'Auto-Analyze CI Failures' }}
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     
     permissions:
       contents: write
@@ -33,7 +34,7 @@ jobs:
       - name: Configure git identity
         run: |
           git config user.name "Cursor Agent"
-          git config user.email "cursoragent@your-org.com"
+          git config user.email "gpreston@gmail.com"
 
       - name: Run Cursor Agent to analyze failure
         env:

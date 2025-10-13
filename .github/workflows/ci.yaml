@@ -24,6 +24,7 @@ jobs:
   changes:
     name: Detect affected areas
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     outputs:
       python: ${{ steps.filter.outputs.python }}
       docker: ${{ steps.filter.outputs.docker }}
@@ -69,6 +70,7 @@ jobs:
       needs.changes.outputs.workflows == 'true' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     timeout-minutes: 15
     steps:
       - name: Checkout repository
@@ -103,6 +105,7 @@ jobs:
       needs.changes.outputs.workflows == 'true' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     timeout-minutes: 20
     steps:
       - name: Checkout repository
@@ -139,6 +142,7 @@ jobs:
       needs.changes.outputs.workflows == 'true' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     timeout-minutes: 30
     steps:
       - name: Checkout repository
@@ -168,6 +172,7 @@ jobs:
       needs.changes.outputs.workflows == 'true' ||
       github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
     timeout-minutes: 10
     steps:
       - name: Checkout repository
