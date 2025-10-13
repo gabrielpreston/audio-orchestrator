@@ -39,7 +39,7 @@ jobs:
       - name: Run Cursor Agent to analyze failure
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}   # stored in GH repo secrets
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}          # for agent to comment / branch
+          GH_TOKEN: ${{ github.token }}                   # for agent to comment / branch
           MODEL: gpt-5                                    # explicitly set model
           BRANCH_PREFIX: ci-fix                           # prefix for fix branches
         run: |

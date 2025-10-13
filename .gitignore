@@ -18,3 +18,4 @@ mcp.json
 *.onnx.json
 debug/
 services/models/
+*.zip
