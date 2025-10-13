@@ -17,9 +17,8 @@ from typing import Dict, List, Optional
 TOKEN_LENGTH = 32
 TOKEN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
-# Environment file paths
+# Environment file paths (excluding .env.sample as it's a template)
 ENV_FILES = {
-    ".env.sample": "Template file with all configuration sections",
     ".env.common": "Shared configuration for all services",
     ".env.docker": "Docker-specific configuration",
     "services/discord/.env.service": "Discord service configuration",
