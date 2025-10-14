@@ -12,6 +12,7 @@ librosa==0.10.1
 soundfile==0.12.1
 numpy==1.24.3
 scipy==1.11.4
+av==12.3.0
 
 # WebRTC and networking
 # Pin PyAV to a wheel-provided version so pip-audit can resolve
