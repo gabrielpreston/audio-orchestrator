@@ -258,21 +258,7 @@ jobs:
             echo "ERROR: Failed to authenticate cursor-agent"
             exit 1
           }
-          
-          # Verify cursor-agent is available and authenticated
-          echo "Checking cursor-agent availability..."
-          cursor-agent --version || {
-            echo "ERROR: cursor-agent command not found or not working"
-            exit 1
-          }
-          
-          # Check cursor-agent status
-          echo "Checking cursor-agent status..."
-          cursor-agent status || {
-            echo "ERROR: cursor-agent status check failed"
-            exit 1
-          }
-          
+                    
           # Run the analysis with error handling
           echo "Starting failure analysis..."
           cursor-agent -p "
