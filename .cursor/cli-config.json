@@ -1,0 +1,31 @@
+{
+  "name": "discord-voice-lab",
+  "capabilities": {
+    "github_cli": [
+      "gh api",
+      "gh run view",
+      "gh pr view", 
+      "gh pr diff",
+      "gh pr list",
+      "gh run download"
+    ],
+    "git": [
+      "git status",
+      "git checkout",
+      "git branch", 
+      "git commit",
+      "git push",
+      "git remote"
+    ],
+    "analysis": [
+      "ci_failure_analysis",
+      "root_cause_detection", 
+      "automated_fixes"
+    ]
+  },
+  "constraints": {
+    "no_pr_creation": true,
+    "update_existing_comments": true,
+    "minimal_changes_only": true
+  }
+}
