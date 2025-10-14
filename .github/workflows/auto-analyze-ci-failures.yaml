@@ -15,7 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     environment: discord-voice-lab
     
+    # IMPORTANT: add actions:read so the agent can fetch workflow logs & metadata
     permissions:
+      actions: read
       contents: write
       pull-requests: write
       issues: write
@@ -28,38 +30,83 @@ jobs:
 
       - name: Install Cursor CLI
         run: |
-          curl https://cursor.com/install -fsS | bash
-          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+          curl -fsS https://cursor.com/install | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+
+      - name: Install GitHub CLI
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gh
+          gh --version
 
       - name: Configure git identity
         run: |
           git config user.name "Cursor Agent"
           git config user.email "gpreston@gmail.com"
 
+      # If your CI is triggered by PRs from forks, the default GITHUB_TOKEN is limited.
+      # Create a fine-grained PAT with repo permissions and store it as GH_PAT in repo secrets,
+      # then switch the TOKEN_SOURCE below from github.token to secrets.GH_PAT.
+      - name: Select token source
+        id: tok
+        run: |
+          # Default: use the workflow's GITHUB_TOKEN
+          echo "value=${GITHUB_TOKEN}" >> "$GITHUB_OUTPUT"
+        env:
+          # Use the built-in token by default
+          GITHUB_TOKEN: ${{ github.token }}
+          # To override (e.g., for forks), uncomment the next line and comment out the line above:
+          # GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+      - name: Authenticate gh
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          echo "$GITHUB_TOKEN" | gh auth login --with-token
+          gh auth status
+          # ensure git pushes use gh auth
+          gh auth setup-git
+
+      - name: Verify API access and repo state
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          gh api repos/${{ github.repository }} >/dev/null
+          gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} >/dev/null
+          git remote -v
+          gh repo view --json name,defaultBranchRef
+
       - name: Run Cursor Agent to analyze failure
         env:
-          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}   # stored in GH repo secrets
-          GH_TOKEN: ${{ github.token }}                   # for agent to comment / branch
-          MODEL: gpt-5                                    # explicitly set model
-          BRANCH_PREFIX: ci-fix                           # prefix for fix branches
+          # Cursor key from repo/environment secrets
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+
+          # Expose BOTH variable names in case the agent/CLI checks one or the other
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+          GH_TOKEN:      ${{ steps.tok.outputs.value }}
+
+          # Agent settings
+          MODEL: gpt-5
+          BRANCH_PREFIX: ci-fix
         run: |
-          # Using non-interactive prompt mode for CI automation
-          cursor-agent --version
-          cursor-agent status
-          cursor-agent -p \
-            "You are operating in a GitHub Actions runner.
+          cursor-agent --version || true
+          cursor-agent status || true
 
-             Context:
-             - Repo: ${{ github.repository }}
-             - Workflow Run ID: ${{ github.event.workflow_run.id }}
-             - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
-             - Fix Branch Prefix: ${{ env.BRANCH_PREFIX }}
+          # Use plain shell variables inside the same step
+          cursor-agent -p "
+            You are operating in a GitHub Actions runner.
 
-             Goal:
-             - Analyze the failure logs for the workflow run (ID above).
-             - Identify likely root cause(s) specific to this failure.
-             - Propose minimal targeted changes consistent with existing code style to fix the failure.
-             - Create (or update) a branch named \"${{ env.BRANCH_PREFIX }}-<short-desc>\" off the head of the failed workflow's branch.
-             - Make edits, commit, push in that branch.
-             - Post a comment on the corresponding Pull Request (or commit) with a summary of the fix and a link to create a PR if needed." \
-            --model "$MODEL" --output-format=text
+            Context:
+            - Repo: ${{ github.repository }}
+            - Workflow Run ID: ${{ github.event.workflow_run.id }}
+            - Workflow Run URL: ${{ github.event.workflow_run.html_url }}
+            - Fix Branch Prefix: ${BRANCH_PREFIX}
+
+            Goal:
+            - Analyze the failure logs for the workflow run (ID above).
+            - Identify likely root cause(s) specific to this failure.
+            - Propose minimal targeted changes consistent with existing code style to fix the failure.
+            - Create (or update) a branch named \"${BRANCH_PREFIX}-<short-desc>\" off the head of the failed workflow's branch.
+            - Make edits, commit, push in that branch.
+            - Post a comment on the corresponding Pull Request (or commit) with a summary of the fix and a link to create a PR if needed.
+          " --model "$MODEL" --output-format=text
