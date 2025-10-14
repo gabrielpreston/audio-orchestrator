@@ -43,7 +43,7 @@ DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
 PYTHON_SOURCES := services
-DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/tts/Dockerfile services/livekit/Dockerfile
+DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/orchestrator/Dockerfile
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
 MOBILE_SOURCES := mobile-app/src
 MOBILE_FILES := $(shell find mobile-app -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' | grep -v node_modules | tr '\n' ' ')
@@ -83,7 +83,7 @@ help: ## Show this help (default)
 	@echo
 	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-run: stop ## Start docker-compose stack (Discord bot + STT + orchestrator)
+run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
 	@$(RUN_SCRIPT)
 
 
@@ -118,7 +118,7 @@ docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 
 docker-shell: ## Open an interactive shell inside a running service (SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|orch)"; exit 1; fi
+	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|llm|orchestrator)"; exit 1; fi
 	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
 
 docker-config: ## Render the effective docker-compose configuration

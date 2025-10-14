@@ -18,7 +18,7 @@ logger = structlog.get_logger()
 class OrchestratorClient:
     """Client for communicating with the LLM orchestrator service."""
 
-    def __init__(self, orchestrator_url: str = "http://orch:8000", config: Optional[Any] = None):
+    def __init__(self, orchestrator_url: str = "http://orchestrator:8000", config: Optional[Any] = None):
         self.orchestrator_url = orchestrator_url
         self._http_client: Optional[httpx.AsyncClient] = None
         self._config = config

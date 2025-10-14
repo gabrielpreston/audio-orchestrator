@@ -16,7 +16,7 @@ services:
       - ./debug:/app/debug
     depends_on:
       - stt
-      - orch
+      - orchestrator
       - tts
     restart: unless-stopped
 
@@ -35,11 +35,11 @@ services:
       - ./debug:/app/debug
     restart: unless-stopped
 
-  orch:
+  llm:
     build:
       context: .
       dockerfile: services/llm/Dockerfile
-    image: discord-voice-orch:latest
+    image: discord-voice-llm:latest
     env_file:
       - ./.env.common
       - ./.env.docker
@@ -48,9 +48,25 @@ services:
       - "8000:8000"
     volumes:
       - ./services/models/llm:/app/models:ro
+      - ./debug:/app/debug
+    restart: unless-stopped
+
+  orchestrator:
+    build:
+      context: .
+      dockerfile: services/orchestrator/Dockerfile
+    image: discord-voice-orchestrator:latest
+    env_file:
+      - ./.env.common
+      - ./.env.docker
+      - ./services/orchestrator/.env.service
+    ports:
+      - "8001:8000"
+    volumes:
       - ./mcp.json:/app/mcp.json:ro
       - ./debug:/app/debug
     depends_on:
+      - llm
       - tts
     restart: unless-stopped
 

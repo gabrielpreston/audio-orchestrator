@@ -12,7 +12,7 @@ from mcp.client.stdio import stdio_client
 
 from services.common.logging import get_logger
 
-logger = get_logger(__name__, service_name="llm")
+logger = get_logger(__name__, service_name="orchestrator")
 
 
 class StdioMCPClient:
@@ -31,7 +31,7 @@ class StdioMCPClient:
         self.env = env or {}
         self._session: Optional[ClientSession] = None
         self._client = None
-        self._logger = get_logger(__name__, service_name="llm")
+        self._logger = get_logger(__name__, service_name="orchestrator")
         self._notification_handlers: List[Callable[[str, Dict[str, Any]], Awaitable[None]]] = []
 
     async def connect(self) -> None:

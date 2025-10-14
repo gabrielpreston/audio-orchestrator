@@ -10,7 +10,7 @@ from services.common.logging import get_logger
 from .mcp_client import StdioMCPClient
 from .mcp_config import MCPConfig
 
-logger = get_logger(__name__, service_name="llm")
+logger = get_logger(__name__, service_name="orchestrator")
 
 
 class MCPManager:
@@ -19,7 +19,7 @@ class MCPManager:
     def __init__(self, config_path: str = "./mcp.json"):
         self.config = MCPConfig(config_path)
         self.clients: Dict[str, StdioMCPClient] = {}
-        self._logger = get_logger(__name__, service_name="llm")
+        self._logger = get_logger(__name__, service_name="orchestrator")
         self._notification_handlers: List[Callable[[str, str, Dict[str, Any]], Awaitable[None]]] = (
             []
         )
@@ -77,7 +77,7 @@ class MCPManager:
                 self.is_connected = True
                 self.base_url = "http://discord:8001"  # Discord service port
                 self._http_client = None
-                self._logger = get_logger(__name__, service_name="llm")
+                self._logger = get_logger(__name__, service_name="orchestrator")
 
             async def _get_http_client(self):
                 """Get or create HTTP client."""
@@ -87,7 +87,7 @@ class MCPManager:
                     self._http_client = httpx.AsyncClient(timeout=30.0)
                 return self._http_client
 
-            async def list_tools(self):
+            async def list_tools(self) -> List[Dict[str, Any]]:
                 """Return Discord MCP tools that can be called via HTTP."""
                 return [
                     {
@@ -122,7 +122,7 @@ class MCPManager:
                     },
                 ]
 
-            async def call_tool(self, name, arguments):
+            async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 """Call Discord tool via HTTP."""
                 try:
                     client = await self._get_http_client()
@@ -215,7 +215,7 @@ class MCPManager:
                     )
                     return {"error": str(exc)}
 
-            async def disconnect(self):
+            async def disconnect(self) -> None:
                 """Clean up HTTP client."""
                 if self._http_client:
                     await self._http_client.aclose()

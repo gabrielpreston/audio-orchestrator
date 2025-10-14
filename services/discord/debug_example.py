@@ -73,7 +73,7 @@ def example_convenience_functions():
             "tool": "play_audio",
             "guild_id": "98765",
             "channel_id": "54321",
-            "audio_url": "http://orch:8000/audio/test.wav",
+            "audio_url": "http://orchestrator:8000/audio/test.wav",
         },
         service_name="discord",
         filename_prefix="mcp_request",
