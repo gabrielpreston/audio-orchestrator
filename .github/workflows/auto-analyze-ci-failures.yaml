@@ -1,6 +1,5 @@
 # Workflow: Auto-Analyze CI Failures using Cursor Agent
 # Purpose: Automatically run AI-assisted root-cause analysis & propose fixes when CI fails.
-# Maintainers: Core Services Team
 name: Auto-Analyze CI Failures
 
 on:
@@ -15,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: discord-voice-lab
     
-    # IMPORTANT: add actions:read so the agent can fetch workflow logs & metadata
     permissions:
       actions: read
       contents: write
@@ -254,10 +252,10 @@ jobs:
             Goal:
             - Analyze the failure logs for the workflow run (ID above).
             - Identify likely root cause(s) specific to this failure.
-            - Create a separate persistent fix branch.
-            - Propose minimal targeted changes consistent with existing code style to fix the failure back into the original PR's branch.
             - Maintain a persistent fix branch for this PR head using the Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
+            - Propose minimal targeted changes consistent with existing code style to fix the failure back into the original PR's branch.
             - Make edits, commit, push in that branch.
+            - Ensure all changes meet expected quality standards (e.g. linting, formatting, etc.).
             - You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
 
             Inputs and conventions:
