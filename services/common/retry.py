@@ -109,8 +109,6 @@ def create_discord_retry_strategy(
             | retry_if_exception_type(httpx.TimeoutException)
             | retry_if_exception_type(httpx.RemoteProtocolError)
         ),
-        # Custom wait for Discord rate limits
-        wait_func=_discord_rate_limit_wait,
         # Retry on specific status codes
         retry_error_callback=lambda retry_state: logger.warning(
             "discord.retry_exhausted",
