@@ -16,7 +16,8 @@ scipy==1.11.4
 
 # WebRTC and networking
 aiortc==1.6.0
-cryptography==41.0.8
+# cryptography 41.0.8 does not publish wheels for Python 3.11 on manylinux; use 42.0.7+.
+cryptography==42.0.7
 
 # HTTP client for STT/TTS integration
 httpx==0.25.2

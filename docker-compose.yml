@@ -101,6 +101,6 @@ services:
       - ./debug:/app/debug
     depends_on:
       - stt
-      - orch
+      - orchestrator
       - tts
     restart: unless-stopped
