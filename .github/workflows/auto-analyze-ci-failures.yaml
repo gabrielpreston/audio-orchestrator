@@ -237,34 +237,12 @@ jobs:
           MODEL: gpt-5
           BRANCH_PREFIX: ci-fix
         run: |
-          set -euo pipefail
-          echo "Running Cursor Agent to analyze failure..."
-          
-          # Check if Cursor API key is set
-          if [ -z "${CURSOR_API_KEY:-}" ]; then
-            echo "ERROR: CURSOR_API_KEY is not set"
-            exit 1
-          fi
-          
-          # Check if GitHub token is set
-          if [ -z "${GITHUB_TOKEN:-}" ]; then
-            echo "ERROR: GITHUB_TOKEN is not set"
-            exit 1
-          fi
-          
-          # Authenticate cursor-agent with API key
-          echo "Authenticating cursor-agent..."
-          cursor-agent auth --api-key "${CURSOR_API_KEY}" || {
-            echo "ERROR: Failed to authenticate cursor-agent"
-            exit 1
-          }
-                    
           # Run the analysis with error handling
           echo "Starting failure analysis..."
           cursor-agent -p "
             You are operating in a GitHub Actions runner.
 
-            The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+            The GitHub CLI is available as \`gh\` and already authenticated. It has been tested and validated earlier in the workflow.Git is available. You have write access to repository contents and can comment on pull requests, but you must not create nor edit PRs directly.
 
             Context:
             - Repo: ${{ github.repository }}
@@ -276,7 +254,7 @@ jobs:
             Goal:
             - Analyze the failure logs for the workflow run (ID above).
             - Identify likely root cause(s) specific to this failure.
-            - Create a separate persistent fix branch
+            - Create a separate persistent fix branch.
             - Propose minimal targeted changes consistent with existing code style to fix the failure back into the original PR's branch.
             - Maintain a persistent fix branch for this PR head using the Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
             - Make edits, commit, push in that branch.
@@ -286,7 +264,7 @@ jobs:
             - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
             - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
             - If no actionable fix is possible, make no changes and post no comment.
-          " --model "$MODEL" --output-format=text || {
+          " --model "$MODEL" --output-format=text --stream-partial-output || {
             echo "ERROR: Cursor Agent analysis failed"
             exit 1
           }
