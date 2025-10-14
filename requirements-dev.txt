@@ -1,0 +1,3 @@
+# Unified development and test dependencies for local + CI
+# Aggregate via the tester toolchain requirements
+-r services/tester/requirements.txt
