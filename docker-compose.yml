@@ -69,3 +69,22 @@ services:
       - ./services/models/tts:/app/models:ro
       - ./debug:/app/debug
     restart: unless-stopped
+
+  livekit-agent:
+    build:
+      context: .
+      dockerfile: services/livekit/Dockerfile
+    image: discord-voice-lab/livekit-agent:latest
+    ports:
+      - "8080:8080"
+    env_file:
+      - ./.env.common
+      - ./.env.docker
+      - ./services/livekit/.env.service
+    volumes:
+      - ./debug:/app/debug
+    depends_on:
+      - stt
+      - orch
+      - tts
+    restart: unless-stopped

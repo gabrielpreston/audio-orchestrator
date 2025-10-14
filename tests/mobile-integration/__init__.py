@@ -1,0 +1,3 @@
+"""
+Mobile integration tests package.
+"""
