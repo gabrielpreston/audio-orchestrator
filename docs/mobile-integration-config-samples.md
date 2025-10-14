@@ -7,6 +7,7 @@ This document provides configuration examples for the mobile voice assistant int
 ### Backend Services (.env files)
 
 #### services/livekit/.env.service
+
 ```bash
 # LiveKit agent service configuration
 
@@ -73,6 +74,7 @@ METRICS_ENABLED=true
 ```
 
 #### mobile-app/.env
+
 ```bash
 # Mobile Voice Assistant Configuration
 
@@ -124,6 +126,7 @@ RETRY_ATTEMPTS=3
 ## LiveKit Configuration
 
 ### LiveKit Server Configuration (livekit.yaml)
+
 ```yaml
 port: 7880
 rtc:
@@ -158,6 +161,7 @@ log_level: info
 ```
 
 ### Room Token Generation
+
 ```javascript
 // Generate room token for mobile app
 const { AccessToken } = require('livekit-server-sdk');
@@ -182,6 +186,7 @@ console.log('Room token:', jwt);
 ## Audio Configuration
 
 ### Audio Session Configuration (iOS)
+
 ```swift
 // iOS Audio Session Configuration
 import AVFoundation
@@ -209,6 +214,7 @@ func configureAudioSession() {
 ```
 
 ### Audio Session Configuration (Android)
+
 ```java
 // Android Audio Session Configuration
 import android.media.AudioManager;
@@ -241,6 +247,7 @@ public class AudioConfig {
 ## Wake Word Configuration
 
 ### Porcupine Wake Word Engine
+
 ```javascript
 // Wake word detection configuration
 const wakeWordConfig = {
@@ -265,6 +272,7 @@ const wakeWordConfig = {
 ```
 
 ### Open Wake Word Configuration
+
 ```javascript
 // Alternative wake word engine
 const openWakeWordConfig = {
@@ -279,6 +287,7 @@ const openWakeWordConfig = {
 ## VAD Configuration
 
 ### WebRTC VAD Configuration
+
 ```javascript
 // Voice Activity Detection settings
 const vadConfig = {
@@ -295,6 +304,7 @@ const vadConfig = {
 ```
 
 ### Custom VAD Configuration
+
 ```javascript
 // Custom VAD implementation
 const customVADConfig = {
@@ -311,6 +321,7 @@ const customVADConfig = {
 ## Network Configuration
 
 ### WebRTC ICE Servers
+
 ```javascript
 // ICE server configuration for WebRTC
 const iceServers = [
@@ -337,6 +348,7 @@ const rtcConfig = {
 ```
 
 ### Network Quality Monitoring
+
 ```javascript
 // Network quality thresholds
 const networkQualityConfig = {
@@ -369,6 +381,7 @@ const networkQualityConfig = {
 ## UI Configuration
 
 ### Theme Configuration
+
 ```javascript
 // UI theme settings
 const themeConfig = {
@@ -398,6 +411,7 @@ const themeConfig = {
 ```
 
 ### Animation Configuration
+
 ```javascript
 // Animation settings
 const animationConfig = {
@@ -422,6 +436,7 @@ const animationConfig = {
 ## Debug Configuration
 
 ### Debug Settings
+
 ```javascript
 // Debug configuration
 const debugConfig = {
@@ -439,6 +454,7 @@ const debugConfig = {
 ```
 
 ### Performance Monitoring
+
 ```javascript
 // Performance monitoring settings
 const performanceConfig = {
@@ -469,6 +485,7 @@ const performanceConfig = {
 ## Security Configuration
 
 ### Authentication
+
 ```javascript
 // Authentication configuration
 const authConfig = {
@@ -494,6 +511,7 @@ const authConfig = {
 ```
 
 ### Data Encryption
+
 ```javascript
 // Data encryption settings
 const encryptionConfig = {
@@ -515,6 +533,7 @@ const encryptionConfig = {
 ## Production Configuration
 
 ### Production Environment Variables
+
 ```bash
 # Production configuration
 NODE_ENV=production
@@ -527,6 +546,7 @@ AUTH_TOKEN=your-production-token
 ```
 
 ### Monitoring Configuration
+
 ```javascript
 // Production monitoring
 const monitoringConfig = {
@@ -551,6 +571,7 @@ const monitoringConfig = {
 ## Testing Configuration
 
 ### Test Environment
+
 ```javascript
 // Testing configuration
 const testConfig = {
@@ -572,6 +593,7 @@ const testConfig = {
 ```
 
 ### Load Testing
+
 ```javascript
 // Load testing configuration
 const loadTestConfig = {

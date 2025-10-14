@@ -86,7 +86,7 @@
 
 ### 4.2 Control Plane: Data Channel Message Shapes
 
-*(Representative, code‑free schemas)*
+#### Representative, code‑free schemas
 
 * **Client → Agent**
 
@@ -240,21 +240,24 @@
 ## Implementation Status
 
 ### ✅ Completed
-- [x] Canonical audio contracts and interfaces
-- [x] LiveKit agent service for WebRTC transport
-- [x] React Native mobile app with WebRTC integration
-- [x] STT/TTS adapter interfaces for provider abstraction
-- [x] Session management and state machines
-- [x] Control plane messaging system
-- [x] Telemetry and observability features
-- [x] Comprehensive documentation
+
+* [x] Canonical audio contracts and interfaces
+* [x] LiveKit agent service for WebRTC transport
+* [x] React Native mobile app with WebRTC integration
+* [x] STT/TTS adapter interfaces for provider abstraction
+* [x] Session management and state machines
+* [x] Control plane messaging system
+* [x] Telemetry and observability features
+* [x] Comprehensive documentation
 
 ### 🔄 In Progress
-- [ ] Integration testing and validation
-- [ ] Performance optimization
-- [ ] Error handling refinement
+
+* [ ] Integration testing and validation
+* [ ] Performance optimization
+* [ ] Error handling refinement
 
 ### 📋 Pending
-- [ ] Production deployment configuration
-- [ ] Monitoring and alerting setup
-- [ ] User acceptance testing
+
+* [ ] Production deployment configuration
+* [ ] Monitoring and alerting setup
+* [ ] User acceptance testing

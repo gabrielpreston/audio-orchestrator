@@ -4,17 +4,21 @@ This guide provides step-by-step instructions for setting up and running the mob
 
 ## Overview
 
-The mobile voice assistant integration extends the existing Discord voice lab with cross-platform mobile support using React Native and LiveKit for WebRTC transport. The system reuses the existing STT, TTS, and orchestrator services while adding mobile-specific components.
+The mobile voice assistant integration extends the existing Discord voice lab with
+cross-platform mobile support using React Native and LiveKit for WebRTC transport.
+The system reuses the existing STT, TTS, and orchestrator services while adding
+mobile-specific components.
 
 ## Architecture
 
-```
+```text
 Mobile App (React Native) ←→ LiveKit Room ←→ LiveKit Agent ←→ STT/TTS/Orchestrator
 ```
 
 ## Prerequisites
 
 ### Development Environment
+
 - Node.js 16+ and npm/yarn
 - React Native CLI
 - Android Studio (for Android development)
@@ -23,6 +27,7 @@ Mobile App (React Native) ←→ LiveKit Room ←→ LiveKit Agent ←→ STT/TT
 - Docker and Docker Compose
 
 ### Services
+
 - LiveKit server (self-hosted or cloud)
 - Existing Discord voice lab services (STT, TTS, orchestrator)
 
@@ -247,6 +252,7 @@ npm run android
 ### Audio Processing
 
 The system uses a canonical audio format:
+
 - **Sample Rate:** 16 kHz (STT-optimized)
 - **Channels:** Mono
 - **Bit Depth:** 16-bit
@@ -306,16 +312,19 @@ const vadConfig = {
 ### Common Issues
 
 #### Connection Issues
+
 - Verify LiveKit server is running and accessible
 - Check network connectivity and firewall settings
 - Ensure room token is valid and not expired
 
 #### Audio Issues
+
 - Check microphone permissions
 - Verify audio session configuration
 - Test with different audio routes
 
 #### Performance Issues
+
 - Monitor telemetry data for network quality
 - Check device battery and thermal state
 - Adjust VAD and wake word sensitivity
@@ -400,6 +409,7 @@ The system provides comprehensive telemetry:
 ### Alerts
 
 Set up alerts for:
+
 - High latency (> 650ms p95)
 - High packet loss (> 10%)
 - Service errors
