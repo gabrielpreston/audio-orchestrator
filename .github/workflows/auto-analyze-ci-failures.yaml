@@ -264,7 +264,7 @@ jobs:
             - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
             - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
             - If no actionable fix is possible, make no changes and post no comment.
-          " --model "$MODEL" --output-format=text || {
+          " --model "$MODEL" --output-format=text --force || {
             echo "ERROR: Cursor Agent analysis failed"
             exit 1
           }
