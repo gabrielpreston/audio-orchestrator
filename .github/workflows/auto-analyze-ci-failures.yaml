@@ -231,7 +231,7 @@ jobs:
 
           # Expose BOTH variable names in case the agent/CLI checks one or the other
           GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
-          GH_TOKEN:      ${{ steps.tok.outputs.value }}
+          GH_TOKEN: ${{ steps.tok.outputs.value }}
 
           # Agent settings
           MODEL: gpt-5
@@ -252,7 +252,14 @@ jobs:
             exit 1
           fi
           
-          # Verify cursor-agent is available
+          # Authenticate cursor-agent with API key
+          echo "Authenticating cursor-agent..."
+          cursor-agent auth --api-key "${CURSOR_API_KEY}" || {
+            echo "ERROR: Failed to authenticate cursor-agent"
+            exit 1
+          }
+          
+          # Verify cursor-agent is available and authenticated
           echo "Checking cursor-agent availability..."
           cursor-agent --version || {
             echo "ERROR: cursor-agent command not found or not working"
@@ -271,7 +278,7 @@ jobs:
           cursor-agent -p "
             You are operating in a GitHub Actions runner.
 
-            The GitHub CLI is available as `gh` and authenticated via `GH_TOKEN`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
+            The GitHub CLI is available as \`gh\` and authenticated via \`GH_TOKEN\`. Git is available. You have write access to repository contents and can comment on pull requests, but you must not create or edit PRs directly.
 
             Context:
             - Repo: ${{ github.repository }}
@@ -290,7 +297,7 @@ jobs:
             - You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
 
             Inputs and conventions:
-            - Use `gh api`, `gh run view`, `gh pr view`, `gh pr diff`, `gh pr list`, `gh run download`, and git commands as needed to discover the failing PR and branches.
+            - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
             - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
             - If no actionable fix is possible, make no changes and post no comment.
           " --model "$MODEL" --output-format=text || {

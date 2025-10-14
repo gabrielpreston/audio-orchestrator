@@ -54,7 +54,7 @@ jobs:
               - 'docs/**'
               - 'AGENTS.md'
             workflows:
-              - '.github/workflows/**'
+              - '.github/workflows/ci.yaml'
             security:
               - 'pyproject.toml'
               - 'services/**/requirements.txt'
