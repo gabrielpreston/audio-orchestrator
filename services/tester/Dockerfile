@@ -29,14 +29,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 COPY services/tester/requirements.txt /tmp/requirements.txt
-COPY services/discord/requirements.txt /tmp/discord-requirements.txt
-COPY services/llm/requirements.txt /tmp/llm-requirements.txt
-COPY services/stt/requirements.txt /tmp/stt-requirements.txt
 RUN python -m pip install --upgrade pip==24.0 && \
-    pip install -r /tmp/requirements.txt && \
-    pip install -r /tmp/discord-requirements.txt && \
-    pip install -r /tmp/llm-requirements.txt && \
-    pip install -r /tmp/stt-requirements.txt
+    pip install -r /tmp/requirements.txt
 
 COPY services/tester/run-tests.sh /usr/local/bin/run-tests.sh
 RUN chmod +x /usr/local/bin/run-tests.sh
