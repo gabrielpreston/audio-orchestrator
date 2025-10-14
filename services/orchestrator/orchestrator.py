@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-
-# import base64  # Unused import
 import json
 import os
 import struct
@@ -13,33 +11,35 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
-from llama_cpp import Llama
 
 from services.common.debug import get_debug_manager
 from services.common.logging import get_logger
 
 from .mcp_manager import MCPManager
 
-logger = get_logger(__name__, service_name="llm")
+logger = get_logger(__name__, service_name="orchestrator")
 
 
 class Orchestrator:
     """Core orchestration logic for voice assistant interactions."""
 
     def __init__(
-        self, llama_model: Llama, mcp_manager: MCPManager, tts_base_url: Optional[str] = None
+        self,
+        mcp_manager: MCPManager,
+        llm_base_url: Optional[str] = None,
+        tts_base_url: Optional[str] = None,
     ):
-        self.llama = llama_model
         self.mcp_manager = mcp_manager
+        self.llm_base_url = llm_base_url
         self.tts_base_url = tts_base_url
-        self._logger = get_logger(__name__, service_name="llm")
+        self._logger = get_logger(__name__, service_name="orchestrator")
         self._http_client: Optional[httpx.AsyncClient] = None
         self._available_tools: Dict[str, List[Dict[str, Any]]] = {}
 
     async def initialize(self) -> None:
         """Initialize the orchestrator."""
-        if self.tts_base_url:
-            self._http_client = httpx.AsyncClient(timeout=30.0)
+        if self.tts_base_url or self.llm_base_url:
+            self._http_client = httpx.AsyncClient(timeout=60.0)
 
         # Load available tools from all MCP clients
         await self._load_available_tools()
@@ -331,81 +331,72 @@ class Orchestrator:
             )
 
     async def _generate_response(self, transcript: str, context: Dict[str, Any]) -> str:
-        """Generate a response using LLM with function calling support."""
-        # Build system prompt with available tools
-        system_prompt = self._build_system_prompt()
+        """Generate a response using LLM service via HTTP."""
+        if not self.llm_base_url or not self._http_client:
+            self._logger.warning("orchestrator.llm_unavailable")
+            return "I'm sorry, but the language model is currently unavailable."
 
         # Build conversation messages
         messages = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": "You are a helpful assistant."},
             {"role": "user", "content": transcript},
         ]
 
         self._logger.info(
-            "orchestrator.llm_input",
-            system_prompt_length=len(system_prompt),
-            system_prompt_preview=system_prompt[:200],
+            "orchestrator.llm_request",
             transcript=transcript,
             messages_count=len(messages),
         )
 
         try:
-            # Use completion method with manually formatted prompt for better control
-            prompt = self._format_simple_prompt(messages)
+            # Call LLM service
+            llm_auth_token = os.getenv("LLM_AUTH_TOKEN")
+            headers = {}
+            if llm_auth_token:
+                headers["Authorization"] = f"Bearer {llm_auth_token}"
 
-            completion = self.llama(
-                prompt,
-                max_tokens=256,
-                temperature=0.7,
-                stop=["</s>", "\n\n", "Human:", "Assistant:"],
-                echo=False,
+            response = await self._http_client.post(
+                f"{self.llm_base_url}/v1/chat/completions",
+                json={
+                    "model": "local-llama",
+                    "messages": messages,
+                    "max_tokens": 256,
+                },
+                headers=headers,
+                timeout=60.0,
             )
+            response.raise_for_status()
 
-            response_content = completion.get("choices", [{}])[0].get("text", "")
+            result = response.json()
+            choices = result.get("choices", [])
+            if choices:
+                content = choices[0].get("message", {}).get("content", "")
 
-            # Clean the response content to remove special tokens
-            if response_content:
-                # Remove common special tokens that might cause TTS issues
-                import re
+                # Clean the response content to remove special tokens
+                if content:
+                    import re
 
-                # Remove various special tokens and formatting
-                response_content = re.sub(
-                    r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]", "", response_content
+                    # Remove various special tokens and formatting
+                    content = re.sub(
+                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]", "", content
+                    )
+                    # Remove any remaining special characters and normalize whitespace
+                    content = re.sub(r'[^\w\s.,!?;:\'"-]', "", content)
+                    content = re.sub(r"\s+", " ", content).strip()
+                    # If the response is too short or empty after cleaning, provide a fallback
+                    if len(content) < 10:
+                        content = "I understand your message. How can I help you?"
+
+                self._logger.info(
+                    "orchestrator.llm_response",
+                    response_length=len(content),
+                    response_preview=content[:100] if content else "Empty",
                 )
-                # Remove any remaining special characters and normalize whitespace
-                response_content = re.sub(r'[^\w\s.,!?;:\'"-]', "", response_content)
-                response_content = re.sub(r"\s+", " ", response_content).strip()
-                # If the response is too short or empty after cleaning, provide a fallback
-                if len(response_content) < 10:
-                    response_content = "I understand your message. How can I help you?"
 
-            # Debug the full completion structure
-            first_choice = completion.get("choices", [{}])[0]
-            self._logger.info(
-                "orchestrator.llm_response",
-                completion_keys=list(completion.keys()),
-                choices_count=len(completion.get("choices", [])),
-                first_choice_keys=list(first_choice.keys()),
-                message_keys=list(first_choice.get("message", {}).keys()),
-                response_content_length=len(response_content),
-                response_content_preview=response_content[:100] if response_content else "Empty",
-                full_first_choice=str(first_choice),
-            )
-
-            # Check for function calls in the response
-            function_calls = self._extract_function_calls(response_content)
-
-            if function_calls:
-                # Execute function calls
-                results = await self._execute_function_calls(function_calls, context)
-
-                # Generate final response with function call results
-                final_response = await self._generate_final_response(
-                    transcript, function_calls, results
-                )
-                return final_response
-
-            return response_content
+                return content
+            else:
+                self._logger.warning("orchestrator.llm_empty_response")
+                return "I understand your message. How can I help you?"
 
         except Exception as exc:
             self._logger.error(
@@ -413,169 +404,6 @@ class Orchestrator:
                 error=str(exc),
             )
             return f"I apologize, but I encountered an error processing your request: {str(exc)}"
-
-    def _build_system_prompt(self) -> str:
-        """Build system prompt with available tools."""
-        # Very simple system prompt to avoid confusion
-        return "You are a helpful assistant."
-
-    def _format_simple_prompt(self, messages: List[Dict[str, str]]) -> str:
-        """Format messages as a simple conversation prompt."""
-        prompt_parts = []
-
-        for message in messages:
-            role = message.get("role", "")
-            content = message.get("content", "")
-
-            if role == "system":
-                prompt_parts.append(f"System: {content}")
-            elif role == "user":
-                prompt_parts.append(f"Human: {content}")
-            elif role == "assistant":
-                prompt_parts.append(f"Assistant: {content}")
-
-        # Add the assistant prompt to start the response
-        prompt_parts.append("Assistant:")
-
-        return "\n".join(prompt_parts)
-
-    def _extract_function_calls(self, response: str) -> List[Dict[str, Any]]:
-        """Extract function calls from LLM response."""
-        try:
-            # Try to parse JSON response
-            if response.strip().startswith("{"):
-                data = json.loads(response)
-                return data.get("function_calls", [])
-        except (json.JSONDecodeError, KeyError):
-            pass
-
-        return []
-
-    async def _execute_function_calls(
-        self, function_calls: List[Dict[str, Any]], context: Dict[str, Any]
-    ) -> List[Dict[str, Any]]:
-        """Execute function calls via MCP."""
-        results = []
-
-        for call in function_calls:
-            client_name = call.get("client")
-            tool_name = call.get("tool")
-            arguments = call.get("arguments", {})
-
-            # Skip if required fields are missing
-            if not client_name or not tool_name:
-                self._logger.warning(
-                    "orchestrator.skipping_invalid_function_call",
-                    client_name=client_name,
-                    tool_name=tool_name,
-                    call=call,
-                )
-                continue
-
-            # Add context to arguments if needed
-            if client_name == "discord":
-                arguments.update(
-                    {
-                        "guild_id": context.get("guild_id"),
-                        "channel_id": context.get("channel_id"),
-                    }
-                )
-
-            try:
-                result = await self.mcp_manager.call_tool(client_name, tool_name, arguments)
-                results.append(
-                    {
-                        "client": client_name,
-                        "tool": tool_name,
-                        "result": result,
-                        "success": True,
-                    }
-                )
-
-                self._logger.info(
-                    "orchestrator.function_call_success",
-                    client=client_name,
-                    tool=tool_name,
-                )
-
-                # Save debug data for successful MCP tool calls
-                self._save_debug_mcp_tool_call(
-                    client_name=client_name,
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    result=result,
-                    success=True,
-                    context=context,
-                )
-
-            except Exception as exc:
-                self._logger.error(
-                    "orchestrator.function_call_failed",
-                    client=client_name,
-                    tool=tool_name,
-                    error=str(exc),
-                )
-
-                results.append(
-                    {
-                        "client": client_name,
-                        "tool": tool_name,
-                        "result": {"error": str(exc)},
-                        "success": False,
-                    }
-                )
-
-                # Save debug data for failed MCP tool calls
-                self._save_debug_mcp_tool_call(
-                    client_name=client_name,
-                    tool_name=tool_name,
-                    arguments=arguments,
-                    result={"error": str(exc)},
-                    success=False,
-                    context=context,
-                )
-
-        return results
-
-    async def _generate_final_response(
-        self, transcript: str, function_calls: List[Dict[str, Any]], results: List[Dict[str, Any]]
-    ) -> str:
-        """Generate final response after executing function calls."""
-        # Build follow-up prompt with function call results
-        follow_up_prompt = f"""Based on the function call results, provide a helpful response to the user.
-
-Original request: {transcript}
-
-Function call results:
-{json.dumps(results, indent=2)}
-
-Provide a natural, conversational response."""
-
-        try:
-            completion = self.llama.create_chat_completion(
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You are a helpful assistant. Provide natural responses based on function call results.",
-                    },
-                    {"role": "user", "content": follow_up_prompt},
-                ],
-                max_tokens=256,
-                temperature=0.7,
-            )
-
-            return (
-                completion.get("choices", [{}])[0]
-                .get("message", {})
-                .get("content", "I've completed the requested action.")
-            )
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.final_response_failed",
-                error=str(exc),
-            )
-            return "I've completed the requested action."
 
     async def _synthesize_and_play(self, text: str, context: Dict[str, Any]) -> None:
         """Synthesize text to speech and play it in Discord."""
@@ -633,7 +461,7 @@ Provide a natural, conversational response."""
             audio_file_path = self._save_audio_file(
                 audio_data, context.get("correlation_id", "unknown")
             )
-            audio_url = f"http://orch:8000/audio/{os.path.basename(audio_file_path)}"
+            audio_url = f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
 
             # Play audio in Discord
             await self.mcp_manager.call_discord_tool(

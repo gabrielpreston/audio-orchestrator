@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 from services.common.logging import get_logger
 
-logger = get_logger(__name__, service_name="llm")
+logger = get_logger(__name__, service_name="orchestrator")
 
 
 @dataclass
@@ -30,7 +30,7 @@ class MCPConfig:
     def __init__(self, config_path: str = "./mcp.json"):
         self.config_path = Path(config_path)
         self.servers: Dict[str, MCPServerConfig] = {}
-        self._logger = get_logger(__name__, service_name="llm")
+        self._logger = get_logger(__name__, service_name="orchestrator")
 
     def load(self) -> None:
         """Load MCP server configurations from mcp.json."""
@@ -143,7 +143,7 @@ class MCPConfig:
         # Supports ${VAR} and $VAR syntax
         import re
 
-        def replace_var(match):
+        def replace_var(match) -> str:
             var_name = match.group(1) or match.group(2)
             return os.getenv(var_name, match.group(0))
 
