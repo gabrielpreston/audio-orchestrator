@@ -51,17 +51,17 @@ jobs:
           done
           
           # Verify installation and add to PATH
-          if [ -f "$HOME/.cursor/bin/cursor" ]; then
-            echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          if [ -f "$HOME/.local/bin/cursor-agent" ]; then
+            echo "$HOME/.local/bin" >> "$GITHUB_PATH"
             echo "Cursor CLI added to PATH"
           else
             echo "ERROR: Cursor CLI not found after installation"
             exit 1
           fi
           
-          # Verify cursor command works
-          export PATH="$HOME/.cursor/bin:$PATH"
-          cursor --version || {
+          # Verify cursor-agent command works
+          export PATH="$HOME/.local/bin:$PATH"
+          cursor-agent --version || {
             echo "ERROR: Cursor CLI not working after installation"
             exit 1
           }
