@@ -15,6 +15,10 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Cancel subsequent jobs if any job fails
+strategy:
+  fail-fast: true
+
 env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PIP_NO_PYTHON_VERSION_WARNING: "1"
@@ -63,11 +67,12 @@ jobs:
     name: Lint
     needs: changes
     if: |
-      needs.changes.outputs.python == 'true' ||
-      needs.changes.outputs.docker == 'true' ||
-      needs.changes.outputs.docs == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.python == 'true' ||
+       needs.changes.outputs.docker == 'true' ||
+       needs.changes.outputs.docs == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
     runs-on: ubuntu-latest
     environment: discord-voice-lab
     timeout-minutes: 15
@@ -100,9 +105,10 @@ jobs:
     name: Tests
     needs: changes
     if: |
-      needs.changes.outputs.python == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.python == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -136,9 +142,10 @@ jobs:
     name: Docker smoke
     needs: changes
     if: |
-      needs.changes.outputs.docker == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.docker == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -165,9 +172,10 @@ jobs:
     name: Security scan
     needs: changes
     if: |
-      needs.changes.outputs.security == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.security == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
