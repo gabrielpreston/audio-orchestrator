@@ -32,7 +32,7 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
@@ -53,19 +53,19 @@ class ConfigError(Exception):
 class ValidationError(ConfigError):
     """Exception raised when configuration validation fails."""
 
-    def __init__(self, field: str, value: Any, message: str):
-        self.field = field
+    def __init__(self, field_name: str, value: Any, message: str):
+        self.field = field_name
         self.value = value
         self.message = message
-        super().__init__(f"Validation failed for field '{field}': {message}")
+        super().__init__(f"Validation failed for field '{field_name}': {message}")
 
 
 class RequiredFieldError(ConfigError):
     """Exception raised when a required field is missing."""
 
-    def __init__(self, field: str):
-        self.field = field
-        super().__init__(f"Required field '{field}' is missing")
+    def __init__(self, field_name: str):
+        self.field = field_name
+        super().__init__(f"Required field '{field_name}' is missing")
 
 
 class Environment(Enum):
@@ -401,20 +401,20 @@ class EnvironmentLoader:
     def _convert_value(self, raw_value: str, target_type: Type[T]) -> T:
         """Convert string value to target type."""
         if target_type == bool:
-            return raw_value.lower() in ("1", "true", "yes", "on")
+            return raw_value.lower() in ("1", "true", "yes", "on")  # type: ignore
         elif target_type == int:
-            return int(raw_value)
+            return int(raw_value)  # type: ignore
         elif target_type == float:
-            return float(raw_value)
+            return float(raw_value)  # type: ignore
         elif target_type == str:
-            return raw_value
+            return raw_value  # type: ignore
         elif target_type == list:
-            return [item.strip() for item in raw_value.split(",") if item.strip()]
+            return [item.strip() for item in raw_value.split(",") if item.strip()]  # type: ignore
         elif target_type == Optional[str]:
-            return raw_value if raw_value else None
+            return raw_value if raw_value else None  # type: ignore
         else:
             # Try to use the type as a constructor
-            return target_type(raw_value)
+            return target_type(raw_value)  # type: ignore
 
     def load_config(self, config_class: Type[BaseConfig]) -> BaseConfig:
         """Load configuration for a given class from environment variables."""

@@ -239,6 +239,7 @@ The library automatically maps configuration fields to environment variables:
 ### Default Mapping
 
 Field names are automatically converted to environment variables:
+
 - `field_name` → `FIELD_NAME`
 - `myField` → `MY_FIELD`
 
@@ -409,6 +410,7 @@ FieldDefinition(
 ### From Current Discord Config
 
 **Before:**
+
 ```python
 # services/discord/config.py
 @dataclass(slots=True)
@@ -424,6 +426,7 @@ def load_config() -> BotConfig:
 ```
 
 **After:**
+
 ```python
 # services/discord/config.py
 from services.common.service_configs import DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig, TelemetryConfig
@@ -445,6 +448,7 @@ def load_config():
 ### From Current STT Config
 
 **Before:**
+
 ```python
 # services/stt/app.py
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
@@ -453,6 +457,7 @@ compute_type = os.environ.get("FW_COMPUTE_TYPE")
 ```
 
 **After:**
+
 ```python
 # services/stt/app.py
 from services.common.config import load_service_config

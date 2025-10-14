@@ -5,6 +5,7 @@ This guide shows how to migrate each service from the current configuration mana
 ## Overview
 
 The new configuration library provides:
+
 - **Type safety** with full validation
 - **Consistent patterns** across all services
 - **Automatic environment variable loading**
@@ -63,6 +64,7 @@ def load_config():
 ### Usage Changes
 
 **Before:**
+
 ```python
 config = load_config()
 print(config.discord.token)
@@ -70,6 +72,7 @@ print(config.audio.sample_rate)
 ```
 
 **After:**
+
 ```python
 config = load_config()
 print(config.discord.token)
@@ -78,7 +81,7 @@ print(config.audio.input_sample_rate_hz)  # More descriptive field name
 
 ## STT Service Migration
 
-### Current Approach
+### STT Current Approach
 
 ```python
 # services/stt/app.py
@@ -96,7 +99,7 @@ configure_logging(
 )
 ```
 
-### New Approach
+### STT New Approach
 
 ```python
 # services/stt/app.py
@@ -120,9 +123,10 @@ configure_logging(
 )
 ```
 
-### Usage Changes
+### STT Usage Changes
 
 **Before:**
+
 ```python
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
 device = os.environ.get("FW_DEVICE", "cpu")
@@ -130,6 +134,7 @@ compute_type = os.environ.get("FW_COMPUTE_TYPE")
 ```
 
 **After:**
+
 ```python
 config = load_config()
 model_name = config.faster_whisper.model
@@ -139,7 +144,7 @@ compute_type = config.faster_whisper.compute_type
 
 ## TTS Service Migration
 
-### Current Approach
+### TTS Current Approach
 
 ```python
 # services/tts/app.py
@@ -165,7 +170,7 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     return value
 ```
 
-### New Approach
+### TTS New Approach
 
 ```python
 # services/tts/app.py
@@ -184,15 +189,17 @@ def load_config():
 config = load_config()
 ```
 
-### Usage Changes
+### TTS Usage Changes
 
 **Before:**
+
 ```python
 _MODEL_PATH = os.getenv("TTS_MODEL_PATH")
 _MAX_TEXT_LENGTH = _env_int("TTS_MAX_TEXT_LENGTH", 1000, minimum=32, maximum=10000)
 ```
 
 **After:**
+
 ```python
 config = load_config()
 model_path = config.tts.model_path
@@ -201,7 +208,7 @@ max_text_length = config.tts.max_text_length
 
 ## LLM Service Migration
 
-### Current Approach
+### LLM Current Approach
 
 ```python
 # services/llm/app.py
@@ -225,7 +232,7 @@ def _load_llama() -> Optional[Llama]:
     # ... more parsing
 ```
 
-### New Approach
+### LLM New Approach
 
 ```python
 # services/llm/app.py
@@ -245,9 +252,10 @@ def load_config():
 config = load_config()
 ```
 
-### Usage Changes
+### LLM Usage Changes
 
 **Before:**
+
 ```python
 model_path = os.getenv("LLAMA_MODEL_PATH", "/app/models/llama2-7b.gguf")
 ctx = int(os.getenv("LLAMA_CTX", "2048"))
@@ -255,6 +263,7 @@ tts_base_url = os.getenv("TTS_BASE_URL")
 ```
 
 **After:**
+
 ```python
 config = load_config()
 model_path = config.llama.model_path

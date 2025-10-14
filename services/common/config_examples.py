@@ -14,7 +14,9 @@ from .service_configs import (
     AudioConfig,
     DiscordConfig,
     FasterWhisperConfig,
+    HttpConfig,
     LlamaConfig,
+    LoggingConfig,
     MCPConfig,
     OrchestratorConfig,
     STTConfig,
@@ -117,9 +119,11 @@ def example_tts_service_config():
     os.environ["TTS_MAX_CONCURRENCY"] = "8"
     os.environ["TTS_RATE_LIMIT_PER_MINUTE"] = "120"
 
+    # Create a fresh builder for TTS service
+    builder = ConfigBuilder.for_service("tts", Environment.DOCKER)
     config = (
-        builder.add_config("logging", config.configs["logging"] if "config" in locals() else None)
-        .add_config("http", config.configs["http"] if "config" in locals() else None)
+        builder.add_config("logging", LoggingConfig)
+        .add_config("http", HttpConfig)
         .add_config("tts", TTSConfig)
         .load()
     )
@@ -155,7 +159,7 @@ def example_orchestrator_service_config():
     builder = ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
     config = (
         builder.add_config("logging", TelemetryConfig)  # Use TelemetryConfig for logging
-        .add_config("http", config.configs["http"] if "config" in locals() else None)
+        .add_config("http", HttpConfig)
         .add_config("llama", LlamaConfig)
         .add_config("orchestrator", OrchestratorConfig)
         .load()
@@ -235,7 +239,7 @@ def example_custom_configuration():
     """Example: Create a custom configuration class."""
     print("\n=== Custom Configuration Example ===")
 
-    from .config import BaseConfig, FieldDefinition, create_field_definition
+    from .config import BaseConfig, create_field_definition
 
     class CustomServiceConfig(BaseConfig):
         """Custom service configuration example."""

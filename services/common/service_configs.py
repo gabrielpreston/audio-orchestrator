@@ -13,9 +13,7 @@ from .config import (
     BaseConfig,
     FieldDefinition,
     create_field_definition,
-    validate_non_negative,
     validate_port,
-    validate_positive,
     validate_url,
 )
 
@@ -28,7 +26,7 @@ class DiscordConfig(BaseConfig):
         token: str = "",
         guild_id: int = 0,
         voice_channel_id: int = 0,
-        intents: List[str] = None,
+        intents: Optional[List[str]] = None,
         auto_join: bool = False,
         voice_connect_timeout_seconds: float = 15.0,
         voice_connect_max_attempts: int = 3,
@@ -133,7 +131,7 @@ class AudioConfig(BaseConfig):
         max_segment_duration_seconds: float = 15.0,
         min_segment_duration_seconds: float = 0.3,
         aggregation_window_seconds: float = 1.5,
-        allowlist_user_ids: List[int] = None,
+        allowlist_user_ids: Optional[List[int]] = None,
         input_sample_rate_hz: int = 48000,
         vad_sample_rate_hz: int = 16000,
         vad_frame_duration_ms: int = 30,
@@ -294,8 +292,8 @@ class WakeConfig(BaseConfig):
 
     def __init__(
         self,
-        wake_phrases: List[str] = None,
-        model_paths: List[Path] = None,
+        wake_phrases: Optional[List[str]] = None,
+        model_paths: Optional[List[Path]] = None,
         activation_threshold: float = 0.5,
         target_sample_rate_hz: int = 16000,
         **kwargs,
@@ -348,7 +346,7 @@ class MCPConfig(BaseConfig):
 
     def __init__(
         self,
-        manifest_paths: List[Path] = None,
+        manifest_paths: Optional[List[Path]] = None,
         websocket_url: Optional[str] = None,
         command_path: Optional[Path] = None,
         registration_url: Optional[str] = None,
@@ -748,11 +746,112 @@ class OrchestratorConfig(BaseConfig):
         ]
 
 
+class HttpConfig(BaseConfig):
+    """HTTP client configuration."""
+
+    def __init__(
+        self,
+        timeout: float = 30.0,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        user_agent: str = "discord-voice-lab/1.0",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.user_agent = user_agent
+
+    @classmethod
+    def get_field_definitions(cls) -> List[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="timeout",
+                field_type=float,
+                default=30.0,
+                description="HTTP request timeout in seconds",
+                min_value=0.1,
+                max_value=300.0,
+                env_var="HTTP_TIMEOUT",
+            ),
+            create_field_definition(
+                name="max_retries",
+                field_type=int,
+                default=3,
+                description="Maximum number of retries for failed requests",
+                min_value=0,
+                max_value=10,
+                env_var="HTTP_MAX_RETRIES",
+            ),
+            create_field_definition(
+                name="retry_delay",
+                field_type=float,
+                default=1.0,
+                description="Delay between retries in seconds",
+                min_value=0.1,
+                max_value=60.0,
+                env_var="HTTP_RETRY_DELAY",
+            ),
+            create_field_definition(
+                name="user_agent",
+                field_type=str,
+                default="discord-voice-lab/1.0",
+                description="User agent string for HTTP requests",
+                env_var="HTTP_USER_AGENT",
+            ),
+        ]
+
+
+class LoggingConfig(BaseConfig):
+    """Logging configuration."""
+
+    def __init__(
+        self,
+        level: str = "INFO",
+        json_logs: bool = True,
+        service_name: Optional[str] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.level = level
+        self.json_logs = json_logs
+        self.service_name = service_name
+
+    @classmethod
+    def get_field_definitions(cls) -> List[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="level",
+                field_type=str,
+                default="INFO",
+                description="Logging level",
+                choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                env_var="LOG_LEVEL",
+            ),
+            create_field_definition(
+                name="json_logs",
+                field_type=bool,
+                default=True,
+                description="Whether to use JSON logging format",
+                env_var="LOG_JSON",
+            ),
+            create_field_definition(
+                name="service_name",
+                field_type=str,
+                description="Name of the service for logging context",
+                env_var="SERVICE_NAME",
+            ),
+        ]
+
+
 __all__ = [
     "AudioConfig",
     "DiscordConfig",
     "FasterWhisperConfig",
+    "HttpConfig",
     "LlamaConfig",
+    "LoggingConfig",
     "MCPConfig",
     "OrchestratorConfig",
     "STTConfig",

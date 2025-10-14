@@ -3,12 +3,12 @@
 import os
 import tempfile
 from pathlib import Path
+from typing import Optional
 from unittest import TestCase, mock
 
 from .config import (
     BaseConfig,
     ConfigBuilder,
-    ConfigError,
     Environment,
     EnvironmentLoader,
     FieldDefinition,
@@ -140,7 +140,12 @@ class TestBaseConfig(TestCase):
         """Test configuration validation."""
 
         class TestConfig(BaseConfig):
-            def __init__(self, required_field: str = None, optional_field: int = None, **kwargs):
+            def __init__(
+                self,
+                required_field: Optional[str] = None,
+                optional_field: Optional[int] = None,
+                **kwargs,
+            ):
                 super().__init__(**kwargs)
                 self.required_field = required_field
                 self.optional_field = optional_field
