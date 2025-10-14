@@ -18,8 +18,8 @@ from .config import (
     create_field_definition,
     load_service_config,
     validate_non_negative,
-    validate_positive,
     validate_port,
+    validate_positive,
     validate_url,
 )
 from .service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
@@ -37,7 +37,7 @@ class TestFieldDefinition(TestCase):
             required=False,
             description="Test field",
         )
-        
+
         self.assertEqual(field.name, "test_field")
         self.assertEqual(field.field_type, str)
         self.assertEqual(field.default, "default_value")
@@ -54,7 +54,7 @@ class TestFieldDefinition(TestCase):
                 default="default_value",
                 required=True,
             )
-        
+
         # Test default not in choices (should fail)
         with self.assertRaises(ValueError):
             FieldDefinition(
@@ -74,7 +74,7 @@ class TestValidators(TestCase):
         self.assertTrue(validate_url("https://example.com"))
         self.assertTrue(validate_url("http://localhost:8080"))
         self.assertTrue(validate_url("https://192.168.1.1:3000"))
-        
+
         self.assertFalse(validate_url("not-a-url"))
         self.assertFalse(validate_url("ftp://example.com"))
         self.assertFalse(validate_url(""))
@@ -84,7 +84,7 @@ class TestValidators(TestCase):
         self.assertTrue(validate_port(1))
         self.assertTrue(validate_port(8080))
         self.assertTrue(validate_port(65535))
-        
+
         self.assertFalse(validate_port(0))
         self.assertFalse(validate_port(65536))
         self.assertFalse(validate_port(-1))
@@ -94,7 +94,7 @@ class TestValidators(TestCase):
         self.assertTrue(validate_positive(1))
         self.assertTrue(validate_positive(0.1))
         self.assertTrue(validate_positive(100))
-        
+
         self.assertFalse(validate_positive(0))
         self.assertFalse(validate_positive(-1))
         self.assertFalse(validate_positive(-0.1))
@@ -104,7 +104,7 @@ class TestValidators(TestCase):
         self.assertTrue(validate_non_negative(0))
         self.assertTrue(validate_non_negative(1))
         self.assertTrue(validate_non_negative(0.1))
-        
+
         self.assertFalse(validate_non_negative(-1))
         self.assertFalse(validate_non_negative(-0.1))
 
@@ -114,51 +114,53 @@ class TestBaseConfig(TestCase):
 
     def test_config_initialization(self):
         """Test configuration initialization."""
+
         class TestConfig(BaseConfig):
             def __init__(self, field1: str = "default", field2: int = 42, **kwargs):
                 super().__init__(**kwargs)
                 self.field1 = field1
                 self.field2 = field2
-            
+
             @classmethod
             def get_field_definitions(cls):
                 return [
                     FieldDefinition("field1", str, "default"),
                     FieldDefinition("field2", int, 42),
                 ]
-        
+
         config = TestConfig()
         self.assertEqual(config.field1, "default")
         self.assertEqual(config.field2, 42)
-        
+
         config = TestConfig(field1="custom", field2=100)
         self.assertEqual(config.field1, "custom")
         self.assertEqual(config.field2, 100)
 
     def test_config_validation(self):
         """Test configuration validation."""
+
         class TestConfig(BaseConfig):
             def __init__(self, required_field: str = None, optional_field: int = None, **kwargs):
                 super().__init__(**kwargs)
                 self.required_field = required_field
                 self.optional_field = optional_field
-            
+
             @classmethod
             def get_field_definitions(cls):
                 return [
                     FieldDefinition("required_field", str, required=True),
                     FieldDefinition("optional_field", int, 42),
                 ]
-        
+
         # Test valid configuration
         config = TestConfig(required_field="test", optional_field=100)
         config.validate()  # Should not raise
-        
+
         # Test missing required field
         config = TestConfig(optional_field=100)
         with self.assertRaises(RequiredFieldError):
             config.validate()
-        
+
         # Test type validation
         config = TestConfig(required_field="test", optional_field="not_a_number")
         with self.assertRaises(ValidationError):
@@ -166,22 +168,23 @@ class TestBaseConfig(TestCase):
 
     def test_config_to_dict(self):
         """Test converting configuration to dictionary."""
+
         class TestConfig(BaseConfig):
             def __init__(self, field1: str = "value1", field2: int = 42, **kwargs):
                 super().__init__(**kwargs)
                 self.field1 = field1
                 self.field2 = field2
-            
+
             @classmethod
             def get_field_definitions(cls):
                 return [
                     FieldDefinition("field1", str, "value1"),
                     FieldDefinition("field2", int, 42),
                 ]
-        
+
         config = TestConfig()
         config_dict = config.to_dict()
-        
+
         self.assertEqual(config_dict["field1"], "value1")
         self.assertEqual(config_dict["field2"], 42)
 
@@ -200,7 +203,7 @@ class TestEnvironmentLoader(TestCase):
             field_type=str,
             default="default_value",
         )
-        
+
         # Test with no environment variable
         with mock.patch.dict(os.environ, {}, clear=True):
             value = self.loader.load_field(field_def)
@@ -214,7 +217,7 @@ class TestEnvironmentLoader(TestCase):
             default="default_value",
             env_var="TEST_TEST_FIELD",
         )
-        
+
         # Test with environment variable set
         with mock.patch.dict(os.environ, {"TEST_TEST_FIELD": "env_value"}):
             value = self.loader.load_field(field_def)
@@ -227,7 +230,7 @@ class TestEnvironmentLoader(TestCase):
             field_type=str,
             required=True,
         )
-        
+
         with mock.patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(RequiredFieldError):
                 self.loader.load_field(field_def)
@@ -236,37 +239,38 @@ class TestEnvironmentLoader(TestCase):
         """Test value conversion."""
         # Test string conversion
         self.assertEqual(self.loader._convert_value("test", str), "test")
-        
+
         # Test int conversion
         self.assertEqual(self.loader._convert_value("42", int), 42)
-        
+
         # Test float conversion
         self.assertEqual(self.loader._convert_value("3.14", float), 3.14)
-        
+
         # Test bool conversion
         self.assertTrue(self.loader._convert_value("true", bool))
         self.assertTrue(self.loader._convert_value("1", bool))
         self.assertFalse(self.loader._convert_value("false", bool))
         self.assertFalse(self.loader._convert_value("0", bool))
-        
+
         # Test list conversion
         self.assertEqual(self.loader._convert_value("a,b,c", list), ["a", "b", "c"])
 
     def test_load_config(self):
         """Test loading complete configuration."""
+
         class TestConfig(BaseConfig):
             def __init__(self, field1: str = "default1", field2: int = 42, **kwargs):
                 super().__init__(**kwargs)
                 self.field1 = field1
                 self.field2 = field2
-            
+
             @classmethod
             def get_field_definitions(cls):
                 return [
                     FieldDefinition("field1", str, "default1", env_var="TEST_FIELD1"),
                     FieldDefinition("field2", int, 42, env_var="TEST_FIELD2"),
                 ]
-        
+
         with mock.patch.dict(os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}):
             config = self.loader.load_config(TestConfig)
             self.assertEqual(config.field1, "env_value1")
@@ -286,7 +290,7 @@ class TestConfigBuilder(TestCase):
         """Test adding configuration sections."""
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
         builder.add_config("logging", LoggingConfig)
-        
+
         self.assertIn("logging", builder._configs)
         self.assertIsInstance(builder._configs["logging"], LoggingConfig)
 
@@ -294,7 +298,7 @@ class TestConfigBuilder(TestCase):
         """Test loading complete configuration."""
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
         config = builder.add_config("logging", LoggingConfig).load()
-        
+
         self.assertIsInstance(config, ServiceConfig)
         self.assertEqual(config.service_name, "test")
         self.assertEqual(config.environment, Environment.DEVELOPMENT)
@@ -312,7 +316,7 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
+
         self.assertEqual(service_config.service_name, "test")
         self.assertEqual(service_config.environment, Environment.DEVELOPMENT)
         self.assertEqual(service_config.configs, configs)
@@ -325,10 +329,10 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
+
         logging_config = service_config.get_config("logging")
         self.assertIsInstance(logging_config, LoggingConfig)
-        
+
         with self.assertRaises(KeyError):
             service_config.get_config("nonexistent")
 
@@ -340,7 +344,7 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
+
         # Should not raise
         service_config.validate()
 
@@ -352,7 +356,7 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
+
         config_dict = service_config.to_dict()
         self.assertEqual(config_dict["service_name"], "test")
         self.assertEqual(config_dict["environment"], "development")
@@ -366,15 +370,15 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
             temp_file = Path(f.name)
-        
+
         try:
             # Save configuration
             service_config.save_to_file(temp_file)
             self.assertTrue(temp_file.exists())
-            
+
             # Load configuration
             loaded_config = ServiceConfig.load_from_file(temp_file)
             self.assertEqual(loaded_config.service_name, "test")
@@ -391,7 +395,7 @@ class TestServiceConfig(TestCase):
             environment=Environment.DEVELOPMENT,
             configs=configs,
         )
-        
+
         logging_config = service_config.logging
         self.assertIsInstance(logging_config, LoggingConfig)
 
@@ -443,7 +447,7 @@ class TestConvenienceFunctions(TestCase):
             default="test_value",
             description="Test field",
         )
-        
+
         self.assertEqual(field.name, "test_field")
         self.assertEqual(field.field_type, str)
         self.assertEqual(field.default, "test_value")
@@ -452,7 +456,7 @@ class TestConvenienceFunctions(TestCase):
     def test_load_service_config(self):
         """Test load_service_config function."""
         config = load_service_config("test", Environment.DEVELOPMENT)
-        
+
         self.assertIsInstance(config, ServiceConfig)
         self.assertEqual(config.service_name, "test")
         self.assertEqual(config.environment, Environment.DEVELOPMENT)
@@ -462,4 +466,5 @@ class TestConvenienceFunctions(TestCase):
 
 if __name__ == "__main__":
     import unittest
+
     unittest.main()

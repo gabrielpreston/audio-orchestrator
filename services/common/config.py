@@ -96,7 +96,9 @@ class FieldDefinition:
     def __post_init__(self):
         """Validate field definition after initialization."""
         if self.required and self.default is not None:
-            raise ValueError(f"Field '{self.name}' cannot be both required and have a default value")
+            raise ValueError(
+                f"Field '{self.name}' cannot be both required and have a default value"
+            )
         if self.choices and self.default is not None and self.default not in self.choices:
             raise ValueError(f"Default value for field '{self.name}' not in choices")
         if self.pattern and not isinstance(self.pattern, str):
@@ -444,7 +446,9 @@ class ConfigBuilder:
         self._configs: Dict[str, BaseConfig] = {}
 
     @classmethod
-    def for_service(cls, service_name: str, environment: Environment = Environment.DEVELOPMENT) -> ConfigBuilder:
+    def for_service(
+        cls, service_name: str, environment: Environment = Environment.DEVELOPMENT
+    ) -> ConfigBuilder:
         """Create a configuration builder for a specific service."""
         return cls(service_name, environment)
 
@@ -516,7 +520,7 @@ class ServiceConfig:
         file_path = Path(file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-        
+
         # This is a simplified implementation
         # In practice, you'd need to reconstruct the config objects
         return cls(
@@ -539,14 +543,16 @@ class ServiceConfig:
 
 
 # Convenience functions for common configuration patterns
-def load_service_config(service_name: str, environment: Environment = Environment.DEVELOPMENT) -> ServiceConfig:
+def load_service_config(
+    service_name: str, environment: Environment = Environment.DEVELOPMENT
+) -> ServiceConfig:
     """Load configuration for a service with common sections."""
     builder = ConfigBuilder.for_service(service_name, environment)
-    
+
     # Add common configuration sections
     builder.add_config("logging", LoggingConfig)
     builder.add_config("http", HttpConfig)
-    
+
     return builder.load()
 
 
