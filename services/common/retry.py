@@ -10,11 +10,11 @@ import httpx
 from tenacity import (
     AsyncRetrying,
     RetryError,
+    retry_if_exception_type,
     stop_after_attempt,
     stop_after_delay,
     wait_exponential,
     wait_random,
-    retry_if_exception_type,
 )
 from tenacity.wait import wait_combine
 
@@ -78,6 +78,14 @@ def create_discord_retry_strategy(
     Returns:
         Configured AsyncRetrying instance
     """
+    logger.info(
+        "retry.discord_strategy_created",
+        max_attempts=max_attempts,
+        max_delay=max_delay,
+        base_delay=base_delay,
+        jitter=jitter,
+    )
+
     # Wait strategy: exponential backoff with jitter
     if jitter:
         wait_strategy = wait_combine(
@@ -89,7 +97,9 @@ def create_discord_retry_strategy(
 
     return AsyncRetrying(
         # Stop conditions
-        stop=(stop_after_attempt(max_attempts) | stop_after_delay(max_delay * 2)),  # Total time limit
+        stop=(
+            stop_after_attempt(max_attempts) | stop_after_delay(max_delay * 2)
+        ),  # Total time limit
         # Wait strategy
         wait=wait_strategy,
         # Retry conditions
@@ -141,6 +151,16 @@ async def http_request_with_retry(
         RetryError: If all retry attempts are exhausted
         httpx.HTTPStatusError: For non-retryable HTTP errors
     """
+    logger.debug(
+        "retry.discord_request_start",
+        method=method,
+        url=url,
+        max_attempts=max_attempts,
+        max_delay=max_delay,
+        base_delay=base_delay,
+        jitter=jitter,
+    )
+
     retry_strategy = create_discord_retry_strategy(
         max_attempts=max_attempts,
         max_delay=max_delay,
@@ -149,7 +169,23 @@ async def http_request_with_retry(
     )
 
     async def _make_request():
+        logger.debug(
+            "retry.discord_request_attempt",
+            method=method,
+            url=url,
+        )
+
         response = await client.request(method, url, **kwargs)
+
+        logger.debug(
+            "retry.discord_response_received",
+            method=method,
+            url=url,
+            status_code=response.status_code,
+            response_time_ms=(
+                response.elapsed.total_seconds() * 1000 if hasattr(response, "elapsed") else None
+            ),
+        )
 
         # Handle Discord rate limits specially
         if response.status_code == 429:
@@ -163,14 +199,32 @@ async def http_request_with_retry(
                         retry_after=wait_time,
                         headers=dict(response.headers),
                     )
+                    logger.debug(
+                        "discord.rate_limit_waiting",
+                        url=url,
+                        wait_time=wait_time,
+                        jitter=random.uniform(0.1, 0.5),
+                    )
                     await asyncio.sleep(wait_time + random.uniform(0.1, 0.5))
                 except (ValueError, TypeError):
-                    pass
+                    logger.debug(
+                        "discord.rate_limit_invalid_retry_after",
+                        url=url,
+                        retry_after=retry_after,
+                    )
 
             # Raise as rate limit error for special handling
             raise DiscordRateLimitError(response, retry_after)
 
         response.raise_for_status()
+
+        logger.debug(
+            "retry.discord_request_success",
+            method=method,
+            url=url,
+            status_code=response.status_code,
+        )
+
         return response
 
     try:
@@ -262,6 +316,14 @@ def create_generic_retry_strategy(
     Returns:
         Configured AsyncRetrying instance
     """
+    logger.info(
+        "retry.generic_strategy_created",
+        max_attempts=max_attempts,
+        max_delay=max_delay,
+        base_delay=base_delay,
+        jitter=jitter,
+    )
+
     # Wait strategy: exponential backoff with jitter
     if jitter:
         wait_strategy = wait_combine(
@@ -323,6 +385,16 @@ async def http_request_with_generic_retry(
         RetryError: If all retry attempts are exhausted
         httpx.HTTPStatusError: For non-retryable HTTP errors
     """
+    logger.debug(
+        "retry.generic_request_start",
+        method=method,
+        url=url,
+        max_attempts=max_attempts,
+        max_delay=max_delay,
+        base_delay=base_delay,
+        jitter=jitter,
+    )
+
     retry_strategy = create_generic_retry_strategy(
         max_attempts=max_attempts,
         max_delay=max_delay,
@@ -333,8 +405,38 @@ async def http_request_with_generic_retry(
     try:
         async for attempt in retry_strategy:
             with attempt:
+                logger.debug(
+                    "retry.generic_request_attempt",
+                    method=method,
+                    url=url,
+                    attempt_number=(
+                        attempt.retry_state.attempt_number if hasattr(attempt, "retry_state") else 1
+                    ),
+                )
+
                 response = await client.request(method, url, **kwargs)
+
+                logger.debug(
+                    "retry.generic_response_received",
+                    method=method,
+                    url=url,
+                    status_code=response.status_code,
+                    response_time_ms=(
+                        response.elapsed.total_seconds() * 1000
+                        if hasattr(response, "elapsed")
+                        else None
+                    ),
+                )
+
                 response.raise_for_status()
+
+                logger.debug(
+                    "retry.generic_request_success",
+                    method=method,
+                    url=url,
+                    status_code=response.status_code,
+                )
+
                 return response
     except RetryError as exc:
         logger.error(
@@ -410,6 +512,16 @@ async def stream_with_generic_retry(
         RetryError: If all retry attempts are exhausted
         httpx.HTTPStatusError: For non-retryable HTTP errors
     """
+    logger.debug(
+        "retry.stream_request_start",
+        method=method,
+        url=url,
+        max_attempts=max_attempts,
+        max_delay=max_delay,
+        base_delay=base_delay,
+        jitter=jitter,
+    )
+
     retry_strategy = create_generic_retry_strategy(
         max_attempts=max_attempts,
         max_delay=max_delay,
@@ -420,22 +532,59 @@ async def stream_with_generic_retry(
     try:
         async for attempt in retry_strategy:
             with attempt:
+                logger.debug(
+                    "retry.stream_connection_test",
+                    method=method,
+                    url=url,
+                    attempt_number=(
+                        attempt.retry_state.attempt_number if hasattr(attempt, "retry_state") else 1
+                    ),
+                )
+
                 # For streaming requests, we need to test the connection first
                 # by making a HEAD request to check if the service is available
                 try:
                     test_response = await client.request("HEAD", url, **kwargs)
                     test_response.raise_for_status()
+
+                    logger.debug(
+                        "retry.stream_connection_test_success",
+                        method=method,
+                        url=url,
+                        status_code=test_response.status_code,
+                    )
                 except httpx.HTTPStatusError as e:
+                    logger.debug(
+                        "retry.stream_connection_test_failed",
+                        method=method,
+                        url=url,
+                        status_code=e.response.status_code,
+                        error=str(e),
+                    )
                     if e.response.status_code >= 500:
                         # Server error, retry
                         raise
                     else:
                         # Client error, don't retry
                         raise
-                
+
                 # If HEAD request succeeds, make the actual streaming request
+                logger.debug(
+                    "retry.stream_request_attempt",
+                    method=method,
+                    url=url,
+                )
+
                 response = await client.request(method, url, **kwargs)
                 response.raise_for_status()
+
+                logger.debug(
+                    "retry.stream_request_success",
+                    method=method,
+                    url=url,
+                    status_code=response.status_code,
+                )
+
                 return response
     except RetryError as exc:
         logger.error(

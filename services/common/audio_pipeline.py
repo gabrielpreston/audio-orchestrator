@@ -161,6 +161,26 @@ class FFmpegFacade:
         """
         start_time = time.perf_counter()
 
+        # Log decode initiation
+        self._logger.info(
+            "ffmpeg.decode_start",
+            input_bytes=len(audio_data),
+            input_format=input_format or "auto",
+            input_sample_rate=input_sample_rate,
+        )
+
+        # Log detailed decode parameters at debug level
+        self._logger.debug(
+            "ffmpeg.decode_parameters",
+            input_bytes=len(audio_data),
+            input_format=input_format or "auto",
+            input_sample_rate=input_sample_rate,
+            target_format="f32le",
+            target_sample_rate=48000,
+            target_channels=1,
+            frame_size=960,
+        )
+
         try:
             # Use FFmpeg to decode to 48kHz mono float32
             input_stream = ffmpeg.input("pipe:", format=input_format or "auto")
@@ -170,6 +190,12 @@ class FFmpegFacade:
                 input_stream.audio.filter("aresample", 48000)  # Resample to 48kHz
                 .filter("channels", 1)  # Convert to mono
                 .output("pipe:", format="f32le", acodec="pcm_f32le")  # float32 little-endian
+            )
+
+            self._logger.debug(
+                "ffmpeg.process_start",
+                input_bytes=len(audio_data),
+                ffmpeg_command="aresample=48000,channels=1",
             )
 
             process = ffmpeg.run_async(
@@ -185,12 +211,20 @@ class FFmpegFacade:
                     error=error_msg,
                     input_format=input_format,
                     input_bytes=len(audio_data),
+                    return_code=process.returncode,
                 )
                 # Metrics removed
                 return []
 
             # Convert bytes to float32 array
             audio_array = np.frombuffer(stdout, dtype=np.float32)
+
+            self._logger.debug(
+                "ffmpeg.audio_array_created",
+                array_size=len(audio_array),
+                array_dtype=audio_array.dtype,
+                expected_samples=len(audio_array),
+            )
 
             # Split into 20ms frames (960 samples each)
             frames = []
@@ -214,12 +248,26 @@ class FFmpegFacade:
                 frames.append(frame)
 
             duration = time.perf_counter() - start_time
-            # Metrics removed
-            self._logger.debug(
+
+            # Log successful decode
+            self._logger.info(
                 "ffmpeg.decode_success",
                 input_bytes=len(audio_data),
                 output_frames=len(frames),
                 duration_ms=duration * 1000,
+                input_format=input_format or "auto",
+            )
+
+            # Log detailed frame information at debug level
+            self._logger.debug(
+                "ffmpeg.decode_details",
+                input_bytes=len(audio_data),
+                output_frames=len(frames),
+                duration_ms=duration * 1000,
+                total_samples=len(audio_array),
+                frame_size=frame_size,
+                sample_rate=48000,
+                channels=1,
             )
 
             return frames
@@ -230,6 +278,17 @@ class FFmpegFacade:
                 error=str(exc),
                 input_format=input_format,
                 input_bytes=len(audio_data),
+                error_type=type(exc).__name__,
+            )
+
+            # Log additional debug information for troubleshooting
+            self._logger.debug(
+                "ffmpeg.decode_exception_details",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                input_format=input_format,
+                input_bytes=len(audio_data),
+                input_sample_rate=input_sample_rate,
             )
             # Metrics removed
             return []
@@ -245,13 +304,32 @@ class FFmpegFacade:
             PCM bytes at 16kHz mono (s16le format)
         """
         if not frames:
+            self._logger.debug("ffmpeg.resample_empty_input")
             return b""
 
         start_time = time.perf_counter()
 
+        # Log resample initiation
+        self._logger.info(
+            "ffmpeg.resample_start",
+            input_frames=len(frames),
+            input_sample_rate=48000,
+            output_sample_rate=16000,
+            input_format="f32le",
+            output_format="s16le",
+        )
+
         try:
             # Concatenate all frames
             audio_data = np.concatenate([frame.samples for frame in frames])
+
+            self._logger.debug(
+                "ffmpeg.resample_concatenated",
+                input_frames=len(frames),
+                total_samples=len(audio_data),
+                audio_dtype=audio_data.dtype,
+                audio_shape=audio_data.shape,
+            )
 
             # Use FFmpeg to resample 48kHz -> 16kHz
             input_stream = ffmpeg.input("pipe:", format="f32le", ar=48000, ac=1)
@@ -260,6 +338,12 @@ class FFmpegFacade:
             ).output(  # Resample to 16kHz
                 "pipe:", format="s16le", acodec="pcm_s16le"
             )  # 16-bit PCM
+
+            self._logger.debug(
+                "ffmpeg.resample_process_start",
+                input_samples=len(audio_data),
+                ffmpeg_command="aresample=16000",
+            )
 
             process = ffmpeg.run_async(
                 output_stream,
@@ -274,25 +358,56 @@ class FFmpegFacade:
             if process.returncode != 0:
                 error_msg = stderr.decode("utf-8", errors="ignore")
                 self._logger.error(
-                    "ffmpeg.resample_failed", error=error_msg, input_frames=len(frames)
+                    "ffmpeg.resample_failed",
+                    error=error_msg,
+                    input_frames=len(frames),
+                    return_code=process.returncode,
                 )
                 # Metrics removed
                 return b""
 
             duration = time.perf_counter() - start_time
-            # Metrics removed
-            self._logger.debug(
+
+            # Log successful resample
+            self._logger.info(
                 "ffmpeg.resample_success",
                 input_frames=len(frames),
                 output_bytes=len(stdout),
                 duration_ms=duration * 1000,
+                input_samples=len(audio_data),
+                output_samples=len(stdout) // 2,  # s16le = 2 bytes per sample
+            )
+
+            # Log detailed resample information at debug level
+            self._logger.debug(
+                "ffmpeg.resample_details",
+                input_frames=len(frames),
+                output_bytes=len(stdout),
+                duration_ms=duration * 1000,
+                input_samples=len(audio_data),
+                output_samples=len(stdout) // 2,
+                compression_ratio=len(audio_data) / (len(stdout) // 2),
+                input_sample_rate=48000,
+                output_sample_rate=16000,
             )
 
             return stdout
 
         except Exception as exc:
             self._logger.error(
-                "ffmpeg.resample_exception", error=str(exc), input_frames=len(frames)
+                "ffmpeg.resample_exception",
+                error=str(exc),
+                input_frames=len(frames),
+                error_type=type(exc).__name__,
+            )
+
+            # Log additional debug information for troubleshooting
+            self._logger.debug(
+                "ffmpeg.resample_exception_details",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                input_frames=len(frames),
+                input_samples=len(audio_data) if "audio_data" in locals() else 0,
             )
             # Metrics removed
             return b""
@@ -312,19 +427,45 @@ class FFmpegFacade:
             List of normalized canonical frames
         """
         if not frames:
+            self._logger.debug("ffmpeg.loudnorm_empty_input")
             return []
 
         start_time = time.perf_counter()
 
+        # Log loudness normalization initiation
+        self._logger.info(
+            "ffmpeg.loudnorm_start",
+            input_frames=len(frames),
+            target_lufs=target_lufs,
+            target_tp=target_tp,
+            lra=11,
+        )
+
         try:
             # Concatenate all frames
             audio_data = np.concatenate([frame.samples for frame in frames])
+
+            self._logger.debug(
+                "ffmpeg.loudnorm_concatenated",
+                input_frames=len(frames),
+                total_samples=len(audio_data),
+                audio_dtype=audio_data.dtype,
+                audio_shape=audio_data.shape,
+            )
 
             # Use FFmpeg loudnorm filter
             input_stream = ffmpeg.input("pipe:", format="f32le", ar=48000, ac=1)
             output_stream = input_stream.audio.filter(
                 "loudnorm", I=target_lufs, TP=target_tp, LRA=11
             ).output("pipe:", format="f32le", acodec="pcm_f32le")
+
+            self._logger.debug(
+                "ffmpeg.loudnorm_process_start",
+                input_samples=len(audio_data),
+                target_lufs=target_lufs,
+                target_tp=target_tp,
+                ffmpeg_command=f"loudnorm=I={target_lufs}:TP={target_tp}:LRA=11",
+            )
 
             process = ffmpeg.run_async(
                 output_stream,
@@ -339,7 +480,10 @@ class FFmpegFacade:
             if process.returncode != 0:
                 error_msg = stderr.decode("utf-8", errors="ignore")
                 self._logger.error(
-                    "ffmpeg.loudnorm_failed", error=error_msg, input_frames=len(frames)
+                    "ffmpeg.loudnorm_failed",
+                    error=error_msg,
+                    input_frames=len(frames),
+                    return_code=process.returncode,
                 )
                 # Metrics removed
                 return frames  # Return original frames on error
@@ -369,20 +513,51 @@ class FFmpegFacade:
                 normalized_frames.append(frame)
 
             duration = time.perf_counter() - start_time
-            # Metrics removed
-            self._logger.debug(
+
+            # Log successful loudness normalization
+            self._logger.info(
                 "ffmpeg.loudnorm_success",
                 input_frames=len(frames),
                 output_frames=len(normalized_frames),
                 duration_ms=duration * 1000,
+                target_lufs=target_lufs,
+                target_tp=target_tp,
+            )
+
+            # Log detailed loudness normalization information at debug level
+            self._logger.debug(
+                "ffmpeg.loudnorm_details",
+                input_frames=len(frames),
+                output_frames=len(normalized_frames),
+                duration_ms=duration * 1000,
+                input_samples=len(audio_data),
+                output_samples=len(normalized_array),
+                target_lufs=target_lufs,
+                target_tp=target_tp,
+                lra=11,
             )
 
             return normalized_frames
 
         except Exception as exc:
             self._logger.error(
-                "ffmpeg.loudnorm_exception", error=str(exc), input_frames=len(frames)
+                "ffmpeg.loudnorm_exception",
+                error=str(exc),
+                input_frames=len(frames),
+                error_type=type(exc).__name__,
             )
+
+            # Log additional debug information for troubleshooting
+            self._logger.debug(
+                "ffmpeg.loudnorm_exception_details",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                input_frames=len(frames),
+                input_samples=len(audio_data) if "audio_data" in locals() else 0,
+                target_lufs=target_lufs,
+                target_tp=target_tp,
+            )
+
             if self._loudnorm_errors:
                 self._loudnorm_errors.inc()
             return frames  # Return original frames on error
@@ -455,6 +630,11 @@ class VADChunker:
             vad_frame = self._frame_to_vad_format(frame)
 
             if not vad_frame:
+                self._logger.debug(
+                    "vad.frame_conversion_failed",
+                    frame_sequence=frame.sequence,
+                    frame_timestamp=frame.timestamp,
+                )
                 return None
 
             is_speech = self._vad.is_speech(vad_frame, 16000)
@@ -464,21 +644,49 @@ class VADChunker:
                     # Start of speech
                     self._in_speech = True
                     self._speech_start_frame = len(self._speech_frames)
-                    self._logger.debug("vad.speech_started", frame_sequence=frame.sequence)
+                    self._logger.info(
+                        "vad.speech_started",
+                        frame_sequence=frame.sequence,
+                        frame_timestamp=frame.timestamp,
+                        aggressiveness=self.aggressiveness,
+                    )
 
                 # Add to speech buffer
                 self._speech_frames.append(frame)
                 self._silence_frames.clear()
+
+                self._logger.debug(
+                    "vad.speech_frame_added",
+                    frame_sequence=frame.sequence,
+                    speech_frames_count=len(self._speech_frames),
+                    silence_frames_count=len(self._silence_frames),
+                )
 
             else:
                 if self._in_speech:
                     # Add to silence buffer
                     self._silence_frames.append(frame)
 
+                    self._logger.debug(
+                        "vad.silence_frame_added",
+                        frame_sequence=frame.sequence,
+                        speech_frames_count=len(self._speech_frames),
+                        silence_frames_count=len(self._silence_frames),
+                        padding_frames_needed=self.padding_frames,
+                    )
+
                     # Check if we should end speech segment
                     if len(self._silence_frames) >= self.padding_frames:
                         # End of speech segment
                         segment = self._create_speech_segment()
+                        self._logger.info(
+                            "vad.speech_segment_complete",
+                            frame_sequence=frame.sequence,
+                            segment_frames=len(segment.frames) if segment else 0,
+                            segment_duration=segment.duration if segment else 0,
+                            speech_frames_count=len(self._speech_frames),
+                            silence_frames_count=len(self._silence_frames),
+                        )
                         self._reset_buffers()
                         return segment
                 else:
@@ -486,11 +694,32 @@ class VADChunker:
                     self._speech_frames.clear()
                     self._silence_frames.clear()
 
+                    self._logger.debug(
+                        "vad.non_speech_frame",
+                        frame_sequence=frame.sequence,
+                        frame_timestamp=frame.timestamp,
+                    )
+
             return None
 
         except Exception as exc:
             self._logger.error(
-                "vad.process_frame_error", error=str(exc), frame_sequence=frame.sequence
+                "vad.process_frame_error",
+                error=str(exc),
+                frame_sequence=frame.sequence,
+                error_type=type(exc).__name__,
+            )
+
+            # Log additional debug information for troubleshooting
+            self._logger.debug(
+                "vad.process_frame_error_details",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                frame_sequence=frame.sequence,
+                frame_timestamp=frame.timestamp,
+                in_speech=self._in_speech,
+                speech_frames_count=len(self._speech_frames),
+                silence_frames_count=len(self._silence_frames),
             )
             # Metrics removed
             return None
@@ -545,9 +774,9 @@ class VADChunker:
         end_timestamp = all_frames[-1].timestamp + 0.02  # Add frame duration
 
         # Generate correlation ID
-        from .correlation import generate_discord_correlation_id
+        from .correlation import generate_correlation_id
 
-        correlation_id = generate_discord_correlation_id(0)  # TODO: Get actual user_id
+        correlation_id = generate_correlation_id()  # TODO: Get actual user_id
 
         segment = AudioSegment(
             frames=all_frames,
@@ -615,16 +844,46 @@ class AudioPipeline:
         Returns:
             List of speech segments ready for STT
         """
+        # Log audio processing initiation
+        self._logger.info(
+            "audio_pipeline.discord_audio_start",
+            user_id=user_id,
+            input_format=input_format,
+            input_bytes=len(audio_data),
+        )
+
         # Step 1: Decode to canonical frames
         frames = self._ffmpeg.decode_to_canonical(audio_data, input_format)
         if not frames:
+            self._logger.warning(
+                "audio_pipeline.decode_failed",
+                user_id=user_id,
+                input_format=input_format,
+                input_bytes=len(audio_data),
+            )
             return []
+
+        self._logger.debug(
+            "audio_pipeline.frames_decoded",
+            user_id=user_id,
+            input_format=input_format,
+            frames_count=len(frames),
+            input_bytes=len(audio_data),
+        )
 
         # Step 2: Process through jitter buffer
         segments = []
+        total_emitted_frames = 0
+        dropped_frames = 0
+
         for frame in frames:
             # Add frame to jitter buffer
             emitted_frames = self._jitter_buffer.add_frame(frame)
+            total_emitted_frames += len(emitted_frames)
+
+            # Check for dropped frames (overflow handling)
+            if len(emitted_frames) > 0 and frame.sequence < len(emitted_frames):
+                dropped_frames += 1
 
             # Process emitted frames through VAD
             for emitted_frame in emitted_frames:
@@ -640,6 +899,33 @@ class AudioPipeline:
         if final_segment:
             segments.append(final_segment)
 
+        # Log processing completion
+        self._logger.info(
+            "audio_pipeline.discord_audio_complete",
+            user_id=user_id,
+            input_format=input_format,
+            input_bytes=len(audio_data),
+            frames_processed=len(frames),
+            frames_emitted=total_emitted_frames,
+            segments_created=len(segments),
+            dropped_frames=dropped_frames,
+        )
+
+        # Log detailed processing information at debug level
+        self._logger.debug(
+            "audio_pipeline.discord_audio_details",
+            user_id=user_id,
+            input_format=input_format,
+            input_bytes=len(audio_data),
+            frames_processed=len(frames),
+            frames_emitted=total_emitted_frames,
+            segments_created=len(segments),
+            dropped_frames=dropped_frames,
+            jitter_buffer_size=len(self._jitter_buffer.frames),
+            speech_frames_count=len(self._vad_chunker._speech_frames),
+            silence_frames_count=len(self._vad_chunker._silence_frames),
+        )
+
         # Metrics removed
 
         return segments
@@ -654,7 +940,41 @@ class AudioPipeline:
         Returns:
             PCM bytes at 16kHz mono for STT
         """
-        return self._ffmpeg.resample_for_stt(segment.frames)
+        # Log STT audio preparation
+        self._logger.info(
+            "audio_pipeline.stt_preparation_start",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            segment_frames=len(segment.frames),
+            segment_duration=segment.duration,
+            segment_samples=segment.sample_count,
+        )
+
+        # Log detailed segment information at debug level
+        self._logger.debug(
+            "audio_pipeline.stt_segment_details",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            segment_frames=len(segment.frames),
+            segment_duration=segment.duration,
+            segment_samples=segment.sample_count,
+            start_timestamp=segment.start_timestamp,
+            end_timestamp=segment.end_timestamp,
+        )
+
+        result = self._ffmpeg.resample_for_stt(segment.frames)
+
+        # Log STT audio preparation completion
+        self._logger.info(
+            "audio_pipeline.stt_preparation_complete",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            segment_frames=len(segment.frames),
+            output_bytes=len(result),
+            segment_duration=segment.duration,
+        )
+
+        return result
 
     def process_tts_audio(
         self, audio_bytes: bytes, input_format: str = "wav"
@@ -669,13 +989,59 @@ class AudioPipeline:
         Returns:
             List of canonical frames ready for Discord playback
         """
+        # Log TTS audio processing initiation
+        self._logger.info(
+            "audio_pipeline.tts_processing_start",
+            input_format=input_format,
+            input_bytes=len(audio_bytes),
+        )
+
+        # Log detailed TTS input information at debug level
+        self._logger.debug(
+            "audio_pipeline.tts_input_details",
+            input_format=input_format,
+            input_bytes=len(audio_bytes),
+            input_format_type=type(input_format).__name__,
+        )
+
         # Step 1: Decode to canonical frames
         frames = self._ffmpeg.decode_to_canonical(audio_bytes, input_format)
         if not frames:
+            self._logger.warning(
+                "audio_pipeline.tts_decode_failed",
+                input_format=input_format,
+                input_bytes=len(audio_bytes),
+            )
             return []
+
+        self._logger.debug(
+            "audio_pipeline.tts_frames_decoded",
+            input_format=input_format,
+            frames_count=len(frames),
+            input_bytes=len(audio_bytes),
+        )
 
         # Step 2: Apply loudness normalization
         normalized_frames = self._ffmpeg.loudness_normalize(frames)
+
+        # Log TTS processing completion
+        self._logger.info(
+            "audio_pipeline.tts_processing_complete",
+            input_format=input_format,
+            input_bytes=len(audio_bytes),
+            frames_decoded=len(frames),
+            frames_normalized=len(normalized_frames),
+        )
+
+        # Log detailed TTS processing information at debug level
+        self._logger.debug(
+            "audio_pipeline.tts_processing_details",
+            input_format=input_format,
+            input_bytes=len(audio_bytes),
+            frames_decoded=len(frames),
+            frames_normalized=len(normalized_frames),
+            processing_successful=len(normalized_frames) > 0,
+        )
 
         return normalized_frames
 
@@ -689,7 +1055,35 @@ class AudioPipeline:
         Returns:
             PCM bytes in s16le format for Discord
         """
-        return self._ffmpeg.frames_to_discord_pcm(frames)
+        # Log Discord playback conversion initiation
+        self._logger.info(
+            "audio_pipeline.discord_playback_start",
+            frames_count=len(frames),
+            target_format="s16le",
+            target_sample_rate=48000,
+        )
+
+        # Log detailed frame information at debug level
+        self._logger.debug(
+            "audio_pipeline.discord_playback_details",
+            frames_count=len(frames),
+            target_format="s16le",
+            target_sample_rate=48000,
+            target_channels=1,
+            total_samples=len(frames) * 960 if frames else 0,
+        )
+
+        result = self._ffmpeg.frames_to_discord_pcm(frames)
+
+        # Log Discord playback conversion completion
+        self._logger.info(
+            "audio_pipeline.discord_playback_complete",
+            frames_count=len(frames),
+            output_bytes=len(result),
+            target_format="s16le",
+        )
+
+        return result
 
     def create_silence_frame(self, duration_ms: float = 20.0) -> CanonicalFrame:
         """

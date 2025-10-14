@@ -172,7 +172,7 @@ async def _transcribe_request(
     tmp_path = None
     # metadata for response payload
     input_bytes = len(wav_bytes)
-    from services.common.correlation import generate_stt_correlation_id
+    from services.common.correlation import generate_correlation_id
 
     request_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
         "correlation_id"
@@ -184,7 +184,7 @@ async def _transcribe_request(
 
     # Generate STT correlation ID if none provided
     if not correlation_id:
-        correlation_id = generate_stt_correlation_id()
+        correlation_id = generate_correlation_id()
     processing_ms: Optional[int] = None
     info: Any = None
     segments_list: List[Any] = []

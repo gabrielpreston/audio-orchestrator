@@ -412,9 +412,9 @@ async def synthesize(
     duration = time.perf_counter() - start_time
     # Metrics removed
 
-    from services.common.correlation import generate_tts_correlation_id
+    from services.common.correlation import generate_correlation_id
 
-    audio_id = payload.correlation_id or generate_tts_correlation_id()
+    audio_id = payload.correlation_id or generate_correlation_id()
     headers = {
         "X-Audio-Id": audio_id,
         "X-Audio-Voice": option.key,
@@ -525,9 +525,9 @@ async def synthesize_canonical(
     duration = time.perf_counter() - start_time
     # Metrics removed
 
-    from services.common.correlation import generate_tts_correlation_id
+    from services.common.correlation import generate_correlation_id
 
-    audio_id = payload.correlation_id or generate_tts_correlation_id()
+    audio_id = payload.correlation_id or generate_correlation_id()
     headers = {
         "X-Audio-Id": audio_id,
         "X-Audio-Voice": option.key,

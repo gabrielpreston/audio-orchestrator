@@ -137,15 +137,16 @@ class MCPManager:
                     )
 
                     if name == "discord.play_audio":
-                        from services.common.retry import post_with_discord_retry
                         import os
-                        
+
+                        from services.common.retry import post_with_discord_retry
+
                         # Get retry configuration from environment
                         max_attempts = max(1, int(os.getenv("MCP_DISCORD_RETRY_MAX_ATTEMPTS", "3")))
                         max_delay = float(os.getenv("MCP_DISCORD_RETRY_MAX_DELAY", "15.0"))
                         base_delay = float(os.getenv("MCP_DISCORD_RETRY_BASE_DELAY", "1.0"))
                         jitter = os.getenv("MCP_DISCORD_RETRY_JITTER", "true").lower() == "true"
-                        
+
                         response = await post_with_discord_retry(
                             client,
                             f"{self.base_url}/mcp/play_audio",
@@ -167,15 +168,16 @@ class MCPManager:
                         return result
 
                     elif name == "discord.send_message":
-                        from services.common.retry import post_with_discord_retry
                         import os
-                        
+
+                        from services.common.retry import post_with_discord_retry
+
                         # Get retry configuration from environment
                         max_attempts = max(1, int(os.getenv("MCP_DISCORD_RETRY_MAX_ATTEMPTS", "3")))
                         max_delay = float(os.getenv("MCP_DISCORD_RETRY_MAX_DELAY", "15.0"))
                         base_delay = float(os.getenv("MCP_DISCORD_RETRY_BASE_DELAY", "1.0"))
                         jitter = os.getenv("MCP_DISCORD_RETRY_JITTER", "true").lower() == "true"
-                        
+
                         response = await post_with_discord_retry(
                             client,
                             f"{self.base_url}/mcp/send_message",

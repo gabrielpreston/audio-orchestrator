@@ -223,7 +223,7 @@ class Orchestrator:
     ) -> Dict[str, Any]:
         """Process a transcript from Discord service."""
         try:
-            from services.common.correlation import generate_orchestrator_correlation_id
+            from services.common.correlation import generate_correlation_id
 
             # Create transcript data in the expected format
             transcript_data = {
@@ -231,8 +231,7 @@ class Orchestrator:
                 "user_id": user_id,
                 "channel_id": channel_id,
                 "guild_id": guild_id,
-                "correlation_id": correlation_id
-                or generate_orchestrator_correlation_id(user_id=user_id),
+                "correlation_id": correlation_id or generate_correlation_id(),
             }
 
             # Process the transcript
@@ -583,22 +582,20 @@ Provide a natural, conversational response."""
             return
 
         try:
+            from services.common.retry import post_with_generic_retry
+
             # Get TTS auth token from environment
             tts_auth_token = os.getenv("TTS_AUTH_TOKEN")
             headers = {}
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
 
-            # Call TTS service with retry logic
-            from services.common.retry import post_with_generic_retry
-            import os
-            
             # Get retry configuration from environment
             max_attempts = max(1, int(os.getenv("ORCH_TTS_RETRY_MAX_ATTEMPTS", "3")))
             max_delay = float(os.getenv("ORCH_TTS_RETRY_MAX_DELAY", "15.0"))
             base_delay = float(os.getenv("ORCH_TTS_RETRY_BASE_DELAY", "1.0"))
             jitter = os.getenv("ORCH_TTS_RETRY_JITTER", "true").lower() == "true"
-            
+
             response = await post_with_generic_retry(
                 self._http_client,
                 f"{self.tts_base_url}/synthesize",
@@ -691,12 +688,9 @@ Provide a natural, conversational response."""
     ) -> None:
         """Save debug data for MCP tool calls."""
         try:
-            from services.common.correlation import generate_mcp_correlation_id
+            from services.common.correlation import generate_correlation_id
 
-            base_correlation_id = context.get("correlation_id", "unknown")
-            correlation_id = generate_mcp_correlation_id(
-                base_correlation_id, client_name, tool_name
-            )
+            correlation_id = generate_correlation_id()
             debug_manager = get_debug_manager("orchestrator")
 
             # Save tool call details

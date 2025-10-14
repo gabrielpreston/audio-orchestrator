@@ -378,7 +378,7 @@ class VoiceBot(discord.Client):
         if not self._http_session:
             timeout = httpx.Timeout(30.0, connect=10.0)
             self._http_session = httpx.AsyncClient(timeout=timeout)
-        from services.common.correlation import generate_manual_correlation_id
+        from services.common.correlation import generate_correlation_id
 
         context = SegmentContext(
             segment=AudioSegment(
@@ -386,7 +386,7 @@ class VoiceBot(discord.Client):
                 pcm=b"",
                 start_timestamp=0.0,
                 end_timestamp=0.0,
-                correlation_id=generate_manual_correlation_id("discord", "play_audio"),
+                correlation_id=generate_correlation_id(),
                 frame_count=0,
                 sample_rate=self.config.audio.input_sample_rate_hz,
             ),
@@ -403,7 +403,7 @@ class VoiceBot(discord.Client):
         audio_bytes: bytes,
     ) -> Dict[str, object]:
         await self.wait_until_ready()
-        from services.common.correlation import generate_manual_correlation_id
+        from services.common.correlation import generate_correlation_id
 
         context = SegmentContext(
             segment=AudioSegment(
@@ -411,7 +411,7 @@ class VoiceBot(discord.Client):
                 pcm=b"",
                 start_timestamp=0.0,
                 end_timestamp=0.0,
-                correlation_id=generate_manual_correlation_id("discord", "play_audio"),
+                correlation_id=generate_correlation_id(),
                 frame_count=0,
                 sample_rate=self.config.audio.input_sample_rate_hz,
             ),

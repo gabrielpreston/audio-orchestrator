@@ -133,11 +133,12 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
     headers: Dict[str, str] = {}
     if _TTS_AUTH_TOKEN:
         headers["Authorization"] = f"Bearer {_TTS_AUTH_TOKEN}"
-    
+
     # Add retry logic for TTS synthesis
-    from services.common.retry import create_generic_retry_strategy
     from tenacity import RetryError
-    
+
+    from services.common.retry import create_generic_retry_strategy
+
     retry_config = _tts_retry_config()
     retry_strategy = create_generic_retry_strategy(
         max_attempts=retry_config["max_attempts"],
@@ -145,7 +146,7 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
         base_delay=retry_config["base_delay"],
         jitter=retry_config["jitter"],
     )
-    
+
     try:
         async for attempt in retry_strategy:
             with attempt:
@@ -163,7 +164,9 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
         logger.error(
             "llm.tts_retry_exhausted",
             attempts=exc.retry_state.attempt_number,
-            last_exception=str(exc.retry_state.outcome.exception()) if exc.retry_state.outcome else None,
+            last_exception=(
+                str(exc.retry_state.outcome.exception()) if exc.retry_state.outcome else None
+            ),
         )
         return None
     except Exception as exc:  # noqa: BLE001
@@ -209,7 +212,6 @@ async def _startup_event() -> None:
         if llama:
             _ORCHESTRATOR = Orchestrator(llama, _MCP_MANAGER, _TTS_BASE_URL)
             await _ORCHESTRATOR.initialize()
-            logger.info("orchestrator.initialized")
         else:
             logger.warning("orchestrator.llm_unavailable")
 

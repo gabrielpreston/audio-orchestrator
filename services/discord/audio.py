@@ -338,9 +338,9 @@ class AudioPipeline:
         trigger: Optional[str] = None,
         override_reason: Optional[str] = None,
     ) -> Optional[AudioSegment]:
-        from services.common.correlation import generate_discord_correlation_id
+        from services.common.correlation import generate_correlation_id
 
-        correlation_id = generate_discord_correlation_id(accumulator.user_id)
+        correlation_id = generate_correlation_id()
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
