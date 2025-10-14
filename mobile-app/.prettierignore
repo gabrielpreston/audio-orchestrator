@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+android/
+ios/
+dist/
+build/
+
+# Generated files
+*.generated.*
+*.d.ts
+
+# Config files
+babel.config.js
+metro.config.js
+jest.config.js
+
+# Environment files
+.env*
+
+# Logs
+*.log
+
+# Coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Package files
+package-lock.json
+yarn.lock
