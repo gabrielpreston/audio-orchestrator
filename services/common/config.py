@@ -97,7 +97,7 @@ class FieldDefinition:
         """Validate field definition after initialization."""
         if self.required and self.default is not None:
             raise ValueError(f"Field '{self.name}' cannot be both required and have a default value")
-        if self.choices and self.default not in self.choices:
+        if self.choices and self.default is not None and self.default not in self.choices:
             raise ValueError(f"Default value for field '{self.name}' not in choices")
         if self.pattern and not isinstance(self.pattern, str):
             raise ValueError(f"Pattern for field '{self.name}' must be a string")
@@ -531,7 +531,11 @@ class ServiceConfig:
 
     def __repr__(self) -> str:
         """String representation of service configuration."""
-        return f"ServiceConfig(service={self.service_name}, environment={self.environment.value}, sections={list(self.configs.keys())})"
+        return (
+            f"ServiceConfig(service={self.service_name}, "
+            f"environment={self.environment.value}, "
+            f"sections={list(self.configs.keys())})"
+        )
 
 
 # Convenience functions for common configuration patterns

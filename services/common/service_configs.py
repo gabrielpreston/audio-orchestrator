@@ -6,8 +6,6 @@ demonstrating how to use the common configuration library.
 
 from __future__ import annotations
 
-import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 
@@ -494,6 +492,7 @@ class FasterWhisperConfig(BaseConfig):
             create_field_definition(
                 name="compute_type",
                 field_type=str,
+                default=None,
                 description="Compute type for the model",
                 choices=["int8", "int8_float16", "int16", "float16", "float32"],
                 env_var="FW_COMPUTE_TYPE",
