@@ -17,11 +17,11 @@ Usage:
 
     # Load configuration for a specific service
     config = ConfigBuilder.for_service("discord").load()
-    
+
     # Access configuration values
     print(config.discord.token)
     print(config.audio.sample_rate)
-    
+
     # Validate configuration
     config.validate()
 """
@@ -35,7 +35,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+)
 
 from services.common.logging import get_logger
 
@@ -400,17 +411,21 @@ class EnvironmentLoader:
 
     def _convert_value(self, raw_value: str, target_type: Type[T]) -> T:
         """Convert string value to target type."""
-        if target_type == bool:
+        origin = get_origin(target_type)
+        args = get_args(target_type)
+
+        if target_type is bool:
             return raw_value.lower() in ("1", "true", "yes", "on")  # type: ignore
-        elif target_type == int:
+        elif target_type is int:
             return int(raw_value)  # type: ignore
-        elif target_type == float:
+        elif target_type is float:
             return float(raw_value)  # type: ignore
-        elif target_type == str:
+        elif target_type is str:
             return raw_value  # type: ignore
-        elif target_type == list:
+        elif target_type is list or origin is list:
             return [item.strip() for item in raw_value.split(",") if item.strip()]  # type: ignore
-        elif target_type == Optional[str]:
+        elif origin is Union and type(None) in args and str in args:
+            # Handle Optional[str]
             return raw_value if raw_value else None  # type: ignore
         else:
             # Try to use the type as a constructor
