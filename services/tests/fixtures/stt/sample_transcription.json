@@ -1,0 +1,17 @@
+{
+  "transcript": "hey atlas, what's the weather like today?",
+  "confidence": 0.95,
+  "language": "en",
+  "language_probability": 0.99,
+  "start_time": 0.0,
+  "end_time": 3.2,
+  "no_speech_probability": 0.05,
+  "segments": [
+    {
+      "text": "hey atlas, what's the weather like today?",
+      "start": 0.0,
+      "end": 3.2,
+      "no_speech_prob": 0.05
+    }
+  ]
+}

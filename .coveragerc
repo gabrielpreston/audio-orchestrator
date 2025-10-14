@@ -1,0 +1,68 @@
+[run]
+# Source paths to measure coverage
+source = services
+
+# Omit patterns from coverage measurement
+omit = 
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */migrations/*
+    */venv/*
+    */.venv/*
+    */models/*
+    */conftest.py
+    */__init__.py
+    */debug_example.py
+    */main.py
+    */__main__.py
+
+# Branch coverage
+branch = True
+
+# Parallel execution
+parallel = True
+
+[report]
+# Exclude lines from coverage report
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    class .*\(Protocol\):
+    @(abc\.)?abstractmethod
+
+# Precision for coverage percentages
+precision = 2
+
+# Show missing lines
+show_missing = True
+
+# Skip covered files
+skip_covered = False
+
+# Sort by coverage percentage
+sort = Cover
+
+[html]
+# HTML report directory
+directory = htmlcov
+
+# HTML report title
+title = Discord Voice Lab Coverage Report
+
+# Show missing lines in HTML
+show_missing = True
+
+# Skip covered files in HTML
+skip_covered = False
+
+[xml]
+# XML report filename
+output = coverage.xml
+
+# Include source code in XML
+include_source = True

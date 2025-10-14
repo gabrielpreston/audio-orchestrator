@@ -96,6 +96,30 @@ jobs:
       - name: Run Makefile lint suite
         run: make lint-local
 
+  typecheck:
+    name: Type Check
+    needs: changes
+    if: |
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+      - name: Run type checking
+        run: make typecheck
+
   test:
     name: Tests
     needs: changes
@@ -113,24 +137,28 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install service dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/tester/requirements.txt
-          pip install -r services/discord/requirements.txt
-          pip install -r services/stt/requirements.txt
-          pip install -r services/llm/requirements.txt
-          pip install -r services/tts/requirements.txt
-      - name: Run pytest via Makefile
+          pip install -r requirements-dev.txt
+      - name: Run unit and component tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: make test-local | tee pytest.log
+        run: make test | tee pytest.log
       - name: Upload pytest log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pytest-log
           path: pytest.log
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
 
   docker-smoke:
     name: Docker smoke
@@ -161,8 +189,8 @@ jobs:
             docker-smoke.log
             docker-compose.config.yaml
 
-  security-scan:
-    name: Security scan
+  security:
+    name: Security Scan
     needs: changes
     if: |
       needs.changes.outputs.security == 'true' ||
@@ -178,25 +206,15 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install pip-audit
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pip-audit
-      - name: Run pip-audit across requirements
-        run: |
-          mkdir -p security-reports
-          for req in services/*/requirements.txt; do
-            report="security-reports/$(basename $(dirname "$req"))-requirements.json"
-            echo "Auditing $req"
-            pip-audit --progress-spinner off --format json --requirement "$req" > "$report" || audit_status=$?
-          done
-          if [ "${audit_status:-0}" -ne 0 ]; then
-            echo "pip-audit reported vulnerabilities" >&2
-            exit $audit_status
-          fi
-      - name: Upload pip-audit reports
+          pip install -r requirements-dev.txt
+      - name: Run security scan
+        run: make security
+      - name: Upload security reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pip-audit-reports
-          path: security-reports
+          name: security-reports
+          path: security-reports/

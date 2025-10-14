@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test-container test-image test-local docs-verify models-download models-clean
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -185,6 +185,123 @@ test-local: ## Run tests using locally installed tooling
 		fi; \
 		exit $$status; \
 	}
+
+# --- Enhanced test targets ----------------------------------------------------
+
+test: test-local ## Run all unit and component tests (default test target)
+
+test-unit: ## Run unit tests only (fast, isolated)
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m unit $(PYTEST_ARGS) || { \
+		status=$$?; \
+		if [ $$status -eq 5 ]; then \
+			echo "pytest reported that no tests were collected; treating this as success." >&2; \
+			exit 0; \
+		fi; \
+		exit $$status; \
+	}
+
+test-component: ## Run component tests (with mocked external dependencies)
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running component tests$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m component $(PYTEST_ARGS) || { \
+		status=$$?; \
+		if [ $$status -eq 5 ]; then \
+			echo "pytest reported that no tests were collected; treating this as success." >&2; \
+			exit 0; \
+		fi; \
+		exit $$status; \
+	}
+
+test-integration: ## Run integration tests (requires Docker Compose)
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run integration tests." >&2; exit 1; }
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@echo -e "$(COLOR_CYAN)→ Running integration tests$(COLOR_OFF)"
+	@echo -e "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)"
+	@$(DOCKER_COMPOSE) up -d --build
+	@echo -e "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)"
+	@sleep 10
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m integration $(PYTEST_ARGS) || { \
+		status=$$?; \
+		echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"; \
+		$(DOCKER_COMPOSE) down; \
+		exit $$status; \
+	}
+	@echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"
+	@$(DOCKER_COMPOSE) down
+
+test-e2e: ## Run end-to-end tests (manual trigger only)
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@echo -e "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)"
+	@echo -e "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)"
+	@read -p "Are you sure you want to continue? [y/N] " -n 1 -r; \
+	echo; \
+	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
+		PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m e2e $(PYTEST_ARGS) || { \
+			status=$$?; \
+			exit $$status; \
+		}; \
+	else \
+		echo -e "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)"; \
+		exit 0; \
+	fi
+
+test-coverage: ## Generate coverage report
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS) || { \
+		status=$$?; \
+		if [ $$status -eq 5 ]; then \
+			echo "pytest reported that no tests were collected; treating this as success." >&2; \
+			exit 0; \
+		fi; \
+		exit $$status; \
+	}
+	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
+
+test-watch: ## Run tests in watch mode (requires pytest-watch)
+	@command -v ptw >/dev/null 2>&1 || { echo "pytest-watch not found; install it (e.g. pip install pytest-watch)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running tests in watch mode$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} ptw --runner "pytest -xvs" $(PYTEST_ARGS)
+
+test-debug: ## Run tests in debug mode with verbose output
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running tests in debug mode$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -xvs --tb=long --capture=no $(PYTEST_ARGS)
+
+test-specific: ## Run specific tests (use PYTEST_ARGS="-k pattern")
+	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	@if [ -z "$(PYTEST_ARGS)" ]; then \
+		echo -e "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)"; \
+		echo -e "$(COLOR_YELLOW)→ Example: make test-specific PYTEST_ARGS='-k test_audio'$(COLOR_OFF)"; \
+		exit 1; \
+	fi
+	@echo -e "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -xvs $(PYTEST_ARGS)
+
+# --- Quality gate targets -----------------------------------------------------
+
+typecheck: ## Run type checking with mypy
+	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running type checking$(COLOR_OFF)"
+	@mypy $(PYTHON_SOURCES)
+
+security: ## Run security scanning with pip-audit
+	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
+	@mkdir -p security-reports
+	@for req in services/*/requirements.txt; do \
+		report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; \
+		echo "Auditing $$req"; \
+		pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; \
+	done
+	@if [ "$${audit_status:-0}" -ne 0 ]; then \
+		echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; \
+		exit $$audit_status; \
+	fi
+	@echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
 
 lint-container: lint-image ## Build lint container (if needed) and run lint suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
