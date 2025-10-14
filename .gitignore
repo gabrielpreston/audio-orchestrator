@@ -19,3 +19,4 @@ mcp.json
 debug/
 services/models/
 *.zip
+.npm/
