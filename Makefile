@@ -43,8 +43,10 @@ DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
 PYTHON_SOURCES := services
-DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile
+DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/tts/Dockerfile services/livekit/Dockerfile
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
+MOBILE_SOURCES := mobile-app/src
+MOBILE_FILES := $(shell find mobile-app -name '*.ts' -o -name '*.tsx' -o -name '*.js' -o -name '*.jsx' | grep -v node_modules | tr '\n' ' ')
 LINT_IMAGE ?= discord-voice-lab/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
@@ -209,7 +211,7 @@ lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
 
-lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown ## Run all linters using locally installed tooling
+lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-mobile lint-typescript ## Run all linters using locally installed tooling
 
 lint-python: ## Run Python linters and type checks (black, isort, ruff, mypy)
 	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
@@ -239,6 +241,24 @@ lint-markdown: ## Lint Markdown docs with markdownlint
 	@command -v markdownlint >/dev/null 2>&1 || { \
 		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
 	@markdownlint $(MARKDOWN_FILES)
+
+lint-mobile: ## Lint React Native mobile app with ESLint
+	@command -v eslint >/dev/null 2>&1 || { \
+		echo "eslint not found; install it (e.g. npm install -g eslint)." >&2; exit 1; }
+	@if [ -d "mobile-app" ] && [ -f "mobile-app/package.json" ]; then \
+		cd mobile-app && npm run lint; \
+	else \
+		echo "Mobile app not found or package.json missing, skipping mobile linting."; \
+	fi
+
+lint-typescript: ## Lint TypeScript files with tsc
+	@command -v tsc >/dev/null 2>&1 || { \
+		echo "typescript not found; install it (e.g. npm install -g typescript)." >&2; exit 1; }
+	@if [ -d "mobile-app" ] && [ -f "mobile-app/tsconfig.json" ]; then \
+		cd mobile-app && npx tsc --noEmit; \
+	else \
+		echo "Mobile app TypeScript config not found, skipping TypeScript linting."; \
+	fi
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)

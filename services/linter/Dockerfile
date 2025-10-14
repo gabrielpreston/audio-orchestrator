@@ -26,7 +26,7 @@ COPY services/linter/requirements.txt /tmp/requirements.txt
 RUN python -m pip install --upgrade pip==24.0 && \
     pip install -r /tmp/requirements.txt
 
-RUN npm install -g markdownlint-cli@latest
+RUN npm install -g markdownlint-cli@latest eslint@latest typescript@latest @typescript-eslint/parser@latest @typescript-eslint/eslint-plugin@latest
 
 RUN curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
     -o /usr/local/bin/hadolint && \
