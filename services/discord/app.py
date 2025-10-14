@@ -84,7 +84,7 @@ async def startup_event():
                 logger.info("discord.dummy_transcript_published", **transcript_data)
 
             # orchestrator_client = OrchestratorClient(
-            #     orchestrator_url=os.getenv("ORCHESTRATOR_URL", "http://orch:8000")
+            #     orchestrator_url=os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8000")
             # )
             # logger.info("discord.orchestrator_client_created")
 
