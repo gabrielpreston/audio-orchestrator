@@ -18,10 +18,8 @@ def main() -> None:
         service_name="discord",
     )
 
-    # Check running mode
+    # Check for MCP mode (subprocess mode)
     mcp_mode = os.getenv("DISCORD_MCP_MODE", "false").lower() == "true"
-    http_mode = os.getenv("DISCORD_HTTP_MODE", "false").lower() == "true"
-    full_bot_mode = os.getenv("DISCORD_FULL_BOT", "false").lower() == "true"
 
     if mcp_mode:
         # Run as MCP server subprocess
@@ -29,18 +27,32 @@ def main() -> None:
 
         server = MCPServer(config)
         asyncio.run(server.serve())
-    elif http_mode or full_bot_mode:
-        # Run as HTTP API server (with optional full bot)
+    else:
+        # Default: Run as HTTP API server with full bot capabilities
+        import threading
+        import time
+
         import uvicorn
 
-        from .app import app
+        from .app import _bot, app
 
+        # Start the full bot in a separate thread
+        def run_bot_thread():
+            from .discord_voice import run_bot
+
+            global _bot
+            _bot = asyncio.run(run_bot(config))
+
+        # Start the full bot in a separate thread
+        bot_thread = threading.Thread(target=run_bot_thread, daemon=True)
+        bot_thread.start()
+
+        # Wait for bot to be ready
+        while _bot is None:
+            time.sleep(0.1)
+
+        # Start the HTTP server
         uvicorn.run(app, host="0.0.0.0", port=8001)
-    else:
-        # Run as full Discord bot only
-        from .discord_voice import run_bot
-
-        asyncio.run(run_bot(config))
 
 
 if __name__ == "__main__":

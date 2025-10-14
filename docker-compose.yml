@@ -49,7 +49,6 @@ services:
     volumes:
       - ./services/models/llm:/app/models:ro
       - ./mcp.json:/app/mcp.json:ro
-      - ./services/discord:/app/services/discord:ro
       - ./debug:/app/debug
     depends_on:
       - tts

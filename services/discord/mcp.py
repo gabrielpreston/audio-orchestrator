@@ -66,6 +66,11 @@ class MCPServer:
     async def serve(self) -> None:
         """Serve MCP requests over stdio until shutdown."""
 
+        # Only start the bot if we don't have one attached (MCP subprocess mode)
+        bot_task = None
+        if self._voice_bot is None:
+            bot_task = asyncio.create_task(self._start_discord_bot())
+
         self._reader_task = asyncio.create_task(self._pump_stdin())
         try:
             while True:
@@ -81,6 +86,20 @@ class MCPServer:
                 self._reader_task.cancel()
                 with suppress(asyncio.CancelledError):
                     await self._reader_task
+            if bot_task:
+                bot_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await bot_task
+
+    async def _start_discord_bot(self) -> None:
+        """Start the Discord bot in the background."""
+        try:
+            from .discord_voice import run_bot
+
+            await run_bot(self._config)
+            self._logger.info("mcp.discord_bot_started")
+        except Exception as exc:
+            self._logger.error("mcp.discord_bot_start_failed", error=str(exc))
 
     async def publish_transcript(self, payload: Dict[str, object]) -> None:
         """Send a transcript notification to connected MCP clients."""
@@ -243,15 +262,18 @@ class MCPServer:
             ),
             "discord.play_audio": ToolDefinition(
                 name="discord.play_audio",
-                description="Play an audio URL inside a connected voice channel.",
+                description="Play audio data inside a connected voice channel.",
                 input_schema={
                     "type": "object",
                     "properties": {
                         "guild_id": {"type": "integer"},
                         "channel_id": {"type": "integer"},
-                        "audio_url": {"type": "string"},
+                        "audio_data": {
+                            "type": "string",
+                            "description": "Base64 encoded audio data",
+                        },
                     },
-                    "required": ["guild_id", "channel_id", "audio_url"],
+                    "required": ["guild_id", "channel_id", "audio_data"],
                 },
                 handler=self._tool_play_audio,
             ),
@@ -301,9 +323,16 @@ class MCPServer:
     async def _tool_play_audio(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         guild_id = self._require_int(arguments, "guild_id")
         channel_id = self._require_int(arguments, "channel_id")
-        audio_url = self._require_str(arguments, "audio_url")
+        audio_data = self._require_str(arguments, "audio_data")
         bot = self._require_voice_bot()
-        return await bot.play_audio_from_url(guild_id, channel_id, audio_url)
+
+        # Decode base64 audio data
+        import base64
+
+        audio_bytes = base64.b64decode(audio_data)
+
+        # Play audio data directly
+        return await bot.play_audio_data(guild_id, channel_id, audio_bytes)
 
     async def _pump_stdin(self) -> None:
         loop = asyncio.get_running_loop()

@@ -2,9 +2,7 @@
 Discord service HTTP API for MCP tool integration.
 """
 
-import asyncio
-import os
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import structlog
 from fastapi import FastAPI, HTTPException
@@ -24,7 +22,8 @@ _bot: Optional[Any] = None
 class PlayAudioRequest(BaseModel):
     guild_id: str
     channel_id: str
-    audio_url: str
+    audio_url: Optional[str] = None
+    audio_data: Optional[str] = None
 
 
 class SendMessageRequest(BaseModel):
@@ -48,68 +47,13 @@ async def startup_event():
 
     logger.info("discord.startup_event_called")
 
-    try:
-        # Check if we should run the full Discord bot
-        run_full_bot = os.getenv("DISCORD_FULL_BOT", "false").lower() == "true"
-        logger.info("discord.full_bot_check", run_full_bot=run_full_bot)
+    # The bot is already running in a separate thread from main.py
+    # We just need to wait for it to be available
+    logger.info("discord.http_server_started")
 
-        if run_full_bot:
-            # Initialize full Discord bot with voice capabilities
-            logger.info("discord.full_bot_starting")
-            from services.common.logging import configure_logging
-
-            from .audio import AudioPipeline
-            from .config import load_config
-            from .discord_voice import VoiceBot
-
-            # from .orchestrator_client import OrchestratorClient  # Unused import
-            from .wake import WakeDetector
-
-            logger.info("discord.imports_complete")
-            config = load_config()
-            logger.info("discord.config_loaded")
-            configure_logging(
-                config.telemetry.log_level,
-                json_logs=config.telemetry.log_json,
-                service_name="discord",
-            )
-            logger.info("discord.logging_configured")
-
-            audio_pipeline = AudioPipeline(config.audio)
-            logger.info("discord.audio_pipeline_created")
-            wake_detector = WakeDetector(config.wake)
-            logger.info("discord.wake_detector_created")
-
-            async def dummy_transcript_publisher(transcript_data: Dict[str, Any]) -> None:
-                logger.info("discord.dummy_transcript_published", **transcript_data)
-
-            # orchestrator_client = OrchestratorClient(
-            #     orchestrator_url=os.getenv("ORCHESTRATOR_URL", "http://orch:8000")
-            # )
-            # logger.info("discord.orchestrator_client_created")
-
-            _bot = VoiceBot(
-                config=config,
-                audio_pipeline=audio_pipeline,
-                wake_detector=wake_detector,
-                transcript_publisher=dummy_transcript_publisher,
-            )
-            logger.info("discord.voicebot_created")
-
-            asyncio.create_task(_bot.start(config.discord.token))
-            logger.info("discord.full_bot_started")
-        else:
-            _bot = {"status": "ready", "mode": "http"}
-            logger.info("discord.http_api_started")
-
-    except Exception as exc:
-        logger.error("discord.http_startup_failed", error=str(exc))
-        import traceback
-
-        logger.error("discord.startup_traceback", traceback=traceback.format_exc())
-        # Don't raise the exception to prevent the service from crashing
-        _bot = {"status": "error", "mode": "http", "error": str(exc)}
-        logger.info("discord.http_api_started_with_error")
+    # Set a placeholder to indicate the HTTP server is ready
+    # The actual bot instance will be set by the thread when it's ready
+    _bot = {"status": "initializing", "mode": "http_with_bot_thread"}
 
 
 @app.on_event("shutdown")
@@ -129,15 +73,14 @@ async def health_check():
         "status": "healthy",
         "bot_connected": _bot is not None,
         "service": "discord",
-        "mode": "http",
     }
 
 
 @app.post("/mcp/play_audio")
 async def play_audio(request: PlayAudioRequest):
     """Play audio in Discord voice channel via MCP."""
-    if not _bot:
-        raise HTTPException(status_code=503, detail="Discord service not ready")
+    if not _bot or not hasattr(_bot, "play_audio_data"):
+        raise HTTPException(status_code=503, detail="Discord bot not ready")
 
     try:
         logger.info(
@@ -145,47 +88,45 @@ async def play_audio(request: PlayAudioRequest):
             guild_id=request.guild_id,
             channel_id=request.channel_id,
             audio_url=request.audio_url,
+            has_audio_data=request.audio_data is not None,
         )
 
-        # Check if we have a full Discord bot instance
-        if hasattr(_bot, "play_audio_from_url"):
-            # Use the actual VoiceBot to play audio
+        # Use the VoiceBot to play audio
+        if request.audio_data:
+            # Decode base64 audio data
+            import base64
+
+            audio_bytes = base64.b64decode(request.audio_data)
+            result = await _bot.play_audio_data(
+                guild_id=int(request.guild_id),
+                channel_id=int(request.channel_id),
+                audio_bytes=audio_bytes,
+            )
+        elif request.audio_url:
             result = await _bot.play_audio_from_url(
                 guild_id=int(request.guild_id),
                 channel_id=int(request.channel_id),
                 audio_url=request.audio_url,
             )
-
-            logger.info(
-                "discord.audio_playback_success",
-                guild_id=request.guild_id,
-                channel_id=request.channel_id,
-                result=result,
-            )
-
-            return {
-                "status": "success",
-                "guild_id": request.guild_id,
-                "channel_id": request.channel_id,
-                "audio_url": request.audio_url,
-                "result": result,
-            }
         else:
-            # Fallback for HTTP mode without full bot
-            logger.warning(
-                "discord.play_audio_no_bot_method",
-                guild_id=request.guild_id,
-                channel_id=request.channel_id,
-                audio_url=request.audio_url,
+            raise HTTPException(
+                status_code=400, detail="Either audio_url or audio_data must be provided"
             )
 
-            return {
-                "status": "success",
-                "guild_id": request.guild_id,
-                "channel_id": request.channel_id,
-                "audio_url": request.audio_url,
-                "result": {"message": "Audio playback requested (HTTP mode - no bot method)"},
-            }
+        logger.info(
+            "discord.audio_playback_success",
+            guild_id=request.guild_id,
+            channel_id=request.channel_id,
+            result=result,
+        )
+
+        return {
+            "status": "success",
+            "guild_id": request.guild_id,
+            "channel_id": request.channel_id,
+            "audio_url": request.audio_url,
+            "result": result,
+        }
 
     except Exception as exc:
         logger.error("discord.play_audio_failed", error=str(exc))

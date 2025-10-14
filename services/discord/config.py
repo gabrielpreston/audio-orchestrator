@@ -21,6 +21,11 @@ class DiscordConfig:
     voice_connect_max_attempts: int = 3
     voice_reconnect_initial_backoff_seconds: float = 5.0
     voice_reconnect_max_backoff_seconds: float = 60.0
+    # Improved retry configuration
+    http_retry_max_attempts: int = 5
+    http_retry_max_delay_seconds: float = 60.0
+    http_retry_base_delay_seconds: float = 1.0
+    http_retry_jitter_enabled: bool = True
 
 
 @dataclass(slots=True)
@@ -145,6 +150,11 @@ def load_config() -> BotConfig:
         voice_reconnect_max_backoff_seconds=float(
             os.getenv("DISCORD_VOICE_RECONNECT_MAX_DELAY", "60")
         ),
+        # Improved retry configuration
+        http_retry_max_attempts=max(1, int(os.getenv("DISCORD_HTTP_RETRY_MAX_ATTEMPTS", "5"))),
+        http_retry_max_delay_seconds=float(os.getenv("DISCORD_HTTP_RETRY_MAX_DELAY", "60")),
+        http_retry_base_delay_seconds=float(os.getenv("DISCORD_HTTP_RETRY_BASE_DELAY", "1")),
+        http_retry_jitter_enabled=os.getenv("DISCORD_HTTP_RETRY_JITTER", "true").lower() == "true",
     )
 
     allowlist_raw = os.getenv("AUDIO_ALLOWLIST", "")

@@ -57,10 +57,18 @@ class MCPManager:
         self._logger.info("mcp.manager_shutdown")
 
     async def _connect_discord(self) -> None:
-        """Connect to Discord service via HTTP (no MCP subprocess needed)."""
-        # Discord service runs as separate container, we'll communicate via HTTP
-        # No need to spawn subprocess - Discord service handles its own MCP server
-        self._logger.info("mcp.discord_http_mode", note="Discord runs as separate container")
+        """Connect to Discord service via HTTP."""
+        # Discord service runs as full bot with HTTP server in its own container
+        self._logger.info(
+            "mcp.discord_http_mode",
+            note="Discord runs as full bot with HTTP server in separate container",
+        )
+
+        # Use HTTP client directly since Discord service supports HTTP by default
+        await self._connect_discord_http_fallback()
+
+    async def _connect_discord_http_fallback(self) -> None:
+        """Fallback to HTTP-based Discord client."""
 
         # Create HTTP-based Discord client for inter-container communication
         class HTTPDiscordClient:
@@ -91,8 +99,12 @@ class MCPManager:
                                 "guild_id": {"type": "string"},
                                 "channel_id": {"type": "string"},
                                 "audio_url": {"type": "string"},
+                                "audio_data": {
+                                    "type": "string",
+                                    "description": "Base64 encoded audio data",
+                                },
                             },
-                            "required": ["guild_id", "channel_id", "audio_url"],
+                            "required": ["guild_id", "channel_id"],
                         },
                     },
                     {
@@ -115,26 +127,89 @@ class MCPManager:
                 try:
                     client = await self._get_http_client()
 
+                    # Add detailed logging for MCP tool calls
+                    self._logger.info(
+                        "mcp.discord_tool_call_attempt",
+                        tool=name,
+                        arguments=arguments,
+                        has_audio_data="audio_data" in arguments,
+                        has_audio_url="audio_url" in arguments,
+                    )
+
                     if name == "discord.play_audio":
-                        response = await client.post(
-                            f"{self.base_url}/mcp/play_audio", json=arguments, timeout=30.0
+                        from services.common.retry import post_with_discord_retry
+                        import os
+                        
+                        # Get retry configuration from environment
+                        max_attempts = max(1, int(os.getenv("MCP_DISCORD_RETRY_MAX_ATTEMPTS", "3")))
+                        max_delay = float(os.getenv("MCP_DISCORD_RETRY_MAX_DELAY", "15.0"))
+                        base_delay = float(os.getenv("MCP_DISCORD_RETRY_BASE_DELAY", "1.0"))
+                        jitter = os.getenv("MCP_DISCORD_RETRY_JITTER", "true").lower() == "true"
+                        
+                        response = await post_with_discord_retry(
+                            client,
+                            f"{self.base_url}/mcp/play_audio",
+                            json=arguments,
+                            timeout=30.0,
+                            max_attempts=max_attempts,
+                            max_delay=max_delay,
+                            base_delay=base_delay,
+                            jitter=jitter,
                         )
-                        response.raise_for_status()
-                        return response.json()
+                        result = response.json()
+
+                        self._logger.info(
+                            "mcp.discord_play_audio_success",
+                            tool=name,
+                            status_code=response.status_code,
+                            result=result,
+                        )
+                        return result
 
                     elif name == "discord.send_message":
-                        response = await client.post(
-                            f"{self.base_url}/mcp/send_message", json=arguments, timeout=30.0
+                        from services.common.retry import post_with_discord_retry
+                        import os
+                        
+                        # Get retry configuration from environment
+                        max_attempts = max(1, int(os.getenv("MCP_DISCORD_RETRY_MAX_ATTEMPTS", "3")))
+                        max_delay = float(os.getenv("MCP_DISCORD_RETRY_MAX_DELAY", "15.0"))
+                        base_delay = float(os.getenv("MCP_DISCORD_RETRY_BASE_DELAY", "1.0"))
+                        jitter = os.getenv("MCP_DISCORD_RETRY_JITTER", "true").lower() == "true"
+                        
+                        response = await post_with_discord_retry(
+                            client,
+                            f"{self.base_url}/mcp/send_message",
+                            json=arguments,
+                            timeout=30.0,
+                            max_attempts=max_attempts,
+                            max_delay=max_delay,
+                            base_delay=base_delay,
+                            jitter=jitter,
                         )
-                        response.raise_for_status()
-                        return response.json()
+                        result = response.json()
+
+                        self._logger.info(
+                            "mcp.discord_send_message_success",
+                            tool=name,
+                            status_code=response.status_code,
+                            result=result,
+                        )
+                        return result
 
                     else:
+                        self._logger.warning(
+                            "mcp.discord_unknown_tool",
+                            tool=name,
+                            available_tools=["discord.play_audio", "discord.send_message"],
+                        )
                         return {"error": f"Unknown tool: {name}"}
 
                 except Exception as exc:
                     self._logger.error(
-                        "mcp.discord_http_tool_call_failed", tool=name, error=str(exc)
+                        "mcp.discord_http_tool_call_failed",
+                        tool=name,
+                        error=str(exc),
+                        arguments=arguments,
                     )
                     return {"error": str(exc)}
 
@@ -248,12 +323,21 @@ class MCPManager:
         if not client.is_connected:
             raise RuntimeError(f"MCP client {client_name} is not connected")
 
+        # Add detailed logging for MCP tool calls
+        self._logger.info(
+            "mcp.tool_call_attempt",
+            client=client_name,
+            tool=tool_name,
+            arguments=arguments,
+        )
+
         try:
             result = await client.call_tool(tool_name, arguments)
-            self._logger.debug(
+            self._logger.info(
                 "mcp.tool_call_success",
                 client=client_name,
                 tool=tool_name,
+                result=result,
             )
             return result
         except Exception as exc:
@@ -262,6 +346,7 @@ class MCPManager:
                 client=client_name,
                 tool=tool_name,
                 error=str(exc),
+                arguments=arguments,
             )
             raise
 

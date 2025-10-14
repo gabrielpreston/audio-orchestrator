@@ -62,6 +62,16 @@ def _tts_timeout() -> float:
         return 30.0
 
 
+def _tts_retry_config() -> Dict[str, Any]:
+    """Get TTS retry configuration from environment variables."""
+    return {
+        "max_attempts": max(1, int(os.getenv("TTS_RETRY_MAX_ATTEMPTS", "3"))),
+        "max_delay": float(os.getenv("TTS_RETRY_MAX_DELAY", "15.0")),
+        "base_delay": float(os.getenv("TTS_RETRY_BASE_DELAY", "1.0")),
+        "jitter": os.getenv("TTS_RETRY_JITTER", "true").lower() == "true",
+    }
+
+
 def _load_llama() -> Optional[Llama]:
     global _LLAMA, _LLAMA_INFO
     if _LLAMA is not None:
@@ -123,16 +133,39 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
     headers: Dict[str, str] = {}
     if _TTS_AUTH_TOKEN:
         headers["Authorization"] = f"Bearer {_TTS_AUTH_TOKEN}"
+    
+    # Add retry logic for TTS synthesis
+    from services.common.retry import create_generic_retry_strategy
+    from tenacity import RetryError
+    
+    retry_config = _tts_retry_config()
+    retry_strategy = create_generic_retry_strategy(
+        max_attempts=retry_config["max_attempts"],
+        max_delay=retry_config["max_delay"],
+        base_delay=retry_config["base_delay"],
+        jitter=retry_config["jitter"],
+    )
+    
     try:
-        async with client.stream(
-            "POST",
-            "/synthesize",
-            json=payload,
-            headers=headers,
-        ) as response:
-            response.raise_for_status()
-            audio_bytes = await response.aread()
-            headers = response.headers
+        async for attempt in retry_strategy:
+            with attempt:
+                async with client.stream(
+                    "POST",
+                    "/synthesize",
+                    json=payload,
+                    headers=headers,
+                ) as response:
+                    response.raise_for_status()
+                    audio_bytes = await response.aread()
+                    headers = response.headers
+                    break  # Success, exit retry loop
+    except RetryError as exc:
+        logger.error(
+            "llm.tts_retry_exhausted",
+            attempts=exc.retry_state.attempt_number,
+            last_exception=str(exc.retry_state.outcome.exception()) if exc.retry_state.outcome else None,
+        )
+        return None
     except Exception as exc:  # noqa: BLE001
         logger.warning("llm.tts_failed", error=str(exc))
         return None

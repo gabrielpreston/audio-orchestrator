@@ -93,8 +93,8 @@ class VoiceBot(discord.Client):
         self._voice_reconnect_tasks: Dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: Set[int] = set()
 
-        # Initialize orchestrator client
-        self._orchestrator_client = OrchestratorClient()
+        # Initialize orchestrator client with config
+        self._orchestrator_client = OrchestratorClient(config=config)
 
         # Initialize debug manager
         self._debug_manager = get_debug_manager("discord")
@@ -394,6 +394,31 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
         )
         await self._play_tts(audio_url, context)
+        return {"status": "playing", "guild_id": guild_id, "channel_id": channel_id}
+
+    async def play_audio_data(
+        self,
+        guild_id: int,
+        channel_id: int,
+        audio_bytes: bytes,
+    ) -> Dict[str, object]:
+        await self.wait_until_ready()
+        from services.common.correlation import generate_manual_correlation_id
+
+        context = SegmentContext(
+            segment=AudioSegment(
+                user_id=0,
+                pcm=b"",
+                start_timestamp=0.0,
+                end_timestamp=0.0,
+                correlation_id=generate_manual_correlation_id("discord", "play_audio"),
+                frame_count=0,
+                sample_rate=self.config.audio.input_sample_rate_hz,
+            ),
+            guild_id=guild_id,
+            channel_id=channel_id,
+        )
+        await self._play_tts_canonical(audio_bytes, context)
         return {"status": "playing", "guild_id": guild_id, "channel_id": channel_id}
 
     async def ingest_voice_packet(
@@ -900,28 +925,12 @@ class VoiceBot(discord.Client):
         base_backoff = max(0.5, self.config.discord.voice_reconnect_initial_backoff_seconds)
         max_backoff = max(base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds)
         attempt = 0
-        while not self._shutdown.is_set():
+        max_attempts = 10  # Reasonable limit to prevent infinite retries
+
+        while not self._shutdown.is_set() and attempt < max_attempts:
             attempt += 1
             try:
                 await self.join_voice_channel(guild_id, channel_id)
-            except Exception as exc:  # noqa: BLE001
-                exponential = base_backoff * (2 ** max(0, attempt - 1))
-                delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
-                self._logger.warning(
-                    "discord.voice_reconnect_retry",
-                    guild_id=guild_id,
-                    channel_id=channel_id,
-                    attempt=attempt,
-                    reason=reason,
-                    error=str(exc),
-                    next_delay=delay,
-                )
-                try:
-                    await asyncio.wait_for(self._shutdown.wait(), timeout=delay)
-                    return
-                except asyncio.TimeoutError:
-                    continue
-            else:
                 self._logger.info(
                     "discord.voice_reconnect_success",
                     guild_id=guild_id,
@@ -930,6 +939,38 @@ class VoiceBot(discord.Client):
                     reason=reason,
                 )
                 return
+            except Exception as exc:  # noqa: BLE001
+                # Improved backoff with jitter to prevent thundering herd
+                exponential = base_backoff * (2 ** max(0, attempt - 1))
+                jitter = random.uniform(0.1, 0.5)  # Add jitter to prevent synchronized retries
+                delay = min(max_backoff, exponential) + jitter
+
+                self._logger.warning(
+                    "discord.voice_reconnect_retry",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    reason=reason,
+                    error=str(exc),
+                    next_delay=delay,
+                )
+
+                try:
+                    await asyncio.wait_for(self._shutdown.wait(), timeout=delay)
+                    return
+                except asyncio.TimeoutError:
+                    continue
+
+        # If we've exhausted all attempts
+        if attempt >= max_attempts:
+            self._logger.error(
+                "discord.voice_reconnect_exhausted",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                attempts=attempt,
+                reason=reason,
+            )
 
     def _ensure_voice_receiver(self, voice_client: discord.VoiceClient) -> None:
         if self._loop is None:

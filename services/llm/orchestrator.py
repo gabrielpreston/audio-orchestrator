@@ -589,8 +589,18 @@ Provide a natural, conversational response."""
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
 
-            # Call TTS service
-            response = await self._http_client.post(
+            # Call TTS service with retry logic
+            from services.common.retry import post_with_generic_retry
+            import os
+            
+            # Get retry configuration from environment
+            max_attempts = max(1, int(os.getenv("ORCH_TTS_RETRY_MAX_ATTEMPTS", "3")))
+            max_delay = float(os.getenv("ORCH_TTS_RETRY_MAX_DELAY", "15.0"))
+            base_delay = float(os.getenv("ORCH_TTS_RETRY_BASE_DELAY", "1.0"))
+            jitter = os.getenv("ORCH_TTS_RETRY_JITTER", "true").lower() == "true"
+            
+            response = await post_with_generic_retry(
+                self._http_client,
                 f"{self.tts_base_url}/synthesize",
                 json={
                     "text": text,
@@ -599,8 +609,11 @@ Provide a natural, conversational response."""
                 },
                 headers=headers,
                 timeout=30.0,
+                max_attempts=max_attempts,
+                max_delay=max_delay,
+                base_delay=base_delay,
+                jitter=jitter,
             )
-            response.raise_for_status()
 
             # Get audio data
             audio_data = response.content
@@ -629,25 +642,36 @@ Provide a natural, conversational response."""
                 metadata=debug_metadata,
             )
 
-            # Save audio file and create HTTP URL
-            audio_file_path = self._save_audio_file(
-                audio_data, context.get("correlation_id", "unknown")
-            )
-            audio_url = f"http://orch:8000/audio/{os.path.basename(audio_file_path)}"
+            # Save audio file for debugging
+            self._save_audio_file(audio_data, context.get("correlation_id", "unknown"))
 
-            # Play audio in Discord
-            await self.mcp_manager.call_discord_tool(
+            # Convert audio data to base64 for direct transmission
+            import base64
+
+            audio_base64 = base64.b64encode(audio_data).decode("utf-8")
+
+            # Play audio in Discord by passing audio data directly
+            self._logger.info(
+                "orchestrator.calling_discord_tool",
+                correlation_id=context.get("correlation_id"),
+                guild_id=context.get("guild_id"),
+                channel_id=context.get("channel_id"),
+                audio_data_size=len(audio_base64),
+            )
+
+            result = await self.mcp_manager.call_discord_tool(
                 "discord.play_audio",
                 {
-                    "guild_id": context.get("guild_id"),
-                    "channel_id": context.get("channel_id"),
-                    "audio_url": audio_url,
+                    "guild_id": str(context.get("guild_id")),
+                    "channel_id": str(context.get("channel_id")),
+                    "audio_data": audio_base64,
                 },
             )
 
             self._logger.info(
                 "orchestrator.audio_played",
                 correlation_id=context.get("correlation_id"),
+                discord_result=result,
             )
 
         except Exception as exc:

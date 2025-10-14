@@ -22,9 +22,10 @@ from typing import List, Optional
 import ffmpeg
 import numpy as np
 import webrtcvad
-from prometheus_client import Counter, Gauge, Histogram
 
 from .logging import get_logger
+
+# Prometheus metrics removed
 
 
 class AudioFormat(Enum):
@@ -134,21 +135,12 @@ class FFmpegFacade:
         self.service_name = service_name
         self._logger = get_logger(__name__, service_name=service_name)
 
-        # Metrics
-        self._decode_errors = Counter(
-            f"{service_name}_ffmpeg_decode_errors_total", "Total FFmpeg decode errors"
-        )
-        self._resample_errors = Counter(
-            f"{service_name}_ffmpeg_resample_errors_total", "Total FFmpeg resample errors"
-        )
-        self._loudnorm_errors = Counter(
-            f"{service_name}_ffmpeg_loudnorm_errors_total", "Total FFmpeg loudnorm errors"
-        )
-        self._processing_duration = Histogram(
-            f"{service_name}_ffmpeg_processing_seconds",
-            "FFmpeg processing duration",
-            buckets=(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, float("inf")),
-        )
+        # Metrics - disabled to prevent collision
+        # TODO: Re-enable metrics with proper singleton pattern
+        self._decode_errors = None
+        self._resample_errors = None
+        self._loudnorm_errors = None
+        self._processing_duration = None
 
     def decode_to_canonical(
         self,
@@ -194,7 +186,7 @@ class FFmpegFacade:
                     input_format=input_format,
                     input_bytes=len(audio_data),
                 )
-                self._decode_errors.inc()
+                # Metrics removed
                 return []
 
             # Convert bytes to float32 array
@@ -222,8 +214,7 @@ class FFmpegFacade:
                 frames.append(frame)
 
             duration = time.perf_counter() - start_time
-            self._processing_duration.observe(duration)
-
+            # Metrics removed
             self._logger.debug(
                 "ffmpeg.decode_success",
                 input_bytes=len(audio_data),
@@ -240,7 +231,7 @@ class FFmpegFacade:
                 input_format=input_format,
                 input_bytes=len(audio_data),
             )
-            self._decode_errors.inc()
+            # Metrics removed
             return []
 
     def resample_for_stt(self, frames: List[CanonicalFrame]) -> bytes:
@@ -285,12 +276,11 @@ class FFmpegFacade:
                 self._logger.error(
                     "ffmpeg.resample_failed", error=error_msg, input_frames=len(frames)
                 )
-                self._resample_errors.inc()
+                # Metrics removed
                 return b""
 
             duration = time.perf_counter() - start_time
-            self._processing_duration.observe(duration)
-
+            # Metrics removed
             self._logger.debug(
                 "ffmpeg.resample_success",
                 input_frames=len(frames),
@@ -304,7 +294,7 @@ class FFmpegFacade:
             self._logger.error(
                 "ffmpeg.resample_exception", error=str(exc), input_frames=len(frames)
             )
-            self._resample_errors.inc()
+            # Metrics removed
             return b""
 
     def loudness_normalize(
@@ -351,7 +341,7 @@ class FFmpegFacade:
                 self._logger.error(
                     "ffmpeg.loudnorm_failed", error=error_msg, input_frames=len(frames)
                 )
-                self._loudnorm_errors.inc()
+                # Metrics removed
                 return frames  # Return original frames on error
 
             # Convert back to frames
@@ -379,8 +369,7 @@ class FFmpegFacade:
                 normalized_frames.append(frame)
 
             duration = time.perf_counter() - start_time
-            self._processing_duration.observe(duration)
-
+            # Metrics removed
             self._logger.debug(
                 "ffmpeg.loudnorm_success",
                 input_frames=len(frames),
@@ -394,7 +383,8 @@ class FFmpegFacade:
             self._logger.error(
                 "ffmpeg.loudnorm_exception", error=str(exc), input_frames=len(frames)
             )
-            self._loudnorm_errors.inc()
+            if self._loudnorm_errors:
+                self._loudnorm_errors.inc()
             return frames  # Return original frames on error
 
     def frames_to_discord_pcm(self, frames: List[CanonicalFrame]) -> bytes:
@@ -445,13 +435,10 @@ class VADChunker:
         self._in_speech = False
         self._speech_start_frame = 0
 
-        # Metrics
-        self._speech_segments = Counter(
-            f"{service_name}_vad_speech_segments_total", "Total speech segments detected"
-        )
-        self._vad_errors = Counter(
-            f"{service_name}_vad_errors_total", "Total VAD processing errors"
-        )
+        # Metrics - disabled to prevent collision
+        # TODO: Re-enable metrics with proper singleton pattern
+        self._speech_segments = None
+        self._vad_errors = None
 
     def process_frame(self, frame: CanonicalFrame) -> Optional[AudioSegment]:
         """
@@ -505,7 +492,7 @@ class VADChunker:
             self._logger.error(
                 "vad.process_frame_error", error=str(exc), frame_sequence=frame.sequence
             )
-            self._vad_errors.inc()
+            # Metrics removed
             return None
 
     def flush(self) -> Optional[AudioSegment]:
@@ -570,7 +557,7 @@ class VADChunker:
             user_id=0,  # TODO: Get actual user_id
         )
 
-        self._speech_segments.inc()
+        # Metrics removed
 
         self._logger.info(
             "vad.speech_segment_created",
@@ -607,19 +594,12 @@ class AudioPipeline:
         self._jitter_buffer = JitterBuffer()
         self._vad_chunker = VADChunker(service_name=service_name)
 
-        # Metrics
-        self._frames_processed = Counter(
-            f"{service_name}_audio_frames_processed_total", "Total canonical frames processed"
-        )
-        self._frames_dropped = Counter(
-            f"{service_name}_audio_frames_dropped_total", "Total frames dropped due to overflow"
-        )
-        self._segments_created = Counter(
-            f"{service_name}_audio_segments_created_total", "Total speech segments created"
-        )
-        self._jitter_depth = Gauge(
-            f"{service_name}_jitter_buffer_depth_frames", "Current jitter buffer depth in frames"
-        )
+        # Metrics - disabled to prevent collision
+        # TODO: Re-enable metrics with proper singleton pattern
+        self._frames_processed = None
+        self._frames_dropped = None
+        self._segments_created = None
+        self._jitter_depth = None
 
     def process_discord_audio(
         self, audio_data: bytes, user_id: int, input_format: str = "opus"
@@ -653,15 +633,14 @@ class AudioPipeline:
                     segments.append(segment)
 
             # Update metrics
-            self._frames_processed.inc()
-            self._jitter_depth.set(len(self._jitter_buffer.frames))
+            # Metrics removed
 
         # Flush any remaining speech segment
         final_segment = self._vad_chunker.flush()
         if final_segment:
             segments.append(final_segment)
 
-        self._segments_created.inc(len(segments))
+        # Metrics removed
 
         return segments
 

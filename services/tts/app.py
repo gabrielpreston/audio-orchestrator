@@ -10,9 +10,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from piper import PiperVoice
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+
+# Prometheus metrics removed
 from pydantic import BaseModel, Field, model_validator
 
 from services.common.audio_pipeline import create_audio_pipeline
@@ -88,21 +89,7 @@ _debug_manager = get_debug_manager("tts")
 # Canonical audio pipeline for TTS processing
 _canonical_pipeline = create_audio_pipeline("tts")
 
-_SYNTHESIS_COUNTER = Counter(
-    "tts_requests_total",
-    "Total TTS synthesis requests",
-    ["status"],
-)
-_SYNTHESIS_DURATION = Histogram(
-    "tts_synthesis_seconds",
-    "TTS synthesis latency",
-    buckets=(0.25, 0.5, 1, 2, 4, 8, 16, float("inf")),
-)
-_SYNTHESIS_SIZE = Histogram(
-    "tts_audio_bytes",
-    "Size of generated audio payloads",
-    buckets=(1024, 4096, 8192, 16384, 32768, 65536, 131072, 262144, float("inf")),
-)
+# Prometheus metrics removed
 
 _SSML_TAG_RE = re.compile(r"<[^>]+>")
 
@@ -372,9 +359,7 @@ async def health() -> HealthResponse:
     )
 
 
-@app.get("/metrics")
-async def metrics() -> Response:
-    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+# Metrics endpoint removed
 
 
 @app.get("/voices", response_model=VoiceListResponse)
@@ -420,13 +405,12 @@ async def synthesize(
             raise
         except Exception as exc:  # noqa: BLE001
             logger.exception("tts.synthesize_failed", error=str(exc))
-            _SYNTHESIS_COUNTER.labels(status="error").inc()
+            # Metrics removed
             raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
 
     size_bytes = len(audio_bytes)
     duration = time.perf_counter() - start_time
-    _SYNTHESIS_DURATION.observe(duration)
-    _SYNTHESIS_SIZE.observe(size_bytes)
+    # Metrics removed
 
     from services.common.correlation import generate_tts_correlation_id
 
@@ -437,7 +421,7 @@ async def synthesize(
         "X-Audio-Sample-Rate": str(sample_rate),
         "X-Audio-Size": str(size_bytes),
     }
-    _SYNTHESIS_COUNTER.labels(status="success").inc()
+    # Metrics removed
     logger.info(
         "tts.synthesize_stream_success",
         audio_id=audio_id,
@@ -534,13 +518,12 @@ async def synthesize_canonical(
             raise
         except Exception as exc:  # noqa: BLE001
             logger.exception("tts.canonical_synthesize_failed", error=str(exc))
-            _SYNTHESIS_COUNTER.labels(status="error").inc()
+            # Metrics removed
             raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
 
     size_bytes = len(canonical_audio_bytes)
     duration = time.perf_counter() - start_time
-    _SYNTHESIS_DURATION.observe(duration)
-    _SYNTHESIS_SIZE.observe(size_bytes)
+    # Metrics removed
 
     from services.common.correlation import generate_tts_correlation_id
 
@@ -552,7 +535,7 @@ async def synthesize_canonical(
         "X-Audio-Size": str(size_bytes),
         "X-Audio-Format": "canonical",
     }
-    _SYNTHESIS_COUNTER.labels(status="success").inc()
+    # Metrics removed
     logger.info(
         "tts.canonical_synthesize_success",
         audio_id=audio_id,

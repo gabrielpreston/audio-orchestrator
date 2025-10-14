@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 import httpx
 import structlog
 
+from services.common.retry import post_with_discord_retry
+
 # from .config import load_config  # Unused import
 
 logger = structlog.get_logger()
@@ -16,9 +18,10 @@ logger = structlog.get_logger()
 class OrchestratorClient:
     """Client for communicating with the LLM orchestrator service."""
 
-    def __init__(self, orchestrator_url: str = "http://orch:8000"):
+    def __init__(self, orchestrator_url: str = "http://orch:8000", config: Optional[Any] = None):
         self.orchestrator_url = orchestrator_url
         self._http_client: Optional[httpx.AsyncClient] = None
+        self._config = config
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -46,10 +49,27 @@ class OrchestratorClient:
                 "correlation_id": correlation_id,
             }
 
-            response = await client.post(
-                f"{self.orchestrator_url}/mcp/transcript", json=payload, timeout=30.0
+            # Use improved retry logic with Discord rate limit awareness
+            max_attempts = 5
+            max_delay = 30.0
+            base_delay = 1.0
+            jitter = True
+
+            if self._config and hasattr(self._config, "discord"):
+                max_attempts = self._config.discord.http_retry_max_attempts
+                max_delay = self._config.discord.http_retry_max_delay_seconds
+                base_delay = self._config.discord.http_retry_base_delay_seconds
+                jitter = self._config.discord.http_retry_jitter_enabled
+
+            response = await post_with_discord_retry(
+                client,
+                f"{self.orchestrator_url}/mcp/transcript",
+                json=payload,
+                max_attempts=max_attempts,
+                max_delay=max_delay,
+                base_delay=base_delay,
+                jitter=jitter,
             )
-            response.raise_for_status()
 
             result = response.json()
             logger.info(
@@ -80,10 +100,27 @@ class OrchestratorClient:
 
             payload = {"guild_id": guild_id, "channel_id": channel_id, "audio_url": audio_url}
 
-            response = await client.post(
-                f"{self.orchestrator_url}/mcp/play_audio", json=payload, timeout=30.0
+            # Use improved retry logic with Discord rate limit awareness
+            max_attempts = 5
+            max_delay = 30.0
+            base_delay = 1.0
+            jitter = True
+
+            if self._config and hasattr(self._config, "discord"):
+                max_attempts = self._config.discord.http_retry_max_attempts
+                max_delay = self._config.discord.http_retry_max_delay_seconds
+                base_delay = self._config.discord.http_retry_base_delay_seconds
+                jitter = self._config.discord.http_retry_jitter_enabled
+
+            response = await post_with_discord_retry(
+                client,
+                f"{self.orchestrator_url}/mcp/play_audio",
+                json=payload,
+                max_attempts=max_attempts,
+                max_delay=max_delay,
+                base_delay=base_delay,
+                jitter=jitter,
             )
-            response.raise_for_status()
 
             result = response.json()
             logger.info(
@@ -111,10 +148,27 @@ class OrchestratorClient:
 
             payload = {"guild_id": guild_id, "channel_id": channel_id, "message": message}
 
-            response = await client.post(
-                f"{self.orchestrator_url}/mcp/send_message", json=payload, timeout=30.0
+            # Use improved retry logic with Discord rate limit awareness
+            max_attempts = 5
+            max_delay = 30.0
+            base_delay = 1.0
+            jitter = True
+
+            if self._config and hasattr(self._config, "discord"):
+                max_attempts = self._config.discord.http_retry_max_attempts
+                max_delay = self._config.discord.http_retry_max_delay_seconds
+                base_delay = self._config.discord.http_retry_base_delay_seconds
+                jitter = self._config.discord.http_retry_jitter_enabled
+
+            response = await post_with_discord_retry(
+                client,
+                f"{self.orchestrator_url}/mcp/send_message",
+                json=payload,
+                max_attempts=max_attempts,
+                max_delay=max_delay,
+                base_delay=base_delay,
+                jitter=jitter,
             )
-            response.raise_for_status()
 
             result = response.json()
             logger.info(
