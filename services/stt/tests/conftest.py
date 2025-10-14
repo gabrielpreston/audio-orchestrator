@@ -3,8 +3,8 @@
 from typing import Any, Dict, Generator
 from unittest import mock
 
-import pytest
 import numpy as np
+import pytest
 from faster_whisper import WhisperModel
 
 
@@ -20,7 +20,7 @@ def mock_whisper_model() -> Generator[mock.Mock, None, None]:
                 "language_probability": 0.99,
                 "start": 0.0,
                 "end": 2.5,
-                "no_speech_prob": 0.1
+                "no_speech_prob": 0.1,
             }
         ]
         yield mock_model.return_value
@@ -61,7 +61,7 @@ def test_transcription_request() -> Dict[str, Any]:
         "audio_data": b"mock audio data",
         "sample_rate": 16000,
         "language": "en",
-        "format": "wav"
+        "format": "wav",
     }
 
 
@@ -81,9 +81,9 @@ def test_transcription_response() -> Dict[str, Any]:
                 "text": "hey atlas, what's the weather",
                 "start": 0.0,
                 "end": 2.5,
-                "no_speech_prob": 0.1
+                "no_speech_prob": 0.1,
             }
-        ]
+        ],
     }
 
 
@@ -96,7 +96,7 @@ def mock_http_client() -> Generator[mock.Mock, None, None]:
         mock_response.json.return_value = {
             "transcript": "hey atlas, what's the weather",
             "confidence": 0.95,
-            "language": "en"
+            "language": "en",
         }
         mock_client.return_value.post.return_value = mock_response
         yield mock_client.return_value

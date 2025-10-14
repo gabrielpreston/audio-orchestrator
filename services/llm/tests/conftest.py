@@ -3,8 +3,8 @@
 from typing import Any, Dict, Generator
 from unittest import mock
 
-import pytest
 import httpx
+import pytest
 
 
 @pytest.fixture
@@ -16,14 +16,10 @@ def mock_llama_model() -> Generator[mock.Mock, None, None]:
             "choices": [
                 {
                     "text": "The weather is sunny today with a temperature of 75°F.",
-                    "finish_reason": "stop"
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 15,
-                "total_tokens": 25
-            }
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         }
         yield mock_model.return_value
 
@@ -39,16 +35,12 @@ def mock_http_client() -> Generator[mock.Mock, None, None]:
                 {
                     "message": {
                         "content": "The weather is sunny today with a temperature of 75°F.",
-                        "role": "assistant"
+                        "role": "assistant",
                     },
-                    "finish_reason": "stop"
+                    "finish_reason": "stop",
                 }
             ],
-            "usage": {
-                "prompt_tokens": 10,
-                "completion_tokens": 15,
-                "total_tokens": 25
-            }
+            "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         }
         mock_client.return_value.post.return_value = mock_response
         yield mock_client.return_value
@@ -58,15 +50,10 @@ def mock_http_client() -> Generator[mock.Mock, None, None]:
 def test_chat_request() -> Dict[str, Any]:
     """Provide test chat request data."""
     return {
-        "messages": [
-            {
-                "role": "user",
-                "content": "What's the weather like today?"
-            }
-        ],
+        "messages": [{"role": "user", "content": "What's the weather like today?"}],
         "model": "llama-2-7b",
         "temperature": 0.7,
-        "max_tokens": 100
+        "max_tokens": 100,
     }
 
 
@@ -78,17 +65,13 @@ def test_chat_response() -> Dict[str, Any]:
             {
                 "message": {
                     "content": "The weather is sunny today with a temperature of 75°F.",
-                    "role": "assistant"
+                    "role": "assistant",
                 },
-                "finish_reason": "stop"
+                "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": 10,
-            "completion_tokens": 15,
-            "total_tokens": 25
-        },
-        "model": "llama-2-7b"
+        "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
+        "model": "llama-2-7b",
     }
 
 
@@ -99,7 +82,7 @@ def test_completion_request() -> Dict[str, Any]:
         "prompt": "The weather today is",
         "model": "llama-2-7b",
         "temperature": 0.7,
-        "max_tokens": 50
+        "max_tokens": 50,
     }
 
 
@@ -107,18 +90,9 @@ def test_completion_request() -> Dict[str, Any]:
 def test_completion_response() -> Dict[str, Any]:
     """Provide test completion response data."""
     return {
-        "choices": [
-            {
-                "text": "sunny with a temperature of 75°F.",
-                "finish_reason": "stop"
-            }
-        ],
-        "usage": {
-            "prompt_tokens": 5,
-            "completion_tokens": 10,
-            "total_tokens": 15
-        },
-        "model": "llama-2-7b"
+        "choices": [{"text": "sunny with a temperature of 75°F.", "finish_reason": "stop"}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+        "model": "llama-2-7b",
     }
 
 
@@ -141,7 +115,7 @@ def test_tts_request() -> Dict[str, Any]:
         "text": "The weather is sunny today",
         "voice": "en_US-amy-medium",
         "format": "wav",
-        "sample_rate": 22050
+        "sample_rate": 22050,
     }
 
 

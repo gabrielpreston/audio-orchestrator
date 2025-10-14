@@ -10,6 +10,7 @@ import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+
 # from .config import load_config  # Unused import
 
 # Configure logging

@@ -50,6 +50,7 @@ from typing import (
 
 from services.common.logging import get_logger
 
+
 logger = get_logger(__name__)
 
 T = TypeVar("T")
