@@ -58,11 +58,10 @@ jobs:
           # To override (e.g., for forks), uncomment the next line and comment out the line above:
           # GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
-      - name: Authenticate gh
+      - name: Verify gh auth
         env:
           GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
-          echo "$GITHUB_TOKEN" | gh auth login --with-token
           gh auth status
           # ensure git pushes use gh auth
           gh auth setup-git
