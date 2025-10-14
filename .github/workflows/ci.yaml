@@ -63,11 +63,12 @@ jobs:
     name: Lint
     needs: changes
     if: |
-      needs.changes.outputs.python == 'true' ||
-      needs.changes.outputs.docker == 'true' ||
-      needs.changes.outputs.docs == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.python == 'true' ||
+       needs.changes.outputs.docker == 'true' ||
+       needs.changes.outputs.docs == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
     runs-on: ubuntu-latest
     environment: discord-voice-lab
     timeout-minutes: 15
@@ -122,11 +123,13 @@ jobs:
 
   test:
     name: Tests
-    needs: changes
+    needs: [changes, lint]
     if: |
-      needs.changes.outputs.python == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.python == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -162,11 +165,13 @@ jobs:
 
   docker-smoke:
     name: Docker smoke
-    needs: changes
+    needs: [changes, lint]
     if: |
-      needs.changes.outputs.docker == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.docker == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -189,13 +194,15 @@ jobs:
             docker-smoke.log
             docker-compose.config.yaml
 
-  security:
-    name: Security Scan
-    needs: changes
+  security-scan:
+    name: Security scan
+    needs: [changes, lint]
     if: |
-      needs.changes.outputs.security == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.security == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
