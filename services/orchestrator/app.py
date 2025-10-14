@@ -95,7 +95,7 @@ class TranscriptRequest(BaseModel):
 
 
 @app.post("/mcp/transcript")
-async def handle_transcript(request: TranscriptRequest):
+async def handle_transcript(request: TranscriptRequest) -> Dict[str, Any]:
     """Handle transcript from Discord service."""
     if not _ORCHESTRATOR:
         return {"error": "Orchestrator not initialized"}
@@ -133,7 +133,7 @@ async def handle_transcript(request: TranscriptRequest):
 
 
 @app.get("/mcp/tools")
-async def list_mcp_tools():
+async def list_mcp_tools() -> Dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -146,7 +146,7 @@ async def list_mcp_tools():
 
 
 @app.get("/mcp/connections")
-async def list_mcp_connections():
+async def list_mcp_connections() -> Dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -155,7 +155,7 @@ async def list_mcp_connections():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, Any]:
     """Health check endpoint with MCP status."""
     mcp_status = {}
     if _MCP_MANAGER:
@@ -171,7 +171,7 @@ async def health_check():
 
 
 @app.get("/audio/{filename}")
-async def serve_audio(filename: str):
+async def serve_audio(filename: str) -> FileResponse:
     """Serve audio files for Discord playback."""
     try:
         import glob

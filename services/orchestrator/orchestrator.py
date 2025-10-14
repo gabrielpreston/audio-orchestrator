@@ -24,8 +24,8 @@ class Orchestrator:
     """Core orchestration logic for voice assistant interactions."""
 
     def __init__(
-        self, 
-        mcp_manager: MCPManager, 
+        self,
+        mcp_manager: MCPManager,
         llm_base_url: Optional[str] = None,
         tts_base_url: Optional[str] = None
     ):
@@ -371,7 +371,7 @@ class Orchestrator:
             choices = result.get("choices", [])
             if choices:
                 content = choices[0].get("message", {}).get("content", "")
-                
+
                 # Clean the response content to remove special tokens
                 if content:
                     import re

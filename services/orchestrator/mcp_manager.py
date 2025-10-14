@@ -79,7 +79,7 @@ class MCPManager:
                     self._http_client = httpx.AsyncClient(timeout=30.0)
                 return self._http_client
 
-            async def list_tools(self):
+            async def list_tools(self) -> List[Dict[str, Any]]:
                 """Return Discord MCP tools that can be called via HTTP."""
                 return [
                     {
@@ -110,7 +110,7 @@ class MCPManager:
                     },
                 ]
 
-            async def call_tool(self, name, arguments):
+            async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
                 """Call Discord tool via HTTP."""
                 try:
                     client = await self._get_http_client()
@@ -138,7 +138,7 @@ class MCPManager:
                     )
                     return {"error": str(exc)}
 
-            async def disconnect(self):
+            async def disconnect(self) -> None:
                 """Clean up HTTP client."""
                 if self._http_client:
                     await self._http_client.aclose()

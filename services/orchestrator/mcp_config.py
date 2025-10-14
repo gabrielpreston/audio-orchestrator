@@ -143,7 +143,7 @@ class MCPConfig:
         # Supports ${VAR} and $VAR syntax
         import re
 
-        def replace_var(match):
+        def replace_var(match) -> str:
             var_name = match.group(1) or match.group(2)
             return os.getenv(var_name, match.group(0))
 
