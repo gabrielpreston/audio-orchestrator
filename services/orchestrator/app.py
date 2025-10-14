@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import os
-import time
 from typing import Any, Dict, Optional
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from services.common.logging import configure_logging, get_logger

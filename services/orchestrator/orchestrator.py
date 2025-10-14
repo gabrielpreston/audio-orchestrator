@@ -27,7 +27,7 @@ class Orchestrator:
         self,
         mcp_manager: MCPManager,
         llm_base_url: Optional[str] = None,
-        tts_base_url: Optional[str] = None
+        tts_base_url: Optional[str] = None,
     ):
         self.mcp_manager = mcp_manager
         self.llm_base_url = llm_base_url
@@ -375,6 +375,7 @@ class Orchestrator:
                 # Clean the response content to remove special tokens
                 if content:
                     import re
+
                     # Remove various special tokens and formatting
                     content = re.sub(
                         r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]", "", content
