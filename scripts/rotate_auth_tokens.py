@@ -24,12 +24,14 @@ ENV_FILES = {
     "services/discord/.env.service": "Discord service configuration",
     "services/stt/.env.service": "STT service configuration", 
     "services/llm/.env.service": "LLM service configuration",
+    "services/orchestrator/.env.service": "Orchestrator service configuration",
     "services/tts/.env.service": "TTS service configuration",
 }
 
 # AUTH_TOKEN variables to rotate
 AUTH_TOKENS = {
     "ORCH_AUTH_TOKEN": "Bearer token for orchestrator APIs",
+    "LLM_AUTH_TOKEN": "Bearer token for LLM service APIs",
     "TTS_AUTH_TOKEN": "Bearer token required for synthesis calls",
 }
 
