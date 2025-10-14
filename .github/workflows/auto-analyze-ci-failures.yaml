@@ -237,28 +237,6 @@ jobs:
           MODEL: gpt-5
           BRANCH_PREFIX: ci-fix
         run: |
-          set -euo pipefail
-          echo "Running Cursor Agent to analyze failure..."
-          
-          # Check if Cursor API key is set
-          if [ -z "${CURSOR_API_KEY:-}" ]; then
-            echo "ERROR: CURSOR_API_KEY is not set"
-            exit 1
-          fi
-          
-          # Check if GitHub token is set
-          if [ -z "${GITHUB_TOKEN:-}" ]; then
-            echo "ERROR: GITHUB_TOKEN is not set"
-            exit 1
-          fi
-          
-          # Authenticate cursor-agent with API key
-          echo "Authenticating cursor-agent..."
-          cursor-agent auth --api-key "${CURSOR_API_KEY}" || {
-            echo "ERROR: Failed to authenticate cursor-agent"
-            exit 1
-          }
-                    
           # Run the analysis with error handling
           echo "Starting failure analysis..."
           cursor-agent -p "
