@@ -7,7 +7,7 @@ services:
       dockerfile: services/discord/Dockerfile
     image: discord-voice-bot:latest
     ports:
-      - "8001:8001"
+      - "8009:8001"
     env_file:
       - ./.env.common
       - ./.env.docker
@@ -26,7 +26,7 @@ services:
       dockerfile: services/stt/Dockerfile
     image: discord-voice-stt:latest
     ports:
-      - "9000:9000"
+      - "8011:9000"
     env_file:
       - ./.env.common
       - ./.env.docker
@@ -45,7 +45,7 @@ services:
       - ./.env.docker
       - ./services/llm/.env.service
     ports:
-      - "8000:8000"
+      - "8017:8000"
     volumes:
       - ./services/models/llm:/app/models:ro
       - ./debug:/app/debug
@@ -61,7 +61,7 @@ services:
       - ./.env.docker
       - ./services/orchestrator/.env.service
     ports:
-      - "8001:8000"
+      - "8023:8000"
     volumes:
       - ./mcp.json:/app/mcp.json:ro
       - ./services/discord:/app/services/discord:ro
@@ -81,7 +81,7 @@ services:
       - ./.env.docker
       - ./services/tts/.env.service
     ports:
-      - "7000:7000"
+      - "8027:7000"
     volumes:
       - ./services/models/tts:/app/models:ro
       - ./debug:/app/debug
