@@ -16,6 +16,8 @@ scipy==1.11.4
 av==11.0.0
 
 # WebRTC and networking
+# Pin PyAV to a wheel-provided version so pip-audit can resolve
+# without requiring system FFmpeg dev libraries in CI.
 aiortc==1.6.0
 # cryptography 41.0.8 does not publish wheels for Python 3.11 on manylinux; use 42.0.7+.
 cryptography==42.0.7
