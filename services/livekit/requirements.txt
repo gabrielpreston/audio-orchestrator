@@ -12,13 +12,12 @@ librosa==0.10.1
 soundfile==0.12.1
 numpy==1.24.3
 scipy==1.11.4
-# Align PyAV with aiortc 1.6.0 (requires av < 12)
-av==11.0.0
+# Align PyAV with aiortc and other services to avoid resolver conflicts in pip-audit
+av==16.0.1
 
 # WebRTC and networking
 # Pin PyAV to a wheel-provided version so pip-audit can resolve
 # without requiring system FFmpeg dev libraries in CI.
-av==10.0.0
 aiortc==1.6.0
 # cryptography 41.0.8 does not publish wheels for Python 3.11 on manylinux; use 42.0.7+.
 cryptography==42.0.7
