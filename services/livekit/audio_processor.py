@@ -9,8 +9,8 @@ import soundfile as sf
 from livekit import rtc
 from livekit.agents import AutoSubscribe, WorkerOptions, cli, llm, stt, tts, vad, worker
 
-from ..common.audio import AudioProcessor
-from ..common.audio_contracts import AudioFrame, CANONICAL_SAMPLE_RATE, CANONICAL_FRAME_MS
+from services.common.audio import AudioProcessor
+from services.common.audio_contracts import AudioFrame, CANONICAL_SAMPLE_RATE, CANONICAL_FRAME_MS
 
 
 class LiveKitAudioProcessor:

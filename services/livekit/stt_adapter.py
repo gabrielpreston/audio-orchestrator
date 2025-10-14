@@ -5,8 +5,8 @@ import json
 from typing import Dict, List, Optional
 
 import httpx
-from ..common.audio_contracts import AudioFrame, AudioSegment, STTAdapter, WordTiming
-from ..common.logging import get_logger
+from services.common.audio_contracts import AudioFrame, AudioSegment, STTAdapter, WordTiming
+from services.common.logging import get_logger
 
 
 class LiveKitSTTAdapter(STTAdapter):

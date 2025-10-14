@@ -5,8 +5,8 @@ import json
 from typing import Dict, List, Optional
 
 import httpx
-from ..common.audio_contracts import TTSAdapter
-from ..common.logging import get_logger
+from services.common.audio_contracts import TTSAdapter
+from services.common.logging import get_logger
 
 
 class LiveKitTTSAdapter(TTSAdapter):

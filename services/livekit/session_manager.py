@@ -5,7 +5,7 @@ import time
 from typing import Dict, Optional, Set
 
 from livekit import rtc
-from ..common.audio_contracts import (
+from services.common.audio_contracts import (
     SessionState,
     EndpointingState,
     PlaybackAction,
@@ -28,7 +28,7 @@ from ..common.audio_contracts import (
     AudioSegment,
     WordTiming
 )
-from ..common.logging import get_logger
+from services.common.logging import get_logger
 
 
 class MobileSession:

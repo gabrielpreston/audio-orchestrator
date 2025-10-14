@@ -13,7 +13,7 @@ from .audio_processor import LiveKitAudioProcessor
 from .stt_adapter import LiveKitSTTAdapter
 from .tts_adapter import LiveKitTTSAdapter
 from .session_manager import SessionManager, MobileSession
-from ..common.audio_contracts import (
+from services.common.audio_contracts import (
     AudioFrame,
     AudioSegment,
     ControlMessage,
@@ -26,7 +26,7 @@ from ..common.audio_contracts import (
     SessionState,
     EndpointingState
 )
-from ..common.logging import configure_logging, get_logger
+from services.common.logging import configure_logging, get_logger
 
 
 class MobileVoiceAgent:
