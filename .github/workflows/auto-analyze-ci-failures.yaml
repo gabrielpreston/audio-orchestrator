@@ -30,19 +30,115 @@ jobs:
 
       - name: Install Cursor CLI
         run: |
-          curl -fsS https://cursor.com/install | bash
-          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          set -euo pipefail
+          echo "Installing Cursor CLI..."
+          
+          # Download and install Cursor CLI with retry logic
+          for attempt in {1..3}; do
+            echo "Attempt $attempt/3: Installing Cursor CLI"
+            if curl -fsS https://cursor.com/install | bash; then
+              echo "Cursor CLI installation successful"
+              break
+            else
+              echo "Cursor CLI installation failed on attempt $attempt"
+              if [ $attempt -eq 3 ]; then
+                echo "All installation attempts failed"
+                exit 1
+              fi
+              echo "Retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Verify installation and add to PATH
+          if [ -f "$HOME/.cursor/bin/cursor" ]; then
+            echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+            echo "Cursor CLI added to PATH"
+          else
+            echo "ERROR: Cursor CLI not found after installation"
+            exit 1
+          fi
+          
+          # Verify cursor command works
+          export PATH="$HOME/.cursor/bin:$PATH"
+          cursor --version || {
+            echo "ERROR: Cursor CLI not working after installation"
+            exit 1
+          }
 
       - name: Install GitHub CLI
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gh
-          gh --version
+          set -euo pipefail
+          echo "Installing GitHub CLI..."
+          
+          # Update package lists with retry logic
+          for attempt in {1..3}; do
+            echo "Attempt $attempt/3: Updating package lists"
+            if sudo apt-get update; then
+              echo "Package lists updated successfully"
+              break
+            else
+              echo "Package update failed on attempt $attempt"
+              if [ $attempt -eq 3 ]; then
+                echo "All package update attempts failed"
+                exit 1
+              fi
+              echo "Retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Install GitHub CLI with retry logic
+          for attempt in {1..3}; do
+            echo "Attempt $attempt/3: Installing GitHub CLI"
+            if sudo apt-get install -y gh; then
+              echo "GitHub CLI installation successful"
+              break
+            else
+              echo "GitHub CLI installation failed on attempt $attempt"
+              if [ $attempt -eq 3 ]; then
+                echo "All GitHub CLI installation attempts failed"
+                exit 1
+              fi
+              echo "Retrying in 5 seconds..."
+              sleep 5
+            fi
+          done
+          
+          # Verify installation
+          gh --version || {
+            echo "ERROR: GitHub CLI not working after installation"
+            exit 1
+          }
+          echo "GitHub CLI installation verified"
 
       - name: Configure git identity
         run: |
-          git config user.name "Cursor Agent"
-          git config user.email "gpreston@gmail.com"
+          set -euo pipefail
+          echo "Configuring git identity..."
+          
+          # Configure git user
+          git config user.name "Cursor Agent" || {
+            echo "ERROR: Failed to set git user.name"
+            exit 1
+          }
+          
+          git config user.email "gpreston@gmail.com" || {
+            echo "ERROR: Failed to set git user.email"
+            exit 1
+          }
+          
+          # Verify configuration
+          echo "Git configuration:"
+          git config user.name
+          git config user.email
+          
+          # Verify git is working
+          git status || {
+            echo "ERROR: Git not working properly"
+            exit 1
+          }
+          echo "Git identity configuration verified"
 
       # If your CI is triggered by PRs from forks, the default GITHUB_TOKEN is limited.
       # Create a fine-grained PAT with repo permissions and store it as GH_PAT in repo secrets,
@@ -62,18 +158,71 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
-          gh auth status
-          # ensure git pushes use gh auth
-          gh auth setup-git
+          set -euo pipefail
+          echo "Verifying GitHub CLI authentication..."
+          
+          # Check if token is set
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            echo "ERROR: GITHUB_TOKEN is not set"
+            exit 1
+          fi
+          
+          # Verify gh auth status
+          gh auth status || {
+            echo "ERROR: GitHub CLI authentication failed"
+            exit 1
+          }
+          
+          # Setup git authentication
+          gh auth setup-git || {
+            echo "ERROR: Failed to setup git authentication"
+            exit 1
+          }
+          
+          echo "GitHub CLI authentication verified"
 
       - name: Verify API access and repo state
         env:
           GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
-          gh api repos/${{ github.repository }} >/dev/null
-          gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} >/dev/null
-          git remote -v
-          gh repo view --json name,defaultBranchRef
+          set -euo pipefail
+          echo "Verifying API access and repository state..."
+          
+          # Check if token is set
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            echo "ERROR: GITHUB_TOKEN is not set"
+            exit 1
+          fi
+          
+          # Verify repository API access
+          echo "Testing repository API access..."
+          gh api repos/${{ github.repository }} >/dev/null || {
+            echo "ERROR: Failed to access repository API"
+            exit 1
+          }
+          
+          # Verify workflow run API access
+          echo "Testing workflow run API access..."
+          gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} >/dev/null || {
+            echo "ERROR: Failed to access workflow run API"
+            exit 1
+          }
+          
+          # Verify git remote configuration
+          echo "Checking git remote configuration..."
+          git remote -v || {
+            echo "ERROR: Failed to get git remote information"
+            exit 1
+          }
+          
+          # Verify repository information
+          echo "Checking repository information..."
+          gh repo view --json name,defaultBranchRef || {
+            echo "ERROR: Failed to get repository information"
+            exit 1
+          }
+          
+          echo "API access and repository state verified"
 
       - name: Run Cursor Agent to analyze failure
         env:
@@ -88,10 +237,37 @@ jobs:
           MODEL: gpt-5
           BRANCH_PREFIX: ci-fix
         run: |
-          cursor-agent --version || true
-          cursor-agent status || true
-
-          # Use plain shell variables inside the same step
+          set -euo pipefail
+          echo "Running Cursor Agent to analyze failure..."
+          
+          # Check if Cursor API key is set
+          if [ -z "${CURSOR_API_KEY:-}" ]; then
+            echo "ERROR: CURSOR_API_KEY is not set"
+            exit 1
+          fi
+          
+          # Check if GitHub token is set
+          if [ -z "${GITHUB_TOKEN:-}" ]; then
+            echo "ERROR: GITHUB_TOKEN is not set"
+            exit 1
+          fi
+          
+          # Verify cursor-agent is available
+          echo "Checking cursor-agent availability..."
+          cursor-agent --version || {
+            echo "ERROR: cursor-agent command not found or not working"
+            exit 1
+          }
+          
+          # Check cursor-agent status
+          echo "Checking cursor-agent status..."
+          cursor-agent status || {
+            echo "ERROR: cursor-agent status check failed"
+            exit 1
+          }
+          
+          # Run the analysis with error handling
+          echo "Starting failure analysis..."
           cursor-agent -p "
             You are operating in a GitHub Actions runner.
 
@@ -108,4 +284,9 @@ jobs:
             - Create (or update) a branch named \"${BRANCH_PREFIX}-<short-desc>\" off the head of the failed workflow's branch.
             - Make edits, commit, push in that branch.
             - Post a comment on the corresponding Pull Request (or commit) with a summary of the fix and a link to create a PR if needed.
-          " --model "$MODEL" --output-format=text
+          " --model "$MODEL" --output-format=text || {
+            echo "ERROR: Cursor Agent analysis failed"
+            exit 1
+          }
+          
+          echo "Cursor Agent analysis completed successfully"
