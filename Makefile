@@ -105,6 +105,30 @@ docker-build: ## Build or rebuild images for the compose stack
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
+docker-build-nocache: ## Force rebuild all images without using cache
+	@echo -e "$(COLOR_GREEN)→ Building docker images (no cache)$(COLOR_OFF)"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --no-cache --parallel
+
+docker-build-service: ## Build a specific service (set SERVICE=name)
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|llm|orchestrator|tts)"; exit 1; fi
+	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
+
+docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
+	@echo -e "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)"
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
+	@docker buildx prune -f || true
+	@echo -e "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)"
+
+docker-validate: ## Validate Dockerfiles with hadolint
+	@command -v hadolint >/dev/null 2>&1 || { \
+		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)"
+	@hadolint $(DOCKERFILES)
+	@echo -e "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)"
+
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@echo -e "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
@@ -305,9 +329,12 @@ security: ## Run security scanning with pip-audit
 
 lint-container: lint-image ## Build lint container (if needed) and run lint suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
-	@echo "Linting temporarily disabled for CI compatibility"
-	@echo "All done! ✨ 🍰 ✨"
-	@echo "48 files would be left unchanged."
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE)
 
 lint-fix: lint-image ## Format sources using the lint container toolchain
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }

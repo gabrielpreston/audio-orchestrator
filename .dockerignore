@@ -5,6 +5,7 @@
 # Local build artifacts and logs
 bin
 logs
+debug
 *.log
 *.pid
 
@@ -14,6 +15,15 @@ logs
 venv
 __pycache__
 *.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Test artifacts and coverage
+htmlcov
+coverage.xml
+junit.xml
+.wavs
 
 # Model / data files (treat large model dirs as large)
 models
@@ -39,7 +49,8 @@ Thumbs.db
 .env.local
 .env.*.local
 
+# Service-specific exclusions
 services/llm/models/
 services/llm/models-src/
-.wavs/
+services/tests/
 *.gguf
