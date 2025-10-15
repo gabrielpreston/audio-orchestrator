@@ -13,7 +13,7 @@ class CorrelationIDGenerator:
     """Standardized correlation ID generator for voice pipeline services."""
 
     @staticmethod
-    def generate_discord_correlation_id(user_id: int, guild_id: Optional[int] = None) -> str:
+    def generate_discord_correlation_id(user_id: int, guild_id: int | None = None) -> str:
         """
         Generate a correlation ID for Discord voice interactions.
 
@@ -34,7 +34,7 @@ class CorrelationIDGenerator:
         return f"discord-{user_id}{guild_part}-{timestamp_ms}"
 
     @staticmethod
-    def generate_stt_correlation_id(source_correlation_id: Optional[str] = None) -> str:
+    def generate_stt_correlation_id(source_correlation_id: str | None = None) -> str:
         """
         Generate a correlation ID for STT service.
 
@@ -56,7 +56,7 @@ class CorrelationIDGenerator:
         return f"stt-{timestamp_ms}"
 
     @staticmethod
-    def generate_tts_correlation_id(source_correlation_id: Optional[str] = None) -> str:
+    def generate_tts_correlation_id(source_correlation_id: str | None = None) -> str:
         """
         Generate a correlation ID for TTS service.
 
@@ -79,7 +79,7 @@ class CorrelationIDGenerator:
 
     @staticmethod
     def generate_orchestrator_correlation_id(
-        source_correlation_id: Optional[str] = None, user_id: Optional[str] = None
+        source_correlation_id: str | None = None, user_id: str | None = None
     ) -> str:
         """
         Generate a correlation ID for orchestrator service.
@@ -123,7 +123,7 @@ class CorrelationIDGenerator:
         return f"mcp-{client_name}-{tool_name}-{source_correlation_id}"
 
     @staticmethod
-    def generate_manual_correlation_id(service: str, context: Optional[str] = None) -> str:
+    def generate_manual_correlation_id(service: str, context: str | None = None) -> str:
         """
         Generate a correlation ID for manual operations.
 
@@ -251,23 +251,23 @@ class CorrelationIDGenerator:
 
 
 # Convenience functions for backward compatibility
-def generate_discord_correlation_id(user_id: int, guild_id: Optional[int] = None) -> str:
+def generate_discord_correlation_id(user_id: int, guild_id: int | None = None) -> str:
     """Generate a Discord correlation ID."""
     return CorrelationIDGenerator.generate_discord_correlation_id(user_id, guild_id)
 
 
-def generate_stt_correlation_id(source_correlation_id: Optional[str] = None) -> str:
+def generate_stt_correlation_id(source_correlation_id: str | None = None) -> str:
     """Generate an STT correlation ID."""
     return CorrelationIDGenerator.generate_stt_correlation_id(source_correlation_id)
 
 
-def generate_tts_correlation_id(source_correlation_id: Optional[str] = None) -> str:
+def generate_tts_correlation_id(source_correlation_id: str | None = None) -> str:
     """Generate a TTS correlation ID."""
     return CorrelationIDGenerator.generate_tts_correlation_id(source_correlation_id)
 
 
 def generate_orchestrator_correlation_id(
-    source_correlation_id: Optional[str] = None, user_id: Optional[str] = None
+    source_correlation_id: str | None = None, user_id: str | None = None
 ) -> str:
     """Generate an orchestrator correlation ID."""
     return CorrelationIDGenerator.generate_orchestrator_correlation_id(
@@ -284,7 +284,7 @@ def generate_mcp_correlation_id(
     )
 
 
-def generate_manual_correlation_id(service: str, context: Optional[str] = None) -> str:
+def generate_manual_correlation_id(service: str, context: str | None = None) -> str:
     """Generate a manual correlation ID."""
     return CorrelationIDGenerator.generate_manual_correlation_id(service, context)
 

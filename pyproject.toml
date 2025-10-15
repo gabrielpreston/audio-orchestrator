@@ -94,6 +94,9 @@ ignore = [
     "TCH003", # move standard library import into TYPE_CHECKING block
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"services/common/config_examples.py" = ["T201"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["services"]
 known-third-party = [
