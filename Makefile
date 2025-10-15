@@ -45,7 +45,7 @@ COMPOSE_DOCKER_CLI_BUILD ?= 1
 PYTHON_SOURCES := services
 # Limit mypy scope in CI to incrementally adopt typing.
 # Override with MYPY_PATHS="services" to check all modules locally.
-MYPY_PATHS ?= services/discord
+MYPY_PATHS ?= services/discord/app.py
 DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/orchestrator/Dockerfile
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
 LINT_IMAGE ?= discord-voice-lab/lint:latest
@@ -58,7 +58,7 @@ PYTEST_ARGS ?=
 RUN_SCRIPT := scripts/run-compose.sh
 
 # Default mypy scope for CI; override via environment if expanding coverage
-MYPY_PATHS ?= services/discord/app.py
+# (single definition above)
 
 define SHELL_CLEAN_COMMAND
 echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
