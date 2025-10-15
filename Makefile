@@ -57,6 +57,9 @@ TEST_WORKDIR := /workspace
 PYTEST_ARGS ?=
 RUN_SCRIPT := scripts/run-compose.sh
 
+# Default mypy scope for CI; override via environment if expanding coverage
+MYPY_PATHS ?= services/discord/app.py
+
 define SHELL_CLEAN_COMMAND
 echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
 if [ -d "logs" ]; then
@@ -318,17 +321,7 @@ typecheck: ## Run type checking with mypy
 security: ## Run security scanning with pip-audit
 	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
 	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
-	@mkdir -p security-reports
-	@for req in services/*/requirements.txt; do \
-		report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; \
-		echo "Auditing $$req"; \
-		pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; \
-	done
-	@if [ "$${audit_status:-0}" -ne 0 ]; then \
-		echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; \
-		exit $$audit_status; \
-	fi
-	@echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
+	@mkdir -p security-reports; audit_status=0; for req in services/*/requirements.txt; do report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; echo "Auditing $$req"; pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; done; if [ "$$audit_status" -ne 0 ]; then echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; exit $$audit_status; fi; echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
 
 lint-container: lint-image ## Build lint container (if needed) and run lint suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
@@ -357,16 +350,15 @@ lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdow
 
 lint-fix-local: lint-fix-python lint-fix-yaml lint-fix-markdown ## Apply auto-fixes using locally installed tooling
 
-lint-python: ## Run Python format and import order checks (black, isort)
+lint-python: ## Run Python format and import order checks (black, isort, ruff)
 	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
 	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
 	@black --check $(PYTHON_SOURCES)
 	@isort --check-only $(PYTHON_SOURCES)
+	@ruff check $(PYTHON_SOURCES)
 
-typecheck: ## Run Python static type checks (mypy)
-	@echo "→ Running type checking"
-	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
-	@mypy $(MYPY_PATHS)
+
 
 lint-dockerfiles: ## Lint service Dockerfiles with hadolint
 	@command -v hadolint >/dev/null 2>&1 || { \
