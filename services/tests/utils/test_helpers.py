@@ -1,7 +1,7 @@
 """Test helper utilities for discord-voice-lab."""
 
 import json
-import random
+import secrets
 import time
 from pathlib import Path
 from typing import Any
@@ -68,7 +68,7 @@ def create_mock_correlation_id(prefix: str = "test") -> str:
         Mock correlation ID
     """
     timestamp = int(time.time() * 1000)
-    random_part = random.randint(1000, 9999)
+    random_part = secrets.randbelow(9000) + 1000
     return f"{prefix}-{timestamp}-{random_part}"
 
 
@@ -90,7 +90,7 @@ def create_mock_discord_message(
         Mock Discord message data
     """
     return {
-        "id": random.randint(100000000000000000, 999999999999999999),
+        "id": secrets.randbelow(900000000000000000) + 100000000000000000,
         "content": content,
         "author": {"id": author_id, "username": "testuser", "discriminator": "0001"},
         "channel_id": channel_id,
@@ -138,7 +138,7 @@ def create_mock_voice_state(
         "mute": mute,
         "self_deaf": self_deaf,
         "self_mute": self_mute,
-        "session_id": f"session_{random.randint(100000, 999999)}",
+        "session_id": f"session_{secrets.randbelow(900000) + 100000}",
     }
 
 
