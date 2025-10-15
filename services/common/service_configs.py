@@ -864,7 +864,7 @@ __all__ = [
     "MCPConfig",
     "OrchestratorConfig",
     "STTConfig",
-    "TelemetryConfig",
     "TTSConfig",
+    "TelemetryConfig",
     "WakeConfig",
 ]

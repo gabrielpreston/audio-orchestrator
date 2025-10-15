@@ -234,7 +234,7 @@ async def _transcribe_request(
             segments_list = raw_segments
         else:
             try:
-                segments_list = list(cast(Iterable[Any], raw_segments))
+                segments_list = list(cast("Iterable[Any]", raw_segments))
             except TypeError:
                 segments_list = [raw_segments]
         proc_end = time.time()

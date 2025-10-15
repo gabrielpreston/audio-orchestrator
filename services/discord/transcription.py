@@ -177,4 +177,4 @@ def _pcm_to_wav(
         return buffer.getvalue()
 
 
-__all__ = ["TranscriptionClient", "TranscriptResult"]
+__all__ = ["TranscriptResult", "TranscriptionClient"]
