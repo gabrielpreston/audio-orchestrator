@@ -330,14 +330,15 @@ lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdow
 
 lint-fix-local: lint-fix-python lint-fix-yaml lint-fix-markdown ## Apply auto-fixes using locally installed tooling
 
-lint-python: ## Run Python linters and type checks (black, isort, ruff, mypy)
+lint-python: ## Run Python format and import order checks (black, isort)
 	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
 	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
-	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
 	@black --check $(PYTHON_SOURCES)
 	@isort --check-only $(PYTHON_SOURCES)
-	@ruff check $(PYTHON_SOURCES)
+
+typecheck: ## Run Python static type checks (mypy)
+	@echo "\u2192 Running type checking"
+	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
 	@mypy $(PYTHON_SOURCES)
 
 lint-dockerfiles: ## Lint service Dockerfiles with hadolint

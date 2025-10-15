@@ -633,7 +633,7 @@ __all__ = [
     "create_field_definition",
     "load_service_config",
     "validate_non_negative",
-    "validate_positive",
     "validate_port",
+    "validate_positive",
     "validate_url",
 ]

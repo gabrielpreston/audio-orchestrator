@@ -352,4 +352,4 @@ def rms_from_pcm(pcm: bytes) -> float:
     return processor.calculate_rms(pcm, 2)
 
 
-__all__ = ["AudioPipeline", "PCMFrame", "AudioSegment", "Accumulator", "rms_from_pcm"]
+__all__ = ["Accumulator", "AudioPipeline", "AudioSegment", "PCMFrame", "rms_from_pcm"]

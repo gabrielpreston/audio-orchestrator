@@ -31,10 +31,8 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
             value = int(raw)
         except ValueError:
             pass
-    if value < minimum:
-        value = minimum
-    if value > maximum:
-        value = maximum
+    value = max(value, minimum)
+    value = min(value, maximum)
     return value
 
 
@@ -46,10 +44,8 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
             value = float(raw)
         except ValueError:
             pass
-    if value < minimum:
-        value = minimum
-    if value > maximum:
-        value = maximum
+    value = max(value, minimum)
+    value = min(value, maximum)
     return value
 
 

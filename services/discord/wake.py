@@ -160,4 +160,4 @@ class WakeDetector:
         return utils.default_process(value) or ""
 
 
-__all__ = ["WakeDetector", "WakeDetectionResult"]
+__all__ = ["WakeDetectionResult", "WakeDetector"]
