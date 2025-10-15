@@ -31,7 +31,9 @@ class StdioMCPClient:
         self._session: ClientSession | None = None
         self._client = None
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._notification_handlers: list[Callable[[str, dict[str, Any]], Awaitable[None]]] = []
+        self._notification_handlers: list[
+            Callable[[str, dict[str, Any]], Awaitable[None]]
+        ] = []
 
     async def connect(self) -> None:
         """Connect to the MCP server subprocess."""

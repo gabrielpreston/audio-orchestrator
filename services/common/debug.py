@@ -21,7 +21,9 @@ from services.common.logging import get_logger
 class DebugFileManager:
     """Manages debug file saving with correlation-based organization."""
 
-    def __init__(self, base_dir: str = "/app/debug", enabled_env_var: str = "DEBUG_SAVE"):
+    def __init__(
+        self, base_dir: str = "/app/debug", enabled_env_var: str = "DEBUG_SAVE"
+    ):
         """
         Initialize the debug file manager.
 
@@ -60,7 +62,9 @@ class DebugFileManager:
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             debug_log_path = correlation_dir / "debug_log.json"
 
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # Include milliseconds
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]  # Include milliseconds
 
             # Create log entry
             log_entry = {
@@ -76,7 +80,10 @@ class DebugFileManager:
                 try:
                     with open(debug_log_path, encoding="utf-8") as f:
                         existing_data = json.load(f)
-                        if isinstance(existing_data, dict) and "entries" in existing_data:
+                        if (
+                            isinstance(existing_data, dict)
+                            and "entries" in existing_data
+                        ):
                             existing_entries = existing_data["entries"]
                         elif isinstance(existing_data, list):
                             existing_entries = existing_data
@@ -190,7 +197,9 @@ class DebugFileManager:
 
             # Convert raw PCM to WAV if requested
             if convert_to_wav:
-                logger = get_logger("debug", correlation_id=correlation_id, service_name="common")
+                logger = get_logger(
+                    "debug", correlation_id=correlation_id, service_name="common"
+                )
                 logger.info(
                     "debug.audio_conversion_start",
                     correlation_id=correlation_id,
@@ -281,7 +290,9 @@ Sample Rate: {sample_rate} Hz"""
                 entry_type=f"metadata_{filename_prefix}",
                 content=json_content,
                 metadata={
-                    "data_keys": list(data.keys()) if isinstance(data, dict) else "non-dict",
+                    "data_keys": (
+                        list(data.keys()) if isinstance(data, dict) else "non-dict"
+                    ),
                     "data_type": "json",
                 },
             )
@@ -487,7 +498,12 @@ Statistics:
             sample_width * 8,
         )
 
-        return riff_chunk + fmt_chunk + struct.pack("<4sI", data_id, data_size) + audio_data
+        return (
+            riff_chunk
+            + fmt_chunk
+            + struct.pack("<4sI", data_id, data_size)
+            + audio_data
+        )
 
 
 # Convenience functions for easy usage
@@ -517,7 +533,9 @@ def save_debug_audio(
 ) -> Path | None:
     """Convenience function to save debug audio."""
     manager = get_debug_manager(service_name)
-    return manager.save_audio_file(correlation_id, audio_data, filename_prefix, convert_to_wav)
+    return manager.save_audio_file(
+        correlation_id, audio_data, filename_prefix, convert_to_wav
+    )
 
 
 def save_debug_json(

@@ -8,13 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import (
-    BaseConfig,
-    FieldDefinition,
-    create_field_definition,
-    validate_port,
-    validate_url,
-)
+from .config import (BaseConfig, FieldDefinition, create_field_definition,
+                     validate_port, validate_url)
 
 
 class DiscordConfig(BaseConfig):
@@ -41,7 +36,9 @@ class DiscordConfig(BaseConfig):
         self.auto_join = auto_join
         self.voice_connect_timeout_seconds = voice_connect_timeout_seconds
         self.voice_connect_max_attempts = voice_connect_max_attempts
-        self.voice_reconnect_initial_backoff_seconds = voice_reconnect_initial_backoff_seconds
+        self.voice_reconnect_initial_backoff_seconds = (
+            voice_reconnect_initial_backoff_seconds
+        )
         self.voice_reconnect_max_backoff_seconds = voice_reconnect_max_backoff_seconds
 
     @classmethod
@@ -475,7 +472,15 @@ class FasterWhisperConfig(BaseConfig):
                 field_type=str,
                 default="small",
                 description="Faster-whisper model name",
-                choices=["tiny", "base", "small", "medium", "large", "large-v2", "large-v3"],
+                choices=[
+                    "tiny",
+                    "base",
+                    "small",
+                    "medium",
+                    "large",
+                    "large-v2",
+                    "large-v3",
+                ],
                 env_var="FW_MODEL",
             ),
             create_field_definition(

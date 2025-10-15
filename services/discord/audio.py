@@ -98,7 +98,9 @@ class Accumulator:
             return FlushDecision("flush", "max_duration", total_duration, silence_age)
         if silence_age >= self.config.silence_timeout_seconds:
             if total_duration >= self.config.min_segment_duration_seconds:
-                return FlushDecision("flush", "silence_timeout", total_duration, silence_age)
+                return FlushDecision(
+                    "flush", "silence_timeout", total_duration, silence_age
+                )
             return FlushDecision("hold", "min_duration", total_duration, silence_age)
         return None
 
@@ -280,7 +282,12 @@ class AudioPipeline:
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
-        reason = override_reason or (decision.reason if decision else None) or trigger or "unknown"
+        reason = (
+            override_reason
+            or (decision.reason if decision else None)
+            or trigger
+            or "unknown"
+        )
         self._logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
@@ -301,7 +308,9 @@ class AudioPipeline:
             return pcm
         if sample_rate != self._target_sample_rate:
             try:
-                pcm, _ = audioop.ratecv(pcm, 2, 1, sample_rate, self._target_sample_rate, None)
+                pcm, _ = audioop.ratecv(
+                    pcm, 2, 1, sample_rate, self._target_sample_rate, None
+                )
             except Exception as exc:
                 self._logger.warning(
                     "voice.vad_resample_failed",

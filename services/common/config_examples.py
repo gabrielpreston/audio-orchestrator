@@ -10,20 +10,10 @@ import os
 from pathlib import Path
 
 from .config import ConfigBuilder, Environment, load_service_config
-from .service_configs import (
-    AudioConfig,
-    DiscordConfig,
-    FasterWhisperConfig,
-    HttpConfig,
-    LlamaConfig,
-    LoggingConfig,
-    MCPConfig,
-    OrchestratorConfig,
-    STTConfig,
-    TelemetryConfig,
-    TTSConfig,
-    WakeConfig,
-)
+from .service_configs import (AudioConfig, DiscordConfig, FasterWhisperConfig,
+                              HttpConfig, LlamaConfig, LoggingConfig,
+                              MCPConfig, OrchestratorConfig, STTConfig,
+                              TelemetryConfig, TTSConfig, WakeConfig)
 
 
 def example_discord_service_config():
@@ -51,7 +41,11 @@ def example_discord_service_config():
         return
 
     # Access configuration values
-    print(f"Discord token: {config.discord.token[:10]}..." if config.discord.token else "Not set")
+    print(
+        f"Discord token: {config.discord.token[:10]}..."
+        if config.discord.token
+        else "Not set"
+    )
     print(f"Guild ID: {config.discord.guild_id}")
     print(f"Voice channel ID: {config.discord.voice_channel_id}")
     print(f"Audio sample rate: {config.audio.input_sample_rate_hz} Hz")
@@ -158,7 +152,9 @@ def example_orchestrator_service_config():
 
     builder = ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
     config = (
-        builder.add_config("logging", TelemetryConfig)  # Use TelemetryConfig for logging
+        builder.add_config(
+            "logging", TelemetryConfig
+        )  # Use TelemetryConfig for logging
         .add_config("http", HttpConfig)
         .add_config("llama", LlamaConfig)
         .add_config("orchestrator", OrchestratorConfig)

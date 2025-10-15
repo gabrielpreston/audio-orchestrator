@@ -163,7 +163,9 @@ def create_mock_stt_response(
     }
 
     return MockHttpResponse(
-        status_code=200, json_data=json_data, headers={"Content-Type": "application/json"}
+        status_code=200,
+        json_data=json_data,
+        headers={"Content-Type": "application/json"},
     )
 
 
@@ -182,14 +184,19 @@ def create_mock_llm_response(
     """
     json_data = {
         "choices": [
-            {"message": {"content": content, "role": "assistant"}, "finish_reason": "stop"}
+            {
+                "message": {"content": content, "role": "assistant"},
+                "finish_reason": "stop",
+            }
         ],
         "usage": {"prompt_tokens": 10, "completion_tokens": 15, "total_tokens": 25},
         "model": model,
     }
 
     return MockHttpResponse(
-        status_code=200, json_data=json_data, headers={"Content-Type": "application/json"}
+        status_code=200,
+        json_data=json_data,
+        headers={"Content-Type": "application/json"},
     )
 
 
@@ -222,10 +229,14 @@ def create_mock_error_response(
     Returns:
         Mock error response
     """
-    json_data = {"error": {"message": error_message, "type": "server_error", "code": status_code}}
+    json_data = {
+        "error": {"message": error_message, "type": "server_error", "code": status_code}
+    }
 
     return MockHttpResponse(
-        status_code=status_code, json_data=json_data, headers={"Content-Type": "application/json"}
+        status_code=status_code,
+        json_data=json_data,
+        headers={"Content-Type": "application/json"},
     )
 
 
@@ -236,5 +247,7 @@ def create_mock_timeout_response() -> MockHttpResponse:
         Mock timeout response
     """
     return MockHttpResponse(
-        status_code=408, content="Request Timeout", headers={"Content-Type": "text/plain"}
+        status_code=408,
+        content="Request Timeout",
+        headers={"Content-Type": "text/plain"},
     )

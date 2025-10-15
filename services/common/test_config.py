@@ -5,23 +5,13 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase, mock
 
-from .config import (
-    BaseConfig,
-    ConfigBuilder,
-    Environment,
-    EnvironmentLoader,
-    FieldDefinition,
-    RequiredFieldError,
-    ServiceConfig,
-    ValidationError,
-    create_field_definition,
-    load_service_config,
-    validate_non_negative,
-    validate_port,
-    validate_positive,
-    validate_url,
-)
-from .service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
+from .config import (BaseConfig, ConfigBuilder, Environment, EnvironmentLoader,
+                     FieldDefinition, RequiredFieldError, ServiceConfig,
+                     ValidationError, create_field_definition,
+                     load_service_config, validate_non_negative, validate_port,
+                     validate_positive, validate_url)
+from .service_configs import (AudioConfig, DiscordConfig, HttpConfig,
+                              LoggingConfig)
 
 
 class TestFieldDefinition(TestCase):
@@ -275,7 +265,9 @@ class TestEnvironmentLoader(TestCase):
                     FieldDefinition("field2", int, 42, env_var="TEST_FIELD2"),
                 ]
 
-        with mock.patch.dict(os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}):
+        with mock.patch.dict(
+            os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}
+        ):
             config = self.loader.load_config(TestConfig)
             self.assertEqual(config.field1, "env_value1")
             self.assertEqual(config.field2, 100)

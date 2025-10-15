@@ -147,7 +147,9 @@ class MCPServer:
                 method=method,
                 request_id=request_id,
             )
-            await self._send_error(request_id, -32000, "Server error", {"error": str(exc)})
+            await self._send_error(
+                request_id, -32000, "Server error", {"error": str(exc)}
+            )
 
     async def _handle_initialize(self, request_id: Any) -> None:
         self._initialized = True
@@ -231,7 +233,9 @@ class MCPServer:
             ),
             "discord.send_message": ToolDefinition(
                 name="discord.send_message",
-                description=("Send a message into a Discord text channel or voice channel chat."),
+                description=(
+                    "Send a message into a Discord text channel or voice channel chat."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {

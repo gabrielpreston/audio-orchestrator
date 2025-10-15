@@ -100,7 +100,9 @@ class VoiceBot(discord.Client):
                 "voice.recv_extension_missing",
                 message="discord-ext-voice-recv not available; voice receive disabled",
             )
-            raise RuntimeError("discord-ext-voice-recv not available; voice receive disabled")
+            raise RuntimeError(
+                "discord-ext-voice-recv not available; voice receive disabled"
+            )
 
     async def setup_hook(self) -> None:
         self._loop = asyncio.get_running_loop()
@@ -169,7 +171,9 @@ class VoiceBot(discord.Client):
                     reason="auto_join_failed",
                 )
 
-    async def join_voice_channel(self, guild_id: int, channel_id: int) -> dict[str, object]:
+    async def join_voice_channel(
+        self, guild_id: int, channel_id: int
+    ) -> dict[str, object]:
         await self.wait_until_ready()
         guild = self.get_guild(guild_id)
         if not guild:
@@ -188,7 +192,11 @@ class VoiceBot(discord.Client):
             else:
                 desired_cls = discord.VoiceClient
 
-            if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
+            if (
+                voice_client
+                and voice_client.channel
+                and voice_client.channel.id == channel_id
+            ):
                 if isinstance(recv_client_cls, type) and not isinstance(
                     voice_client, recv_client_cls
                 ):
@@ -209,8 +217,12 @@ class VoiceBot(discord.Client):
 
             timeout = max(1.0, self.config.discord.voice_connect_timeout_seconds)
             max_attempts = max(1, self.config.discord.voice_connect_max_attempts)
-            base_backoff = max(0.5, self.config.discord.voice_reconnect_initial_backoff_seconds)
-            max_backoff = max(base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds)
+            base_backoff = max(
+                0.5, self.config.discord.voice_reconnect_initial_backoff_seconds
+            )
+            max_backoff = max(
+                base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds
+            )
 
             attempt = 0
             delay = 0.0
@@ -231,9 +243,13 @@ class VoiceBot(discord.Client):
                     else:
                         voice_client = await channel.connect(**connect_kwargs)
                     if voice_client is None:
-                        raise RuntimeError("Voice client unavailable after connect attempt")
+                        raise RuntimeError(
+                            "Voice client unavailable after connect attempt"
+                        )
                     if not voice_client.is_connected():
-                        raise RuntimeError("Voice client reported disconnected immediately")
+                        raise RuntimeError(
+                            "Voice client reported disconnected immediately"
+                        )
                     self._ensure_voice_receiver(voice_client)
                     self._logger.info(
                         "discord.voice_connected",
@@ -241,7 +257,11 @@ class VoiceBot(discord.Client):
                         channel_id=channel_id,
                         attempt=attempt,
                     )
-                    return {"status": "connected", "guild_id": guild_id, "channel_id": channel_id}
+                    return {
+                        "status": "connected",
+                        "guild_id": guild_id,
+                        "channel_id": channel_id,
+                    }
                 except Exception as exc:
                     last_exc = exc
                     self._logger.warning(
@@ -256,7 +276,9 @@ class VoiceBot(discord.Client):
                     if attempt >= max_attempts:
                         break
                     exponential = base_backoff * (2 ** (attempt - 1))
-                    delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
+                    delay = min(max_backoff, exponential) + random.uniform(
+                        0, base_backoff
+                    )
                     continue
 
             self._logger.error(
@@ -293,7 +315,11 @@ class VoiceBot(discord.Client):
             guild_id=guild_id,
             channel_id=channel_id,
         )
-        return {"status": "disconnected", "guild_id": guild_id, "channel_id": channel_id}
+        return {
+            "status": "disconnected",
+            "guild_id": guild_id,
+            "channel_id": channel_id,
+        }
 
     async def on_voice_state_update(
         self,
@@ -308,7 +334,10 @@ class VoiceBot(discord.Client):
             return
         if self._shutdown.is_set():
             return
-        if not self.config.discord.auto_join or guild_id != self.config.discord.guild_id:
+        if (
+            not self.config.discord.auto_join
+            or guild_id != self.config.discord.guild_id
+        ):
             return
         target_channel_id = self.config.discord.voice_channel_id
         if after.channel is not None:
@@ -327,7 +356,9 @@ class VoiceBot(discord.Client):
             reason="voice_state_disconnected",
         )
 
-    async def send_text_message(self, channel_id: int, content: str) -> dict[str, object]:
+    async def send_text_message(
+        self, channel_id: int, content: str
+    ) -> dict[str, object]:
         await self.wait_until_ready()
         channel = self.get_channel(channel_id)
         if channel is None:
@@ -418,7 +449,9 @@ class VoiceBot(discord.Client):
         self._voice_contexts[user_id] = (guild_id, channel_id)
 
         rms = rms_from_pcm(pcm)
-        segment = self.audio_pipeline.register_frame(user_id, pcm, rms, frame_duration, sample_rate)
+        segment = self.audio_pipeline.register_frame(
+            user_id, pcm, rms, frame_duration, sample_rate
+        )
         if not segment:
             return
         await self._enqueue_segment(segment, context=(guild_id, channel_id))
@@ -595,7 +628,9 @@ class VoiceBot(discord.Client):
             )
 
             # Save debug data for orchestrator communication
-            self._save_debug_orchestrator_communication(context, transcript, orchestrator_result)
+            self._save_debug_orchestrator_communication(
+                context, transcript, orchestrator_result
+            )
 
             # TODO: Handle orchestrator response (TTS audio, tool calls, etc.)
             # For now, just log the result
@@ -671,7 +706,9 @@ class VoiceBot(discord.Client):
         self._voice_reconnect_tasks.pop(guild_id, None)
         task.cancel()
 
-    def _schedule_voice_reconnect(self, guild_id: int, channel_id: int, *, reason: str) -> None:
+    def _schedule_voice_reconnect(
+        self, guild_id: int, channel_id: int, *, reason: str
+    ) -> None:
         if self._shutdown.is_set():
             return
         if guild_id in self._voice_reconnect_tasks:
@@ -687,7 +724,9 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
             reason=reason,
         )
-        task = self._loop.create_task(self._voice_reconnect_worker(guild_id, channel_id, reason))
+        task = self._loop.create_task(
+            self._voice_reconnect_worker(guild_id, channel_id, reason)
+        )
         self._voice_reconnect_tasks[guild_id] = task
 
         def _finalizer(completed: asyncio.Task[None], gid: int = guild_id) -> None:
@@ -697,9 +736,15 @@ class VoiceBot(discord.Client):
 
         task.add_done_callback(_finalizer)
 
-    async def _voice_reconnect_worker(self, guild_id: int, channel_id: int, reason: str) -> None:
-        base_backoff = max(0.5, self.config.discord.voice_reconnect_initial_backoff_seconds)
-        max_backoff = max(base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds)
+    async def _voice_reconnect_worker(
+        self, guild_id: int, channel_id: int, reason: str
+    ) -> None:
+        base_backoff = max(
+            0.5, self.config.discord.voice_reconnect_initial_backoff_seconds
+        )
+        max_backoff = max(
+            base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds
+        )
         attempt = 0
         while not self._shutdown.is_set():
             attempt += 1
@@ -784,7 +829,11 @@ class VoiceBot(discord.Client):
         self._logger.info(
             "voice.receiver_stopped",
             guild_id=guild_id,
-            channel_id=voice_client.channel.id if voice_client and voice_client.channel else None,
+            channel_id=(
+                voice_client.channel.id
+                if voice_client and voice_client.channel
+                else None
+            ),
         )
 
     async def _disconnect_voice_client(self, voice_client: discord.VoiceClient) -> None:

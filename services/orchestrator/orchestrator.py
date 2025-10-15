@@ -56,7 +56,11 @@ class Orchestrator:
         self._logger.info("orchestrator.shutdown")
 
     def _save_debug_data(
-        self, transcript: str, response: str, audio_data: bytes, metadata: dict[str, Any]
+        self,
+        transcript: str,
+        response: str,
+        audio_data: bytes,
+        metadata: dict[str, Any],
     ) -> None:
         """Save debug data to disk for analysis, grouped by correlation_id."""
         from services.common.debug import get_debug_manager
@@ -66,7 +70,9 @@ class Orchestrator:
             debug_manager = get_debug_manager("orchestrator")
 
             # Save text response
-            response_content = f"Original Transcript: {transcript}\n\nLLM Response: {response}"
+            response_content = (
+                f"Original Transcript: {transcript}\n\nLLM Response: {response}"
+            )
             response_file = debug_manager.save_text_file(
                 correlation_id=correlation_id,
                 content=response_content,
@@ -111,7 +117,9 @@ class Orchestrator:
 
         try:
             # Use standardized audio processing
-            wav_data = processor.pcm_to_wav(raw_audio_data, sample_rate, num_channels, sample_width)
+            wav_data = processor.pcm_to_wav(
+                raw_audio_data, sample_rate, num_channels, sample_width
+            )
             return wav_data
 
         except Exception as exc:
@@ -223,7 +231,8 @@ class Orchestrator:
     ) -> dict[str, Any]:
         """Process a transcript from Discord service."""
         try:
-            from services.common.correlation import generate_orchestrator_correlation_id
+            from services.common.correlation import \
+                generate_orchestrator_correlation_id
 
             # Create transcript data in the expected format
             transcript_data = {
@@ -379,7 +388,9 @@ class Orchestrator:
 
                     # Remove various special tokens and formatting
                     content = re.sub(
-                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]", "", content
+                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]",
+                        "",
+                        content,
                     )
                     # Remove any remaining special characters and normalize whitespace
                     content = re.sub(r'[^\w\s.,!?;:\'"-]', "", content)
@@ -462,7 +473,9 @@ class Orchestrator:
             audio_file_path = self._save_audio_file(
                 audio_data, context.get("correlation_id", "unknown")
             )
-            audio_url = f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
+            audio_url = (
+                f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
+            )
 
             # Play audio in Discord
             await self.mcp_manager.call_discord_tool(

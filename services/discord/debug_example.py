@@ -4,7 +4,8 @@ Example of how to use the common debug library in the Discord service.
 This shows how any service can save debug files using the centralized debug manager.
 """
 
-from services.common.debug import get_debug_manager, save_debug_json, save_debug_text
+from services.common.debug import (get_debug_manager, save_debug_json,
+                                   save_debug_text)
 
 
 def example_discord_debug_usage():

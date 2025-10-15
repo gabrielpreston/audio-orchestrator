@@ -16,7 +16,10 @@ def mock_llm_client() -> Generator[mock.Mock, None, None]:
         mock_response.json.return_value = {
             "choices": [
                 {
-                    "message": {"content": "I'll check the weather for you.", "role": "assistant"},
+                    "message": {
+                        "content": "I'll check the weather for you.",
+                        "role": "assistant",
+                    },
                     "finish_reason": "stop",
                 }
             ],
@@ -44,7 +47,11 @@ def mock_mcp_client() -> Generator[mock.Mock, None, None]:
     with mock.patch("mcp.Client") as mock_client:
         mock_client.return_value.call_tool.return_value = {
             "success": True,
-            "result": {"weather": "sunny", "temperature": "75°F", "location": "San Francisco"},
+            "result": {
+                "weather": "sunny",
+                "temperature": "75°F",
+                "location": "San Francisco",
+            },
         }
         yield mock_client.return_value
 

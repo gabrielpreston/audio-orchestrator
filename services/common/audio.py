@@ -78,7 +78,9 @@ class AudioProcessor:
         if self._logger:
             getattr(self._logger, level)(message, **kwargs)
 
-    def extract_metadata(self, audio_data: bytes, format_hint: str = "wav") -> AudioMetadata:
+    def extract_metadata(
+        self, audio_data: bytes, format_hint: str = "wav"
+    ) -> AudioMetadata:
         """
         Extract metadata from audio data using librosa.
 
@@ -93,7 +95,9 @@ class AudioProcessor:
             # Use librosa to load and analyze audio
             if format_hint.lower() == "wav" or audio_data.startswith(b"RIFF"):
                 # Load as WAV using librosa
-                audio_array, sample_rate = librosa.load(io.BytesIO(audio_data), sr=None, mono=False)
+                audio_array, sample_rate = librosa.load(
+                    io.BytesIO(audio_data), sr=None, mono=False
+                )
                 channels = 1 if audio_array.ndim == 1 else audio_array.shape[0]
 
                 duration = len(audio_array) / sample_rate if sample_rate > 0 else 0.0
@@ -145,7 +149,11 @@ class AudioProcessor:
             )
 
     def _extract_pcm_metadata(
-        self, pcm_data: bytes, sample_rate: int = 16000, channels: int = 1, sample_width: int = 2
+        self,
+        pcm_data: bytes,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        sample_width: int = 2,
     ) -> AudioMetadata:
         """Extract metadata from PCM data."""
         frames = len(pcm_data) // (channels * sample_width)
@@ -163,7 +171,11 @@ class AudioProcessor:
         )
 
     def pcm_to_wav(
-        self, pcm_data: bytes, sample_rate: int, channels: int = 1, sample_width: int = 2
+        self,
+        pcm_data: bytes,
+        sample_rate: int,
+        channels: int = 1,
+        sample_width: int = 2,
     ) -> bytes:
         """
         Convert PCM data to WAV format using soundfile.
@@ -219,7 +231,9 @@ class AudioProcessor:
         """
         try:
             # Use librosa to load audio
-            audio_array, sample_rate = librosa.load(io.BytesIO(wav_data), sr=None, mono=False)
+            audio_array, sample_rate = librosa.load(
+                io.BytesIO(wav_data), sr=None, mono=False
+            )
 
             # Convert to mono if stereo
             if audio_array.ndim > 1:
@@ -286,7 +300,9 @@ class AudioProcessor:
                 audio_float = audio_float / 2147483648.0
 
             # Use librosa for high-quality resampling
-            resampled_float = librosa.resample(audio_float, orig_sr=from_rate, target_sr=to_rate)
+            resampled_float = librosa.resample(
+                audio_float, orig_sr=from_rate, target_sr=to_rate
+            )
 
             # Convert back to original format
             if sample_width == 2:
@@ -355,17 +371,21 @@ class AudioProcessor:
             # Convert back to original format
             if sample_width == 2:
                 normalized_float = normalized_float * 32768.0
-                normalized_array = np.clip(normalized_float, -32768.0, 32767.0).astype(np.int16)
+                normalized_array = np.clip(normalized_float, -32768.0, 32767.0).astype(
+                    np.int16
+                )
             elif sample_width == 4:
                 normalized_float = normalized_float * 2147483648.0
-                normalized_array = np.clip(normalized_float, -2147483648.0, 2147483647.0).astype(
-                    np.int32
-                )
+                normalized_array = np.clip(
+                    normalized_float, -2147483648.0, 2147483647.0
+                ).astype(np.int32)
 
             # Calculate new RMS
             new_rms = float(np.sqrt(np.mean(np.square(normalized_float))))
 
-            self._log("debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms)
+            self._log(
+                "debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms
+            )
 
             return normalized_array.tobytes(), new_rms
         except Exception as exc:
@@ -436,7 +456,9 @@ class AudioProcessor:
 
             # Convert sample width if needed
             if from_sample_width != to_sample_width:
-                pcm_data = self._convert_sample_width(pcm_data, from_sample_width, to_sample_width)
+                pcm_data = self._convert_sample_width(
+                    pcm_data, from_sample_width, to_sample_width
+                )
 
             # Convert to target format
             if to_format.lower() == "wav":
@@ -451,7 +473,8 @@ class AudioProcessor:
                 sample_rate=to_sample_rate,
                 channels=to_channels,
                 sample_width=to_sample_width,
-                duration=len(pcm_data) / (to_sample_rate * to_channels * to_sample_width),
+                duration=len(pcm_data)
+                / (to_sample_rate * to_channels * to_sample_width),
                 frames=len(pcm_data) // (to_channels * to_sample_width),
                 format=to_format,
                 bit_depth=to_sample_width * 8,
@@ -463,7 +486,9 @@ class AudioProcessor:
                     "input_bytes": len(audio_data),
                     "output_bytes": len(output_data),
                     "compression_ratio": (
-                        len(output_data) / len(audio_data) if len(audio_data) > 0 else 1.0
+                        len(output_data) / len(audio_data)
+                        if len(audio_data) > 0
+                        else 1.0
                     ),
                 }
             )
@@ -502,7 +527,9 @@ class AudioProcessor:
             # Unsupported conversion
             return pcm_data
 
-    def _convert_sample_width(self, pcm_data: bytes, from_width: int, to_width: int) -> bytes:
+    def _convert_sample_width(
+        self, pcm_data: bytes, from_width: int, to_width: int
+    ) -> bytes:
         """Convert between different sample widths."""
         if from_width == to_width:
             return pcm_data
@@ -549,7 +576,9 @@ class AudioProcessor:
         except Exception:
             return 0.0
 
-    def validate_audio_data(self, audio_data: bytes, expected_format: str = "wav") -> bool:
+    def validate_audio_data(
+        self, audio_data: bytes, expected_format: str = "wav"
+    ) -> bool:
         """Validate audio data format and integrity."""
         try:
             if expected_format.lower() == "wav":
@@ -617,7 +646,9 @@ def wav_to_pcm(wav_data: bytes) -> tuple[bytes, AudioMetadata]:
     return processor.wav_to_pcm(wav_data)
 
 
-def resample_audio(audio_data: bytes, from_rate: int, to_rate: int, sample_width: int = 2) -> bytes:
+def resample_audio(
+    audio_data: bytes, from_rate: int, to_rate: int, sample_width: int = 2
+) -> bytes:
     """Resample audio data."""
     processor = AudioProcessor()
     return processor.resample_audio(audio_data, from_rate, to_rate, sample_width)

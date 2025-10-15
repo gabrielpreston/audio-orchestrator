@@ -98,7 +98,11 @@ class FieldDefinition:
             raise ValueError(
                 f"Field '{self.name}' cannot be both required and have a default value"
             )
-        if self.choices and self.default is not None and self.default not in self.choices:
+        if (
+            self.choices
+            and self.default is not None
+            and self.default not in self.choices
+        ):
             raise ValueError(f"Default value for field '{self.name}' not in choices")
         if self.pattern and not isinstance(self.pattern, str):
             raise ValueError(f"Pattern for field '{self.name}' must be a string")
@@ -167,7 +171,11 @@ class BaseConfig(ABC):
             )
 
         # Pattern validation
-        if field_def.pattern and isinstance(value, str) and not re.match(field_def.pattern, value):
+        if (
+            field_def.pattern
+            and isinstance(value, str)
+            and not re.match(field_def.pattern, value)
+        ):
             raise ValidationError(
                 field_def.name,
                 value,
@@ -304,7 +312,14 @@ class DatabaseConfig(BaseConfig):
                 field_type=str,
                 default="prefer",
                 description="SSL mode for database connection",
-                choices=["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+                choices=[
+                    "disable",
+                    "allow",
+                    "prefer",
+                    "require",
+                    "verify-ca",
+                    "verify-full",
+                ],
                 env_var="DB_SSL_MODE",
             ),
         ]
@@ -441,7 +456,9 @@ class EnvironmentLoader:
 class ConfigBuilder:
     """Builder for creating service configurations."""
 
-    def __init__(self, service_name: str, environment: Environment = Environment.DEVELOPMENT):
+    def __init__(
+        self, service_name: str, environment: Environment = Environment.DEVELOPMENT
+    ):
         self.service_name = service_name
         self.environment = environment
         self.loader = EnvironmentLoader(service_name)
@@ -507,7 +524,9 @@ class ServiceConfig:
         return {
             "service_name": self.service_name,
             "environment": self.environment.value,
-            "configs": {name: config.to_dict() for name, config in self.configs.items()},
+            "configs": {
+                name: config.to_dict() for name, config in self.configs.items()
+            },
         }
 
     def save_to_file(self, file_path: str | Path) -> None:

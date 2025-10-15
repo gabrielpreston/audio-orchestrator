@@ -13,7 +13,9 @@ def mock_piper_model() -> Generator[mock.Mock, None, None]:
     """Mock Piper TTS model for testing."""
     with mock.patch("piper.PiperVoice") as mock_voice:
         # Configure mock voice
-        mock_voice.return_value.synthesize.return_value = np.random.randn(22050).astype(np.float32)
+        mock_voice.return_value.synthesize.return_value = np.random.randn(22050).astype(
+            np.float32
+        )
         mock_voice.return_value.sample_rate = 22050
         yield mock_voice.return_value
 
@@ -106,4 +108,8 @@ def mock_file_upload() -> Generator[mock.Mock, None, None]:
 @pytest.fixture
 def test_rate_limit_config() -> dict[str, Any]:
     """Provide test rate limit configuration."""
-    return {"max_requests_per_minute": 60, "max_concurrent_requests": 4, "max_text_length": 1000}
+    return {
+        "max_requests_per_minute": 60,
+        "max_concurrent_requests": 4,
+        "max_text_length": 1000,
+    }

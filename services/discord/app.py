@@ -76,7 +76,9 @@ async def startup_event():
             wake_detector = WakeDetector(config.wake)
             logger.info("discord.wake_detector_created")
 
-            async def dummy_transcript_publisher(transcript_data: dict[str, Any]) -> None:
+            async def dummy_transcript_publisher(
+                transcript_data: dict[str, Any]
+            ) -> None:
                 logger.info("discord.dummy_transcript_published", **transcript_data)
 
             _bot = VoiceBot(
@@ -88,6 +90,7 @@ async def startup_event():
             logger.info("discord.voicebot_created")
 
             _bot_task = asyncio.create_task(_bot.start(config.discord.token))
+            # Store reference to prevent garbage collection
             # Store reference to prevent garbage collection
             logger.info("discord.full_bot_started")
         else:
@@ -176,7 +179,9 @@ async def play_audio(request: PlayAudioRequest):
                 "guild_id": request.guild_id,
                 "channel_id": request.channel_id,
                 "audio_url": request.audio_url,
-                "result": {"message": "Audio playback requested (HTTP mode - no bot method)"},
+                "result": {
+                    "message": "Audio playback requested (HTTP mode - no bot method)"
+                },
             }
 
     except Exception as exc:

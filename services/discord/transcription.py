@@ -34,7 +34,9 @@ class TranscriptResult:
 class TranscriptionClient:
     """Async client that sends audio segments to the STT service."""
 
-    def __init__(self, config: STTConfig, *, session: httpx.AsyncClient | None = None) -> None:
+    def __init__(
+        self, config: STTConfig, *, session: httpx.AsyncClient | None = None
+    ) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
@@ -57,7 +59,9 @@ class TranscriptionClient:
 
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult:
         if not self._session:
-            raise RuntimeError("TranscriptionClient must be used as an async context manager")
+            raise RuntimeError(
+                "TranscriptionClient must be used as an async context manager"
+            )
 
         wav_bytes = _pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)
         files = {
@@ -156,7 +160,9 @@ def _pcm_to_wav(
         # Fallback to original implementation if conversion fails
         if sample_rate != target_sample_rate and pcm:
             try:
-                pcm, _ = audioop.ratecv(pcm, 2, channels, sample_rate, target_sample_rate, None)
+                pcm, _ = audioop.ratecv(
+                    pcm, 2, channels, sample_rate, target_sample_rate, None
+                )
                 sample_rate = target_sample_rate
             except Exception:
                 # Fall back to the original sample rate if resampling fails.

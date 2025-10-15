@@ -1,7 +1,6 @@
 """Mock MCP client for testing."""
 
-from typing import Any, Dict, List, Optional, Union
-from unittest import mock
+from typing import Any, Dict, List, Optional
 
 
 class MockMCPClient:
@@ -44,7 +43,10 @@ class MockMCPClient:
         self._auth_token = None
 
     async def call_tool(
-        self, tool_name: str, parameters: Dict[str, Any], correlation_id: Optional[str] = None
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any],
+        correlation_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Mock call_tool method."""
         call_data = {
@@ -80,7 +82,10 @@ class MockMCPClient:
                             "type": "string",
                             "description": "Location to check weather for",
                         },
-                        "date": {"type": "string", "description": "Date to check weather for"},
+                        "date": {
+                            "type": "string",
+                            "description": "Date to check weather for",
+                        },
                     },
                     "required": ["location"],
                 },
@@ -91,7 +96,10 @@ class MockMCPClient:
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "channel_id": {"type": "string", "description": "Discord channel ID"},
+                        "channel_id": {
+                            "type": "string",
+                            "description": "Discord channel ID",
+                        },
                         "content": {"type": "string", "description": "Message content"},
                     },
                     "required": ["channel_id", "content"],
@@ -156,7 +164,10 @@ def create_mock_mcp_client() -> MockMCPClient:
 
 
 def create_mock_mcp_tool(
-    name: str, description: str, parameters: Dict[str, Any], handler: Optional[callable] = None
+    name: str,
+    description: str,
+    parameters: Dict[str, Any],
+    handler: Optional[callable] = None,
 ) -> MockMCPTool:
     """Create a mock MCP tool for testing.
 
@@ -181,7 +192,10 @@ def create_mock_weather_tool() -> MockMCPTool:
     parameters = {
         "type": "object",
         "properties": {
-            "location": {"type": "string", "description": "Location to check weather for"},
+            "location": {
+                "type": "string",
+                "description": "Location to check weather for",
+            },
             "date": {"type": "string", "description": "Date to check weather for"},
         },
         "required": ["location"],
@@ -246,7 +260,10 @@ def create_mock_discord_tool() -> MockMCPTool:
         }
 
     return create_mock_mcp_tool(
-        "send_message", "Send a message to a Discord channel", parameters, discord_handler
+        "send_message",
+        "Send a message to a Discord channel",
+        parameters,
+        discord_handler,
     )
 
 

@@ -131,7 +131,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "component: Component tests (with mocked external dependencies)"
     )
-    config.addinivalue_line("markers", "integration: Integration tests (require Docker Compose)")
+    config.addinivalue_line(
+        "markers", "integration: Integration tests (require Docker Compose)"
+    )
     config.addinivalue_line("markers", "e2e: End-to-end tests (manual trigger only)")
     config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
     config.addinivalue_line(
@@ -142,10 +144,14 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "stt: Tests involving speech-to-text")
     config.addinivalue_line("markers", "tts: Tests involving text-to-speech")
     config.addinivalue_line("markers", "llm: Tests involving language model")
-    config.addinivalue_line("markers", "orchestrator: Tests involving orchestration logic")
+    config.addinivalue_line(
+        "markers", "orchestrator: Tests involving orchestration logic"
+    )
 
 
-def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
     """Modify test collection to add markers based on test location."""
     for item in items:
         # Add markers based on test file location

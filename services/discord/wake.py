@@ -41,7 +41,9 @@ class WakeDetector:
         self._config = config
         self._logger = get_logger(__name__, service_name="discord")
         self._phrases: list[str] = [
-            phrase.strip() for phrase in config.wake_phrases if phrase and phrase.strip()
+            phrase.strip()
+            for phrase in config.wake_phrases
+            if phrase and phrase.strip()
         ]
         self._normalized_phrases: list[str] = [
             self._normalize_phrase(phrase) for phrase in self._phrases
@@ -88,7 +90,9 @@ class WakeDetector:
         converted = self._resample(pcm, sample_rate)
         if not converted:
             return None
-        normalized = np.frombuffer(converted, dtype=np.int16).astype(np.float32) / 32768.0
+        normalized = (
+            np.frombuffer(converted, dtype=np.int16).astype(np.float32) / 32768.0
+        )
         payload = normalized.tolist()
         try:
             scores = self._model.predict(payload)
@@ -122,7 +126,9 @@ class WakeDetector:
         if not match:
             return None
         _, score, index = match
-        if index < 0 or index >= len(self._phrases):  # pragma: no cover - defensive guard
+        if index < 0 or index >= len(
+            self._phrases
+        ):  # pragma: no cover - defensive guard
             return None
         phrase = self._phrases[index]
         confidence = float(score) / 100.0
@@ -132,7 +138,9 @@ class WakeDetector:
         if sample_rate == self._target_sample_rate:
             return pcm
         try:
-            converted, _ = audioop.ratecv(pcm, 2, 1, sample_rate, self._target_sample_rate, None)
+            converted, _ = audioop.ratecv(
+                pcm, 2, 1, sample_rate, self._target_sample_rate, None
+            )
             return converted
         except Exception as exc:
             self._logger.warning(

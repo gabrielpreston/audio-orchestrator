@@ -12,7 +12,8 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from piper import PiperVoice
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
+from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
+                               generate_latest)
 from pydantic import BaseModel, Field, model_validator
 
 from services.common.debug import get_debug_manager
@@ -67,7 +68,9 @@ _MODEL_CONFIG_PATH = os.getenv("TTS_MODEL_CONFIG_PATH")
 _DEFAULT_VOICE = os.getenv("TTS_DEFAULT_VOICE")
 _MAX_TEXT_LENGTH = _env_int("TTS_MAX_TEXT_LENGTH", 1000, minimum=32, maximum=10000)
 _MAX_CONCURRENCY = _env_int("TTS_MAX_CONCURRENCY", 4, minimum=1, maximum=64)
-_RATE_LIMIT_PER_MINUTE = _env_int("TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000)
+_RATE_LIMIT_PER_MINUTE = _env_int(
+    "TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000
+)
 _AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
 _DEFAULT_LENGTH_SCALE = _env_float("TTS_LENGTH_SCALE", 1.0, minimum=0.1, maximum=3.0)
 _DEFAULT_NOISE_SCALE = _env_float("TTS_NOISE_SCALE", 0.667, minimum=0.0, maximum=2.0)
@@ -226,7 +229,9 @@ def _load_voice() -> None:
     _VOICE_SAMPLE_RATE = int(sample_rate)
 
     language = _read_voice_language(config_data)
-    speaker_map = config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
+    speaker_map = (
+        config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
+    )
 
     _VOICE_OPTIONS = []
     _VOICE_LOOKUP = {}
@@ -267,7 +272,9 @@ def _resolve_voice(preferred: str | None) -> VoiceOption:
         return _VOICE_OPTIONS[0]
     option = _VOICE_LOOKUP.get(candidate.lower())
     if option is None:
-        raise HTTPException(status_code=400, detail=f"voice {candidate!r} not available")
+        raise HTTPException(
+            status_code=400, detail=f"voice {candidate!r} not available"
+        )
     return option
 
 
@@ -417,7 +424,9 @@ async def synthesize(
         except Exception as exc:
             logger.exception("tts.synthesize_failed", error=str(exc))
             _SYNTHESIS_COUNTER.labels(status="error").inc()
-            raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
+            raise HTTPException(
+                status_code=500, detail="unable to synthesize audio"
+            ) from exc
 
     size_bytes = len(audio_bytes)
     duration = time.perf_counter() - start_time
@@ -460,7 +469,9 @@ async def synthesize(
         duration=duration,
     )
 
-    return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
+    return StreamingResponse(
+        iter([audio_bytes]), media_type="audio/wav", headers=headers
+    )
 
 
 def _save_debug_synthesis(

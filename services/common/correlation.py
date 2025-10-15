@@ -12,7 +12,9 @@ class CorrelationIDGenerator:
     """Standardized correlation ID generator for voice pipeline services."""
 
     @staticmethod
-    def generate_discord_correlation_id(user_id: int, guild_id: int | None = None) -> str:
+    def generate_discord_correlation_id(
+        user_id: int, guild_id: int | None = None
+    ) -> str:
         """
         Generate a correlation ID for Discord voice interactions.
 
@@ -207,7 +209,12 @@ class CorrelationIDGenerator:
                 "raw": correlation_id,
             }
 
-        return {"service": "unknown", "type": "unknown", "timestamp": None, "raw": correlation_id}
+        return {
+            "service": "unknown",
+            "type": "unknown",
+            "timestamp": None,
+            "raw": correlation_id,
+        }
 
     @staticmethod
     def get_service_from_correlation_id(correlation_id: str) -> str:

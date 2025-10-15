@@ -187,10 +187,14 @@ async def serve_audio(filename: str) -> FileResponse:
         # Use the first matching file
         file_path = Path(matching_files[0])
 
-        return FileResponse(path=str(file_path), media_type="audio/wav", filename=filename)
+        return FileResponse(
+            path=str(file_path), media_type="audio/wav", filename=filename
+        )
     except Exception as exc:
-        logger.error("orchestrator.audio_serve_failed", error=str(exc), filename=filename)
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error(
+            "orchestrator.audio_serve_failed", error=str(exc), filename=filename
+        )
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

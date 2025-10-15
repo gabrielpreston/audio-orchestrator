@@ -55,7 +55,10 @@ def mock_audio_source() -> Generator[mock.Mock, None, None]:
 def mock_wake_word_detector() -> Generator[mock.Mock, None, None]:
     """Mock wake word detector for testing."""
     with mock.patch("openwakeword.Model") as mock_detector:
-        mock_detector.return_value.predict.return_value = {"hey atlas": 0.8, "ok atlas": 0.6}
+        mock_detector.return_value.predict.return_value = {
+            "hey atlas": 0.8,
+            "ok atlas": 0.6,
+        }
         yield mock_detector.return_value
 
 

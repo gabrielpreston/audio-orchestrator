@@ -4,14 +4,17 @@ import json
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
 
 import numpy as np
 import pytest
 
 
 def create_mock_audio_data(
-    duration: float = 1.0, sample_rate: int = 48000, channels: int = 1, dtype: np.dtype = np.float32
+    duration: float = 1.0,
+    sample_rate: int = 48000,
+    channels: int = 1,
+    dtype: np.dtype = np.float32,
 ) -> np.ndarray:
     """Create mock audio data for testing.
 
@@ -166,7 +169,9 @@ def create_mock_transcription_result(
         "start_time": start_time,
         "end_time": end_time,
         "no_speech_probability": 0.1,
-        "segments": [{"text": text, "start": start_time, "end": end_time, "no_speech_prob": 0.1}],
+        "segments": [
+            {"text": text, "start": start_time, "end": end_time, "no_speech_prob": 0.1}
+        ],
     }
 
 
@@ -190,7 +195,10 @@ def create_mock_llm_response(
 
     return {
         "choices": [
-            {"message": {"content": content, "role": "assistant"}, "finish_reason": "stop"}
+            {
+                "message": {"content": content, "role": "assistant"},
+                "finish_reason": "stop",
+            }
         ],
         "usage": usage,
         "model": model,
@@ -311,7 +319,9 @@ def assert_correlation_id_valid(correlation_id: str) -> None:
 
 
 def assert_http_response_valid(
-    response: Any, expected_status: int = 200, expected_content_type: Optional[str] = None
+    response: Any,
+    expected_status: int = 200,
+    expected_content_type: Optional[str] = None,
 ) -> None:
     """Assert that an HTTP response is valid.
 

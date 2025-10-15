@@ -1,10 +1,9 @@
 """Mock Discord client for testing."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 from unittest import mock
 
 import discord
-from discord.ext import voice_recv
 
 
 class MockDiscordClient:
@@ -75,7 +74,12 @@ class MockGuild:
 class MockChannel:
     """Mock Discord channel for testing."""
 
-    def __init__(self, channel_id: int, channel_type: str = "text", guild_id: Optional[int] = None):
+    def __init__(
+        self,
+        channel_id: int,
+        channel_type: str = "text",
+        guild_id: Optional[int] = None,
+    ):
         self.id = channel_id
         self.type = channel_type
         self.guild_id = guild_id
@@ -198,7 +202,9 @@ def create_mock_guild(guild_id: int, name: str = "Test Guild") -> MockGuild:
     return MockGuild(guild_id, name)
 
 
-def create_mock_voice_channel(channel_id: int, guild_id: Optional[int] = None) -> MockVoiceChannel:
+def create_mock_voice_channel(
+    channel_id: int, guild_id: Optional[int] = None
+) -> MockVoiceChannel:
     """Create a mock voice channel for testing.
 
     Args:

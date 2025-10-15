@@ -70,12 +70,18 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def play_audio(self, guild_id: str, channel_id: str, audio_url: str) -> dict[str, Any]:
+    async def play_audio(
+        self, guild_id: str, channel_id: str, audio_url: str
+    ) -> dict[str, Any]:
         """Request audio playback via orchestrator."""
         try:
             client = await self._get_http_client()
 
-            payload = {"guild_id": guild_id, "channel_id": channel_id, "audio_url": audio_url}
+            payload = {
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "audio_url": audio_url,
+            }
 
             response = await client.post(
                 f"{self.orchestrator_url}/mcp/play_audio", json=payload, timeout=30.0
@@ -101,12 +107,18 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def send_message(self, guild_id: str, channel_id: str, message: str) -> dict[str, Any]:
+    async def send_message(
+        self, guild_id: str, channel_id: str, message: str
+    ) -> dict[str, Any]:
         """Send text message via orchestrator."""
         try:
             client = await self._get_http_client()
 
-            payload = {"guild_id": guild_id, "channel_id": channel_id, "message": message}
+            payload = {
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "message": message,
+            }
 
             response = await client.post(
                 f"{self.orchestrator_url}/mcp/send_message", json=payload, timeout=30.0
@@ -115,7 +127,10 @@ class OrchestratorClient:
 
             result = response.json()
             logger.info(
-                "discord.message_sent", guild_id=guild_id, channel_id=channel_id, message=message
+                "discord.message_sent",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                message=message,
             )
 
             return result

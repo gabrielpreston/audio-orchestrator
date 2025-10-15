@@ -1,8 +1,6 @@
 """Mock audio processor for testing."""
 
-import io
-from typing import Any, Dict, List, Optional, Tuple, Union
-from unittest import mock
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import soundfile as sf
@@ -107,7 +105,9 @@ class MockAudioProcessor:
             "duration": 1.0,
         }
 
-    def _resample(self, audio_data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    def _resample(
+        self, audio_data: np.ndarray, orig_sr: int, target_sr: int
+    ) -> np.ndarray:
         """Mock resampling."""
         if orig_sr == target_sr:
             return audio_data
@@ -227,7 +227,9 @@ class MockLibrosa:
         hop_length = hop_length or 512
         return np.random.randn(n_frames * hop_length).astype(np.float32)
 
-    def _resample(self, audio_data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    def _resample(
+        self, audio_data: np.ndarray, orig_sr: int, target_sr: int
+    ) -> np.ndarray:
         """Mock resampling."""
         if orig_sr == target_sr:
             return audio_data
@@ -257,7 +259,10 @@ def create_mock_librosa() -> MockLibrosa:
 
 
 def create_mock_audio_data(
-    duration: float = 1.0, sample_rate: int = 48000, channels: int = 1, dtype: np.dtype = np.float32
+    duration: float = 1.0,
+    sample_rate: int = 48000,
+    channels: int = 1,
+    dtype: np.dtype = np.float32,
 ) -> np.ndarray:
     """Create mock audio data for testing.
 

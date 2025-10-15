@@ -74,7 +74,7 @@ def _load_llama() -> Llama | None:
     except Exception as exc:
         logger.critical("llm.model_load_failed", model_path=model_path, error=str(exc))
         _LLAMA = None
-        raise RuntimeError(f"Failed to load LLM model from {model_path}")
+        raise RuntimeError(f"Failed to load LLM model from {model_path}") from exc
     return _LLAMA
 
 
@@ -202,7 +202,9 @@ async def chat_completions(
         logger.warning("llm.bad_request", reason="messages_missing")
         raise HTTPException(status_code=400, detail="messages required")
 
-    prompt_bytes = len("\n".join(message.content for message in req.messages).encode("utf-8"))
+    prompt_bytes = len(
+        "\n".join(message.content for message in req.messages).encode("utf-8")
+    )
     logger.debug(
         "llm.request_received",
         model=req.model,

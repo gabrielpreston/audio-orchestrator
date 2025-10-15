@@ -45,7 +45,9 @@ async def _warm_model() -> None:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
     except Exception as exc:
-        logger.exception("stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc))
+        logger.exception(
+            "stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc)
+        )
         raise
 
 
@@ -61,7 +63,9 @@ def _lazy_load_model() -> Any:
         from faster_whisper import WhisperModel
     except Exception as e:
         logger.exception("stt.model_import_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"faster-whisper import error: {e}"
+        ) from e
 
     if _model is not None:
         logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
@@ -88,7 +92,7 @@ def _lazy_load_model() -> Any:
             compute_type=compute_type,
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"model load error: {e}")
+        raise HTTPException(status_code=500, detail=f"model load error: {e}") from e
     return _model
 
 
@@ -103,7 +107,9 @@ def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
 
         # Validate sample width (only 16-bit supported)
         if metadata.sample_width != 2:
-            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+            raise HTTPException(
+                status_code=400, detail="only 16-bit PCM WAV is supported"
+            )
 
         return metadata.channels, metadata.sample_width, metadata.sample_rate
 
@@ -119,7 +125,9 @@ def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
             raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
 
         if sampwidth != 2:
-            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+            raise HTTPException(
+                status_code=400, detail="only 16-bit PCM WAV is supported"
+            )
         return channels, sampwidth, framerate
 
 
@@ -173,7 +181,9 @@ async def _transcribe_request(
     )
     headers_correlation = request.headers.get("X-Correlation-ID")
     correlation_id = (
-        correlation_id or headers_correlation or request.query_params.get("correlation_id")
+        correlation_id
+        or headers_correlation
+        or request.query_params.get("correlation_id")
     )
 
     # Generate STT correlation ID if none provided
@@ -252,7 +262,8 @@ async def _transcribe_request(
                     for w in words:
                         word_entries.append(
                             {
-                                "word": getattr(w, "word", None) or getattr(w, "text", None),
+                                "word": getattr(w, "word", None)
+                                or getattr(w, "text", None),
                                 "start": getattr(w, "start", None),
                                 "end": getattr(w, "end", None),
                             }
@@ -260,7 +271,8 @@ async def _transcribe_request(
                 elif words is not None:
                     word_entries.append(
                         {
-                            "word": getattr(words, "word", None) or getattr(words, "text", None),
+                            "word": getattr(words, "word", None)
+                            or getattr(words, "text", None),
                             "start": getattr(words, "start", None),
                             "end": getattr(words, "end", None),
                         }
@@ -269,8 +281,10 @@ async def _transcribe_request(
                     segment_entry["words"] = word_entries
                 segments_out.append(segment_entry)
     except Exception as e:
-        logger.exception("stt.transcription_error", correlation_id=correlation_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"transcription error: {e}")
+        logger.exception(
+            "stt.transcription_error", correlation_id=correlation_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=f"transcription error: {e}") from e
     finally:
         if tmp_path:
             try:
@@ -371,9 +385,9 @@ async def transcribe(request: Request):
     try:
         form = await request.form()
     except ClientDisconnect:
-        correlation_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
-            "correlation_id"
-        )
+        correlation_id = request.headers.get(
+            "X-Correlation-ID"
+        ) or request.query_params.get("correlation_id")
         logger.info(
             "stt.client_disconnect",
             correlation_id=correlation_id,

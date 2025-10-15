@@ -8,7 +8,8 @@ from unittest import mock
 import pytest
 
 from services.common.config import ServiceConfig
-from services.common.service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
+from services.common.service_configs import (AudioConfig, DiscordConfig,
+                                             HttpConfig, LoggingConfig)
 
 
 @pytest.fixture
@@ -27,7 +28,9 @@ def test_logging_config() -> LoggingConfig:
 @pytest.fixture
 def test_http_config() -> HttpConfig:
     """Provide a test HTTP configuration."""
-    return HttpConfig(timeout=30.0, max_retries=3, retry_delay=1.0, user_agent="test-agent/1.0")
+    return HttpConfig(
+        timeout=30.0, max_retries=3, retry_delay=1.0, user_agent="test-agent/1.0"
+    )
 
 
 @pytest.fixture
