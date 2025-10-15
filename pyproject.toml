@@ -36,13 +36,17 @@ line-length = 88
 
 [tool.ruff.lint]
 select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "B",  # flake8-bugbear
-    "C4", # flake8-comprehensions
-    "UP", # pyupgrade
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "S",   # flake8-bandit
+    "RET", # flake8-return
+    "SIM", # flake8-simplify
 ]
 ignore = [
     "E501",  # line too long, handled by black
@@ -50,6 +54,13 @@ ignore = [
     "C901",  # too complex
     "B904",  # within an except clause, raise exceptions with raise ... from err
     "UP038", # use X | Y in isinstance call instead of (X, Y)
+    "S101",  # use of assert (common in tests)
+    "S104",  # hardcoded bind all interfaces (common in Docker)
+    "S603",  # subprocess call (common in Docker)
+    "S607",  # starting a process with a partial executable path
+    "RET504", # unnecessary assignment before return
+    "RET505", # unnecessary else after return
+    "SIM108", # use ternary operator (sometimes less readable)
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -72,6 +83,9 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+disallow_any_generics = true
+disallow_any_unimported = true
+disallow_any_expr = false  # Too strict for practical use
 
 [[tool.mypy.overrides]]
 module = [
@@ -81,6 +95,46 @@ module = [
     "pydantic.*",
     "fastapi.*",
     "uvicorn.*",
+    "httpx.*",
+    "structlog.*",
+    "numpy.*",
+    "soundfile.*",
+    "librosa.*",
+    "webrtcvad.*",
+    "rapidfuzz.*",
+    "openwakeword.*",
+    "piper.*",
+    "prometheus_client.*",
+    "mcp.*",
+    "pytest.*",
+    "freezegun.*",
+    "llama_cpp.*",
+    "starlette.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "services.tests.*",
+    "services.*.tests.*",
+    "services.*.conftest",
+    "services.tests.conftest",
+    "services.tests.mocks.*",
+    "services.common.test_config",
+    "services.common.config_examples",
+    "services.common.tests.*",
+    "services.orchestrator.tests.*",
+    "services.common.tests.conftest",
+    "services.orchestrator.tests.conftest",
+    "services.tests.conftest",
+    "services.tests.mocks.discord_client",
+]
+# Only test files and examples get lenient treatment
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_decorators = false
+warn_return_any = false
+warn_no_return = false
+warn_unreachable = false
+strict_equality = false
 

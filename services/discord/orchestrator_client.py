@@ -48,7 +48,7 @@ class OrchestratorClient:
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
                 "discord.transcript_sent_to_orchestrator",
                 guild_id=guild_id,
@@ -88,7 +88,7 @@ class OrchestratorClient:
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
                 "discord.audio_playback_requested",
                 guild_id=guild_id,
@@ -125,7 +125,7 @@ class OrchestratorClient:
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
                 "discord.message_sent",
                 guild_id=guild_id,

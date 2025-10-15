@@ -323,7 +323,7 @@ class AudioProcessor:
                 resampled_bytes=len(resampled_data),
             )
 
-            return resampled_data
+            return bytes(resampled_data)
         except Exception as exc:
             self._log("error", "audio.resample_failed", error=str(exc))
             raise

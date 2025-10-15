@@ -404,7 +404,7 @@ class Orchestrator:
                     response_preview=content[:100] if content else "Empty",
                 )
 
-                return content
+                return str(content)
             else:
                 self._logger.warning("orchestrator.llm_empty_response")
                 return "I understand your message. How can I help you?"

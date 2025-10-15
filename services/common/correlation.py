@@ -228,7 +228,7 @@ class CorrelationIDGenerator:
             Service name
         """
         parsed = CorrelationIDGenerator.parse_correlation_id(correlation_id)
-        return parsed["service"]
+        return str(parsed["service"])
 
     @staticmethod
     def is_valid_correlation_id(correlation_id: str) -> bool:
@@ -253,7 +253,7 @@ class CorrelationIDGenerator:
             return False
 
         parsed = CorrelationIDGenerator.parse_correlation_id(correlation_id)
-        return parsed["service"] != "unknown"
+        return bool(parsed["service"] != "unknown")
 
 
 # Convenience functions for backward compatibility

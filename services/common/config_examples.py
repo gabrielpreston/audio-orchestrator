@@ -48,7 +48,7 @@ def example_discord_service_config():
         print("✓ Configuration is valid")
     except Exception as e:
         print(f"✗ Configuration validation failed: {e}")
-        return
+        return None
 
     # Access configuration values
     print(
@@ -99,7 +99,7 @@ def example_stt_service_config():
         print("✓ STT configuration is valid")
     except Exception as e:
         print(f"✗ STT configuration validation failed: {e}")
-        return
+        return None
 
     print(f"Faster-whisper model: {config.faster_whisper.model}")
     print(f"Device: {config.faster_whisper.device}")
@@ -137,7 +137,7 @@ def example_tts_service_config():
         print("✓ TTS configuration is valid")
     except Exception as e:
         print(f"✗ TTS configuration validation failed: {e}")
-        return
+        return None
 
     print(f"TTS port: {config.tts.port}")
     print(f"Model path: {config.tts.model_path}")
@@ -176,7 +176,7 @@ def example_orchestrator_service_config():
         print("✓ Orchestrator configuration is valid")
     except Exception as e:
         print(f"✗ Orchestrator configuration validation failed: {e}")
-        return
+        return None
 
     print(f"Orchestrator port: {config.orchestrator.port}")
     print(f"Llama model path: {config.llama.model_path}")

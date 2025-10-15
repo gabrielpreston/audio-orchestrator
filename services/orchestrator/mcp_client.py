@@ -139,7 +139,7 @@ class StdioMCPClient:
                 tool_name=name,
                 success=True,
             )
-            return result.content[0].json if result.content else {}
+            return dict(result.content[0].json) if result.content else {}
         except Exception as exc:
             self._logger.error(
                 "mcp.tool_call_failed",

@@ -166,7 +166,7 @@ class TestBaseConfig(TestCase):
             config.validate()
 
         # Test type validation
-        config = TestConfig(required_field="test", optional_field="not_a_number")
+        config = TestConfig(required_field="test", optional_field="not_a_number")  # type: ignore
         with self.assertRaises(ValidationError):
             config.validate()
 

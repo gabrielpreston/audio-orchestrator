@@ -1,5 +1,6 @@
 """Mock Discord client for testing."""
 
+from collections.abc import Callable
 from typing import Any
 from unittest import mock
 
@@ -66,9 +67,20 @@ class MockGuild:
     def __init__(self, guild_id: int, name: str = "Test Guild"):
         self.id = guild_id
         self.name = name
-        self.channels = []
-        self.members = []
-        self.voice_states = {}
+        self.channels: list[MockChannel] = []
+        self.members: list[MockMember] = []
+        self.voice_states: dict[int, MockVoiceState] = {}
+
+
+class MockMember:
+    """Mock Discord member for testing."""
+
+    def __init__(self, user_id: int, guild_id: int, name: str = "TestUser"):
+        self.id = user_id
+        self.guild_id = guild_id
+        self.name = name
+        self.nick = None
+        self.roles: list[str] = []
 
 
 class MockChannel:
@@ -93,7 +105,19 @@ class MockVoiceChannel(MockChannel):
         super().__init__(channel_id, "voice", guild_id)
         self.bitrate = 64000
         self.user_limit = 0
-        self.connected_members = []
+        self.connected_members: list[MockMember] = []
+
+
+class MockVoiceState:
+    """Mock Discord voice state for testing."""
+
+    def __init__(self, user_id: int, channel_id: int | None = None):
+        self.user_id = user_id
+        self.channel_id = channel_id
+        self.deaf = False
+        self.mute = False
+        self.self_deaf = False
+        self.self_mute = False
 
 
 class MockVoiceClient:
@@ -118,6 +142,7 @@ class MockVoiceClient:
         self.is_connected = False
         if self.voice_recv:
             await self.voice_recv.stop()
+        return
 
     def play(self, source, *, after=None) -> None:
         """Mock play method."""
@@ -146,7 +171,7 @@ class MockVoiceRecvClient:
     def __init__(self, voice_client: MockVoiceClient):
         self.voice_client = voice_client
         self.is_listening = False
-        self.listeners = []
+        self.listeners: list[Callable[..., Any]] = []
 
     async def start(self) -> None:
         """Mock start method."""

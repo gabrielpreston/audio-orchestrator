@@ -1,5 +1,6 @@
 """Mock MCP client for testing."""
 
+from collections.abc import Callable
 from typing import Any
 
 
@@ -120,13 +121,13 @@ class MockMCPTool:
         name: str,
         description: str,
         parameters: dict[str, Any],
-        handler: callable | None = None,
+        handler: Callable[..., Any] | None = None,
     ):
         self.name = name
         self.description = description
         self.parameters = parameters
         self.handler = handler
-        self._calls = []
+        self._calls: list[dict[str, Any]] = []
 
     def get_calls(self) -> list[dict[str, Any]]:
         """Get all calls to this tool."""
@@ -145,13 +146,13 @@ class MockMCPTool:
 
         if self.handler:
             return await self.handler(parameters, correlation_id)
-
-        # Default response
-        return {
-            "success": True,
-            "result": f"Mock result for {self.name}",
-            "correlation_id": correlation_id,
-        }
+        else:
+            # Default response
+            return {
+                "success": True,
+                "result": f"Mock result for {self.name}",
+                "correlation_id": correlation_id,
+            }
 
 
 def create_mock_mcp_client() -> MockMCPClient:
@@ -167,7 +168,7 @@ def create_mock_mcp_tool(
     name: str,
     description: str,
     parameters: dict[str, Any],
-    handler: callable | None = None,
+    handler: Callable[..., Any] | None = None,
 ) -> MockMCPTool:
     """Create a mock MCP tool for testing.
 
