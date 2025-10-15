@@ -12,8 +12,8 @@ librosa==0.10.1
 soundfile==0.12.1
 numpy==1.24.3
 scipy==1.11.4
-# Align PyAV with aiortc (1.6.x requires av<12); prefer wheels
-av==11.0.0
+# Align PyAV with aiortc (1.6.x requires av<12); prefer wheel-available build
+av==10.0.0
 
 # WebRTC and networking
 # Pin PyAV to a wheel-provided version so pip-audit can resolve
