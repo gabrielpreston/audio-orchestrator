@@ -3,15 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-
-# import logging  # Unused import
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from services.common.logging import get_logger
-
 
 logger = get_logger(__name__, service_name="orchestrator")
 
@@ -23,17 +21,17 @@ class StdioMCPClient:
         self,
         name: str,
         command: str,
-        args: Optional[List[str]] = None,
-        env: Optional[Dict[str, str]] = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ):
         self.name = name
         self.command = command
         self.args = args or []
         self.env = env or {}
-        self._session: Optional[ClientSession] = None
+        self._session: ClientSession | None = None
         self._client = None
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._notification_handlers: List[Callable[[str, Dict[str, Any]], Awaitable[None]]] = []
+        self._notification_handlers: list[Callable[[str, dict[str, Any]], Awaitable[None]]] = []
 
     async def connect(self) -> None:
         """Connect to the MCP server subprocess."""
@@ -70,7 +68,8 @@ class StdioMCPClient:
             )
 
             # Start listening for notifications
-            asyncio.create_task(self._listen_for_notifications())
+            _notification_task = asyncio.create_task(self._listen_for_notifications())
+            # Store reference to prevent garbage collection
 
         except Exception as exc:
             self._logger.error(
@@ -96,7 +95,7 @@ class StdioMCPClient:
                 self._session = None
                 self._client = None
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """List available tools from the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
@@ -125,7 +124,7 @@ class StdioMCPClient:
             )
             raise
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call a tool on the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
@@ -149,7 +148,7 @@ class StdioMCPClient:
             raise
 
     def subscribe_notifications(
-        self, handler: Callable[[str, Dict[str, Any]], Awaitable[None]]
+        self, handler: Callable[[str, dict[str, Any]], Awaitable[None]]
     ) -> None:
         """Subscribe to MCP notifications."""
         self._notification_handlers.append(handler)
@@ -181,7 +180,7 @@ class StdioMCPClient:
                 error=str(exc),
             )
 
-    async def _handle_notification(self, method: str, params: Dict[str, Any]) -> None:
+    async def _handle_notification(self, method: str, params: dict[str, Any]) -> None:
         """Handle incoming notifications."""
         for handler in self._notification_handlers:
             try:

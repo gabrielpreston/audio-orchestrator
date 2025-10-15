@@ -10,7 +10,7 @@ import audioop
 import io
 import wave
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, ClassVar
 
 import librosa
 import numpy as np
@@ -46,18 +46,18 @@ class AudioProcessingResult:
 
     audio_data: bytes
     metadata: AudioMetadata
-    processing_info: Dict[str, Any]
+    processing_info: dict[str, Any]
     success: bool
-    error: Optional[str] = None
+    error: str | None = None
 
 
 class AudioProcessor:
     """Standardized audio processing for voice pipeline services using librosa."""
 
     # Standard audio formats and parameters
-    STANDARD_SAMPLE_RATES = [8000, 16000, 22050, 44100, 48000]
-    STANDARD_CHANNELS = [1, 2]  # mono, stereo
-    STANDARD_BIT_DEPTHS = [8, 16, 24, 32]
+    STANDARD_SAMPLE_RATES: ClassVar[list[int]] = [8000, 16000, 22050, 44100, 48000]
+    STANDARD_CHANNELS: ClassVar[list[int]] = [1, 2]  # mono, stereo
+    STANDARD_BIT_DEPTHS: ClassVar[list[int]] = [8, 16, 24, 32]
 
     # Service-specific defaults
     DISCORD_DEFAULT_SAMPLE_RATE = 48000
@@ -94,10 +94,7 @@ class AudioProcessor:
             if format_hint.lower() == "wav" or audio_data.startswith(b"RIFF"):
                 # Load as WAV using librosa
                 audio_array, sample_rate = librosa.load(io.BytesIO(audio_data), sr=None, mono=False)
-                if audio_array.ndim == 1:
-                    channels = 1
-                else:
-                    channels = audio_array.shape[0]
+                channels = 1 if audio_array.ndim == 1 else audio_array.shape[0]
 
                 duration = len(audio_array) / sample_rate if sample_rate > 0 else 0.0
                 frames = len(audio_array)
@@ -210,7 +207,7 @@ class AudioProcessor:
             self._log("error", "audio.pcm_to_wav_failed", error=str(exc))
             raise
 
-    def wav_to_pcm(self, wav_data: bytes) -> Tuple[bytes, AudioMetadata]:
+    def wav_to_pcm(self, wav_data: bytes) -> tuple[bytes, AudioMetadata]:
         """
         Extract PCM data from WAV format using librosa.
 
@@ -253,7 +250,6 @@ class AudioProcessor:
         audio_data: bytes,
         from_rate: int,
         to_rate: int,
-        channels: int = 1,
         sample_width: int = 2,
     ) -> bytes:
         """
@@ -263,7 +259,6 @@ class AudioProcessor:
             audio_data: Raw PCM audio data
             from_rate: Source sample rate
             to_rate: Target sample rate
-            channels: Number of channels
             sample_width: Bytes per sample
 
         Returns:
@@ -319,7 +314,7 @@ class AudioProcessor:
 
     def normalize_audio(
         self, pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
-    ) -> Tuple[bytes, float]:
+    ) -> tuple[bytes, float]:
         """
         Normalize audio to target RMS level using librosa.
 
@@ -430,7 +425,7 @@ class AudioProcessor:
             # Resample if needed
             if from_sample_rate != to_sample_rate:
                 pcm_data = self.resample_audio(
-                    pcm_data, from_sample_rate, to_sample_rate, from_channels, from_sample_width
+                    pcm_data, from_sample_rate, to_sample_rate, from_sample_width
                 )
 
             # Convert channels if needed (simplified - just duplicate or drop)
@@ -571,7 +566,7 @@ class AudioProcessor:
         except Exception:
             return False
 
-    def get_service_defaults(self, service_name: str) -> Dict[str, Any]:
+    def get_service_defaults(self, service_name: str) -> dict[str, Any]:
         """Get default audio parameters for a specific service."""
         defaults = {
             "discord": {
@@ -616,23 +611,21 @@ def pcm_to_wav(
     return processor.pcm_to_wav(pcm_data, sample_rate, channels, sample_width)
 
 
-def wav_to_pcm(wav_data: bytes) -> Tuple[bytes, AudioMetadata]:
+def wav_to_pcm(wav_data: bytes) -> tuple[bytes, AudioMetadata]:
     """Convert WAV to PCM format."""
     processor = AudioProcessor()
     return processor.wav_to_pcm(wav_data)
 
 
-def resample_audio(
-    audio_data: bytes, from_rate: int, to_rate: int, channels: int = 1, sample_width: int = 2
-) -> bytes:
+def resample_audio(audio_data: bytes, from_rate: int, to_rate: int, sample_width: int = 2) -> bytes:
     """Resample audio data."""
     processor = AudioProcessor()
-    return processor.resample_audio(audio_data, from_rate, to_rate, channels, sample_width)
+    return processor.resample_audio(audio_data, from_rate, to_rate, sample_width)
 
 
 def normalize_audio(
     pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
-) -> Tuple[bytes, float]:
+) -> tuple[bytes, float]:
     """Normalize audio to target RMS."""
     processor = AudioProcessor()
     return processor.normalize_audio(pcm_data, target_rms, sample_width)

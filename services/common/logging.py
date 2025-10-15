@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+from typing import Any
 
 import structlog
 
@@ -19,7 +20,7 @@ def _numeric_level(level: str) -> int:
 Processor = Callable[[Any, str, dict[str, Any]], dict[str, Any]]
 
 
-def _add_service(service_name: Optional[str]) -> Processor:
+def _add_service(service_name: str | None) -> Processor:
     def processor(_: Any, __: str, event_dict: dict[str, Any]) -> dict[str, Any]:
         if service_name and "service" not in event_dict:
             event_dict["service"] = service_name
@@ -32,7 +33,7 @@ def configure_logging(
     level: str = "INFO",
     *,
     json_logs: bool = True,
-    service_name: Optional[str] = None,
+    service_name: str | None = None,
 ) -> None:
     """Configure structlog + stdlib logging for the process."""
 
@@ -82,8 +83,8 @@ def configure_logging(
 def get_logger(
     name: str,
     *,
-    correlation_id: Optional[str] = None,
-    service_name: Optional[str] = None,
+    correlation_id: str | None = None,
+    service_name: str | None = None,
 ) -> structlog.stdlib.BoundLogger:
     """Return a structlog logger bound with standard metadata."""
 

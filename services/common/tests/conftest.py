@@ -1,23 +1,18 @@
 """Test configuration for services.common module."""
 
 import os
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
 from unittest import mock
 
 import pytest
 
-from services.common.config import BaseConfig, ServiceConfig
-from services.common.service_configs import (
-    AudioConfig,
-    DiscordConfig,
-    HttpConfig,
-    LoggingConfig,
-)
+from services.common.config import ServiceConfig
+from services.common.service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
 
 
 @pytest.fixture
-def mock_environment() -> Generator[Dict[str, str], None, None]:
+def mock_environment() -> Generator[dict[str, str], None, None]:
     """Mock environment variables for testing."""
     with mock.patch.dict(os.environ, {}, clear=True):
         yield {}

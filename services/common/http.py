@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Mapping, MutableMapping, Optional, Union
+from collections.abc import Mapping, MutableMapping
+from typing import Any
 
 import httpx
 from structlog.stdlib import BoundLogger
 
 from .logging import get_logger
-
 
 DEFAULT_BACKOFF_SECONDS = 0.5
 
@@ -18,15 +18,15 @@ async def post_with_retries(
     client: httpx.AsyncClient,
     url: str,
     *,
-    files: Optional[Mapping[str, tuple[str, bytes, str]]] = None,
-    data: Optional[Mapping[str, Any]] = None,
-    json: Optional[Any] = None,
-    headers: Optional[Mapping[str, str]] = None,
-    params: Optional[Mapping[str, Any]] = None,
+    files: Mapping[str, tuple[str, bytes, str]] | None = None,
+    data: Mapping[str, Any] | None = None,
+    json: Any | None = None,
+    headers: Mapping[str, str] | None = None,
+    params: Mapping[str, Any] | None = None,
     max_retries: int = 3,
-    log_fields: Optional[MutableMapping[str, Any]] = None,
-    logger: Optional[BoundLogger] = None,
-    timeout: Optional[Union[float, httpx.Timeout]] = None,
+    log_fields: MutableMapping[str, Any] | None = None,
+    logger: BoundLogger | None = None,
+    timeout: float | httpx.Timeout | None = None,
 ) -> httpx.Response:
     """POST helper that retries with exponential backoff and structured logs."""
 
@@ -54,7 +54,7 @@ async def post_with_retries(
                 **extra,
             )
             return response
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             if attempt >= max_retries:
                 log.error(
                     "http.post_failed",

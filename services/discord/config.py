@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
 
 
 @dataclass(slots=True)
@@ -15,7 +14,7 @@ class DiscordConfig:
     token: str
     guild_id: int
     voice_channel_id: int
-    intents: List[str] = field(default_factory=lambda: ["guilds", "voice_states", "guild_messages"])
+    intents: list[str] = field(default_factory=lambda: ["guilds", "voice_states", "guild_messages"])
     auto_join: bool = False
     voice_connect_timeout_seconds: float = 15.0
     voice_connect_max_attempts: int = 3
@@ -31,7 +30,7 @@ class AudioConfig:
     max_segment_duration_seconds: float = 15.0
     min_segment_duration_seconds: float = 0.3
     aggregation_window_seconds: float = 1.5
-    allowlist_user_ids: List[int] = field(default_factory=list)
+    allowlist_user_ids: list[int] = field(default_factory=list)
     input_sample_rate_hz: int = 48000
     vad_sample_rate_hz: int = 16000
     vad_frame_duration_ms: int = 30
@@ -45,17 +44,17 @@ class STTConfig:
     base_url: str
     request_timeout_seconds: float = 45.0
     max_retries: int = 3
-    forced_language: Optional[str] = "en"
+    forced_language: str | None = "en"
 
 
 @dataclass(slots=True)
 class MCPConfig:
     """Configuration for manifest loading and transports."""
 
-    manifest_paths: List[Path] = field(default_factory=list)
-    websocket_url: Optional[str] = None
-    command_path: Optional[Path] = None
-    registration_url: Optional[str] = None
+    manifest_paths: list[Path] = field(default_factory=list)
+    websocket_url: str | None = None
+    command_path: Path | None = None
+    registration_url: str | None = None
     heartbeat_interval_seconds: float = 30.0
 
 
@@ -65,8 +64,8 @@ class TelemetryConfig:
 
     log_level: str = "INFO"
     log_json: bool = True
-    metrics_port: Optional[int] = None
-    waveform_debug_dir: Optional[Path] = None
+    metrics_port: int | None = None
+    waveform_debug_dir: Path | None = None
 
 
 @dataclass(slots=True)
@@ -76,7 +75,7 @@ class BotConfig:
     discord: DiscordConfig
     audio: AudioConfig
     stt: STTConfig
-    wake: "WakeConfig"
+    wake: WakeConfig
     mcp: MCPConfig
     telemetry: TelemetryConfig
 
@@ -85,8 +84,8 @@ class BotConfig:
 class WakeConfig:
     """Wake phrase detection settings."""
 
-    wake_phrases: List[str] = field(default_factory=lambda: ["hey atlas", "ok atlas"])
-    model_paths: List[Path] = field(default_factory=list)
+    wake_phrases: list[str] = field(default_factory=lambda: ["hey atlas", "ok atlas"])
+    model_paths: list[Path] = field(default_factory=list)
     activation_threshold: float = 0.5
     target_sample_rate_hz: int = 16000
 
@@ -98,7 +97,7 @@ def _require_env(name: str) -> str:
     return value
 
 
-def _get_int(name: str, default: Optional[int] = None) -> int:
+def _get_int(name: str, default: int | None = None) -> int:
     raw = os.getenv(name)
     if raw is None:
         if default is None:
@@ -110,7 +109,7 @@ def _get_int(name: str, default: Optional[int] = None) -> int:
         raise RuntimeError(f"Environment variable {name} must be an integer") from exc
 
 
-def _split_csv(value: str) -> List[str]:
+def _split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 

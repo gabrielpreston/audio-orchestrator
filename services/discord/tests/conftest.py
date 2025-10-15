@@ -1,11 +1,11 @@
 """Test configuration for services.discord module."""
 
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest import mock
 
 import discord
 import pytest
-from discord.ext import voice_recv
 
 from services.common.service_configs import DiscordConfig
 
@@ -120,7 +120,7 @@ def mock_voice_data() -> bytes:
 
 
 @pytest.fixture
-def mock_audio_segment() -> Dict[str, Any]:
+def mock_audio_segment() -> dict[str, Any]:
     """Provide mock audio segment data for testing."""
     return {
         "data": b"mock audio data",

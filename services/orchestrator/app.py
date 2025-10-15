@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -13,7 +13,6 @@ from services.common.logging import configure_logging, get_logger
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
 
-
 app = FastAPI(title="Voice Assistant Orchestrator")
 
 configure_logging(
@@ -23,9 +22,9 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="orchestrator")
 
-_ORCHESTRATOR: Optional[Orchestrator] = None
-_MCP_MANAGER: Optional[MCPManager] = None
-_LLM_CLIENT: Optional[httpx.AsyncClient] = None
+_ORCHESTRATOR: Orchestrator | None = None
+_MCP_MANAGER: MCPManager | None = None
+_LLM_CLIENT: httpx.AsyncClient | None = None
 
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm:8000")
 _LLM_AUTH_TOKEN = os.getenv("LLM_AUTH_TOKEN")
@@ -38,7 +37,7 @@ def _env_bool(name: str, default: str = "true") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
 
 
-async def _ensure_llm_client() -> Optional[httpx.AsyncClient]:
+async def _ensure_llm_client() -> httpx.AsyncClient | None:
     global _LLM_CLIENT
     if not _LLM_BASE_URL:
         return None
@@ -91,11 +90,11 @@ class TranscriptRequest(BaseModel):
     channel_id: str
     user_id: str
     transcript: str
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 
 
 @app.post("/mcp/transcript")
-async def handle_transcript(request: TranscriptRequest) -> Dict[str, Any]:
+async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     if not _ORCHESTRATOR:
         return {"error": "Orchestrator not initialized"}
@@ -133,7 +132,7 @@ async def handle_transcript(request: TranscriptRequest) -> Dict[str, Any]:
 
 
 @app.get("/mcp/tools")
-async def list_mcp_tools() -> Dict[str, Any]:
+async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -146,7 +145,7 @@ async def list_mcp_tools() -> Dict[str, Any]:
 
 
 @app.get("/mcp/connections")
-async def list_mcp_connections() -> Dict[str, Any]:
+async def list_mcp_connections() -> dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -155,7 +154,7 @@ async def list_mcp_connections() -> Dict[str, Any]:
 
 
 @app.get("/health")
-async def health_check() -> Dict[str, Any]:
+async def health_check() -> dict[str, Any]:
     """Health check endpoint with MCP status."""
     mcp_status = {}
     if _MCP_MANAGER:

@@ -1,9 +1,9 @@
 """Test configuration for services.orchestrator module."""
 
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest import mock
 
-import httpx
 import pytest
 
 
@@ -50,7 +50,7 @@ def mock_mcp_client() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_orchestration_request() -> Dict[str, Any]:
+def test_orchestration_request() -> dict[str, Any]:
     """Provide test orchestration request data."""
     return {
         "transcript": "hey atlas, what's the weather like today?",
@@ -61,7 +61,7 @@ def test_orchestration_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_orchestration_response() -> Dict[str, Any]:
+def test_orchestration_response() -> dict[str, Any]:
     """Provide test orchestration response data."""
     return {
         "response": "The weather today is sunny with a temperature of 75°F in San Francisco.",
@@ -73,7 +73,7 @@ def test_orchestration_response() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_mcp_tool_call() -> Dict[str, Any]:
+def test_mcp_tool_call() -> dict[str, Any]:
     """Provide test MCP tool call data."""
     return {
         "tool": "weather_check",
@@ -83,7 +83,7 @@ def test_mcp_tool_call() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_mcp_tool_response() -> Dict[str, Any]:
+def test_mcp_tool_response() -> dict[str, Any]:
     """Provide test MCP tool response data."""
     return {
         "success": True,

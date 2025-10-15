@@ -7,7 +7,7 @@ import io
 import wave
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Dict, Optional, Type
+from typing import Any
 
 import httpx
 
@@ -25,22 +25,22 @@ class TranscriptResult:
     text: str
     start_timestamp: float
     end_timestamp: float
-    language: Optional[str]
-    confidence: Optional[float]
+    language: str | None
+    confidence: float | None
     correlation_id: str
-    raw_response: Dict[str, Any]
+    raw_response: dict[str, Any]
 
 
 class TranscriptionClient:
     """Async client that sends audio segments to the STT service."""
 
-    def __init__(self, config: STTConfig, *, session: Optional[httpx.AsyncClient] = None) -> None:
+    def __init__(self, config: STTConfig, *, session: httpx.AsyncClient | None = None) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
         self._logger = get_logger(__name__, service_name="discord")
 
-    async def __aenter__(self) -> "TranscriptionClient":
+    async def __aenter__(self) -> TranscriptionClient:
         if self._session is None:
             timeout = httpx.Timeout(connect=5.0, read=None, write=None, pool=None)
             self._session = httpx.AsyncClient(timeout=timeout)
@@ -48,9 +48,9 @@ class TranscriptionClient:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> None:
         if self._owns_session and self._session:
             await self._session.aclose()
@@ -68,7 +68,7 @@ class TranscriptionClient:
             )
         }
         data = {"metadata": segment.correlation_id}
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if self._config.forced_language:
             params["language"] = self._config.forced_language
         logger = self._logger.bind(correlation_id=segment.correlation_id)
@@ -100,7 +100,7 @@ class TranscriptionClient:
                 params=params or None,
                 timeout=request_timeout,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("stt.transcribe_failed", error=str(exc))
             raise
         payload = response.json()

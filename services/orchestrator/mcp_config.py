@@ -6,10 +6,8 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from services.common.logging import get_logger
-
 
 logger = get_logger(__name__, service_name="orchestrator")
 
@@ -20,8 +18,8 @@ class MCPServerConfig:
 
     name: str
     command: str
-    args: List[str]
-    env: Dict[str, str]
+    args: list[str]
+    env: dict[str, str]
     enabled: bool = True
 
 
@@ -30,7 +28,7 @@ class MCPConfig:
 
     def __init__(self, config_path: str = "./mcp.json"):
         self.config_path = Path(config_path)
-        self.servers: Dict[str, MCPServerConfig] = {}
+        self.servers: dict[str, MCPServerConfig] = {}
         self._logger = get_logger(__name__, service_name="orchestrator")
 
     def load(self) -> None:
@@ -43,7 +41,7 @@ class MCPConfig:
             return
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             mcp_servers = data.get("mcpServers", {})
@@ -127,11 +125,11 @@ class MCPConfig:
             )
             raise
 
-    def get_enabled_servers(self) -> Dict[str, MCPServerConfig]:
+    def get_enabled_servers(self) -> dict[str, MCPServerConfig]:
         """Get all enabled MCP server configurations."""
         return {name: config for name, config in self.servers.items() if config.enabled}
 
-    def get_server_config(self, name: str) -> Optional[MCPServerConfig]:
+    def get_server_config(self, name: str) -> MCPServerConfig | None:
         """Get configuration for a specific server."""
         return self.servers.get(name)
 

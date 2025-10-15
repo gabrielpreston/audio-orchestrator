@@ -3,7 +3,6 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 from unittest import TestCase, mock
 
 from .config import (
@@ -142,8 +141,8 @@ class TestBaseConfig(TestCase):
         class TestConfig(BaseConfig):
             def __init__(
                 self,
-                required_field: Optional[str] = None,
-                optional_field: Optional[int] = None,
+                required_field: str | None = None,
+                optional_field: int | None = None,
                 **kwargs,
             ):
                 super().__init__(**kwargs)

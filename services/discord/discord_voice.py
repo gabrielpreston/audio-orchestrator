@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-
-# import io  # Unused import
 import random
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Awaitable, Callable, Dict, Optional, Set
+from typing import Any
 
 import discord
 import httpx
@@ -25,7 +24,6 @@ from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
 
-
 try:
     from discord.ext import voice_recv as _voice_recv
 except ImportError:
@@ -33,13 +31,13 @@ except ImportError:
 else:
     recv_client_cls = getattr(_voice_recv, "VoiceRecvClient", None)
     if isinstance(recv_client_cls, type):
-        setattr(discord, "VoiceClient", recv_client_cls)
+        discord.VoiceClient = recv_client_cls
     try:
         discord.opus._load_default()
     except OSError:
         pass
 
-discord_voice_recv: Optional[Any] = _voice_recv
+discord_voice_recv: Any | None = _voice_recv
 
 
 @dataclass(slots=True)
@@ -51,10 +49,10 @@ class SegmentContext:
     channel_id: int
 
 
-TranscriptPublisher = Callable[[Dict[str, object]], Awaitable[None]]
+TranscriptPublisher = Callable[[dict[str, object]], Awaitable[None]]
 
 
-def _truncate_text(value: Optional[str], *, limit: int = 120) -> Optional[str]:
+def _truncate_text(value: str | None, *, limit: int = 120) -> str | None:
     if not value:
         return None
     compact = " ".join(value.split())
@@ -80,17 +78,17 @@ class VoiceBot(discord.Client):
         self._wake_detector = wake_detector
         self._publish_transcript = transcript_publisher
         self._logger = get_logger(__name__, service_name="discord")
-        self._segment_queue: "asyncio.Queue[SegmentContext]" = asyncio.Queue()
-        self._segment_task: Optional[asyncio.Task[None]] = None
-        self._idle_flush_task: Optional[asyncio.Task[None]] = None
+        self._segment_queue: asyncio.Queue[SegmentContext] = asyncio.Queue()
+        self._segment_task: asyncio.Task[None] | None = None
+        self._idle_flush_task: asyncio.Task[None] | None = None
         self._shutdown = asyncio.Event()
-        self._http_session: Optional[httpx.AsyncClient] = None
-        self._loop: Optional[asyncio.AbstractEventLoop] = None
-        self._voice_receivers: Dict[int, object] = {}
-        self._voice_contexts: Dict[int, tuple[int, int]] = {}
-        self._voice_join_locks: Dict[int, asyncio.Lock] = {}
-        self._voice_reconnect_tasks: Dict[int, asyncio.Task[None]] = {}
-        self._suppress_reconnect: Set[int] = set()
+        self._http_session: httpx.AsyncClient | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._voice_receivers: dict[int, object] = {}
+        self._voice_contexts: dict[int, tuple[int, int]] = {}
+        self._voice_join_locks: dict[int, asyncio.Lock] = {}
+        self._voice_reconnect_tasks: dict[int, asyncio.Task[None]] = {}
+        self._suppress_reconnect: set[int] = set()
 
         # Initialize orchestrator client
         self._orchestrator_client = OrchestratorClient()
@@ -158,7 +156,7 @@ class VoiceBot(discord.Client):
                 await self.join_voice_channel(
                     self.config.discord.guild_id, self.config.discord.voice_channel_id
                 )
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._logger.error(
                     "discord.voice_auto_join_failed",
                     guild_id=self.config.discord.guild_id,
@@ -171,7 +169,7 @@ class VoiceBot(discord.Client):
                     reason="auto_join_failed",
                 )
 
-    async def join_voice_channel(self, guild_id: int, channel_id: int) -> Dict[str, object]:
+    async def join_voice_channel(self, guild_id: int, channel_id: int) -> dict[str, object]:
         await self.wait_until_ready()
         guild = self.get_guild(guild_id)
         if not guild:
@@ -216,7 +214,7 @@ class VoiceBot(discord.Client):
 
             attempt = 0
             delay = 0.0
-            last_exc: Optional[Exception] = None
+            last_exc: Exception | None = None
             while attempt < max_attempts:
                 if delay > 0:
                     await asyncio.sleep(delay)
@@ -244,7 +242,7 @@ class VoiceBot(discord.Client):
                         attempt=attempt,
                     )
                     return {"status": "connected", "guild_id": guild_id, "channel_id": channel_id}
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     last_exc = exc
                     self._logger.warning(
                         "discord.voice_connect_retry",
@@ -272,7 +270,7 @@ class VoiceBot(discord.Client):
                 raise last_exc
             raise RuntimeError("Voice connection attempts exhausted")
 
-    async def leave_voice_channel(self, guild_id: int) -> Dict[str, object]:
+    async def leave_voice_channel(self, guild_id: int) -> dict[str, object]:
         await self.wait_until_ready()
         voice_client = self._voice_client_for_guild(guild_id)
         if not voice_client:
@@ -329,7 +327,7 @@ class VoiceBot(discord.Client):
             reason="voice_state_disconnected",
         )
 
-    async def send_text_message(self, channel_id: int, content: str) -> Dict[str, object]:
+    async def send_text_message(self, channel_id: int, content: str) -> dict[str, object]:
         await self.wait_until_ready()
         channel = self.get_channel(channel_id)
         if channel is None:
@@ -358,7 +356,7 @@ class VoiceBot(discord.Client):
             message_id=message.id,
             channel_type=channel_type_name,
         )
-        payload: Dict[str, object] = {
+        payload: dict[str, object] = {
             "status": "sent",
             "channel_id": channel_id,
             "message_id": message.id,
@@ -372,7 +370,7 @@ class VoiceBot(discord.Client):
         guild_id: int,
         channel_id: int,
         audio_url: str,
-    ) -> Dict[str, object]:
+    ) -> dict[str, object]:
         await self.wait_until_ready()
         if not self._http_session:
             timeout = httpx.Timeout(30.0, connect=10.0)
@@ -429,7 +427,7 @@ class VoiceBot(discord.Client):
         self,
         segment: AudioSegment,
         *,
-        context: Optional[tuple[int, int]] = None,
+        context: tuple[int, int] | None = None,
     ) -> None:
         if context is None:
             context = self._voice_contexts.get(segment.user_id)
@@ -462,7 +460,7 @@ class VoiceBot(discord.Client):
 
         await self._segment_queue.put(segment_context)
 
-    def _resolve_voice_state(self, user_id: int) -> Optional[discord.VoiceState]:
+    def _resolve_voice_state(self, user_id: int) -> discord.VoiceState | None:
         for guild in self.guilds:
             member = guild.get_member(user_id)
             if member and member.voice and member.voice.channel:
@@ -488,7 +486,7 @@ class VoiceBot(discord.Client):
                     )
                 try:
                     await asyncio.wait_for(self._shutdown.wait(), timeout=interval)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
         except asyncio.CancelledError:
             raise
@@ -520,7 +518,7 @@ class VoiceBot(discord.Client):
                     await self._handle_transcript(context, transcript)
                 except asyncio.CancelledError:
                     raise
-                except Exception as exc:  # noqa: BLE001
+                except Exception as exc:
                     self._logger.error(
                         "voice.segment_processing_failed",
                         guild_id=context.guild_id,
@@ -548,7 +546,7 @@ class VoiceBot(discord.Client):
             self._save_debug_ignored_segment(context, transcript)
             return
 
-        payload: Dict[str, object] = {
+        payload: dict[str, object] = {
             "text": transcript.text,
             "user_id": context.segment.user_id,
             "channel_id": context.channel_id,
@@ -648,7 +646,7 @@ class VoiceBot(discord.Client):
 
             # Save debug data for TTS playback
             self._save_debug_tts_playback(context, audio_url)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._logger.error(
                 "tts.playback_failed",
                 audio_url=audio_url,
@@ -657,7 +655,7 @@ class VoiceBot(discord.Client):
                 error=str(exc),
             )
 
-    def _voice_client_for_guild(self, guild_id: int) -> Optional[discord.VoiceClient]:
+    def _voice_client_for_guild(self, guild_id: int) -> discord.VoiceClient | None:
         for voice_client in self.voice_clients:
             if voice_client.guild and voice_client.guild.id == guild_id:
                 return voice_client
@@ -707,7 +705,7 @@ class VoiceBot(discord.Client):
             attempt += 1
             try:
                 await self.join_voice_channel(guild_id, channel_id)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 exponential = base_backoff * (2 ** max(0, attempt - 1))
                 delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
                 self._logger.warning(
@@ -722,7 +720,7 @@ class VoiceBot(discord.Client):
                 try:
                     await asyncio.wait_for(self._shutdown.wait(), timeout=delay)
                     return
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue
             else:
                 self._logger.info(
@@ -750,11 +748,11 @@ class VoiceBot(discord.Client):
         try:
             assert self._loop is not None
             receiver = build_sink(self._loop, self.ingest_voice_packet)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return
         try:
             voice_client.listen(receiver)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._logger.error(
                 "voice.receiver_start_failed",
                 guild_id=guild_id,
@@ -772,7 +770,7 @@ class VoiceBot(discord.Client):
     def _stop_voice_receiver(
         self,
         guild_id: int,
-        voice_client: Optional[discord.VoiceClient],
+        voice_client: discord.VoiceClient | None,
     ) -> None:
         receiver = self._voice_receivers.pop(guild_id, None)
         if not receiver:
@@ -798,7 +796,7 @@ class VoiceBot(discord.Client):
                 guild_id=voice_client.guild.id if voice_client.guild else None,
                 channel_id=channel_id,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._logger.warning(
                 "discord.voice_force_disconnect_exception",
                 guild_id=voice_client.guild.id if voice_client.guild else None,
@@ -943,7 +941,7 @@ class VoiceBot(discord.Client):
         self,
         context: SegmentContext,
         transcript: TranscriptResult,
-        orchestrator_result: Dict[str, Any],
+        orchestrator_result: dict[str, Any],
     ) -> None:
         """Save debug data for orchestrator communication."""
         try:

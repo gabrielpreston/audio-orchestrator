@@ -4,26 +4,26 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future as ThreadFuture
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any
 
 from structlog.stdlib import BoundLogger
 
 from services.common.logging import get_logger
 
-
-voice_recv: Optional[Any]
+voice_recv: Any | None
 try:
     voice_recv = importlib.import_module("discord.ext.voice_recv")
 except ImportError as exc:  # pragma: no cover - handled at runtime
     voice_recv = None
-    _IMPORT_ERROR: Optional[ImportError] = exc
+    _IMPORT_ERROR: ImportError | None = exc
 else:
     _IMPORT_ERROR = None
 
 FrameCallback = Callable[[int, bytes, float, int], Coroutine[Any, Any, None]]
 
-_LOGGER: Optional[BoundLogger] = None
+_LOGGER: BoundLogger | None = None
 
 
 def _get_logger() -> BoundLogger:
@@ -44,7 +44,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
 
     logger = _get_logger()
 
-    def handler(user: Optional[object], data: Any) -> None:
+    def handler(user: object | None, data: Any) -> None:
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
         if not pcm:
             return
@@ -71,7 +71,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
 def _consume_result(future: ThreadFuture[None]) -> None:
     try:
         future.result()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _get_logger().error("voice.receiver_callback_failed", error=str(exc))
 
 

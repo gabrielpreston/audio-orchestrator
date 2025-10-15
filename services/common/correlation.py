@@ -6,7 +6,6 @@ in the voice pipeline, ensuring proper hierarchical organization and traceabilit
 """
 
 import time
-from typing import Optional
 
 
 class CorrelationIDGenerator:

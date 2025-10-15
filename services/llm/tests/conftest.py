@@ -1,9 +1,9 @@
 """Test configuration for services.llm module."""
 
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest import mock
 
-import httpx
 import pytest
 
 
@@ -47,7 +47,7 @@ def mock_http_client() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_chat_request() -> Dict[str, Any]:
+def test_chat_request() -> dict[str, Any]:
     """Provide test chat request data."""
     return {
         "messages": [{"role": "user", "content": "What's the weather like today?"}],
@@ -58,7 +58,7 @@ def test_chat_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_chat_response() -> Dict[str, Any]:
+def test_chat_response() -> dict[str, Any]:
     """Provide test chat response data."""
     return {
         "choices": [
@@ -76,7 +76,7 @@ def test_chat_response() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_completion_request() -> Dict[str, Any]:
+def test_completion_request() -> dict[str, Any]:
     """Provide test completion request data."""
     return {
         "prompt": "The weather today is",
@@ -87,7 +87,7 @@ def test_completion_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_completion_response() -> Dict[str, Any]:
+def test_completion_response() -> dict[str, Any]:
     """Provide test completion response data."""
     return {
         "choices": [{"text": "sunny with a temperature of 75°F.", "finish_reason": "stop"}],
@@ -109,7 +109,7 @@ def mock_tts_client() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_tts_request() -> Dict[str, Any]:
+def test_tts_request() -> dict[str, Any]:
     """Provide test TTS request data."""
     return {
         "text": "The weather is sunny today",

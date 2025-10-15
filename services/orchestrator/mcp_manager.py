@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-# import asyncio  # Unused import
-from typing import Any, Awaitable, Callable, Dict, List
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from services.common.logging import get_logger
 
 from .mcp_client import StdioMCPClient
 from .mcp_config import MCPConfig
-
 
 logger = get_logger(__name__, service_name="orchestrator")
 
@@ -19,9 +18,9 @@ class MCPManager:
 
     def __init__(self, config_path: str = "./mcp.json"):
         self.config = MCPConfig(config_path)
-        self.clients: Dict[str, StdioMCPClient] = {}
+        self.clients: dict[str, StdioMCPClient] = {}
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._notification_handlers: List[Callable[[str, str, Dict[str, Any]], Awaitable[None]]] = (
+        self._notification_handlers: list[Callable[[str, str, dict[str, Any]], Awaitable[None]]] = (
             []
         )
 
@@ -80,7 +79,7 @@ class MCPManager:
                     self._http_client = httpx.AsyncClient(timeout=30.0)
                 return self._http_client
 
-            async def list_tools(self) -> List[Dict[str, Any]]:
+            async def list_tools(self) -> list[dict[str, Any]]:
                 """Return Discord MCP tools that can be called via HTTP."""
                 return [
                     {
@@ -111,7 +110,7 @@ class MCPManager:
                     },
                 ]
 
-            async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+            async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 """Call Discord tool via HTTP."""
                 try:
                     client = await self._get_http_client()
@@ -183,7 +182,7 @@ class MCPManager:
                 )
                 # Continue with other servers even if one fails
 
-    async def _handle_discord_notification(self, method: str, params: Dict[str, Any]) -> None:
+    async def _handle_discord_notification(self, method: str, params: dict[str, Any]) -> None:
         """Handle notifications from Discord service."""
         self._logger.debug(
             "mcp.discord_notification_received",
@@ -203,7 +202,7 @@ class MCPManager:
                 )
 
     def subscribe_notifications(
-        self, handler: Callable[[str, str, Dict[str, Any]], Awaitable[None]]
+        self, handler: Callable[[str, str, dict[str, Any]], Awaitable[None]]
     ) -> None:
         """Subscribe to notifications from any MCP client."""
         self._notification_handlers.append(handler)
@@ -212,7 +211,7 @@ class MCPManager:
             handler_count=len(self._notification_handlers),
         )
 
-    async def list_all_tools(self) -> Dict[str, List[Dict[str, Any]]]:
+    async def list_all_tools(self) -> dict[str, list[dict[str, Any]]]:
         """List all available tools from all connected clients."""
         all_tools = {}
 
@@ -239,8 +238,8 @@ class MCPManager:
         return all_tools
 
     async def call_tool(
-        self, client_name: str, tool_name: str, arguments: Dict[str, Any]
-    ) -> Dict[str, Any]:
+        self, client_name: str, tool_name: str, arguments: dict[str, Any]
+    ) -> dict[str, Any]:
         """Call a tool on a specific MCP client."""
         client = self.clients.get(client_name)
         if not client:
@@ -266,11 +265,11 @@ class MCPManager:
             )
             raise
 
-    async def call_discord_tool(self, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def call_discord_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Convenience method to call Discord tools."""
         return await self.call_tool("discord", tool_name, arguments)
 
-    def get_client_status(self) -> Dict[str, bool]:
+    def get_client_status(self) -> dict[str, bool]:
         """Get connection status of all clients."""
         return {name: client.is_connected for name, client in self.clients.items()}
 

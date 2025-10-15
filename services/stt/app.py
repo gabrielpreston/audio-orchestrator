@@ -2,7 +2,8 @@ import io
 import os
 import time
 import wave
-from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -11,7 +12,6 @@ from starlette.requests import ClientDisconnect
 
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
-
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
@@ -44,12 +44,12 @@ async def _warm_model() -> None:
     except HTTPException:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc))
         raise
 
 
-def _parse_bool(value: Optional[str]) -> bool:
+def _parse_bool(value: str | None) -> bool:
     if value is None:
         return False
     return str(value).lower() in {"1", "true", "yes", "on"}
@@ -59,7 +59,7 @@ def _lazy_load_model() -> Any:
     global _model
     try:
         from faster_whisper import WhisperModel
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("stt.model_import_failed", error=str(e))
         raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
 
@@ -80,7 +80,7 @@ def _lazy_load_model() -> Any:
             device=device,
             compute_type=compute_type or "default",
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception(
             "stt.model_load_error",
             model_name=MODEL_NAME,
@@ -92,7 +92,7 @@ def _lazy_load_model() -> Any:
     return _model
 
 
-def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
+def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
     """Extract audio metadata using standardized audio processing."""
     from services.common.audio import AudioProcessor
 
@@ -127,8 +127,8 @@ async def _transcribe_request(
     request: Request,
     wav_bytes: bytes,
     *,
-    correlation_id: Optional[str],
-    filename: Optional[str],
+    correlation_id: str | None,
+    filename: str | None,
 ) -> JSONResponse:
     # Top-level timing for the request (includes validation, file I/O, model work)
     req_start = time.time()
@@ -179,11 +179,11 @@ async def _transcribe_request(
     # Generate STT correlation ID if none provided
     if not correlation_id:
         correlation_id = generate_stt_correlation_id()
-    processing_ms: Optional[int] = None
+    processing_ms: int | None = None
     info: Any = None
-    segments_list: List[Any] = []
+    segments_list: list[Any] = []
     text = ""
-    segments_out: List[Dict[str, Any]] = []
+    segments_out: list[dict[str, Any]] = []
     try:
         logger.debug(
             "stt.request_received",
@@ -212,9 +212,8 @@ async def _transcribe_request(
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
             transcribe_kwargs.update({"task": "translate", "language": language})
-        else:
-            if language is not None:
-                transcribe_kwargs["language"] = language
+        elif language is not None:
+            transcribe_kwargs["language"] = language
         if include_word_ts:
             transcribe_kwargs["word_timestamps"] = True
         raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
@@ -240,7 +239,7 @@ async def _transcribe_request(
         text = " ".join(getattr(seg, "text", "") for seg in segments_list).strip()
         if include_word_ts:
             for seg in segments_list:
-                segment_entry: Dict[str, Any] = {
+                segment_entry: dict[str, Any] = {
                     "start": getattr(seg, "start", None),
                     "end": getattr(seg, "end", None),
                     "text": getattr(seg, "text", ""),
@@ -248,7 +247,7 @@ async def _transcribe_request(
                 # some faster-whisper variants expose `words` on segments when
                 # word timestamps are requested; include them if present.
                 words = getattr(seg, "words", None)
-                word_entries: List[Dict[str, Any]] = []
+                word_entries: list[dict[str, Any]] = []
                 if isinstance(words, list):
                     for w in words:
                         word_entries.append(
@@ -300,7 +299,7 @@ async def _transcribe_request(
         filename=filename,
     )
 
-    resp: Dict[str, Any] = {
+    resp: dict[str, Any] = {
         "text": text,
         "duration": getattr(info, "duration", None),
         "language": getattr(info, "language", None),
@@ -391,7 +390,7 @@ async def transcribe(request: Request):
 
     metadata_value = form.get("metadata")
 
-    filename: Optional[str] = None
+    filename: str | None = None
     wav_bytes: bytes
     if isinstance(upload, UploadFile):
         filename = upload.filename
@@ -422,20 +421,20 @@ async def transcribe(request: Request):
 
 
 def _save_debug_transcription(
-    correlation_id: Optional[str],
+    correlation_id: str | None,
     wav_bytes: bytes,
     text: str,
-    segments: List[Dict[str, Any]],
-    processing_ms: Optional[int],
+    segments: list[dict[str, Any]],
+    processing_ms: int | None,
     total_ms: int,
     input_bytes: int,
     channels: int,
     framerate: int,
-    language: Optional[str],
-    confidence: Optional[float],
-    task: Optional[str],
+    language: str | None,
+    confidence: float | None,
+    task: str | None,
     beam_size: int,
-    filename: Optional[str],
+    filename: str | None,
 ) -> None:
     """Save debug data for transcription requests."""
     if not correlation_id:

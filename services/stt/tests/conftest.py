@@ -1,11 +1,11 @@
 """Test configuration for services.stt module."""
 
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest import mock
 
 import numpy as np
 import pytest
-from faster_whisper import WhisperModel
 
 
 @pytest.fixture
@@ -55,7 +55,7 @@ def test_audio_data() -> np.ndarray:
 
 
 @pytest.fixture
-def test_transcription_request() -> Dict[str, Any]:
+def test_transcription_request() -> dict[str, Any]:
     """Provide test transcription request data."""
     return {
         "audio_data": b"mock audio data",
@@ -66,7 +66,7 @@ def test_transcription_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_transcription_response() -> Dict[str, Any]:
+def test_transcription_response() -> dict[str, Any]:
     """Provide test transcription response data."""
     return {
         "transcript": "hey atlas, what's the weather",

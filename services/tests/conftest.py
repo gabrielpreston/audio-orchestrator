@@ -3,8 +3,9 @@
 import os
 import random
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, Dict, Generator
+from typing import Any
 from unittest import mock
 
 import pytest
@@ -89,7 +90,7 @@ def mock_random() -> Generator[Any, None, None]:
 
 
 @pytest.fixture
-def test_config() -> Dict[str, Any]:
+def test_config() -> dict[str, Any]:
     """Provide test configuration values."""
     return {
         "log_level": "DEBUG",

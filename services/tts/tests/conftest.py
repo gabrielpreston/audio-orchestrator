@@ -1,6 +1,7 @@
 """Test configuration for services.tts module."""
 
-from typing import Any, Dict, Generator
+from collections.abc import Generator
+from typing import Any
 from unittest import mock
 
 import numpy as np
@@ -36,7 +37,7 @@ def mock_soundfile() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_synthesis_request() -> Dict[str, Any]:
+def test_synthesis_request() -> dict[str, Any]:
     """Provide test synthesis request data."""
     return {
         "text": "Hello, this is a test of the text-to-speech system.",
@@ -50,7 +51,7 @@ def test_synthesis_request() -> Dict[str, Any]:
 
 
 @pytest.fixture
-def test_synthesis_response() -> Dict[str, Any]:
+def test_synthesis_response() -> dict[str, Any]:
     """Provide test synthesis response data."""
     return {
         "audio_data": b"mock audio data",
@@ -81,7 +82,7 @@ def mock_http_client() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_voice_config() -> Dict[str, Any]:
+def test_voice_config() -> dict[str, Any]:
     """Provide test voice configuration."""
     return {
         "name": "en_US-amy-medium",
@@ -103,6 +104,6 @@ def mock_file_upload() -> Generator[mock.Mock, None, None]:
 
 
 @pytest.fixture
-def test_rate_limit_config() -> Dict[str, Any]:
+def test_rate_limit_config() -> dict[str, Any]:
     """Provide test rate limit configuration."""
     return {"max_requests_per_minute": 60, "max_concurrent_requests": 4, "max_text_length": 1000}

@@ -7,7 +7,6 @@ demonstrating how to use the common configuration library.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
 
 from .config import (
     BaseConfig,
@@ -26,7 +25,7 @@ class DiscordConfig(BaseConfig):
         token: str = "",
         guild_id: int = 0,
         voice_channel_id: int = 0,
-        intents: Optional[List[str]] = None,
+        intents: list[str] | None = None,
         auto_join: bool = False,
         voice_connect_timeout_seconds: float = 15.0,
         voice_connect_max_attempts: int = 3,
@@ -46,7 +45,7 @@ class DiscordConfig(BaseConfig):
         self.voice_reconnect_max_backoff_seconds = voice_reconnect_max_backoff_seconds
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="token",
@@ -131,7 +130,7 @@ class AudioConfig(BaseConfig):
         max_segment_duration_seconds: float = 15.0,
         min_segment_duration_seconds: float = 0.3,
         aggregation_window_seconds: float = 1.5,
-        allowlist_user_ids: Optional[List[int]] = None,
+        allowlist_user_ids: list[int] | None = None,
         input_sample_rate_hz: int = 48000,
         vad_sample_rate_hz: int = 16000,
         vad_frame_duration_ms: int = 30,
@@ -150,7 +149,7 @@ class AudioConfig(BaseConfig):
         self.vad_aggressiveness = vad_aggressiveness
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="silence_timeout_seconds",
@@ -240,7 +239,7 @@ class STTConfig(BaseConfig):
         base_url: str = "",
         request_timeout_seconds: float = 45.0,
         max_retries: int = 3,
-        forced_language: Optional[str] = None,
+        forced_language: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -250,7 +249,7 @@ class STTConfig(BaseConfig):
         self.forced_language = forced_language
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="base_url",
@@ -292,8 +291,8 @@ class WakeConfig(BaseConfig):
 
     def __init__(
         self,
-        wake_phrases: Optional[List[str]] = None,
-        model_paths: Optional[List[Path]] = None,
+        wake_phrases: list[str] | None = None,
+        model_paths: list[Path] | None = None,
         activation_threshold: float = 0.5,
         target_sample_rate_hz: int = 16000,
         **kwargs,
@@ -305,7 +304,7 @@ class WakeConfig(BaseConfig):
         self.target_sample_rate_hz = target_sample_rate_hz
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="wake_phrases",
@@ -346,10 +345,10 @@ class MCPConfig(BaseConfig):
 
     def __init__(
         self,
-        manifest_paths: Optional[List[Path]] = None,
-        websocket_url: Optional[str] = None,
-        command_path: Optional[Path] = None,
-        registration_url: Optional[str] = None,
+        manifest_paths: list[Path] | None = None,
+        websocket_url: str | None = None,
+        command_path: Path | None = None,
+        registration_url: str | None = None,
         heartbeat_interval_seconds: float = 30.0,
         **kwargs,
     ):
@@ -361,7 +360,7 @@ class MCPConfig(BaseConfig):
         self.heartbeat_interval_seconds = heartbeat_interval_seconds
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="manifest_paths",
@@ -409,8 +408,8 @@ class TelemetryConfig(BaseConfig):
         self,
         log_level: str = "INFO",
         log_json: bool = True,
-        metrics_port: Optional[int] = None,
-        waveform_debug_dir: Optional[Path] = None,
+        metrics_port: int | None = None,
+        waveform_debug_dir: Path | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -420,7 +419,7 @@ class TelemetryConfig(BaseConfig):
         self.waveform_debug_dir = waveform_debug_dir
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="log_level",
@@ -460,7 +459,7 @@ class FasterWhisperConfig(BaseConfig):
         self,
         model: str = "small",
         device: str = "cpu",
-        compute_type: Optional[str] = None,
+        compute_type: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -469,7 +468,7 @@ class FasterWhisperConfig(BaseConfig):
         self.compute_type = compute_type
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="model",
@@ -514,7 +513,7 @@ class LlamaConfig(BaseConfig):
         self.threads = threads
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="model_path",
@@ -550,13 +549,13 @@ class TTSConfig(BaseConfig):
     def __init__(
         self,
         port: int = 7000,
-        model_path: Optional[str] = None,
-        model_config_path: Optional[str] = None,
-        default_voice: Optional[str] = None,
+        model_path: str | None = None,
+        model_config_path: str | None = None,
+        default_voice: str | None = None,
         max_text_length: int = 1000,
         max_concurrency: int = 4,
         rate_limit_per_minute: int = 60,
-        auth_token: Optional[str] = None,
+        auth_token: str | None = None,
         length_scale: float = 1.0,
         noise_scale: float = 0.667,
         noise_w: float = 0.8,
@@ -576,7 +575,7 @@ class TTSConfig(BaseConfig):
         self.noise_w = noise_w
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="port",
@@ -673,10 +672,10 @@ class OrchestratorConfig(BaseConfig):
     def __init__(
         self,
         port: int = 8000,
-        auth_token: Optional[str] = None,
+        auth_token: str | None = None,
         debug_save: bool = False,
-        tts_base_url: Optional[str] = None,
-        tts_voice: Optional[str] = None,
+        tts_base_url: str | None = None,
+        tts_voice: str | None = None,
         tts_timeout: float = 30.0,
         mcp_config_path: str = "./mcp.json",
         **kwargs,
@@ -691,7 +690,7 @@ class OrchestratorConfig(BaseConfig):
         self.mcp_config_path = mcp_config_path
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="port",
@@ -764,7 +763,7 @@ class HttpConfig(BaseConfig):
         self.user_agent = user_agent
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="timeout",
@@ -810,7 +809,7 @@ class LoggingConfig(BaseConfig):
         self,
         level: str = "INFO",
         json_logs: bool = True,
-        service_name: Optional[str] = None,
+        service_name: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -819,7 +818,7 @@ class LoggingConfig(BaseConfig):
         self.service_name = service_name
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             create_field_definition(
                 name="level",

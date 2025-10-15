@@ -2,14 +2,10 @@
 Orchestrator client for Discord service to communicate with the LLM orchestrator.
 """
 
-# import asyncio  # Unused import
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 import structlog
-
-
-# from .config import load_config  # Unused import
 
 logger = structlog.get_logger()
 
@@ -19,7 +15,7 @@ class OrchestratorClient:
 
     def __init__(self, orchestrator_url: str = "http://orchestrator:8000"):
         self.orchestrator_url = orchestrator_url
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -33,8 +29,8 @@ class OrchestratorClient:
         channel_id: str,
         user_id: str,
         transcript: str,
-        correlation_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
         """Send transcript to orchestrator for processing."""
         try:
             client = await self._get_http_client()
@@ -74,7 +70,7 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def play_audio(self, guild_id: str, channel_id: str, audio_url: str) -> Dict[str, Any]:
+    async def play_audio(self, guild_id: str, channel_id: str, audio_url: str) -> dict[str, Any]:
         """Request audio playback via orchestrator."""
         try:
             client = await self._get_http_client()
@@ -105,7 +101,7 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def send_message(self, guild_id: str, channel_id: str, message: str) -> Dict[str, Any]:
+    async def send_message(self, guild_id: str, channel_id: str, message: str) -> dict[str, Any]:
         """Send text message via orchestrator."""
         try:
             client = await self._get_http_client()
