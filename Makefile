@@ -43,6 +43,9 @@ DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
 PYTHON_SOURCES := services
+# Limit mypy scope in CI to incrementally adopt typing.
+# Override with MYPY_PATHS="services" to check all modules locally.
+MYPY_PATHS ?= services/discord
 DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/orchestrator/Dockerfile
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
 LINT_IMAGE ?= discord-voice-lab/lint:latest
@@ -310,7 +313,7 @@ test-specific: ## Run specific tests (use PYTEST_ARGS="-k pattern")
 typecheck: ## Run type checking with mypy
 	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
 	@echo -e "$(COLOR_CYAN)→ Running type checking$(COLOR_OFF)"
-	@mypy $(PYTHON_SOURCES)
+	@mypy $(MYPY_PATHS)
 
 security: ## Run security scanning with pip-audit
 	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
@@ -361,9 +364,9 @@ lint-python: ## Run Python format and import order checks (black, isort)
 	@isort --check-only $(PYTHON_SOURCES)
 
 typecheck: ## Run Python static type checks (mypy)
-	@echo "\u2192 Running type checking"
+	@echo "→ Running type checking"
 	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
-	@mypy $(PYTHON_SOURCES)
+	@mypy $(MYPY_PATHS)
 
 lint-dockerfiles: ## Lint service Dockerfiles with hadolint
 	@command -v hadolint >/dev/null 2>&1 || { \
