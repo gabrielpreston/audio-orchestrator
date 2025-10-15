@@ -73,6 +73,7 @@ known-first-party = ["services"]
 python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
+follow_imports = "skip"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true

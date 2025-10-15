@@ -27,10 +27,10 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     raw = os.getenv(name)
     value = default
     if raw is not None:
-        try:
+        from contextlib import suppress
+
+        with suppress(ValueError):
             value = int(raw)
-        except ValueError:
-            pass
     value = max(value, minimum)
     value = min(value, maximum)
     return value
@@ -40,10 +40,10 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
     raw = os.getenv(name)
     value = default
     if raw is not None:
-        try:
+        from contextlib import suppress
+
+        with suppress(ValueError):
             value = float(raw)
-        except ValueError:
-            pass
     value = max(value, minimum)
     value = min(value, maximum)
     return value
@@ -244,11 +244,10 @@ def _load_voice() -> None:
         _VOICE_LOOKUP["default"] = option
         _VOICE_LOOKUP[""] = option
 
-    if _DEFAULT_VOICE:
-        if _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
-            raise RuntimeError(
-                f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
-            )
+    if _DEFAULT_VOICE and _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
+        raise RuntimeError(
+            f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
+        )
 
     logger.info(
         "tts.voice_loaded",
