@@ -77,7 +77,7 @@ async def startup_event() -> None:
             logger.info("discord.wake_detector_created")
 
             async def dummy_transcript_publisher(
-                transcript_data: dict[str, Any]
+                transcript_data: dict[str, Any],
             ) -> None:
                 logger.info("discord.dummy_transcript_published", **transcript_data)
 
