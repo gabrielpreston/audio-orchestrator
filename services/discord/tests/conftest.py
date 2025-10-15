@@ -3,8 +3,8 @@
 from typing import Any, Dict, Generator
 from unittest import mock
 
-import pytest
 import discord
+import pytest
 from discord.ext import voice_recv
 
 from services.common.service_configs import DiscordConfig
@@ -55,10 +55,7 @@ def mock_audio_source() -> Generator[mock.Mock, None, None]:
 def mock_wake_word_detector() -> Generator[mock.Mock, None, None]:
     """Mock wake word detector for testing."""
     with mock.patch("openwakeword.Model") as mock_detector:
-        mock_detector.return_value.predict.return_value = {
-            "hey atlas": 0.8,
-            "ok atlas": 0.6
-        }
+        mock_detector.return_value.predict.return_value = {"hey atlas": 0.8, "ok atlas": 0.6}
         yield mock_detector.return_value
 
 
@@ -70,7 +67,7 @@ def mock_stt_client() -> Generator[mock.Mock, None, None]:
         mock_response.json.return_value = {
             "transcript": "hey atlas, what's the weather",
             "confidence": 0.95,
-            "language": "en"
+            "language": "en",
         }
         mock_response.status_code = 200
         mock_client.return_value.post.return_value = mock_response
@@ -85,7 +82,7 @@ def mock_orchestrator_client() -> Generator[mock.Mock, None, None]:
         mock_response.json.return_value = {
             "response": "The weather is sunny today",
             "tts_url": "http://tts:7000/synthesize",
-            "correlation_id": "test-123"
+            "correlation_id": "test-123",
         }
         mock_response.status_code = 200
         mock_client.return_value.post.return_value = mock_response
@@ -98,7 +95,7 @@ def mock_mcp_client() -> Generator[mock.Mock, None, None]:
     with mock.patch("mcp.Client") as mock_client:
         mock_client.return_value.call_tool.return_value = {
             "success": True,
-            "result": "Tool executed successfully"
+            "result": "Tool executed successfully",
         }
         yield mock_client.return_value
 
@@ -111,7 +108,7 @@ def test_discord_config() -> DiscordConfig:
         guild_id=123456789,
         voice_channel_id=987654321,
         intents=["guilds", "voice_states"],
-        auto_join=False
+        auto_join=False,
     )
 
 
@@ -130,5 +127,5 @@ def mock_audio_segment() -> Dict[str, Any]:
         "sample_rate": 48000,
         "channels": 1,
         "duration": 1.0,
-        "timestamp": 1234567890.0
+        "timestamp": 1234567890.0,
     }

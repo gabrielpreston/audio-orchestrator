@@ -11,6 +11,7 @@ from structlog.stdlib import BoundLogger
 
 from services.common.logging import get_logger
 
+
 voice_recv: Optional[Any]
 try:
     voice_recv = importlib.import_module("discord.ext.voice_recv")

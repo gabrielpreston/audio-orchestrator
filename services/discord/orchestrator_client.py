@@ -8,6 +8,7 @@ from typing import Any, Dict, Optional
 import httpx
 import structlog
 
+
 # from .config import load_config  # Unused import
 
 logger = structlog.get_logger()

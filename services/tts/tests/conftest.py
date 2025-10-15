@@ -3,8 +3,8 @@
 from typing import Any, Dict, Generator
 from unittest import mock
 
-import pytest
 import numpy as np
+import pytest
 
 
 @pytest.fixture
@@ -45,7 +45,7 @@ def test_synthesis_request() -> Dict[str, Any]:
         "sample_rate": 22050,
         "length_scale": 1.0,
         "noise_scale": 0.667,
-        "noise_w": 0.8
+        "noise_w": 0.8,
     }
 
 
@@ -57,7 +57,7 @@ def test_synthesis_response() -> Dict[str, Any]:
         "sample_rate": 22050,
         "format": "wav",
         "duration": 2.5,
-        "voice": "en_US-amy-medium"
+        "voice": "en_US-amy-medium",
     }
 
 
@@ -88,7 +88,7 @@ def test_voice_config() -> Dict[str, Any]:
         "language": "en_US",
         "gender": "female",
         "sample_rate": 22050,
-        "format": "wav"
+        "format": "wav",
     }
 
 
@@ -105,8 +105,4 @@ def mock_file_upload() -> Generator[mock.Mock, None, None]:
 @pytest.fixture
 def test_rate_limit_config() -> Dict[str, Any]:
     """Provide test rate limit configuration."""
-    return {
-        "max_requests_per_minute": 60,
-        "max_concurrent_requests": 4,
-        "max_text_length": 1000
-    }
+    return {"max_requests_per_minute": 60, "max_concurrent_requests": 4, "max_text_length": 1000}

@@ -12,6 +12,7 @@ from starlette.requests import ClientDisconnect
 from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
 
+
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
 MODEL_NAME = os.environ.get("FW_MODEL", "small")

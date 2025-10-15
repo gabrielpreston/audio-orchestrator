@@ -13,6 +13,7 @@ from services.common.logging import configure_logging, get_logger
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
 
+
 app = FastAPI(title="Voice Assistant Orchestrator")
 
 configure_logging(

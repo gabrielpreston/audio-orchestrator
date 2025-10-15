@@ -26,22 +26,13 @@ def mock_environment() -> Generator[Dict[str, str], None, None]:
 @pytest.fixture
 def test_logging_config() -> LoggingConfig:
     """Provide a test logging configuration."""
-    return LoggingConfig(
-        level="DEBUG",
-        json_logs=True,
-        service_name="test-service"
-    )
+    return LoggingConfig(level="DEBUG", json_logs=True, service_name="test-service")
 
 
 @pytest.fixture
 def test_http_config() -> HttpConfig:
     """Provide a test HTTP configuration."""
-    return HttpConfig(
-        timeout=30.0,
-        max_retries=3,
-        retry_delay=1.0,
-        user_agent="test-agent/1.0"
-    )
+    return HttpConfig(timeout=30.0, max_retries=3, retry_delay=1.0, user_agent="test-agent/1.0")
 
 
 @pytest.fixture
@@ -51,7 +42,7 @@ def test_audio_config() -> AudioConfig:
         silence_timeout_seconds=1.0,
         max_segment_duration_seconds=15.0,
         input_sample_rate_hz=48000,
-        vad_sample_rate_hz=16000
+        vad_sample_rate_hz=16000,
     )
 
 
@@ -63,23 +54,19 @@ def test_discord_config() -> DiscordConfig:
         guild_id=123456789,
         voice_channel_id=987654321,
         intents=["guilds", "voice_states"],
-        auto_join=False
+        auto_join=False,
     )
 
 
 @pytest.fixture
 def test_service_config(
-    test_logging_config: LoggingConfig,
-    test_http_config: HttpConfig
+    test_logging_config: LoggingConfig, test_http_config: HttpConfig
 ) -> ServiceConfig:
     """Provide a test service configuration."""
     return ServiceConfig(
         service_name="test-service",
         environment="development",
-        configs={
-            "logging": test_logging_config,
-            "http": test_http_config
-        }
+        configs={"logging": test_logging_config, "http": test_http_config},
     )
 
 
