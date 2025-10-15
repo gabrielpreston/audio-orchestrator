@@ -40,7 +40,7 @@ class TranscriptNotification(BaseModel):
 
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
     global _bot
 
@@ -108,7 +108,7 @@ async def startup_event():
 
 
 @app.on_event("shutdown")
-async def shutdown_event():
+async def shutdown_event() -> None:
     """Shutdown HTTP API."""
     global _bot
 
@@ -118,7 +118,7 @@ async def shutdown_event():
 
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
@@ -129,7 +129,7 @@ async def health_check():
 
 
 @app.post("/mcp/play_audio")
-async def play_audio(request: PlayAudioRequest):
+async def play_audio(request: PlayAudioRequest) -> dict[str, Any]:
     """Play audio in Discord voice channel via MCP."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -190,7 +190,7 @@ async def play_audio(request: PlayAudioRequest):
 
 
 @app.post("/mcp/send_message")
-async def send_message(request: SendMessageRequest):
+async def send_message(request: SendMessageRequest) -> dict[str, Any]:
     """Send text message to Discord channel via MCP."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -223,7 +223,7 @@ async def send_message(request: SendMessageRequest):
 
 
 @app.post("/mcp/transcript")
-async def handle_transcript(notification: TranscriptNotification):
+async def handle_transcript(notification: TranscriptNotification) -> dict[str, Any]:
     """Handle transcript notification from orchestrator."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -257,7 +257,7 @@ async def handle_transcript(notification: TranscriptNotification):
 
 
 @app.get("/mcp/tools")
-async def list_mcp_tools():
+async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     return {
         "tools": [
