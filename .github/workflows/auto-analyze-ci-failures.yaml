@@ -18,13 +18,32 @@ jobs:
       actions: read
       contents: write
       pull-requests: write
-      statuses: read
+      statuses: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0   # full history needed for branch context / diffs
+
+      - name: Update status check - Installing tools
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating status check - Installing tools..."
+          
+          # Update status check to show tool installation
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="pending" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Installing required tools..." \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update status check"
+          }
+          
+          echo "Status check updated - Installing tools"
 
       - name: Install Cursor CLI
         run: |
@@ -110,6 +129,25 @@ jobs:
           }
           echo "GitHub CLI installation verified"
 
+      - name: Update status check - Tools installed
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating status check - Tools installed..."
+          
+          # Update status check to show tools are installed
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="pending" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Tools installed, verifying access..." \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update status check"
+          }
+          
+          echo "Status check updated - Tools installed"
+
       - name: Configure git identity
         run: |
           set -euo pipefail
@@ -137,6 +175,25 @@ jobs:
             exit 1
           }
           echo "Git identity configuration verified"
+
+      - name: Update status check - Environment ready
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating status check - Environment ready..."
+          
+          # Update status check to show environment is ready
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="pending" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Environment ready, starting analysis..." \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update status check"
+          }
+          
+          echo "Status check updated - Environment ready"
 
       # If your CI is triggered by PRs from forks, the default GITHUB_TOKEN is limited.
       # Create a fine-grained PAT with repo permissions and store it as GH_PAT in repo secrets,
@@ -222,6 +279,51 @@ jobs:
           
           echo "API access and repository state verified"
 
+      - name: Create initial status check
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Creating initial Auto-Fix status check..."
+          
+          # Get the commit SHA from the workflow run
+          COMMIT_SHA=$(gh api repos/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }} --jq '.head_sha')
+          echo "Target commit SHA: $COMMIT_SHA"
+          
+          # Store commit SHA for later steps
+          echo "COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          
+          # Create initial status check
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="pending" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Starting analysis..." \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to create initial status check"
+          }
+          
+          echo "Initial status check created"
+
+      - name: Update status check - Analysis in progress
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating status check - Analysis in progress..."
+          
+          # Update status check to show analysis is in progress
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="pending" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Analyzing failure and generating fix..." \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update status check"
+          }
+          
+          echo "Status check updated - Analysis in progress"
+
       - name: Run Cursor Agent to analyze failure
         env:
           # Cursor key from repo/environment secrets
@@ -269,3 +371,51 @@ jobs:
           }
           
           echo "Cursor Agent analysis completed successfully"
+
+      - name: Update status check - Analysis completed
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating status check - Analysis completed..."
+          
+          # Update status check to show analysis completed successfully
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="success" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="Auto-Fix CI: Analysis completed - Check PR comments for fix details" \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update status check"
+          }
+          
+          echo "Status check updated - Analysis completed successfully"
+
+      - name: Update status check - Final status
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
+        run: |
+          set -euo pipefail
+          echo "Updating final status check..."
+          
+          # Determine final status based on job result
+          if [ "${{ job.status }}" = "success" ]; then
+            STATE="success"
+            DESCRIPTION="Auto-Fix CI: Analysis completed successfully - Check PR comments for fix details"
+          else
+            STATE="failure"
+            DESCRIPTION="Auto-Fix CI: Analysis failed - Check workflow logs for details"
+          fi
+          
+          # Update status check with final result
+          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+            --method POST \
+            --field state="$STATE" \
+            --field target_url="${{ github.event.workflow_run.html_url }}" \
+            --field description="$DESCRIPTION" \
+            --field context="auto-fix-ci/analysis" || {
+            echo "WARNING: Failed to update final status check"
+          }
+          
+          echo "Final status check updated: $STATE"
