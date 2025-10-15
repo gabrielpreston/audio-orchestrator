@@ -1,7 +1,7 @@
 """Mock HTTP client for testing."""
 
 import json
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 from unittest import mock
 
 import httpx
@@ -13,10 +13,10 @@ class MockHttpResponse:
     def __init__(
         self,
         status_code: int = 200,
-        content: Union[bytes, str] = b"",
-        json_data: Optional[Dict[str, Any]] = None,
-        headers: Optional[Dict[str, str]] = None,
-        text: Optional[str] = None,
+        content: bytes | str = b"",
+        json_data: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+        text: str | None = None,
     ):
         self.status_code = status_code
         self.content = content if isinstance(content, bytes) else content.encode()
@@ -25,7 +25,7 @@ class MockHttpResponse:
         self._json_data = json_data
         self._json_called = False
 
-    def json(self) -> Dict[str, Any]:
+    def json(self) -> dict[str, Any]:
         """Return JSON data."""
         self._json_called = True
         if self._json_data is not None:
@@ -60,7 +60,7 @@ class MockHttpClient:
         """Set the default response for unmatched requests."""
         self._default_response = response
 
-    def get_requests(self) -> List[Dict[str, Any]]:
+    def get_requests(self) -> list[dict[str, Any]]:
         """Get all recorded requests."""
         return self._requests.copy()
 
@@ -117,9 +117,9 @@ def create_mock_http_client() -> MockHttpClient:
 
 def create_mock_response(
     status_code: int = 200,
-    content: Union[bytes, str] = b"",
-    json_data: Optional[Dict[str, Any]] = None,
-    headers: Optional[Dict[str, str]] = None,
+    content: bytes | str = b"",
+    json_data: dict[str, Any] | None = None,
+    headers: dict[str, str] | None = None,
 ) -> MockHttpResponse:
     """Create a mock HTTP response for testing.
 

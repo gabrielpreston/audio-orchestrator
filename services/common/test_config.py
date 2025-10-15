@@ -5,13 +5,23 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase, mock
 
-from .config import (BaseConfig, ConfigBuilder, Environment, EnvironmentLoader,
-                     FieldDefinition, RequiredFieldError, ServiceConfig,
-                     ValidationError, create_field_definition,
-                     load_service_config, validate_non_negative, validate_port,
-                     validate_positive, validate_url)
-from .service_configs import (AudioConfig, DiscordConfig, HttpConfig,
-                              LoggingConfig)
+from .config import (
+    BaseConfig,
+    ConfigBuilder,
+    Environment,
+    EnvironmentLoader,
+    FieldDefinition,
+    RequiredFieldError,
+    ServiceConfig,
+    ValidationError,
+    create_field_definition,
+    load_service_config,
+    validate_non_negative,
+    validate_port,
+    validate_positive,
+    validate_url,
+)
+from .service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
 
 
 class TestFieldDefinition(TestCase):

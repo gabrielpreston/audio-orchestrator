@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import (BaseConfig, FieldDefinition, create_field_definition,
-                     validate_port, validate_url)
+from .config import (
+    BaseConfig,
+    FieldDefinition,
+    create_field_definition,
+    validate_port,
+    validate_url,
+)
 
 
 class DiscordConfig(BaseConfig):

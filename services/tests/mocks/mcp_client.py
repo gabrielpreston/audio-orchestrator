@@ -1,6 +1,6 @@
 """Mock MCP client for testing."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class MockMCPClient:
@@ -13,7 +13,7 @@ class MockMCPClient:
         self._connection_url = None
         self._auth_token = None
 
-    def set_tool_response(self, tool_name: str, response: Dict[str, Any]) -> None:
+    def set_tool_response(self, tool_name: str, response: dict[str, Any]) -> None:
         """Set a response for a specific tool.
 
         Args:
@@ -22,7 +22,7 @@ class MockMCPClient:
         """
         self._tools[tool_name] = response
 
-    def get_tool_calls(self) -> List[Dict[str, Any]]:
+    def get_tool_calls(self) -> list[dict[str, Any]]:
         """Get all tool calls."""
         return self._tool_calls.copy()
 
@@ -30,7 +30,7 @@ class MockMCPClient:
         """Clear recorded tool calls."""
         self._tool_calls.clear()
 
-    async def connect(self, url: str, auth_token: Optional[str] = None) -> None:
+    async def connect(self, url: str, auth_token: str | None = None) -> None:
         """Mock connect method."""
         self._connection_url = url
         self._auth_token = auth_token
@@ -45,9 +45,9 @@ class MockMCPClient:
     async def call_tool(
         self,
         tool_name: str,
-        parameters: Dict[str, Any],
-        correlation_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
         """Mock call_tool method."""
         call_data = {
             "tool_name": tool_name,
@@ -69,7 +69,7 @@ class MockMCPClient:
             "correlation_id": correlation_id,
         }
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """Mock list_tools method."""
         return [
             {
@@ -119,8 +119,8 @@ class MockMCPTool:
         self,
         name: str,
         description: str,
-        parameters: Dict[str, Any],
-        handler: Optional[callable] = None,
+        parameters: dict[str, Any],
+        handler: callable | None = None,
     ):
         self.name = name
         self.description = description
@@ -128,7 +128,7 @@ class MockMCPTool:
         self.handler = handler
         self._calls = []
 
-    def get_calls(self) -> List[Dict[str, Any]]:
+    def get_calls(self) -> list[dict[str, Any]]:
         """Get all calls to this tool."""
         return self._calls.copy()
 
@@ -137,8 +137,8 @@ class MockMCPTool:
         self._calls.clear()
 
     async def call(
-        self, parameters: Dict[str, Any], correlation_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        self, parameters: dict[str, Any], correlation_id: str | None = None
+    ) -> dict[str, Any]:
         """Call the tool."""
         call_data = {"parameters": parameters, "correlation_id": correlation_id}
         self._calls.append(call_data)
@@ -166,8 +166,8 @@ def create_mock_mcp_client() -> MockMCPClient:
 def create_mock_mcp_tool(
     name: str,
     description: str,
-    parameters: Dict[str, Any],
-    handler: Optional[callable] = None,
+    parameters: dict[str, Any],
+    handler: callable | None = None,
 ) -> MockMCPTool:
     """Create a mock MCP tool for testing.
 
@@ -202,8 +202,8 @@ def create_mock_weather_tool() -> MockMCPTool:
     }
 
     async def weather_handler(
-        parameters: Dict[str, Any], correlation_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any], correlation_id: str | None = None
+    ) -> dict[str, Any]:
         """Mock weather handler."""
         location = parameters.get("location", "Unknown")
         date = parameters.get("date", "today")
@@ -242,8 +242,8 @@ def create_mock_discord_tool() -> MockMCPTool:
     }
 
     async def discord_handler(
-        parameters: Dict[str, Any], correlation_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any], correlation_id: str | None = None
+    ) -> dict[str, Any]:
         """Mock Discord handler."""
         channel_id = parameters.get("channel_id")
         content = parameters.get("content", "")
@@ -287,8 +287,8 @@ def create_mock_voice_tool() -> MockMCPTool:
     }
 
     async def voice_handler(
-        parameters: Dict[str, Any], correlation_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+        parameters: dict[str, Any], correlation_id: str | None = None
+    ) -> dict[str, Any]:
         """Mock voice handler."""
         action = parameters.get("action")
         channel_id = parameters.get("channel_id")

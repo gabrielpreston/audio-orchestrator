@@ -4,7 +4,7 @@ import json
 import random
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import numpy as np
 import pytest
@@ -77,7 +77,7 @@ def create_mock_discord_message(
     author_id: int = 123456789,
     channel_id: int = 987654321,
     guild_id: int = 111222333,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create mock Discord message data for testing.
 
     Args:
@@ -115,7 +115,7 @@ def create_mock_voice_state(
     mute: bool = False,
     self_deaf: bool = False,
     self_mute: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create mock Discord voice state data for testing.
 
     Args:
@@ -148,7 +148,7 @@ def create_mock_transcription_result(
     language: str = "en",
     start_time: float = 0.0,
     end_time: float = 2.5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create mock transcription result for testing.
 
     Args:
@@ -178,8 +178,8 @@ def create_mock_transcription_result(
 def create_mock_llm_response(
     content: str = "The weather is sunny today with a temperature of 75°F.",
     model: str = "llama-2-7b",
-    usage: Optional[Dict[str, int]] = None,
-) -> Dict[str, Any]:
+    usage: dict[str, int] | None = None,
+) -> dict[str, Any]:
     """Create mock LLM response for testing.
 
     Args:
@@ -210,7 +210,7 @@ def create_mock_tts_response(
     sample_rate: int = 22050,
     format: str = "wav",
     duration: float = 2.5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create mock TTS response for testing.
 
     Args:
@@ -233,9 +233,9 @@ def create_mock_tts_response(
 
 def create_mock_mcp_tool_call(
     tool: str = "weather_check",
-    parameters: Optional[Dict[str, Any]] = None,
-    correlation_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    parameters: dict[str, Any] | None = None,
+    correlation_id: str | None = None,
+) -> dict[str, Any]:
     """Create mock MCP tool call for testing.
 
     Args:
@@ -257,10 +257,10 @@ def create_mock_mcp_tool_call(
 
 def create_mock_mcp_tool_response(
     success: bool = True,
-    result: Optional[Dict[str, Any]] = None,
-    error: Optional[str] = None,
-    correlation_id: Optional[str] = None,
-) -> Dict[str, Any]:
+    result: dict[str, Any] | None = None,
+    error: str | None = None,
+    correlation_id: str | None = None,
+) -> dict[str, Any]:
     """Create mock MCP tool response for testing.
 
     Args:
@@ -321,7 +321,7 @@ def assert_correlation_id_valid(correlation_id: str) -> None:
 def assert_http_response_valid(
     response: Any,
     expected_status: int = 200,
-    expected_content_type: Optional[str] = None,
+    expected_content_type: str | None = None,
 ) -> None:
     """Assert that an HTTP response is valid.
 
@@ -343,7 +343,7 @@ def assert_http_response_valid(
         ), f"Expected content type {expected_content_type}, got {content_type}"
 
 
-def load_test_fixture(fixture_name: str) -> Dict[str, Any]:
+def load_test_fixture(fixture_name: str) -> dict[str, Any]:
     """Load a test fixture from the fixtures directory.
 
     Args:
@@ -358,11 +358,11 @@ def load_test_fixture(fixture_name: str) -> Dict[str, Any]:
     if not fixture_file.exists():
         pytest.skip(f"Fixture {fixture_name} not found")
 
-    with open(fixture_file, "r") as f:
+    with open(fixture_file) as f:
         return json.load(f)
 
 
-def save_test_fixture(fixture_name: str, data: Dict[str, Any]) -> None:
+def save_test_fixture(fixture_name: str, data: dict[str, Any]) -> None:
     """Save test data as a fixture.
 
     Args:

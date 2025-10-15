@@ -10,10 +10,20 @@ import os
 from pathlib import Path
 
 from .config import ConfigBuilder, Environment, load_service_config
-from .service_configs import (AudioConfig, DiscordConfig, FasterWhisperConfig,
-                              HttpConfig, LlamaConfig, LoggingConfig,
-                              MCPConfig, OrchestratorConfig, STTConfig,
-                              TelemetryConfig, TTSConfig, WakeConfig)
+from .service_configs import (
+    AudioConfig,
+    DiscordConfig,
+    FasterWhisperConfig,
+    HttpConfig,
+    LlamaConfig,
+    LoggingConfig,
+    MCPConfig,
+    OrchestratorConfig,
+    STTConfig,
+    TelemetryConfig,
+    TTSConfig,
+    WakeConfig,
+)
 
 
 def example_discord_service_config():

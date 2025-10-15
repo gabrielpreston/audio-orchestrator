@@ -1,6 +1,6 @@
 """Mock audio processor for testing."""
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import soundfile as sf
@@ -27,7 +27,7 @@ class MockAudioProcessor:
         """
         self._mock_audio_data[file_path] = (audio_data, sample_rate)
 
-    def set_mock_metadata(self, file_path: str, metadata: Dict[str, Any]) -> None:
+    def set_mock_metadata(self, file_path: str, metadata: dict[str, Any]) -> None:
         """Set mock metadata for a file path.
 
         Args:
@@ -36,11 +36,11 @@ class MockAudioProcessor:
         """
         self._mock_metadata[file_path] = metadata
 
-    def get_load_calls(self) -> List[Dict[str, Any]]:
+    def get_load_calls(self) -> list[dict[str, Any]]:
         """Get all load calls."""
         return self._load_calls.copy()
 
-    def get_write_calls(self) -> List[Dict[str, Any]]:
+    def get_write_calls(self) -> list[dict[str, Any]]:
         """Get all write calls."""
         return self._write_calls.copy()
 
@@ -50,8 +50,8 @@ class MockAudioProcessor:
         self._write_calls.clear()
 
     def load(
-        self, file_path: str, sr: Optional[int] = None, mono: bool = True, **kwargs
-    ) -> Tuple[np.ndarray, int]:
+        self, file_path: str, sr: int | None = None, mono: bool = True, **kwargs
+    ) -> tuple[np.ndarray, int]:
         """Mock load method."""
         call_data = {"file_path": file_path, "sr": sr, "mono": mono, "kwargs": kwargs}
         self._load_calls.append(call_data)
@@ -90,7 +90,7 @@ class MockAudioProcessor:
         }
         self._write_calls.append(call_data)
 
-    def info(self, file_path: str) -> Dict[str, Any]:
+    def info(self, file_path: str) -> dict[str, Any]:
         """Mock info method."""
         if file_path in self._mock_metadata:
             return self._mock_metadata[file_path]
@@ -137,14 +137,14 @@ class MockLibrosa:
     def load(
         self,
         path: str,
-        sr: Optional[int] = None,
+        sr: int | None = None,
         mono: bool = True,
         offset: float = 0.0,
-        duration: Optional[float] = None,
+        duration: float | None = None,
         dtype: np.dtype = np.float32,
         res_type: str = "kaiser_best",
         **kwargs,
-    ) -> Tuple[np.ndarray, int]:
+    ) -> tuple[np.ndarray, int]:
         """Mock load method."""
         call_data = {
             "path": path,
@@ -176,8 +176,8 @@ class MockLibrosa:
         self,
         y: np.ndarray,
         n_fft: int = 2048,
-        hop_length: Optional[int] = None,
-        win_length: Optional[int] = None,
+        hop_length: int | None = None,
+        win_length: int | None = None,
         window: str = "hann",
         center: bool = True,
         pad_mode: str = "constant",
@@ -203,11 +203,11 @@ class MockLibrosa:
     def istft(
         self,
         stft_matrix: np.ndarray,
-        hop_length: Optional[int] = None,
-        win_length: Optional[int] = None,
+        hop_length: int | None = None,
+        win_length: int | None = None,
         window: str = "hann",
         center: bool = True,
-        length: Optional[int] = None,
+        length: int | None = None,
         **kwargs,
     ) -> np.ndarray:
         """Mock ISTFT method."""
@@ -307,7 +307,7 @@ def create_mock_audio_metadata(
     channels: int = 1,
     format: str = "WAV",
     subtype: str = "PCM_16",
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Create mock audio metadata for testing.
 
     Args:

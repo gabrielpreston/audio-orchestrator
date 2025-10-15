@@ -1,6 +1,6 @@
 """Mock Discord client for testing."""
 
-from typing import Any, Optional
+from typing import Any
 from unittest import mock
 
 import discord
@@ -38,14 +38,14 @@ class MockDiscordClient:
         self._event_handlers[func.__name__] = func
         return func
 
-    def get_guild(self, guild_id: int) -> Optional[mock.Mock]:
+    def get_guild(self, guild_id: int) -> mock.Mock | None:
         """Get a guild by ID."""
         for guild in self.guilds:
             if guild.id == guild_id:
                 return guild
         return None
 
-    def get_channel(self, channel_id: int) -> Optional[mock.Mock]:
+    def get_channel(self, channel_id: int) -> mock.Mock | None:
         """Get a channel by ID."""
         for guild in self.guilds:
             for channel in guild.channels:
@@ -53,7 +53,7 @@ class MockDiscordClient:
                     return channel
         return None
 
-    def get_user(self, user_id: int) -> Optional[mock.Mock]:
+    def get_user(self, user_id: int) -> mock.Mock | None:
         """Get a user by ID."""
         if user_id == self.user.id:
             return self.user
@@ -78,7 +78,7 @@ class MockChannel:
         self,
         channel_id: int,
         channel_type: str = "text",
-        guild_id: Optional[int] = None,
+        guild_id: int | None = None,
     ):
         self.id = channel_id
         self.type = channel_type
@@ -89,7 +89,7 @@ class MockChannel:
 class MockVoiceChannel(MockChannel):
     """Mock Discord voice channel for testing."""
 
-    def __init__(self, channel_id: int, guild_id: Optional[int] = None):
+    def __init__(self, channel_id: int, guild_id: int | None = None):
         super().__init__(channel_id, "voice", guild_id)
         self.bitrate = 64000
         self.user_limit = 0
@@ -203,7 +203,7 @@ def create_mock_guild(guild_id: int, name: str = "Test Guild") -> MockGuild:
 
 
 def create_mock_voice_channel(
-    channel_id: int, guild_id: Optional[int] = None
+    channel_id: int, guild_id: int | None = None
 ) -> MockVoiceChannel:
     """Create a mock voice channel for testing.
 

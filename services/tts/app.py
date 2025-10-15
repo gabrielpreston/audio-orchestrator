@@ -12,8 +12,7 @@ from typing import Any
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from piper import PiperVoice
-from prometheus_client import (CONTENT_TYPE_LATEST, Counter, Histogram,
-                               generate_latest)
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
 from services.common.debug import get_debug_manager

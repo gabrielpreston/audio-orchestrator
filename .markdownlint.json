@@ -2,9 +2,13 @@
   "default": true,
   "MD013": {
     "line_length": 200,
-    "tables": false
+    "tables": false,
+    "code_blocks": false,
+    "code": false
   },
   "MD025": {
     "front_matter_title": ""
-  }
+  },
+  "MD033": false,
+  "MD041": false
 }

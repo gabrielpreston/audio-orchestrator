@@ -231,8 +231,7 @@ class Orchestrator:
     ) -> dict[str, Any]:
         """Process a transcript from Discord service."""
         try:
-            from services.common.correlation import \
-                generate_orchestrator_correlation_id
+            from services.common.correlation import generate_orchestrator_correlation_id
 
             # Create transcript data in the expected format
             transcript_data = {

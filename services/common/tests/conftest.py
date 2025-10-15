@@ -8,8 +8,12 @@ from unittest import mock
 import pytest
 
 from services.common.config import ServiceConfig
-from services.common.service_configs import (AudioConfig, DiscordConfig,
-                                             HttpConfig, LoggingConfig)
+from services.common.service_configs import (
+    AudioConfig,
+    DiscordConfig,
+    HttpConfig,
+    LoggingConfig,
+)
 
 
 @pytest.fixture
