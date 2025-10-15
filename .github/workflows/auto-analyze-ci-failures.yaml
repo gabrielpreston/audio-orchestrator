@@ -252,16 +252,17 @@ jobs:
             Goal:
             - Analyze the failure logs for the workflow run (ID above).
             - Identify likely root cause(s) specific to this failure.
+            - Validate hypotheses against the codebase, guidelines, and existing code.
             - Maintain a persistent fix branch for this PR head using the Fix Branch Prefix from Context. Create it if missing, update it otherwise, and push changes to origin.
             - Propose minimal targeted changes consistent with existing code style to fix the failure back into the original PR's branch.
             - Make edits, commit, push in that branch.
             - Ensure all changes meet expected quality standards (e.g. linting, formatting, etc.).
-            - You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (1–2 sentences) that briefly explains the CI fix and includes an inline compare link to quick-create a PR.
+            - You do NOT have permission to create PRs. Instead, post or update a single natural-language PR comment (3–4 sentences) that briefly explains the CI fix with expected outcomes and includes an inline compare link to quick-create a PR.
 
             Inputs and conventions:
             - Use \`gh api\`, \`gh run view\`, \`gh pr view\`, \`gh pr diff\`, \`gh pr list\`, \`gh run download\`, and git commands as needed to discover the failing PR and branches.
-            - Avoid duplicate comments; if a previous bot comment exists, update it instead of posting a new one.
-            - If no actionable fix is possible, make no changes and post no comment.
+            - Always post a new comment with the fix to trigger appropriate notifications.
+            - If no actionable fix is possible, make no changes and leave a comment explaining why.
           " --model "$MODEL" --output-format=text --force || {
             echo "ERROR: Cursor Agent analysis failed"
             exit 1
