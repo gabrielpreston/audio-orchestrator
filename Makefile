@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown test test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
 
 # --- colors & helpers ----------------------------------------------------
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
@@ -320,13 +320,15 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) \
 		$(LINT_IMAGE) \
-		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES)"
+		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES) && ruff check --fix $(PYTHON_SOURCES) && yamllint docker-compose.yml .github/workflows/ci.yaml && markdownlint --fix $(MARKDOWN_FILES)"
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
 
 lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown ## Run all linters using locally installed tooling
+
+lint-fix-local: lint-fix-python lint-fix-yaml lint-fix-markdown ## Apply auto-fixes using locally installed tooling
 
 lint-python: ## Run Python linters and type checks (black, isort, ruff, mypy)
 	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
@@ -356,6 +358,23 @@ lint-markdown: ## Lint Markdown docs with markdownlint
 	@command -v markdownlint >/dev/null 2>&1 || { \
 		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
 	@markdownlint $(MARKDOWN_FILES)
+
+lint-fix-python: ## Apply Python auto-fixes (black, isort, ruff)
+	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
+	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
+	@black $(PYTHON_SOURCES)
+	@isort $(PYTHON_SOURCES)
+	@ruff check --fix $(PYTHON_SOURCES)
+
+lint-fix-yaml: ## Apply YAML auto-fixes with yamllint
+	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found; install it (e.g. pip install yamllint)." >&2; exit 1; }
+	@yamllint docker-compose.yml .github/workflows/ci.yaml
+
+lint-fix-markdown: ## Apply Markdown auto-fixes with markdownlint
+	@command -v markdownlint >/dev/null 2>&1 || { \
+		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
+	@markdownlint --fix $(MARKDOWN_FILES)
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)
