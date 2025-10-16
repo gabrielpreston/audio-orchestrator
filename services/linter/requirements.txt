@@ -1,5 +1,5 @@
-black==24.4.2
-isort==5.13.2
-ruff==0.4.9
-mypy==1.10.0
-yamllint==1.35.1
+# Include dev tools
+-r /workspace/requirements-dev.txt
+
+# Project dependencies needed for type checking
+-r /workspace/requirements-base.txt

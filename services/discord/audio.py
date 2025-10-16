@@ -6,7 +6,7 @@ import audioop
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Dict, List, Literal, Optional, Tuple
+from typing import Any, Literal
 
 import webrtcvad
 
@@ -60,11 +60,11 @@ class Accumulator:
 
     user_id: int
     config: AudioConfig
-    frames: Deque[PCMFrame] = field(default_factory=deque)
+    frames: deque[PCMFrame] = field(default_factory=deque)
     active: bool = False
     last_activity: float = field(default_factory=time.monotonic)
     sequence: int = 0
-    silence_started_at: Optional[float] = None
+    silence_started_at: float | None = None
     sample_rate: int = 0
 
     def append(self, frame: PCMFrame) -> None:
@@ -80,15 +80,14 @@ class Accumulator:
         if not self.frames:
             # No active segment yet; keep last_activity aligned with recent silence.
             self.last_activity = timestamp
-        else:
-            if self.silence_started_at is None:
-                self.silence_started_at = timestamp
-                new_silence = True
+        elif self.silence_started_at is None:
+            self.silence_started_at = timestamp
+            new_silence = True
         # When frames exist we intentionally avoid mutating last_activity
         # so silence can trigger flushes.
         return new_silence
 
-    def should_flush(self, timestamp: float) -> Optional[FlushDecision]:
+    def should_flush(self, timestamp: float) -> FlushDecision | None:
         if not self.frames:
             return None
         start = self.frames[0].timestamp
@@ -99,11 +98,13 @@ class Accumulator:
             return FlushDecision("flush", "max_duration", total_duration, silence_age)
         if silence_age >= self.config.silence_timeout_seconds:
             if total_duration >= self.config.min_segment_duration_seconds:
-                return FlushDecision("flush", "silence_timeout", total_duration, silence_age)
+                return FlushDecision(
+                    "flush", "silence_timeout", total_duration, silence_age
+                )
             return FlushDecision("hold", "min_duration", total_duration, silence_age)
         return None
 
-    def pop_segment(self, correlation_id: str) -> Optional[AudioSegment]:
+    def pop_segment(self, correlation_id: str) -> AudioSegment | None:
         if not self.frames:
             return None
         start = self.frames[0].timestamp
@@ -129,7 +130,7 @@ class AudioPipeline:
 
     def __init__(self, config: AudioConfig) -> None:
         self._config = config
-        self._accumulators: Dict[int, Accumulator] = {}
+        self._accumulators: dict[int, Accumulator] = {}
         self._logger = get_logger(__name__, service_name="discord")
         frame_ms = config.vad_frame_duration_ms
         if frame_ms not in (10, 20, 30):
@@ -151,7 +152,7 @@ class AudioPipeline:
             )
             aggressiveness = clamped
         self._target_sample_rate = config.vad_sample_rate_hz
-        self._vad = webrtcvad.Vad(aggressiveness)
+        self._vad: Any = webrtcvad.Vad(aggressiveness)
         self._vad_frame_bytes = int(self._target_sample_rate * frame_ms / 1000) * 2
 
     def _allowed(self, user_id: int) -> bool:
@@ -166,7 +167,7 @@ class AudioPipeline:
         rms: float,
         duration: float,
         sample_rate: int,
-    ) -> Optional[AudioSegment]:
+    ) -> AudioSegment | None:
         if not self._allowed(user_id):
             self._logger.debug(
                 "voice.frame_rejected",
@@ -181,7 +182,7 @@ class AudioPipeline:
             Accumulator(user_id=user_id, config=self._config),
         )
         accumulator.sequence += 1
-        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, rms)
+        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, target_rms=rms)
         frame = PCMFrame(
             pcm=normalized_pcm,
             timestamp=timestamp,
@@ -223,8 +224,8 @@ class AudioPipeline:
             )
         return None
 
-    def force_flush(self) -> List[AudioSegment]:
-        segments: List[AudioSegment] = []
+    def force_flush(self) -> list[AudioSegment]:
+        segments: list[AudioSegment] = []
         for accumulator in self._accumulators.values():
             segment = self._flush_accumulator(
                 accumulator,
@@ -235,10 +236,10 @@ class AudioPipeline:
                 segments.append(segment)
         return segments
 
-    def flush_inactive(self) -> List[AudioSegment]:
+    def flush_inactive(self) -> list[AudioSegment]:
         """Flush accumulators that have exceeded silence timeout without new frames."""
 
-        segments: List[AudioSegment] = []
+        segments: list[AudioSegment] = []
         timestamp = time.monotonic()
         aggregation_window = max(self._config.aggregation_window_seconds, 0.0)
         for accumulator in self._accumulators.values():
@@ -271,18 +272,23 @@ class AudioPipeline:
         self,
         accumulator: Accumulator,
         *,
-        timestamp: float,
-        decision: Optional[FlushDecision] = None,
-        trigger: Optional[str] = None,
-        override_reason: Optional[str] = None,
-    ) -> Optional[AudioSegment]:
+        decision: FlushDecision | None = None,
+        trigger: str | None = None,
+        override_reason: str | None = None,
+        timestamp: float | None = None,
+    ) -> AudioSegment | None:
         from services.common.correlation import generate_discord_correlation_id
 
         correlation_id = generate_discord_correlation_id(accumulator.user_id)
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
-        reason = override_reason or (decision.reason if decision else None) or trigger or "unknown"
+        reason = (
+            override_reason
+            or (decision.reason if decision else None)
+            or trigger
+            or "unknown"
+        )
         self._logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
@@ -303,8 +309,10 @@ class AudioPipeline:
             return pcm
         if sample_rate != self._target_sample_rate:
             try:
-                pcm, _ = audioop.ratecv(pcm, 2, 1, sample_rate, self._target_sample_rate, None)
-            except Exception as exc:  # noqa: BLE001
+                pcm, _ = audioop.ratecv(
+                    pcm, 2, 1, sample_rate, self._target_sample_rate, None
+                )
+            except Exception as exc:
                 self._logger.warning(
                     "voice.vad_resample_failed",
                     error=str(exc),
@@ -323,18 +331,17 @@ class AudioPipeline:
         if not frame:
             return False
         try:
-            return self._vad.is_speech(frame, self._target_sample_rate)
-        except Exception as exc:  # noqa: BLE001
+            return bool(self._vad.is_speech(frame, self._target_sample_rate))
+        except Exception as exc:
             self._logger.warning("voice.vad_error", error=str(exc))
             return False
 
     def _normalize_pcm(
         self,
         pcm: bytes,
-        rms: float,
         *,
         target_rms: float = 2000.0,
-    ) -> Tuple[bytes, float]:
+    ) -> tuple[bytes, float]:
         """Bring audio closer to a target RMS to reduce overly quiet or loud frames using standardized audio processing."""
         from services.common.audio import AudioProcessor
 
@@ -355,4 +362,4 @@ def rms_from_pcm(pcm: bytes) -> float:
     return processor.calculate_rms(pcm, 2)
 
 
-__all__ = ["AudioPipeline", "PCMFrame", "AudioSegment", "Accumulator", "rms_from_pcm"]
+__all__ = ["Accumulator", "AudioPipeline", "AudioSegment", "PCMFrame", "rms_from_pcm"]

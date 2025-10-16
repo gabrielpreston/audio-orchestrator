@@ -4,13 +4,11 @@ Discord service HTTP API for MCP tool integration.
 
 import asyncio
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-
-# from .config import load_config  # Unused import
 
 # Configure logging
 logger = structlog.get_logger()
@@ -18,7 +16,7 @@ logger = structlog.get_logger()
 app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
 # Global bot instance (simplified for HTTP mode)
-_bot: Optional[Any] = None
+_bot: Any | None = None
 
 
 class PlayAudioRequest(BaseModel):
@@ -38,11 +36,11 @@ class TranscriptNotification(BaseModel):
     channel_id: str
     user_id: str
     transcript: str
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 
 
-@app.on_event("startup")
-async def startup_event():
+@app.on_event("startup")  # type: ignore[misc]
+async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
     global _bot
 
@@ -61,8 +59,6 @@ async def startup_event():
             from .audio import AudioPipeline
             from .config import load_config
             from .discord_voice import VoiceBot
-
-            # from .orchestrator_client import OrchestratorClient  # Unused import
             from .wake import WakeDetector
 
             logger.info("discord.imports_complete")
@@ -80,13 +76,10 @@ async def startup_event():
             wake_detector = WakeDetector(config.wake)
             logger.info("discord.wake_detector_created")
 
-            async def dummy_transcript_publisher(transcript_data: Dict[str, Any]) -> None:
+            async def dummy_transcript_publisher(
+                transcript_data: dict[str, Any],
+            ) -> None:
                 logger.info("discord.dummy_transcript_published", **transcript_data)
-
-            # orchestrator_client = OrchestratorClient(
-            #     orchestrator_url=os.getenv("ORCHESTRATOR_URL", "http://orchestrator:8000")
-            # )
-            # logger.info("discord.orchestrator_client_created")
 
             _bot = VoiceBot(
                 config=config,
@@ -96,7 +89,9 @@ async def startup_event():
             )
             logger.info("discord.voicebot_created")
 
-            asyncio.create_task(_bot.start(config.discord.token))
+            _bot_task = asyncio.create_task(_bot.start(config.discord.token))
+            # Store reference to prevent garbage collection
+            # Store reference to prevent garbage collection
             logger.info("discord.full_bot_started")
         else:
             _bot = {"status": "ready", "mode": "http"}
@@ -112,8 +107,8 @@ async def startup_event():
         logger.info("discord.http_api_started_with_error")
 
 
-@app.on_event("shutdown")
-async def shutdown_event():
+@app.on_event("shutdown")  # type: ignore[misc]
+async def shutdown_event() -> None:
     """Shutdown HTTP API."""
     global _bot
 
@@ -122,8 +117,8 @@ async def shutdown_event():
         logger.info("discord.http_api_shutdown")
 
 
-@app.get("/health")
-async def health_check():
+@app.get("/health")  # type: ignore[misc]
+async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
@@ -133,8 +128,8 @@ async def health_check():
     }
 
 
-@app.post("/mcp/play_audio")
-async def play_audio(request: PlayAudioRequest):
+@app.post("/mcp/play_audio")  # type: ignore[misc]
+async def play_audio(request: PlayAudioRequest) -> dict[str, Any]:
     """Play audio in Discord voice channel via MCP."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -184,16 +179,18 @@ async def play_audio(request: PlayAudioRequest):
                 "guild_id": request.guild_id,
                 "channel_id": request.channel_id,
                 "audio_url": request.audio_url,
-                "result": {"message": "Audio playback requested (HTTP mode - no bot method)"},
+                "result": {
+                    "message": "Audio playback requested (HTTP mode - no bot method)"
+                },
             }
 
     except Exception as exc:
         logger.error("discord.play_audio_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/send_message")
-async def send_message(request: SendMessageRequest):
+@app.post("/mcp/send_message")  # type: ignore[misc]
+async def send_message(request: SendMessageRequest) -> dict[str, Any]:
     """Send text message to Discord channel via MCP."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -222,11 +219,11 @@ async def send_message(request: SendMessageRequest):
 
     except Exception as exc:
         logger.error("discord.send_message_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/transcript")
-async def handle_transcript(notification: TranscriptNotification):
+@app.post("/mcp/transcript")  # type: ignore[misc]
+async def handle_transcript(notification: TranscriptNotification) -> dict[str, Any]:
     """Handle transcript notification from orchestrator."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -256,11 +253,11 @@ async def handle_transcript(notification: TranscriptNotification):
 
     except Exception as exc:
         logger.error("discord.transcript_handling_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/mcp/tools")
-async def list_mcp_tools():
+@app.get("/mcp/tools")  # type: ignore[misc]
+async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     return {
         "tools": [

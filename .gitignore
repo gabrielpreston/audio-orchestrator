@@ -21,3 +21,4 @@ services/models/
 *.zip
 .npm/
 *.txt
+!requirements*.txt

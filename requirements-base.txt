@@ -1,0 +1,15 @@
+# Base requirements shared across all services
+# Core web framework
+fastapi>=0.118,<1.0
+uvicorn[standard]>=0.37,<1.0
+pydantic>=2.12,<3.0
+
+# Logging
+structlog>=24.1,<25.0
+
+# Audio processing (used by most services)
+librosa>=0.10,<1.0
+soundfile>=0.12,<1.0
+
+# HTTP client
+httpx>=0.26,<1.0

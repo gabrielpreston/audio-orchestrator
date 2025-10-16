@@ -4,25 +4,26 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+from collections.abc import Callable, Coroutine
 from concurrent.futures import Future as ThreadFuture
-from typing import Any, Callable, Coroutine, Optional
+from typing import Any
 
 from structlog.stdlib import BoundLogger
 
 from services.common.logging import get_logger
 
-voice_recv: Optional[Any]
+voice_recv: Any | None
 try:
     voice_recv = importlib.import_module("discord.ext.voice_recv")
 except ImportError as exc:  # pragma: no cover - handled at runtime
     voice_recv = None
-    _IMPORT_ERROR: Optional[ImportError] = exc
+    _IMPORT_ERROR: ImportError | None = exc
 else:
     _IMPORT_ERROR = None
 
 FrameCallback = Callable[[int, bytes, float, int], Coroutine[Any, Any, None]]
 
-_LOGGER: Optional[BoundLogger] = None
+_LOGGER: BoundLogger | None = None
 
 
 def _get_logger() -> BoundLogger:
@@ -36,14 +37,16 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
     """Return a BasicSink that forwards decoded PCM frames to the pipeline."""
 
     if voice_recv is None:  # pragma: no cover - safety net for missing dependency
-        message = "discord-ext-voice-recv is not available; install to enable voice receive"
+        message = (
+            "discord-ext-voice-recv is not available; install to enable voice receive"
+        )
         if _IMPORT_ERROR:
             message = f"{message}: {type(_IMPORT_ERROR).__name__}: {_IMPORT_ERROR}"
         raise RuntimeError(message)
 
     logger = _get_logger()
 
-    def handler(user: Optional[object], data: Any) -> None:
+    def handler(user: object | None, data: Any) -> None:
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
         if not pcm:
             return
@@ -52,7 +55,9 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
             logger.debug("voice.receiver_unknown_user")
             return
         sample_rate = (
-            getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
+            getattr(data, "sample_rate", None)
+            or getattr(data, "sampling_rate", None)
+            or 48000
         )
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
@@ -70,7 +75,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
 def _consume_result(future: ThreadFuture[None]) -> None:
     try:
         future.result()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _get_logger().error("voice.receiver_callback_failed", error=str(exc))
 
 

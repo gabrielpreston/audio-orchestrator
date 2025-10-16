@@ -8,7 +8,7 @@ import os
 import struct
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -26,15 +26,15 @@ class Orchestrator:
     def __init__(
         self,
         mcp_manager: MCPManager,
-        llm_base_url: Optional[str] = None,
-        tts_base_url: Optional[str] = None,
+        llm_base_url: str | None = None,
+        tts_base_url: str | None = None,
     ):
         self.mcp_manager = mcp_manager
         self.llm_base_url = llm_base_url
         self.tts_base_url = tts_base_url
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._http_client: Optional[httpx.AsyncClient] = None
-        self._available_tools: Dict[str, List[Dict[str, Any]]] = {}
+        self._http_client: httpx.AsyncClient | None = None
+        self._available_tools: dict[str, list[dict[str, Any]]] = {}
 
     async def initialize(self) -> None:
         """Initialize the orchestrator."""
@@ -56,7 +56,11 @@ class Orchestrator:
         self._logger.info("orchestrator.shutdown")
 
     def _save_debug_data(
-        self, transcript: str, response: str, audio_data: bytes, metadata: Dict[str, Any]
+        self,
+        transcript: str,
+        response: str,
+        audio_data: bytes,
+        metadata: dict[str, Any],
     ) -> None:
         """Save debug data to disk for analysis, grouped by correlation_id."""
         from services.common.debug import get_debug_manager
@@ -66,7 +70,9 @@ class Orchestrator:
             debug_manager = get_debug_manager("orchestrator")
 
             # Save text response
-            response_content = f"Original Transcript: {transcript}\n\nLLM Response: {response}"
+            response_content = (
+                f"Original Transcript: {transcript}\n\nLLM Response: {response}"
+            )
             response_file = debug_manager.save_text_file(
                 correlation_id=correlation_id,
                 content=response_content,
@@ -111,7 +117,9 @@ class Orchestrator:
 
         try:
             # Use standardized audio processing
-            wav_data = processor.pcm_to_wav(raw_audio_data, sample_rate, num_channels, sample_width)
+            wav_data = processor.pcm_to_wav(
+                raw_audio_data, sample_rate, num_channels, sample_width
+            )
             return wav_data
 
         except Exception as exc:
@@ -219,8 +227,8 @@ class Orchestrator:
         channel_id: str,
         user_id: str,
         transcript: str,
-        correlation_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
         """Process a transcript from Discord service."""
         try:
             from services.common.correlation import generate_orchestrator_correlation_id
@@ -269,7 +277,7 @@ class Orchestrator:
         )
 
     async def _handle_transcript_notification(
-        self, client_name: str, method: str, params: Dict[str, Any]
+        self, client_name: str, method: str, params: dict[str, Any]
     ) -> None:
         """Handle transcript notifications from Discord."""
         if client_name != "discord" or method != "discord/transcript":
@@ -282,9 +290,10 @@ class Orchestrator:
         )
 
         # Process the transcript asynchronously
-        asyncio.create_task(self._process_transcript(params))
+        _process_task = asyncio.create_task(self._process_transcript(params))
+        # Store reference to prevent garbage collection
 
-    async def _process_transcript(self, transcript_data: Dict[str, Any]) -> None:
+    async def _process_transcript(self, transcript_data: dict[str, Any]) -> None:
         """Process a transcript and generate a response."""
         correlation_id = transcript_data.get("correlation_id", "unknown")
         text = transcript_data.get("text", "")
@@ -298,7 +307,7 @@ class Orchestrator:
 
         try:
             # Generate response using LLM with function calling
-            response = await self._generate_response(text, context)
+            response = await self._generate_response(text)
 
             self._logger.info(
                 "orchestrator.response_generated",
@@ -330,7 +339,7 @@ class Orchestrator:
                 error=str(exc),
             )
 
-    async def _generate_response(self, transcript: str, context: Dict[str, Any]) -> str:
+    async def _generate_response(self, transcript: str) -> str:
         """Generate a response using LLM service via HTTP."""
         if not self.llm_base_url or not self._http_client:
             self._logger.warning("orchestrator.llm_unavailable")
@@ -378,7 +387,9 @@ class Orchestrator:
 
                     # Remove various special tokens and formatting
                     content = re.sub(
-                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]", "", content
+                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]",
+                        "",
+                        content,
                     )
                     # Remove any remaining special characters and normalize whitespace
                     content = re.sub(r'[^\w\s.,!?;:\'"-]', "", content)
@@ -393,7 +404,7 @@ class Orchestrator:
                     response_preview=content[:100] if content else "Empty",
                 )
 
-                return content
+                return str(content)
             else:
                 self._logger.warning("orchestrator.llm_empty_response")
                 return "I understand your message. How can I help you?"
@@ -403,9 +414,9 @@ class Orchestrator:
                 "orchestrator.llm_generation_failed",
                 error=str(exc),
             )
-            return f"I apologize, but I encountered an error processing your request: {str(exc)}"
+            return f"I apologize, but I encountered an error processing your request: {exc!s}"
 
-    async def _synthesize_and_play(self, text: str, context: Dict[str, Any]) -> None:
+    async def _synthesize_and_play(self, text: str, context: dict[str, Any]) -> None:
         """Synthesize text to speech and play it in Discord."""
         if not self._http_client or not self.tts_base_url:
             return
@@ -461,7 +472,9 @@ class Orchestrator:
             audio_file_path = self._save_audio_file(
                 audio_data, context.get("correlation_id", "unknown")
             )
-            audio_url = f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
+            audio_url = (
+                f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
+            )
 
             # Play audio in Discord
             await self.mcp_manager.call_discord_tool(
@@ -488,10 +501,10 @@ class Orchestrator:
         self,
         client_name: str,
         tool_name: str,
-        arguments: Dict[str, Any],
-        result: Dict[str, Any],
+        arguments: dict[str, Any],
+        result: dict[str, Any],
         success: bool,
-        context: Dict[str, Any],
+        context: dict[str, Any],
     ) -> None:
         """Save debug data for MCP tool calls."""
         try:

@@ -1,5 +1,7 @@
-# YAML: CI workflow validation steps
 ---
+# Workflow: CI
+# Purpose: Run linting, testing, security scanning, and Docker smoke tests
+# when code changes are detected.
 name: CI
 description: |
   CI workflow validation steps
@@ -90,7 +92,9 @@ jobs:
           pip install black isort ruff mypy yamllint
       - name: Install Hadolint
         run: |
-          curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 -o /usr/local/bin/hadolint
+          curl -sSL \
+            https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
+            -o /usr/local/bin/hadolint
           chmod +x /usr/local/bin/hadolint
       - name: Install Checkmake
         run: |
@@ -124,6 +128,7 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run type checking
         run: make typecheck
+        
   security-scan:
     name: Security scan
     needs: changes
@@ -187,24 +192,28 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install service dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/tester/requirements.txt
-          pip install -r services/discord/requirements.txt
-          pip install -r services/stt/requirements.txt
-          pip install -r services/llm/requirements.txt
-          pip install -r services/tts/requirements.txt
-      - name: Run pytest via Makefile
+          pip install -r requirements-dev.txt
+      - name: Run unit and component tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: make test-local | tee pytest.log
+        run: make test | tee pytest.log
       - name: Upload pytest log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pytest-log
           path: pytest.log
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            htmlcov/
 
   docker-smoke:
     name: Docker smoke

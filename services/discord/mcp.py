@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from services.common.logging import get_logger
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover - runtime only
     from .discord_voice import VoiceBot
 
 
-ToolHandler = Callable[[Dict[str, Any]], Awaitable[Dict[str, Any]]]
+ToolHandler = Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 @dataclass(slots=True)
@@ -26,7 +27,7 @@ class ToolDefinition:
 
     name: str
     description: str
-    input_schema: Dict[str, Any]
+    input_schema: dict[str, Any]
     handler: ToolHandler
 
 
@@ -36,17 +37,17 @@ class MCPServer:
     def __init__(self, config: BotConfig) -> None:
         self._config = config
         self._logger = get_logger(__name__, service_name="discord")
-        self._voice_bot: Optional["VoiceBot"] = None
-        self._tools: Dict[str, ToolDefinition] = {}
-        self._incoming: "asyncio.Queue[Optional[Dict[str, Any]]]" = asyncio.Queue()
+        self._voice_bot: VoiceBot | None = None
+        self._tools: dict[str, ToolDefinition] = {}
+        self._incoming: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
         self._shutdown = asyncio.Event()
         self._writer_lock = asyncio.Lock()
-        self._reader_task: Optional[asyncio.Task[None]] = None
+        self._reader_task: asyncio.Task[None] | None = None
         self._initialized = False
-        self._pending_notifications: List[Dict[str, Any]] = []
+        self._pending_notifications: list[dict[str, Any]] = []
         self._register_default_tools()
 
-    def attach_voice_bot(self, voice_bot: "VoiceBot") -> None:
+    def attach_voice_bot(self, voice_bot: VoiceBot) -> None:
         """Attach the running Discord client used to service tool calls."""
 
         self._voice_bot = voice_bot
@@ -82,12 +83,12 @@ class MCPServer:
                 with suppress(asyncio.CancelledError):
                     await self._reader_task
 
-    async def publish_transcript(self, payload: Dict[str, object]) -> None:
+    async def publish_transcript(self, payload: dict[str, object]) -> None:
         """Send a transcript notification to connected MCP clients."""
 
         if self._shutdown.is_set():
             return
-        message: Dict[str, Any] = {
+        message: dict[str, Any] = {
             "jsonrpc": "2.0",
             "method": "discord/transcript",
             "params": payload,
@@ -107,7 +108,7 @@ class MCPServer:
             text_length=len(str(payload.get("text", ""))),
         )
 
-    async def _handle_message(self, message: Dict[str, Any]) -> None:
+    async def _handle_message(self, message: dict[str, Any]) -> None:
         if "method" not in message:
             self._logger.debug("mcp.ignored_message", message=message)
             return
@@ -119,7 +120,7 @@ class MCPServer:
             return
         await self._handle_request(message)
 
-    async def _handle_request(self, request: Dict[str, Any]) -> None:
+    async def _handle_request(self, request: dict[str, Any]) -> None:
         request_id = request.get("id")
         method = request.get("method")
         params = request.get("params", {})
@@ -140,13 +141,15 @@ class MCPServer:
                 )
         except ValueError as exc:
             await self._send_error(request_id, -32602, str(exc))
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._logger.exception(
                 "mcp.request_failed",
                 method=method,
                 request_id=request_id,
             )
-            await self._send_error(request_id, -32000, "Server error", {"error": str(exc)})
+            await self._send_error(
+                request_id, -32000, "Server error", {"error": str(exc)}
+            )
 
     async def _handle_initialize(self, request_id: Any) -> None:
         self._initialized = True
@@ -180,7 +183,7 @@ class MCPServer:
         ]
         await self._send_response(request_id, {"tools": tools})
 
-    async def _handle_call_tool(self, request_id: Any, params: Dict[str, Any]) -> None:
+    async def _handle_call_tool(self, request_id: Any, params: dict[str, Any]) -> None:
         name = params.get("name")
         if not isinstance(name, str):
             raise ValueError("Tool name must be a string")
@@ -230,7 +233,9 @@ class MCPServer:
             ),
             "discord.send_message": ToolDefinition(
                 name="discord.send_message",
-                description=("Send a message into a Discord text channel or voice channel chat."),
+                description=(
+                    "Send a message into a Discord text channel or voice channel chat."
+                ),
                 input_schema={
                     "type": "object",
                     "properties": {
@@ -257,13 +262,13 @@ class MCPServer:
             ),
         }
 
-    def _require_voice_bot(self) -> "VoiceBot":
+    def _require_voice_bot(self) -> VoiceBot:
         if not self._voice_bot:
             raise RuntimeError("Voice bot not attached")
         return self._voice_bot
 
     @staticmethod
-    def _require_int(arguments: Dict[str, Any], name: str) -> int:
+    def _require_int(arguments: dict[str, Any], name: str) -> int:
         if name not in arguments:
             raise ValueError(f"Missing required argument: {name}")
         value = arguments[name]
@@ -273,7 +278,7 @@ class MCPServer:
             raise ValueError(f"Argument {name} must be an integer") from None
 
     @staticmethod
-    def _require_str(arguments: Dict[str, Any], name: str) -> str:
+    def _require_str(arguments: dict[str, Any], name: str) -> str:
         if name not in arguments:
             raise ValueError(f"Missing required argument: {name}")
         value = arguments[name]
@@ -281,24 +286,24 @@ class MCPServer:
             raise ValueError(f"Argument {name} must be a string")
         return value
 
-    async def _tool_join_voice(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _tool_join_voice(self, arguments: dict[str, Any]) -> dict[str, Any]:
         guild_id = self._require_int(arguments, "guild_id")
         channel_id = self._require_int(arguments, "channel_id")
         bot = self._require_voice_bot()
         return await bot.join_voice_channel(guild_id, channel_id)
 
-    async def _tool_leave_voice(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _tool_leave_voice(self, arguments: dict[str, Any]) -> dict[str, Any]:
         guild_id = self._require_int(arguments, "guild_id")
         bot = self._require_voice_bot()
         return await bot.leave_voice_channel(guild_id)
 
-    async def _tool_send_message(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _tool_send_message(self, arguments: dict[str, Any]) -> dict[str, Any]:
         channel_id = self._require_int(arguments, "channel_id")
         content = self._require_str(arguments, "content")
         bot = self._require_voice_bot()
         return await bot.send_text_message(channel_id, content)
 
-    async def _tool_play_audio(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def _tool_play_audio(self, arguments: dict[str, Any]) -> dict[str, Any]:
         guild_id = self._require_int(arguments, "guild_id")
         channel_id = self._require_int(arguments, "channel_id")
         audio_url = self._require_str(arguments, "audio_url")
@@ -317,7 +322,7 @@ class MCPServer:
                     continue
                 try:
                     message = json.loads(text)
-                except json.JSONDecodeError as exc:  # noqa: PERF203
+                except json.JSONDecodeError as exc:
                     self._logger.error(
                         "mcp.invalid_message",
                         error=str(exc),
@@ -330,7 +335,7 @@ class MCPServer:
 
         await asyncio.to_thread(reader)
 
-    async def _send(self, message: Dict[str, Any]) -> None:
+    async def _send(self, message: dict[str, Any]) -> None:
         data = json.dumps(message, separators=(",", ":"))
         async with self._writer_lock:
             await asyncio.to_thread(self._write_line, data)
@@ -345,7 +350,7 @@ class MCPServer:
         message: str,
         data: Any = None,
     ) -> None:
-        payload: Dict[str, Any] = {
+        payload: dict[str, Any] = {
             "jsonrpc": "2.0",
             "id": request_id,
             "error": {"code": code, "message": message},

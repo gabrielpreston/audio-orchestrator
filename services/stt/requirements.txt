@@ -1,8 +1,6 @@
-fastapi>=0.118,<1.0
-uvicorn[standard]>=0.37,<1.0
-pydantic>=2.12,<3.0
+# Include base requirements
+-r ../../requirements-base.txt
+
+# STT-specific dependencies
 faster-whisper==1.2.0
-structlog>=24.1,<25.0
 python-multipart>=0.0,<1.0
-librosa>=0.10,<1.0
-soundfile>=0.12,<1.0

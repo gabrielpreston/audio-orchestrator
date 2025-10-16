@@ -2,7 +2,8 @@ import io
 import os
 import time
 import wave
-from typing import Any, Dict, Iterable, List, Optional, Tuple, cast
+from collections.abc import Iterable
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -33,7 +34,7 @@ configure_logging(
 logger = get_logger(__name__, service_name="stt")
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
 
@@ -43,12 +44,14 @@ async def _warm_model() -> None:
     except HTTPException:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc))
+    except Exception as exc:
+        logger.exception(
+            "stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc)
+        )
         raise
 
 
-def _parse_bool(value: Optional[str]) -> bool:
+def _parse_bool(value: str | None) -> bool:
     if value is None:
         return False
     return str(value).lower() in {"1", "true", "yes", "on"}
@@ -58,9 +61,11 @@ def _lazy_load_model() -> Any:
     global _model
     try:
         from faster_whisper import WhisperModel
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception("stt.model_import_failed", error=str(e))
-        raise HTTPException(status_code=500, detail=f"faster-whisper import error: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"faster-whisper import error: {e}"
+        ) from e
 
     if _model is not None:
         logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
@@ -79,7 +84,7 @@ def _lazy_load_model() -> Any:
             device=device,
             compute_type=compute_type or "default",
         )
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.exception(
             "stt.model_load_error",
             model_name=MODEL_NAME,
@@ -87,11 +92,11 @@ def _lazy_load_model() -> Any:
             compute_type=compute_type,
             error=str(e),
         )
-        raise HTTPException(status_code=500, detail=f"model load error: {e}")
+        raise HTTPException(status_code=500, detail=f"model load error: {e}") from e
     return _model
 
 
-def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
+def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
     """Extract audio metadata using standardized audio processing."""
     from services.common.audio import AudioProcessor
 
@@ -102,7 +107,9 @@ def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
 
         # Validate sample width (only 16-bit supported)
         if metadata.sample_width != 2:
-            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+            raise HTTPException(
+                status_code=400, detail="only 16-bit PCM WAV is supported"
+            )
 
         return metadata.channels, metadata.sample_width, metadata.sample_rate
 
@@ -118,7 +125,9 @@ def _extract_audio_metadata(wav_bytes: bytes) -> Tuple[int, int, int]:
             raise HTTPException(status_code=400, detail=f"invalid WAV: {e}") from e
 
         if sampwidth != 2:
-            raise HTTPException(status_code=400, detail="only 16-bit PCM WAV is supported")
+            raise HTTPException(
+                status_code=400, detail="only 16-bit PCM WAV is supported"
+            )
         return channels, sampwidth, framerate
 
 
@@ -126,8 +135,8 @@ async def _transcribe_request(
     request: Request,
     wav_bytes: bytes,
     *,
-    correlation_id: Optional[str],
-    filename: Optional[str],
+    correlation_id: str | None,
+    filename: str | None,
 ) -> JSONResponse:
     # Top-level timing for the request (includes validation, file I/O, model work)
     req_start = time.time()
@@ -172,17 +181,19 @@ async def _transcribe_request(
     )
     headers_correlation = request.headers.get("X-Correlation-ID")
     correlation_id = (
-        correlation_id or headers_correlation or request.query_params.get("correlation_id")
+        correlation_id
+        or headers_correlation
+        or request.query_params.get("correlation_id")
     )
 
     # Generate STT correlation ID if none provided
     if not correlation_id:
         correlation_id = generate_stt_correlation_id()
-    processing_ms: Optional[int] = None
+    processing_ms: int | None = None
     info: Any = None
-    segments_list: List[Any] = []
+    segments_list: list[Any] = []
     text = ""
-    segments_out: List[Dict[str, Any]] = []
+    segments_out: list[dict[str, Any]] = []
     try:
         logger.debug(
             "stt.request_received",
@@ -211,9 +222,8 @@ async def _transcribe_request(
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
             transcribe_kwargs.update({"task": "translate", "language": language})
-        else:
-            if language is not None:
-                transcribe_kwargs["language"] = language
+        elif language is not None:
+            transcribe_kwargs["language"] = language
         if include_word_ts:
             transcribe_kwargs["word_timestamps"] = True
         raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
@@ -224,7 +234,7 @@ async def _transcribe_request(
             segments_list = raw_segments
         else:
             try:
-                segments_list = list(cast(Iterable[Any], raw_segments))
+                segments_list = list(cast("Iterable[Any]", raw_segments))
             except TypeError:
                 segments_list = [raw_segments]
         proc_end = time.time()
@@ -239,7 +249,7 @@ async def _transcribe_request(
         text = " ".join(getattr(seg, "text", "") for seg in segments_list).strip()
         if include_word_ts:
             for seg in segments_list:
-                segment_entry: Dict[str, Any] = {
+                segment_entry: dict[str, Any] = {
                     "start": getattr(seg, "start", None),
                     "end": getattr(seg, "end", None),
                     "text": getattr(seg, "text", ""),
@@ -247,12 +257,13 @@ async def _transcribe_request(
                 # some faster-whisper variants expose `words` on segments when
                 # word timestamps are requested; include them if present.
                 words = getattr(seg, "words", None)
-                word_entries: List[Dict[str, Any]] = []
+                word_entries: list[dict[str, Any]] = []
                 if isinstance(words, list):
                     for w in words:
                         word_entries.append(
                             {
-                                "word": getattr(w, "word", None) or getattr(w, "text", None),
+                                "word": getattr(w, "word", None)
+                                or getattr(w, "text", None),
                                 "start": getattr(w, "start", None),
                                 "end": getattr(w, "end", None),
                             }
@@ -260,7 +271,8 @@ async def _transcribe_request(
                 elif words is not None:
                     word_entries.append(
                         {
-                            "word": getattr(words, "word", None) or getattr(words, "text", None),
+                            "word": getattr(words, "word", None)
+                            or getattr(words, "text", None),
                             "start": getattr(words, "start", None),
                             "end": getattr(words, "end", None),
                         }
@@ -269,14 +281,16 @@ async def _transcribe_request(
                     segment_entry["words"] = word_entries
                 segments_out.append(segment_entry)
     except Exception as e:
-        logger.exception("stt.transcription_error", correlation_id=correlation_id, error=str(e))
-        raise HTTPException(status_code=500, detail=f"transcription error: {e}")
+        logger.exception(
+            "stt.transcription_error", correlation_id=correlation_id, error=str(e)
+        )
+        raise HTTPException(status_code=500, detail=f"transcription error: {e}") from e
     finally:
         if tmp_path:
-            try:
+            from contextlib import suppress
+
+            with suppress(Exception):
                 os.unlink(tmp_path)
-            except Exception:
-                pass
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
@@ -299,7 +313,7 @@ async def _transcribe_request(
         filename=filename,
     )
 
-    resp: Dict[str, Any] = {
+    resp: dict[str, Any] = {
         "text": text,
         "duration": getattr(info, "duration", None),
         "language": getattr(info, "language", None),
@@ -348,8 +362,8 @@ async def _transcribe_request(
     return JSONResponse(resp, headers=headers)
 
 
-@app.post("/asr")
-async def asr(request: Request):
+@app.post("/asr")  # type: ignore[misc]
+async def asr(request: Request) -> dict[str, Any]:
     # Expect raw WAV bytes in the request body
     body = await request.body()
     logger.info(
@@ -357,7 +371,7 @@ async def asr(request: Request):
         content_length=len(body),
         correlation_id=request.headers.get("X-Correlation-ID"),
     )
-    return await _transcribe_request(
+    return await _transcribe_request(  # type: ignore[no-any-return]
         request,
         body,
         correlation_id=request.headers.get("X-Correlation-ID")
@@ -366,20 +380,20 @@ async def asr(request: Request):
     )
 
 
-@app.post("/transcribe")
-async def transcribe(request: Request):
+@app.post("/transcribe")  # type: ignore[misc]
+async def transcribe(request: Request) -> dict[str, Any]:
     try:
         form = await request.form()
     except ClientDisconnect:
-        correlation_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
-            "correlation_id"
-        )
+        correlation_id = request.headers.get(
+            "X-Correlation-ID"
+        ) or request.query_params.get("correlation_id")
         logger.info(
             "stt.client_disconnect",
             correlation_id=correlation_id,
             detail="client closed connection during multipart parse",
         )
-        return JSONResponse({"detail": "client disconnected"}, status_code=499)
+        return JSONResponse({"detail": "client disconnected"}, status_code=499)  # type: ignore[no-any-return]
     upload = form.get("file")
     if upload is None:
         logger.warning(
@@ -390,7 +404,7 @@ async def transcribe(request: Request):
 
     metadata_value = form.get("metadata")
 
-    filename: Optional[str] = None
+    filename: str | None = None
     wav_bytes: bytes
     if isinstance(upload, UploadFile):
         filename = upload.filename
@@ -412,7 +426,7 @@ async def transcribe(request: Request):
         correlation_id=metadata_value,
     )
 
-    return await _transcribe_request(
+    return await _transcribe_request(  # type: ignore[no-any-return]
         request,
         wav_bytes,
         correlation_id=metadata_value,
@@ -421,20 +435,20 @@ async def transcribe(request: Request):
 
 
 def _save_debug_transcription(
-    correlation_id: Optional[str],
+    correlation_id: str | None,
     wav_bytes: bytes,
     text: str,
-    segments: List[Dict[str, Any]],
-    processing_ms: Optional[int],
+    segments: list[dict[str, Any]],
+    processing_ms: int | None,
     total_ms: int,
     input_bytes: int,
     channels: int,
     framerate: int,
-    language: Optional[str],
-    confidence: Optional[float],
-    task: Optional[str],
+    language: str | None,
+    confidence: float | None,
+    task: str | None,
     beam_size: int,
-    filename: Optional[str],
+    filename: str | None,
 ) -> None:
     """Save debug data for transcription requests."""
     if not correlation_id:

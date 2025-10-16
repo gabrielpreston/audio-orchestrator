@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-# import asyncio  # Unused import
 import base64
 import os
 import time
 import uuid
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException
@@ -24,9 +23,9 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="llm")
 
-_LLAMA: Optional[Llama] = None
-_LLAMA_INFO: Dict[str, Any] = {}
-_TTS_CLIENT: Optional[httpx.AsyncClient] = None
+_LLAMA: Llama | None = None
+_LLAMA_INFO: dict[str, Any] = {}
+_TTS_CLIENT: httpx.AsyncClient | None = None
 
 _TTS_BASE_URL = os.getenv("TTS_BASE_URL")
 _TTS_VOICE = os.getenv("TTS_VOICE")
@@ -44,7 +43,7 @@ def _tts_timeout() -> float:
         return 30.0
 
 
-def _load_llama() -> Optional[Llama]:
+def _load_llama() -> Llama | None:
     global _LLAMA, _LLAMA_INFO
     if _LLAMA is not None:
         return _LLAMA
@@ -72,14 +71,14 @@ def _load_llama() -> Optional[Llama]:
         )
         _LLAMA_INFO = {"model_path": model_path, "ctx": ctx, "threads": threads}
         logger.info("llm.model_loaded", model_path=model_path, ctx=ctx, threads=threads)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.critical("llm.model_load_failed", model_path=model_path, error=str(exc))
         _LLAMA = None
-        raise RuntimeError(f"Failed to load LLM model from {model_path}")
+        raise RuntimeError(f"Failed to load LLM model from {model_path}") from exc
     return _LLAMA
 
 
-async def _ensure_tts_client() -> Optional[httpx.AsyncClient]:
+async def _ensure_tts_client() -> httpx.AsyncClient | None:
     global _TTS_CLIENT
     if not _TTS_BASE_URL:
         return None
@@ -95,14 +94,14 @@ async def _ensure_tts_client() -> Optional[httpx.AsyncClient]:
     return _TTS_CLIENT
 
 
-async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
+async def _synthesize_tts(text: str) -> dict[str, Any] | None:
     client = await _ensure_tts_client()
     if not client:
         return None
-    payload: Dict[str, Any] = {"text": text}
+    payload: dict[str, Any] = {"text": text}
     if _TTS_VOICE:
         payload["voice"] = _TTS_VOICE
-    headers: Dict[str, str] = {}
+    headers: dict[str, str] = {}
     if _TTS_AUTH_TOKEN:
         headers["Authorization"] = f"Bearer {_TTS_AUTH_TOKEN}"
     try:
@@ -115,7 +114,7 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
             response.raise_for_status()
             audio_bytes = await response.aread()
             headers = response.headers
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("llm.tts_failed", error=str(exc))
         return None
     if not audio_bytes:
@@ -143,7 +142,7 @@ async def _synthesize_tts(text: str) -> Optional[Dict[str, Any]]:
     }
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize LLM model on startup."""
     try:
@@ -158,7 +157,7 @@ async def _startup_event() -> None:
         # Continue without model for compatibility
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown LLM service."""
     global _TTS_CLIENT
@@ -179,31 +178,32 @@ class ChatRequest(BaseModel):
     max_tokens: int | None = None
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions")  # type: ignore[misc]
 async def chat_completions(
     req: ChatRequest,
     authorization: str | None = Header(None),
-):
+) -> dict[str, Any]:
     req_start = time.time()
 
     expected = os.getenv("LLM_AUTH_TOKEN")
-    if expected:
-        if (
-            not authorization
-            or not authorization.startswith("Bearer ")
-            or authorization.split(" ", 1)[1] != expected
-        ):
-            logger.warning(
-                "llm.unauthorized_request",
-                has_header=authorization is not None,
-            )
-            raise HTTPException(status_code=401, detail="unauthorized")
+    if expected and (
+        not authorization
+        or not authorization.startswith("Bearer ")
+        or authorization.split(" ", 1)[1] != expected
+    ):
+        logger.warning(
+            "llm.unauthorized_request",
+            has_header=authorization is not None,
+        )
+        raise HTTPException(status_code=401, detail="unauthorized")
 
     if not req.messages:
         logger.warning("llm.bad_request", reason="messages_missing")
         raise HTTPException(status_code=400, detail="messages required")
 
-    prompt_bytes = len("\n".join(message.content for message in req.messages).encode("utf-8"))
+    prompt_bytes = len(
+        "\n".join(message.content for message in req.messages).encode("utf-8")
+    )
     logger.debug(
         "llm.request_received",
         model=req.model,
@@ -212,11 +212,11 @@ async def chat_completions(
     )
 
     llama = _load_llama()
-    content: Optional[str] = None
-    usage: Dict[str, Any] = {}
+    content: str | None = None
+    usage: dict[str, Any] = {}
     used_model = req.model or _LLAMA_INFO.get("model_path", "local-llama")
-    processing_ms: Optional[int] = None
-    audio: Optional[Dict[str, Any]] = None
+    processing_ms: int | None = None
+    audio: dict[str, Any] | None = None
 
     if llama is not None:
         try:
@@ -232,7 +232,7 @@ async def chat_completions(
                 content = choices[0].get("message", {}).get("content") or ""
             usage = completion.get("usage", {})
             used_model = completion.get("model", used_model)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("llm.generation_failed", error=str(exc))
 
     if content is None:
@@ -304,11 +304,11 @@ async def chat_completions(
         headers["X-Audio-Size"] = str(audio["size_bytes"])
     if audio and audio.get("content_type"):
         headers["X-Audio-Content-Type"] = str(audio["content_type"])
-    return JSONResponse(response, headers=headers)
+    return JSONResponse(response, headers=headers)  # type: ignore[no-any-return]
 
 
-@app.get("/health")
-async def health_check() -> Dict[str, Any]:
+@app.get("/health")  # type: ignore[misc]
+async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",

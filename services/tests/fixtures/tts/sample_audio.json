@@ -1,0 +1,14 @@
+{
+  "audio_data": "base64_encoded_audio_data_here",
+  "sample_rate": 22050,
+  "format": "wav",
+  "duration": 2.5,
+  "voice": "en_US-amy-medium",
+  "text": "The weather today is sunny with a temperature of 75°F and light winds.",
+  "metadata": {
+    "length_scale": 1.0,
+    "noise_scale": 0.667,
+    "noise_w": 0.8,
+    "synthesis_time": 0.8
+  }
+}

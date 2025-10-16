@@ -13,7 +13,7 @@ import os
 import struct
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from services.common.logging import get_logger
 
@@ -21,7 +21,9 @@ from services.common.logging import get_logger
 class DebugFileManager:
     """Manages debug file saving with correlation-based organization."""
 
-    def __init__(self, base_dir: str = "/app/debug", enabled_env_var: str = "DEBUG_SAVE"):
+    def __init__(
+        self, base_dir: str = "/app/debug", enabled_env_var: str = "DEBUG_SAVE"
+    ):
         """
         Initialize the debug file manager.
 
@@ -42,7 +44,7 @@ class DebugFileManager:
         correlation_id: str,
         entry_type: str,
         content: str,
-        metadata: Optional[Dict[str, Any]] = None,
+        metadata: dict[str, Any] | None = None,
     ) -> None:
         """
         Append an entry to the consolidated debug log file.
@@ -60,7 +62,9 @@ class DebugFileManager:
             correlation_dir = self._ensure_correlation_dir(correlation_id)
             debug_log_path = correlation_dir / "debug_log.json"
 
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]  # Include milliseconds
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[
+                :-3
+            ]  # Include milliseconds
 
             # Create log entry
             log_entry = {
@@ -74,9 +78,12 @@ class DebugFileManager:
             existing_entries = []
             if debug_log_path.exists():
                 try:
-                    with open(debug_log_path, "r", encoding="utf-8") as f:
+                    with open(debug_log_path, encoding="utf-8") as f:
                         existing_data = json.load(f)
-                        if isinstance(existing_data, dict) and "entries" in existing_data:
+                        if (
+                            isinstance(existing_data, dict)
+                            and "entries" in existing_data
+                        ):
                             existing_entries = existing_data["entries"]
                         elif isinstance(existing_data, list):
                             existing_entries = existing_data
@@ -121,8 +128,8 @@ class DebugFileManager:
         correlation_id: str,
         content: str,
         filename_prefix: str = "debug",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Path]:
+        metadata: dict[str, Any] | None = None,
+    ) -> Path | None:
         """
         Save text content to the consolidated debug log.
 
@@ -166,7 +173,7 @@ class DebugFileManager:
         filename_prefix: str = "audio",
         convert_to_wav: bool = True,
         sample_rate: int = 48000,
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Save audio data to a separate WAV file and log audio info to consolidated log.
 
@@ -190,7 +197,9 @@ class DebugFileManager:
 
             # Convert raw PCM to WAV if requested
             if convert_to_wav:
-                logger = get_logger("debug", correlation_id=correlation_id, service_name="common")
+                logger = get_logger(
+                    "debug", correlation_id=correlation_id, service_name="common"
+                )
                 logger.info(
                     "debug.audio_conversion_start",
                     correlation_id=correlation_id,
@@ -254,9 +263,9 @@ Sample Rate: {sample_rate} Hz"""
     def save_json_file(
         self,
         correlation_id: str,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         filename_prefix: str = "data",
-    ) -> Optional[Path]:
+    ) -> Path | None:
         """
         Save JSON data to the consolidated debug log.
 
@@ -281,7 +290,9 @@ Sample Rate: {sample_rate} Hz"""
                 entry_type=f"metadata_{filename_prefix}",
                 content=json_content,
                 metadata={
-                    "data_keys": list(data.keys()) if isinstance(data, dict) else "non-dict",
+                    "data_keys": (
+                        list(data.keys()) if isinstance(data, dict) else "non-dict"
+                    ),
                     "data_type": "json",
                 },
             )
@@ -301,10 +312,10 @@ Sample Rate: {sample_rate} Hz"""
     def save_manifest(
         self,
         correlation_id: str,
-        metadata: Dict[str, Any],
-        files: Optional[Dict[str, str]] = None,
-        stats: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Path]:
+        metadata: dict[str, Any],
+        files: dict[str, str] | None = None,
+        stats: dict[str, Any] | None = None,
+    ) -> Path | None:
         """
         Save manifest data to the consolidated debug log.
 
@@ -379,7 +390,7 @@ Statistics:
         correlation_dir.mkdir(parents=True, exist_ok=True)
         return correlation_dir
 
-    def find_correlation_dir(self, correlation_id: str) -> Optional[Path]:
+    def find_correlation_dir(self, correlation_id: str) -> Path | None:
         """
         Find a correlation directory in the hierarchical structure.
 
@@ -404,7 +415,7 @@ Statistics:
                         return correlation_dir
         return None
 
-    def list_correlation_ids(self, date_filter: Optional[str] = None) -> List[str]:
+    def list_correlation_ids(self, date_filter: str | None = None) -> list[str]:
         """
         List all correlation IDs in the hierarchical structure.
 
@@ -487,7 +498,12 @@ Statistics:
             sample_width * 8,
         )
 
-        return riff_chunk + fmt_chunk + struct.pack("<4sI", data_id, data_size) + audio_data
+        return (
+            riff_chunk
+            + fmt_chunk
+            + struct.pack("<4sI", data_id, data_size)
+            + audio_data
+        )
 
 
 # Convenience functions for easy usage
@@ -501,8 +517,8 @@ def save_debug_text(
     content: str,
     service_name: str = "common",
     filename_prefix: str = "debug",
-    metadata: Optional[Dict[str, Any]] = None,
-) -> Optional[Path]:
+    metadata: dict[str, Any] | None = None,
+) -> Path | None:
     """Convenience function to save debug text."""
     manager = get_debug_manager(service_name)
     return manager.save_text_file(correlation_id, content, filename_prefix, metadata)
@@ -514,18 +530,20 @@ def save_debug_audio(
     service_name: str = "common",
     filename_prefix: str = "audio",
     convert_to_wav: bool = True,
-) -> Optional[Path]:
+) -> Path | None:
     """Convenience function to save debug audio."""
     manager = get_debug_manager(service_name)
-    return manager.save_audio_file(correlation_id, audio_data, filename_prefix, convert_to_wav)
+    return manager.save_audio_file(
+        correlation_id, audio_data, filename_prefix, convert_to_wav
+    )
 
 
 def save_debug_json(
     correlation_id: str,
-    data: Dict[str, Any],
+    data: dict[str, Any],
     service_name: str = "common",
     filename_prefix: str = "data",
-) -> Optional[Path]:
+) -> Path | None:
     """Convenience function to save debug JSON."""
     manager = get_debug_manager(service_name)
     return manager.save_json_file(correlation_id, data, filename_prefix)
@@ -533,11 +551,11 @@ def save_debug_json(
 
 def save_debug_manifest(
     correlation_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     service_name: str = "common",
-    files: Optional[Dict[str, str]] = None,
-    stats: Optional[Dict[str, Any]] = None,
-) -> Optional[Path]:
+    files: dict[str, str] | None = None,
+    stats: dict[str, Any] | None = None,
+) -> Path | None:
     """Convenience function to save debug manifest."""
     manager = get_debug_manager(service_name)
     return manager.save_manifest(correlation_id, metadata, files, stats)

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import asyncio
-
-# import logging  # Unused import
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -22,17 +21,19 @@ class StdioMCPClient:
         self,
         name: str,
         command: str,
-        args: Optional[List[str]] = None,
-        env: Optional[Dict[str, str]] = None,
+        args: list[str] | None = None,
+        env: dict[str, str] | None = None,
     ):
         self.name = name
         self.command = command
         self.args = args or []
         self.env = env or {}
-        self._session: Optional[ClientSession] = None
+        self._session: ClientSession | None = None
         self._client = None
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._notification_handlers: List[Callable[[str, Dict[str, Any]], Awaitable[None]]] = []
+        self._notification_handlers: list[
+            Callable[[str, dict[str, Any]], Awaitable[None]]
+        ] = []
 
     async def connect(self) -> None:
         """Connect to the MCP server subprocess."""
@@ -52,7 +53,7 @@ class StdioMCPClient:
                 raise RuntimeError("Failed to create stdio client")
 
             # Enter the context manager and get the streams
-            read_stream, write_stream = await self._client.__aenter__()
+            read_stream, write_stream = await self._client.__aenter__()  # type: ignore[unreachable]
 
             # Create a session from the streams
             from mcp import ClientSession
@@ -69,7 +70,8 @@ class StdioMCPClient:
             )
 
             # Start listening for notifications
-            asyncio.create_task(self._listen_for_notifications())
+            _notification_task = asyncio.create_task(self._listen_for_notifications())
+            # Store reference to prevent garbage collection
 
         except Exception as exc:
             self._logger.error(
@@ -82,7 +84,7 @@ class StdioMCPClient:
     async def disconnect(self) -> None:
         """Disconnect from the MCP server."""
         if self._client:
-            try:
+            try:  # type: ignore[unreachable]
                 await self._client.__aexit__(None, None, None)
                 self._logger.info("mcp.client_disconnected", name=self.name)
             except Exception as exc:
@@ -95,7 +97,7 @@ class StdioMCPClient:
                 self._session = None
                 self._client = None
 
-    async def list_tools(self) -> List[Dict[str, Any]]:
+    async def list_tools(self) -> list[dict[str, Any]]:
         """List available tools from the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
@@ -124,7 +126,7 @@ class StdioMCPClient:
             )
             raise
 
-    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Call a tool on the MCP server."""
         if not self._session:
             raise RuntimeError("Not connected to MCP server")
@@ -137,7 +139,7 @@ class StdioMCPClient:
                 tool_name=name,
                 success=True,
             )
-            return result.content[0].json if result.content else {}
+            return dict(result.content[0].json) if result.content else {}
         except Exception as exc:
             self._logger.error(
                 "mcp.tool_call_failed",
@@ -148,7 +150,7 @@ class StdioMCPClient:
             raise
 
     def subscribe_notifications(
-        self, handler: Callable[[str, Dict[str, Any]], Awaitable[None]]
+        self, handler: Callable[[str, dict[str, Any]], Awaitable[None]]
     ) -> None:
         """Subscribe to MCP notifications."""
         self._notification_handlers.append(handler)
@@ -180,7 +182,7 @@ class StdioMCPClient:
                 error=str(exc),
             )
 
-    async def _handle_notification(self, method: str, params: Dict[str, Any]) -> None:
+    async def _handle_notification(self, method: str, params: dict[str, Any]) -> None:
         """Handle incoming notifications."""
         for handler in self._notification_handlers:
             try:

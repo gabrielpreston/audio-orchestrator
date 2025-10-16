@@ -1,0 +1,8 @@
+{
+  "tool": "weather_check",
+  "parameters": {
+    "location": "San Francisco",
+    "date": "today"
+  },
+  "correlation_id": "mcp-1234567890abcdef"
+}

@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "result": {
+    "location": "San Francisco",
+    "date": "today",
+    "weather": "sunny",
+    "temperature": "75°F",
+    "humidity": "60%",
+    "wind": "5 mph",
+    "description": "Clear skies with light winds"
+  },
+  "correlation_id": "mcp-1234567890abcdef",
+  "timestamp": "2024-01-01T12:00:00Z"
+}

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import audioop
+# audioop is deprecated, using alternative approach
 import io
 import wave
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Any, Dict, Optional, Type
+from typing import Any
 
 import httpx
 
@@ -25,22 +25,24 @@ class TranscriptResult:
     text: str
     start_timestamp: float
     end_timestamp: float
-    language: Optional[str]
-    confidence: Optional[float]
+    language: str | None
+    confidence: float | None
     correlation_id: str
-    raw_response: Dict[str, Any]
+    raw_response: dict[str, Any]
 
 
 class TranscriptionClient:
     """Async client that sends audio segments to the STT service."""
 
-    def __init__(self, config: STTConfig, *, session: Optional[httpx.AsyncClient] = None) -> None:
+    def __init__(
+        self, config: STTConfig, *, session: httpx.AsyncClient | None = None
+    ) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
         self._logger = get_logger(__name__, service_name="discord")
 
-    async def __aenter__(self) -> "TranscriptionClient":
+    async def __aenter__(self) -> TranscriptionClient:
         if self._session is None:
             timeout = httpx.Timeout(connect=5.0, read=None, write=None, pool=None)
             self._session = httpx.AsyncClient(timeout=timeout)
@@ -48,16 +50,18 @@ class TranscriptionClient:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> None:
         if self._owns_session and self._session:
             await self._session.aclose()
 
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult:
         if not self._session:
-            raise RuntimeError("TranscriptionClient must be used as an async context manager")
+            raise RuntimeError(
+                "TranscriptionClient must be used as an async context manager"
+            )
 
         wav_bytes = _pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)
         files = {
@@ -68,7 +72,7 @@ class TranscriptionClient:
             )
         }
         data = {"metadata": segment.correlation_id}
-        params: Dict[str, Any] = {}
+        params: dict[str, Any] = {}
         if self._config.forced_language:
             params["language"] = self._config.forced_language
         logger = self._logger.bind(correlation_id=segment.correlation_id)
@@ -100,7 +104,7 @@ class TranscriptionClient:
                 params=params or None,
                 timeout=request_timeout,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.error("stt.transcribe_failed", error=str(exc))
             raise
         payload = response.json()
@@ -156,14 +160,23 @@ def _pcm_to_wav(
         # Fallback to original implementation if conversion fails
         if sample_rate != target_sample_rate and pcm:
             try:
-                pcm, _ = audioop.ratecv(pcm, 2, channels, sample_rate, target_sample_rate, None)
+                from services.common.audio import resample_audio
+
+                pcm = resample_audio(
+                    pcm, sample_rate, target_sample_rate, sample_width=2
+                )
                 sample_rate = target_sample_rate
-            except Exception:
+            except Exception as e:
                 # Fall back to the original sample rate if resampling fails.
-                pass
+                logger = get_logger(__name__, service_name="discord")
+                logger.debug(
+                    "Audio resampling failed, using original sample rate",
+                    extra={"error": str(e)},
+                )
 
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:
+            # Linter incorrectly identifies this as Wave_read, but it's actually Wave_write
             wav_file.setnchannels(channels)
             wav_file.setsampwidth(2)
             wav_file.setframerate(sample_rate)
@@ -171,4 +184,4 @@ def _pcm_to_wav(
         return buffer.getvalue()
 
 
-__all__ = ["TranscriptionClient", "TranscriptResult"]
+__all__ = ["TranscriptResult", "TranscriptionClient"]

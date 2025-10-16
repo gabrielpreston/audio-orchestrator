@@ -32,6 +32,7 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -47,13 +48,11 @@ T = TypeVar("T")
 class ConfigError(Exception):
     """Base exception for configuration-related errors."""
 
-    pass
-
 
 class ValidationError(ConfigError):
     """Exception raised when configuration validation fails."""
 
-    def __init__(self, field_name: str, value: Any, message: str):
+    def __init__(self, field_name: str, value: Any, message: str) -> None:
         self.field = field_name
         self.value = value
         self.message = message
@@ -63,7 +62,7 @@ class ValidationError(ConfigError):
 class RequiredFieldError(ConfigError):
     """Exception raised when a required field is missing."""
 
-    def __init__(self, field_name: str):
+    def __init__(self, field_name: str) -> None:
         self.field = field_name
         super().__init__(f"Required field '{field_name}' is missing")
 
@@ -82,24 +81,28 @@ class FieldDefinition:
     """Definition for a configuration field with validation rules."""
 
     name: str
-    field_type: Type[Any]
+    field_type: type[Any]
     default: Any = None
     required: bool = False
     description: str = ""
-    validator: Optional[Callable[[Any], bool]] = None
-    env_var: Optional[str] = None
-    choices: Optional[List[Any]] = None
-    min_value: Optional[Union[int, float]] = None
-    max_value: Optional[Union[int, float]] = None
-    pattern: Optional[str] = None
+    validator: Callable[[Any], bool] | None = None
+    env_var: str | None = None
+    choices: list[Any] | None = None
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    pattern: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate field definition after initialization."""
         if self.required and self.default is not None:
             raise ValueError(
                 f"Field '{self.name}' cannot be both required and have a default value"
             )
-        if self.choices and self.default is not None and self.default not in self.choices:
+        if (
+            self.choices
+            and self.default is not None
+            and self.default not in self.choices
+        ):
             raise ValueError(f"Default value for field '{self.name}' not in choices")
         if self.pattern and not isinstance(self.pattern, str):
             raise ValueError(f"Pattern for field '{self.name}' must be a string")
@@ -108,7 +111,7 @@ class FieldDefinition:
 class BaseConfig(ABC):
     """Abstract base class for configuration sections."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize configuration with provided values."""
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -116,9 +119,9 @@ class BaseConfig(ABC):
 
     @classmethod
     @abstractmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         """Return field definitions for this configuration class."""
-        pass
+        return []
 
     def validate(self) -> None:
         """Validate all fields in this configuration."""
@@ -168,13 +171,16 @@ class BaseConfig(ABC):
             )
 
         # Pattern validation
-        if field_def.pattern and isinstance(value, str):
-            if not re.match(field_def.pattern, value):
-                raise ValidationError(
-                    field_def.name,
-                    value,
-                    f"Value must match pattern: {field_def.pattern}",
-                )
+        if (
+            field_def.pattern
+            and isinstance(value, str)
+            and not re.match(field_def.pattern, value)
+        ):
+            raise ValidationError(
+                field_def.name,
+                value,
+                f"Value must match pattern: {field_def.pattern}",
+            )
 
         # Custom validator
         if field_def.validator and not field_def.validator(value):
@@ -184,7 +190,7 @@ class BaseConfig(ABC):
                 "Custom validation failed",
             )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         result = {}
         for field_def in self.get_field_definitions():
@@ -205,16 +211,16 @@ class LoggingConfig(BaseConfig):
         self,
         level: str = "INFO",
         json_logs: bool = True,
-        service_name: Optional[str] = None,
-        **kwargs,
-    ):
+        service_name: str | None = None,
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.level = level
         self.json_logs = json_logs
         self.service_name = service_name
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             FieldDefinition(
                 name="level",
@@ -251,8 +257,8 @@ class DatabaseConfig(BaseConfig):
         user: str = "postgres",
         password: str = "",
         ssl_mode: str = "prefer",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.host = host
         self.port = port
@@ -262,7 +268,7 @@ class DatabaseConfig(BaseConfig):
         self.ssl_mode = ssl_mode
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             FieldDefinition(
                 name="host",
@@ -306,7 +312,14 @@ class DatabaseConfig(BaseConfig):
                 field_type=str,
                 default="prefer",
                 description="SSL mode for database connection",
-                choices=["disable", "allow", "prefer", "require", "verify-ca", "verify-full"],
+                choices=[
+                    "disable",
+                    "allow",
+                    "prefer",
+                    "require",
+                    "verify-ca",
+                    "verify-full",
+                ],
                 env_var="DB_SSL_MODE",
             ),
         ]
@@ -321,8 +334,8 @@ class HttpConfig(BaseConfig):
         max_retries: int = 3,
         retry_delay: float = 1.0,
         user_agent: str = "discord-voice-lab/1.0",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.timeout = timeout
         self.max_retries = max_retries
@@ -330,7 +343,7 @@ class HttpConfig(BaseConfig):
         self.user_agent = user_agent
 
     @classmethod
-    def get_field_definitions(cls) -> List[FieldDefinition]:
+    def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
             FieldDefinition(
                 name="timeout",
@@ -372,7 +385,7 @@ class HttpConfig(BaseConfig):
 class EnvironmentLoader:
     """Loads configuration from environment variables."""
 
-    def __init__(self, prefix: str = ""):
+    def __init__(self, prefix: str = "") -> None:
         """Initialize with optional prefix for environment variables."""
         self.prefix = prefix.upper() + "_" if prefix else ""
 
@@ -396,9 +409,9 @@ class EnvironmentLoader:
                 field_def.name,
                 raw_value,
                 f"Failed to convert environment variable {env_var}: {e}",
-            )
+            ) from e
 
-    def _convert_value(self, raw_value: str, target_type: Type[T]) -> T:
+    def _convert_value(self, raw_value: str, target_type: type[T]) -> T:
         """Convert string value to target type."""
         origin = get_origin(target_type)
         args = get_args(target_type)
@@ -420,9 +433,9 @@ class EnvironmentLoader:
             # Try to use the type as a constructor
             return target_type(raw_value)  # type: ignore
 
-    def load_config(self, config_class: Type[BaseConfig]) -> BaseConfig:
+    def load_config(self, config_class: type[T]) -> T:
         """Load configuration for a given class from environment variables."""
-        field_definitions = config_class.get_field_definitions()
+        field_definitions = config_class.get_field_definitions()  # type: ignore[attr-defined]
         kwargs = {}
 
         for field_def in field_definitions:
@@ -443,11 +456,13 @@ class EnvironmentLoader:
 class ConfigBuilder:
     """Builder for creating service configurations."""
 
-    def __init__(self, service_name: str, environment: Environment = Environment.DEVELOPMENT):
+    def __init__(
+        self, service_name: str, environment: Environment = Environment.DEVELOPMENT
+    ):
         self.service_name = service_name
         self.environment = environment
         self.loader = EnvironmentLoader(service_name)
-        self._configs: Dict[str, BaseConfig] = {}
+        self._configs: dict[str, BaseConfig] = {}
 
     @classmethod
     def for_service(
@@ -456,7 +471,7 @@ class ConfigBuilder:
         """Create a configuration builder for a specific service."""
         return cls(service_name, environment)
 
-    def add_config(self, name: str, config_class: Type[BaseConfig]) -> ConfigBuilder:
+    def add_config(self, name: str, config_class: type[BaseConfig]) -> ConfigBuilder:
         """Add a configuration section."""
         config = self.loader.load_config(config_class)
         self._configs[name] = config
@@ -477,7 +492,7 @@ class ServiceConfig:
 
     service_name: str
     environment: Environment
-    configs: Dict[str, BaseConfig]
+    configs: Mapping[str, BaseConfig]
 
     def get_config(self, name: str) -> BaseConfig:
         """Get a specific configuration section."""
@@ -504,25 +519,27 @@ class ServiceConfig:
                 )
                 raise
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary."""
         return {
             "service_name": self.service_name,
             "environment": self.environment.value,
-            "configs": {name: config.to_dict() for name, config in self.configs.items()},
+            "configs": {
+                name: config.to_dict() for name, config in self.configs.items()
+            },
         }
 
-    def save_to_file(self, file_path: Union[str, Path]) -> None:
+    def save_to_file(self, file_path: str | Path) -> None:
         """Save configuration to a JSON file."""
         file_path = Path(file_path)
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2, default=str)
 
     @classmethod
-    def load_from_file(cls, file_path: Union[str, Path]) -> ServiceConfig:
+    def load_from_file(cls, file_path: str | Path) -> ServiceConfig:
         """Load configuration from a JSON file."""
         file_path = Path(file_path)
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
 
         # This is a simplified implementation
@@ -562,16 +579,16 @@ def load_service_config(
 
 def create_field_definition(
     name: str,
-    field_type: Type[Any],
+    field_type: type[Any],
     default: Any = None,
     required: bool = False,
     description: str = "",
-    validator: Optional[Callable[[Any], bool]] = None,
-    env_var: Optional[str] = None,
-    choices: Optional[List[Any]] = None,
-    min_value: Optional[Union[int, float]] = None,
-    max_value: Optional[Union[int, float]] = None,
-    pattern: Optional[str] = None,
+    validator: Callable[[Any], bool] | None = None,
+    env_var: str | None = None,
+    choices: list[Any] | None = None,
+    min_value: int | float | None = None,
+    max_value: int | float | None = None,
+    pattern: str | None = None,
 ) -> FieldDefinition:
     """Convenience function for creating field definitions."""
     return FieldDefinition(
@@ -609,12 +626,12 @@ def validate_port(value: int) -> bool:
     return 1 <= value <= 65535
 
 
-def validate_positive(value: Union[int, float]) -> bool:
+def validate_positive(value: int | float) -> bool:
     """Validate that a value is positive."""
     return value > 0
 
 
-def validate_non_negative(value: Union[int, float]) -> bool:
+def validate_non_negative(value: int | float) -> bool:
     """Validate that a value is non-negative."""
     return value >= 0
 
@@ -635,7 +652,7 @@ __all__ = [
     "create_field_definition",
     "load_service_config",
     "validate_non_negative",
-    "validate_positive",
     "validate_port",
+    "validate_positive",
     "validate_url",
 ]

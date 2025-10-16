@@ -6,7 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any
 
 from services.common.logging import get_logger
 
@@ -19,8 +19,8 @@ class MCPServerConfig:
 
     name: str
     command: str
-    args: List[str]
-    env: Dict[str, str]
+    args: list[str]
+    env: dict[str, str]
     enabled: bool = True
 
 
@@ -29,7 +29,7 @@ class MCPConfig:
 
     def __init__(self, config_path: str = "./mcp.json"):
         self.config_path = Path(config_path)
-        self.servers: Dict[str, MCPServerConfig] = {}
+        self.servers: dict[str, MCPServerConfig] = {}
         self._logger = get_logger(__name__, service_name="orchestrator")
 
     def load(self) -> None:
@@ -42,7 +42,7 @@ class MCPConfig:
             return
 
         try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
+            with open(self.config_path, encoding="utf-8") as f:
                 data = json.load(f)
 
             mcp_servers = data.get("mcpServers", {})
@@ -85,7 +85,9 @@ class MCPConfig:
 
                 # Substitute environment variables in args
                 processed_args = [self._substitute_env_vars(arg) for arg in args]
-                processed_env = {k: self._substitute_env_vars(v) for k, v in env.items()}
+                processed_env = {
+                    k: self._substitute_env_vars(v) for k, v in env.items()
+                }
 
                 server_config = MCPServerConfig(
                     name=name,
@@ -126,24 +128,22 @@ class MCPConfig:
             )
             raise
 
-    def get_enabled_servers(self) -> Dict[str, MCPServerConfig]:
+    def get_enabled_servers(self) -> dict[str, MCPServerConfig]:
         """Get all enabled MCP server configurations."""
         return {name: config for name, config in self.servers.items() if config.enabled}
 
-    def get_server_config(self, name: str) -> Optional[MCPServerConfig]:
+    def get_server_config(self, name: str) -> MCPServerConfig | None:
         """Get configuration for a specific server."""
         return self.servers.get(name)
 
     def _substitute_env_vars(self, value: str) -> str:
         """Substitute environment variables in a string value."""
-        if not isinstance(value, str):
-            return value
 
         # Simple environment variable substitution
         # Supports ${VAR} and $VAR syntax
         import re
 
-        def replace_var(match) -> str:
+        def replace_var(match: Any) -> str:
             var_name = match.group(1) or match.group(2)
             return os.getenv(var_name, match.group(0))
 

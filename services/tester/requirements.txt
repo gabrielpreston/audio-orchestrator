@@ -1,41 +1,15 @@
-# Test framework requirements
-pytest==8.3.2
-pytest-asyncio==0.24.0
-pytest-mock==3.14.0
-coverage==7.6.1
+# Include test framework
+-r /workspace/requirements-test.txt
 
-# Discord service dependencies
-discord.py[voice]>=2.4,<3.0
-discord-ext-voice_recv==0.5.2a179
-numpy>=1.26,<2.0
-PyNaCl>=1.5,<2.0
-httpx>=0.26,<1.0
-openwakeword>=0.6,<1.0
-rapidfuzz>=3.5,<4.0
-structlog>=24.1,<25.0
-webrtcvad>=2.0,<3.0
-fastapi>=0.118,<1.0
-uvicorn[standard]==0.37.0
-pydantic==2.12.0
-librosa>=0.10,<1.0
-soundfile>=0.12,<1.0
+# Include base requirements for all services
+-r /workspace/requirements-base.txt
 
-# STT service dependencies
-faster-whisper==1.2.0
-python-multipart>=0.0,<1.0
+# Include all service-specific dependencies
+-r /workspace/services/discord/requirements.txt
+-r /workspace/services/stt/requirements.txt
+-r /workspace/services/llm/requirements.txt
+-r /workspace/services/orchestrator/requirements.txt
+-r /workspace/services/tts/requirements.txt
 
-# LLM service dependencies
-llama-cpp-python>=0.2,<1.0
-mcp>=1.0,<2.0
-instructor>=1.0,<2.0
-
-# TTS service dependencies
-piper-tts>=1.2,<2.0
-prometheus_client>=0.17,<1.0
-
-# Linter dependencies
-black==24.4.2
-isort==5.13.2
-ruff==0.4.9
-mypy==1.10.0
-yamllint==1.35.1
+# Linter dependencies (for testing)
+-r /workspace/services/linter/requirements.txt

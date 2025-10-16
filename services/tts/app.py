@@ -7,7 +7,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -27,14 +27,12 @@ def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
     raw = os.getenv(name)
     value = default
     if raw is not None:
-        try:
+        from contextlib import suppress
+
+        with suppress(ValueError):
             value = int(raw)
-        except ValueError:
-            pass
-    if value < minimum:
-        value = minimum
-    if value > maximum:
-        value = maximum
+    value = max(value, minimum)
+    value = min(value, maximum)
     return value
 
 
@@ -42,14 +40,12 @@ def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> 
     raw = os.getenv(name)
     value = default
     if raw is not None:
-        try:
+        from contextlib import suppress
+
+        with suppress(ValueError):
             value = float(raw)
-        except ValueError:
-            pass
-    if value < minimum:
-        value = minimum
-    if value > maximum:
-        value = maximum
+    value = max(value, minimum)
+    value = min(value, maximum)
     return value
 
 
@@ -67,7 +63,9 @@ _MODEL_CONFIG_PATH = os.getenv("TTS_MODEL_CONFIG_PATH")
 _DEFAULT_VOICE = os.getenv("TTS_DEFAULT_VOICE")
 _MAX_TEXT_LENGTH = _env_int("TTS_MAX_TEXT_LENGTH", 1000, minimum=32, maximum=10000)
 _MAX_CONCURRENCY = _env_int("TTS_MAX_CONCURRENCY", 4, minimum=1, maximum=64)
-_RATE_LIMIT_PER_MINUTE = _env_int("TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000)
+_RATE_LIMIT_PER_MINUTE = _env_int(
+    "TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000
+)
 _AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
 _DEFAULT_LENGTH_SCALE = _env_float("TTS_LENGTH_SCALE", 1.0, minimum=0.1, maximum=3.0)
 _DEFAULT_NOISE_SCALE = _env_float("TTS_NOISE_SCALE", 0.667, minimum=0.0, maximum=2.0)
@@ -75,11 +73,11 @@ _DEFAULT_NOISE_W = _env_float("TTS_NOISE_W", 0.8, minimum=0.0, maximum=2.0)
 
 _CONCURRENCY_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
 _RATE_LIMIT_LOCK = asyncio.Lock()
-_RATE_LIMIT_STATE: Dict[str, Tuple[int, int]] = {}
-_VOICE: Optional[PiperVoice] = None
+_RATE_LIMIT_STATE: dict[str, tuple[int, int]] = {}
+_VOICE: PiperVoice | None = None
 _VOICE_SAMPLE_RATE: int = 0
-_VOICE_OPTIONS: List["VoiceOption"] = []
-_VOICE_LOOKUP: Dict[str, "VoiceOption"] = {}
+_VOICE_OPTIONS: list[VoiceOption] = []
+_VOICE_LOOKUP: dict[str, VoiceOption] = {}
 
 # Debug manager for saving debug files
 _debug_manager = get_debug_manager("tts")
@@ -106,11 +104,11 @@ _SSML_TAG_RE = re.compile(r"<[^>]+>")
 @dataclass
 class VoiceOption:
     key: str
-    speaker_id: Optional[int]
-    language: Optional[str]
+    speaker_id: int | None
+    language: str | None
 
-    def as_payload(self) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"id": self.key}
+    def as_payload(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {"id": self.key}
         if self.speaker_id is not None:
             payload["speaker_id"] = self.speaker_id
         if self.language:
@@ -119,15 +117,15 @@ class VoiceOption:
 
 
 class SynthesisRequest(BaseModel):
-    text: Optional[str] = Field(None, max_length=_MAX_TEXT_LENGTH)
-    ssml: Optional[str] = Field(None, max_length=_MAX_TEXT_LENGTH)
-    voice: Optional[str] = None
-    length_scale: Optional[float] = Field(None, ge=0.1, le=3.0)
-    noise_scale: Optional[float] = Field(None, ge=0.0, le=2.0)
-    noise_w: Optional[float] = Field(None, ge=0.0, le=2.0)
-    correlation_id: Optional[str] = None
+    text: str | None = Field(None, max_length=_MAX_TEXT_LENGTH)
+    ssml: str | None = Field(None, max_length=_MAX_TEXT_LENGTH)
+    voice: str | None = None
+    length_scale: float | None = Field(None, ge=0.1, le=3.0)
+    noise_scale: float | None = Field(None, ge=0.0, le=2.0)
+    noise_w: float | None = Field(None, ge=0.0, le=2.0)
+    correlation_id: str | None = None
 
-    @model_validator(mode="before")
+    @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
     def _check_text_or_ssml(cls, data: Any) -> Any:
         if isinstance(data, dict):
@@ -142,7 +140,7 @@ class SynthesisRequest(BaseModel):
 
 class VoiceListResponse(BaseModel):
     sample_rate: int
-    voices: List[Dict[str, Any]]
+    voices: list[dict[str, Any]]
 
 
 class HealthResponse(BaseModel):
@@ -151,7 +149,7 @@ class HealthResponse(BaseModel):
     max_concurrency: int
 
 
-async def _require_auth(authorization: Optional[str] = Header(None)) -> None:
+async def _require_auth(authorization: str | None = Header(None)) -> None:
     if not _AUTH_TOKEN:
         return
     if not authorization or not authorization.startswith("Bearer "):
@@ -182,7 +180,7 @@ async def _enforce_rate_limit(request: Request) -> None:
             _RATE_LIMIT_STATE.pop(next(iter(_RATE_LIMIT_STATE)))
 
 
-def _read_voice_language(config_data: Dict[str, Any]) -> Optional[str]:
+def _read_voice_language(config_data: dict[str, Any]) -> str | None:
     frontend = config_data.get("frontend") or {}
     language = frontend.get("phoneme_language") or frontend.get("phonemeLanguage")
     return language
@@ -213,7 +211,7 @@ def _load_voice() -> None:
     _VOICE = PiperVoice.load(_MODEL_PATH, _MODEL_CONFIG_PATH)
 
     # Read config for metadata extraction
-    with open(_MODEL_CONFIG_PATH, "r", encoding="utf-8") as config_file:
+    with open(_MODEL_CONFIG_PATH, encoding="utf-8") as config_file:
         config_data = json.load(config_file)
     sample_rate = (
         config_data.get("sample_rate")
@@ -226,7 +224,9 @@ def _load_voice() -> None:
     _VOICE_SAMPLE_RATE = int(sample_rate)
 
     language = _read_voice_language(config_data)
-    speaker_map = config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
+    speaker_map = (
+        config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
+    )
 
     _VOICE_OPTIONS = []
     _VOICE_LOOKUP = {}
@@ -244,11 +244,10 @@ def _load_voice() -> None:
         _VOICE_LOOKUP["default"] = option
         _VOICE_LOOKUP[""] = option
 
-    if _DEFAULT_VOICE:
-        if _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
-            raise RuntimeError(
-                f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
-            )
+    if _DEFAULT_VOICE and _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
+        raise RuntimeError(
+            f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
+        )
 
     logger.info(
         "tts.voice_loaded",
@@ -259,7 +258,7 @@ def _load_voice() -> None:
     )
 
 
-def _resolve_voice(preferred: Optional[str]) -> VoiceOption:
+def _resolve_voice(preferred: str | None) -> VoiceOption:
     if not _VOICE_OPTIONS:
         raise HTTPException(status_code=503, detail="voice catalog unavailable")
     candidate = (preferred or _DEFAULT_VOICE or "").strip()
@@ -267,7 +266,9 @@ def _resolve_voice(preferred: Optional[str]) -> VoiceOption:
         return _VOICE_OPTIONS[0]
     option = _VOICE_LOOKUP.get(candidate.lower())
     if option is None:
-        raise HTTPException(status_code=400, detail=f"voice {candidate!r} not available")
+        raise HTTPException(
+            status_code=400, detail=f"voice {candidate!r} not available"
+        )
     return option
 
 
@@ -327,7 +328,7 @@ def _synthesize_audio(
     length_scale: float,
     noise_scale: float,
     noise_w: float,
-) -> Tuple[bytes, int]:
+) -> tuple[bytes, int]:
     if _VOICE is None:
         # Return a minimal WAV file with silence when no model is loaded
         logger.warning("TTS model not loaded - returning silence audio")
@@ -347,7 +348,7 @@ def _synthesize_audio(
     return audio_bytes, getattr(_VOICE, "sample_rate", _VOICE_SAMPLE_RATE)
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     await asyncio.to_thread(_load_voice)
     logger.info(
@@ -358,7 +359,7 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse)  # type: ignore[misc]
 async def health() -> HealthResponse:
     status = "ok" if _VOICE is not None else "degraded"
     return HealthResponse(
@@ -368,12 +369,12 @@ async def health() -> HealthResponse:
     )
 
 
-@app.get("/metrics")
+@app.get("/metrics")  # type: ignore[misc]
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/voices", response_model=VoiceListResponse)
+@app.get("/voices", response_model=VoiceListResponse)  # type: ignore[misc]
 async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     if not _VOICE_OPTIONS:
         # Return a default voice option when no model is loaded
@@ -384,12 +385,12 @@ async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     return VoiceListResponse(sample_rate=_VOICE_SAMPLE_RATE, voices=voices)
 
 
-@app.post("/synthesize")
+@app.post("/synthesize")  # type: ignore[misc]
 async def synthesize(
     payload: SynthesisRequest,
     _: None = Depends(_require_auth),
     __: None = Depends(_enforce_rate_limit),
-):
+) -> dict[str, Any]:
     start_time = time.perf_counter()
 
     text_source = payload.ssml if payload.ssml else payload.text or ""
@@ -414,10 +415,12 @@ async def synthesize(
             )
         except HTTPException:
             raise
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.exception("tts.synthesize_failed", error=str(exc))
             _SYNTHESIS_COUNTER.labels(status="error").inc()
-            raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
+            raise HTTPException(
+                status_code=500, detail="unable to synthesize audio"
+            ) from exc
 
     size_bytes = len(audio_bytes)
     duration = time.perf_counter() - start_time
@@ -460,7 +463,9 @@ async def synthesize(
         duration=duration,
     )
 
-    return StreamingResponse(iter([audio_bytes]), media_type="audio/wav", headers=headers)
+    return StreamingResponse(  # type: ignore[no-any-return]
+        iter([audio_bytes]), media_type="audio/wav", headers=headers
+    )
 
 
 def _save_debug_synthesis(
@@ -468,7 +473,7 @@ def _save_debug_synthesis(
     text_source: str,
     is_ssml: bool,
     text_length: int,
-    option: "VoiceOption",
+    option: VoiceOption,
     length_scale: float,
     noise_scale: float,
     noise_w: float,

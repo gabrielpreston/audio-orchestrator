@@ -3,7 +3,6 @@
 import os
 import tempfile
 from pathlib import Path
-from typing import Optional
 from unittest import TestCase, mock
 
 from .config import (
@@ -142,8 +141,8 @@ class TestBaseConfig(TestCase):
         class TestConfig(BaseConfig):
             def __init__(
                 self,
-                required_field: Optional[str] = None,
-                optional_field: Optional[int] = None,
+                required_field: str | None = None,
+                optional_field: int | None = None,
                 **kwargs,
             ):
                 super().__init__(**kwargs)
@@ -167,7 +166,7 @@ class TestBaseConfig(TestCase):
             config.validate()
 
         # Test type validation
-        config = TestConfig(required_field="test", optional_field="not_a_number")
+        config = TestConfig(required_field="test", optional_field="not_a_number")  # type: ignore
         with self.assertRaises(ValidationError):
             config.validate()
 
@@ -236,9 +235,11 @@ class TestEnvironmentLoader(TestCase):
             required=True,
         )
 
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(RequiredFieldError):
-                self.loader.load_field(field_def)
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            self.assertRaises(RequiredFieldError),
+        ):
+            self.loader.load_field(field_def)
 
     def test_convert_value(self):
         """Test value conversion."""
@@ -276,7 +277,9 @@ class TestEnvironmentLoader(TestCase):
                     FieldDefinition("field2", int, 42, env_var="TEST_FIELD2"),
                 ]
 
-        with mock.patch.dict(os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}):
+        with mock.patch.dict(
+            os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}
+        ):
             config = self.loader.load_config(TestConfig)
             self.assertEqual(config.field1, "env_value1")
             self.assertEqual(config.field2, 100)
@@ -389,8 +392,11 @@ class TestServiceConfig(TestCase):
             self.assertEqual(loaded_config.service_name, "test")
             self.assertEqual(loaded_config.environment.value, "development")
         finally:
-            if temp_file.exists():
-                temp_file.unlink()
+            from contextlib import suppress
+
+            with suppress(Exception):
+                if temp_file.exists():
+                    temp_file.unlink()
 
     def test_getattr(self):
         """Test direct access to configuration sections."""

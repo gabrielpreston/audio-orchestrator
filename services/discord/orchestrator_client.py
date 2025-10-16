@@ -2,13 +2,10 @@
 Orchestrator client for Discord service to communicate with the LLM orchestrator.
 """
 
-# import asyncio  # Unused import
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 import structlog
-
-# from .config import load_config  # Unused import
 
 logger = structlog.get_logger()
 
@@ -18,7 +15,7 @@ class OrchestratorClient:
 
     def __init__(self, orchestrator_url: str = "http://orchestrator:8000"):
         self.orchestrator_url = orchestrator_url
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -32,8 +29,8 @@ class OrchestratorClient:
         channel_id: str,
         user_id: str,
         transcript: str,
-        correlation_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
         """Send transcript to orchestrator for processing."""
         try:
             client = await self._get_http_client()
@@ -51,7 +48,7 @@ class OrchestratorClient:
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
                 "discord.transcript_sent_to_orchestrator",
                 guild_id=guild_id,
@@ -73,19 +70,25 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def play_audio(self, guild_id: str, channel_id: str, audio_url: str) -> Dict[str, Any]:
+    async def play_audio(
+        self, guild_id: str, channel_id: str, audio_url: str
+    ) -> dict[str, Any]:
         """Request audio playback via orchestrator."""
         try:
             client = await self._get_http_client()
 
-            payload = {"guild_id": guild_id, "channel_id": channel_id, "audio_url": audio_url}
+            payload = {
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "audio_url": audio_url,
+            }
 
             response = await client.post(
                 f"{self.orchestrator_url}/mcp/play_audio", json=payload, timeout=30.0
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
                 "discord.audio_playback_requested",
                 guild_id=guild_id,
@@ -104,21 +107,30 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def send_message(self, guild_id: str, channel_id: str, message: str) -> Dict[str, Any]:
+    async def send_message(
+        self, guild_id: str, channel_id: str, message: str
+    ) -> dict[str, Any]:
         """Send text message via orchestrator."""
         try:
             client = await self._get_http_client()
 
-            payload = {"guild_id": guild_id, "channel_id": channel_id, "message": message}
+            payload = {
+                "guild_id": guild_id,
+                "channel_id": channel_id,
+                "message": message,
+            }
 
             response = await client.post(
                 f"{self.orchestrator_url}/mcp/send_message", json=payload, timeout=30.0
             )
             response.raise_for_status()
 
-            result = response.json()
+            result: dict[str, Any] = response.json()
             logger.info(
-                "discord.message_sent", guild_id=guild_id, channel_id=channel_id, message=message
+                "discord.message_sent",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                message=message,
             )
 
             return result
@@ -132,7 +144,7 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         if self._http_client:
             await self._http_client.aclose()

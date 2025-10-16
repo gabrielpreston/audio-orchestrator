@@ -1,0 +1,18 @@
+{
+  "choices": [
+    {
+      "message": {
+        "content": "The weather today is sunny with a temperature of 75°F and light winds. It's a beautiful day to be outside!",
+        "role": "assistant"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 15,
+    "completion_tokens": 25,
+    "total_tokens": 40
+  },
+  "model": "llama-2-7b",
+  "created": 1704110400
+}

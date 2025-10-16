@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException
@@ -22,9 +22,9 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="orchestrator")
 
-_ORCHESTRATOR: Optional[Orchestrator] = None
-_MCP_MANAGER: Optional[MCPManager] = None
-_LLM_CLIENT: Optional[httpx.AsyncClient] = None
+_ORCHESTRATOR: Orchestrator | None = None
+_MCP_MANAGER: MCPManager | None = None
+_LLM_CLIENT: httpx.AsyncClient | None = None
 
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm:8000")
 _LLM_AUTH_TOKEN = os.getenv("LLM_AUTH_TOKEN")
@@ -37,7 +37,7 @@ def _env_bool(name: str, default: str = "true") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
 
 
-async def _ensure_llm_client() -> Optional[httpx.AsyncClient]:
+async def _ensure_llm_client() -> httpx.AsyncClient | None:
     global _LLM_CLIENT
     if not _LLM_BASE_URL:
         return None
@@ -47,7 +47,7 @@ async def _ensure_llm_client() -> Optional[httpx.AsyncClient]:
     return _LLM_CLIENT
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize MCP manager and orchestrator on startup."""
     global _MCP_MANAGER, _ORCHESTRATOR
@@ -67,7 +67,7 @@ async def _startup_event() -> None:
         # Continue without MCP integration for compatibility
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown MCP manager and orchestrator."""
     global _LLM_CLIENT, _MCP_MANAGER, _ORCHESTRATOR
@@ -90,11 +90,11 @@ class TranscriptRequest(BaseModel):
     channel_id: str
     user_id: str
     transcript: str
-    correlation_id: Optional[str] = None
+    correlation_id: str | None = None
 
 
-@app.post("/mcp/transcript")
-async def handle_transcript(request: TranscriptRequest) -> Dict[str, Any]:
+@app.post("/mcp/transcript")  # type: ignore[misc]
+async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     if not _ORCHESTRATOR:
         return {"error": "Orchestrator not initialized"}
@@ -131,8 +131,8 @@ async def handle_transcript(request: TranscriptRequest) -> Dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/tools")
-async def list_mcp_tools() -> Dict[str, Any]:
+@app.get("/mcp/tools")  # type: ignore[misc]
+async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -144,8 +144,8 @@ async def list_mcp_tools() -> Dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/connections")
-async def list_mcp_connections() -> Dict[str, Any]:
+@app.get("/mcp/connections")  # type: ignore[misc]
+async def list_mcp_connections() -> dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
         return {"error": "MCP manager not initialized"}
@@ -153,8 +153,8 @@ async def list_mcp_connections() -> Dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health")
-async def health_check() -> Dict[str, Any]:
+@app.get("/health")  # type: ignore[misc]
+async def health_check() -> dict[str, Any]:
     """Health check endpoint with MCP status."""
     mcp_status = {}
     if _MCP_MANAGER:
@@ -169,7 +169,7 @@ async def health_check() -> Dict[str, Any]:
     }
 
 
-@app.get("/audio/{filename}")
+@app.get("/audio/{filename}")  # type: ignore[misc]
 async def serve_audio(filename: str) -> FileResponse:
     """Serve audio files for Discord playback."""
     try:
@@ -187,10 +187,14 @@ async def serve_audio(filename: str) -> FileResponse:
         # Use the first matching file
         file_path = Path(matching_files[0])
 
-        return FileResponse(path=str(file_path), media_type="audio/wav", filename=filename)
+        return FileResponse(
+            path=str(file_path), media_type="audio/wav", filename=filename
+        )
     except Exception as exc:
-        logger.error("orchestrator.audio_serve_failed", error=str(exc), filename=filename)
-        raise HTTPException(status_code=500, detail=str(exc))
+        logger.error(
+            "orchestrator.audio_serve_failed", error=str(exc), filename=filename
+        )
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

@@ -8,7 +8,8 @@ WORKDIR /app
 
 # Install runtime dependencies required for voice capture and playback
 # hadolint ignore=DL3008
-RUN apt-get update && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
     apt-get install -y --no-install-recommends \
         git \
         build-essential \
@@ -18,9 +19,12 @@ RUN apt-get update && \
         libopus0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 # hadolint ignore=DL3013
-RUN python -m pip install --upgrade pip setuptools wheel && \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip setuptools wheel && \
     pip install -r /app/services/discord/requirements.txt
 
 COPY services/common /app/services/common
