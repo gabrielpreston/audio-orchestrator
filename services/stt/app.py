@@ -363,7 +363,7 @@ async def _transcribe_request(
 
 
 @app.post("/asr")
-async def asr(request: Request):
+async def asr(request: Request) -> dict[str, Any]:
     # Expect raw WAV bytes in the request body
     body = await request.body()
     logger.info(
@@ -381,7 +381,7 @@ async def asr(request: Request):
 
 
 @app.post("/transcribe")
-async def transcribe(request: Request):
+async def transcribe(request: Request) -> dict[str, Any]:
     try:
         form = await request.form()
     except ClientDisconnect:

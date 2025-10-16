@@ -177,10 +177,10 @@ def _pcm_to_wav(
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:
             # Linter incorrectly identifies this as Wave_read, but it's actually Wave_write
-            wav_file.setnchannels(channels)  # type: ignore[attr-defined]
-            wav_file.setsampwidth(2)  # type: ignore[attr-defined]
-            wav_file.setframerate(sample_rate)  # type: ignore[attr-defined]
-            wav_file.writeframes(pcm)  # type: ignore[attr-defined]
+            wav_file.setnchannels(channels)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+            wav_file.writeframes(pcm)
         return buffer.getvalue()
 
 

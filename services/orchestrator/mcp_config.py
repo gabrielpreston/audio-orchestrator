@@ -138,8 +138,6 @@ class MCPConfig:
 
     def _substitute_env_vars(self, value: str) -> str:
         """Substitute environment variables in a string value."""
-        if not isinstance(value, str):
-            return value
 
         # Simple environment variable substitution
         # Supports ${VAR} and $VAR syntax

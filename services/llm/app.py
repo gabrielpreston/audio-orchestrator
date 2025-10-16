@@ -182,7 +182,7 @@ class ChatRequest(BaseModel):
 async def chat_completions(
     req: ChatRequest,
     authorization: str | None = Header(None),
-):
+) -> dict[str, Any]:
     req_start = time.time()
 
     expected = os.getenv("LLM_AUTH_TOKEN")

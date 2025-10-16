@@ -144,7 +144,7 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def close(self):
+    async def close(self) -> None:
         """Close HTTP client."""
         if self._http_client:
             await self._http_client.aclose()

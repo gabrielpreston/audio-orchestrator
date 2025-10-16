@@ -14,7 +14,7 @@ def create_mock_audio_data(
     duration: float = 1.0,
     sample_rate: int = 48000,
     channels: int = 1,
-    dtype: np.dtype = np.float32,
+    dtype: np.dtype | type = np.float32,
 ) -> np.ndarray:
     """Create mock audio data for testing.
 
@@ -47,7 +47,7 @@ def create_mock_wav_file(
     """
     import wave
 
-    audio_data = create_mock_audio_data(duration, sample_rate, channels, np.int16)
+    audio_data = create_mock_audio_data(duration, sample_rate, channels, dtype=np.int16)
 
     with wave.open(str(file_path), "wb") as wav_file:
         wav_file.setnchannels(channels)
@@ -289,7 +289,7 @@ def assert_audio_data_valid(
     audio_data: np.ndarray,
     expected_sample_rate: int = 48000,
     expected_channels: int = 1,
-    expected_dtype: np.dtype = np.float32,
+    expected_dtype: np.dtype | type = np.float32,
 ) -> None:
     """Assert that audio data is valid for testing.
 

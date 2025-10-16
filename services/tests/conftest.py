@@ -47,7 +47,7 @@ def setup_test_environment() -> None:
 
 
 @pytest.fixture(autouse=True)
-def reset_environment() -> None:
+def reset_environment():
     """Reset environment variables before each test."""
     # Store original environment
     original_env = os.environ.copy()

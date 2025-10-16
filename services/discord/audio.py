@@ -331,7 +331,7 @@ class AudioPipeline:
         if not frame:
             return False
         try:
-            return self._vad.is_speech(frame, self._target_sample_rate)
+            return bool(self._vad.is_speech(frame, self._target_sample_rate))
         except Exception as exc:
             self._logger.warning("voice.vad_error", error=str(exc))
             return False

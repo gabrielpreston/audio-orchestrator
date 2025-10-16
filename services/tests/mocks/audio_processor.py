@@ -116,7 +116,9 @@ class MockAudioProcessor:
         ratio = target_sr / orig_sr
         new_length = int(len(audio_data) * ratio)
         indices = np.linspace(0, len(audio_data) - 1, new_length)
-        return np.interp(indices, np.arange(len(audio_data)), audio_data)
+        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(
+            audio_data.dtype
+        )
 
 
 class MockLibrosa:
@@ -141,7 +143,7 @@ class MockLibrosa:
         mono: bool = True,
         offset: float = 0.0,
         duration: float | None = None,
-        dtype: np.dtype = np.float32,
+        dtype: np.dtype | type = np.float32,
         res_type: str = "kaiser_best",
         **kwargs,
     ) -> tuple[np.ndarray, int]:
@@ -237,7 +239,9 @@ class MockLibrosa:
         ratio = target_sr / orig_sr
         new_length = int(len(audio_data) * ratio)
         indices = np.linspace(0, len(audio_data) - 1, new_length)
-        return np.interp(indices, np.arange(len(audio_data)), audio_data)
+        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(
+            audio_data.dtype
+        )
 
 
 def create_mock_audio_processor() -> MockAudioProcessor:
@@ -262,7 +266,7 @@ def create_mock_audio_data(
     duration: float = 1.0,
     sample_rate: int = 48000,
     channels: int = 1,
-    dtype: np.dtype = np.float32,
+    dtype: np.dtype | type = np.float32,
 ) -> np.ndarray:
     """Create mock audio data for testing.
 
@@ -293,7 +297,7 @@ def create_mock_wav_file(
     Returns:
         Path to the created file
     """
-    audio_data = create_mock_audio_data(duration, sample_rate, channels, np.int16)
+    audio_data = create_mock_audio_data(duration, sample_rate, channels, dtype=np.int16)
 
     with sf.SoundFile(file_path, "w", samplerate=sample_rate, channels=channels) as f:
         f.write(audio_data)

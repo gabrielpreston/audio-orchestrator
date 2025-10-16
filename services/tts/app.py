@@ -390,7 +390,7 @@ async def synthesize(
     payload: SynthesisRequest,
     _: None = Depends(_require_auth),
     __: None = Depends(_enforce_rate_limit),
-):
+) -> dict[str, Any]:
     start_time = time.perf_counter()
 
     text_source = payload.ssml if payload.ssml else payload.text or ""

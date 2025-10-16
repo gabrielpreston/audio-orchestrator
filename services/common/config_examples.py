@@ -58,16 +58,21 @@ def example_discord_service_config():
         return None
 
     # Access configuration values
+    discord_config = config.discord  # type: ignore[attr-defined]
+    audio_config = config.audio  # type: ignore[attr-defined]
+    stt_config = config.stt  # type: ignore[attr-defined]
+    wake_config = config.wake  # type: ignore[attr-defined]
+
     print(
-        f"Discord token: {config.discord.token[:10]}..."
-        if config.discord.token
+        f"Discord token: {discord_config.token[:10]}..."
+        if discord_config.token
         else "Not set"
     )
-    print(f"Guild ID: {config.discord.guild_id}")
-    print(f"Voice channel ID: {config.discord.voice_channel_id}")
-    print(f"Audio sample rate: {config.audio.input_sample_rate_hz} Hz")
-    print(f"STT base URL: {config.stt.base_url}")
-    print(f"Wake phrases: {config.wake.wake_phrases}")
+    print(f"Guild ID: {discord_config.guild_id}")
+    print(f"Voice channel ID: {discord_config.voice_channel_id}")
+    print(f"Audio sample rate: {audio_config.input_sample_rate_hz} Hz")
+    print(f"STT base URL: {stt_config.base_url}")
+    print(f"Wake phrases: {wake_config.wake_phrases}")
 
     # Convert to dictionary
     config_dict = config.to_dict()
@@ -84,7 +89,8 @@ def example_stt_service_config():
     config = load_service_config("stt", Environment.DOCKER)
 
     # Add STT-specific configuration
-    config.configs["faster_whisper"] = FasterWhisperConfig()
+    # Note: This is just for demonstration - in practice, configs should be loaded through the builder
+    # config.configs["faster_whisper"] = FasterWhisperConfig()  # This would fail at runtime
 
     # Set some environment variables for demonstration
     os.environ["STT_BASE_URL"] = "http://stt:9000"
@@ -95,8 +101,8 @@ def example_stt_service_config():
     # Reload configuration to pick up environment variables
     builder = ConfigBuilder.for_service("stt", Environment.DOCKER)
     config = (
-        builder.add_config("logging", config.configs["logging"])
-        .add_config("http", config.configs["http"])
+        builder.add_config("logging", LoggingConfig)
+        .add_config("http", HttpConfig)
         .add_config("faster_whisper", FasterWhisperConfig)
         .load()
     )
@@ -108,10 +114,13 @@ def example_stt_service_config():
         print(f"✗ STT configuration validation failed: {e}")
         return None
 
-    print(f"Faster-whisper model: {config.faster_whisper.model}")
-    print(f"Device: {config.faster_whisper.device}")
-    print(f"Compute type: {config.faster_whisper.compute_type}")
-    print(f"HTTP timeout: {config.http.timeout} seconds")
+    faster_whisper_config = config.faster_whisper  # type: ignore[attr-defined]
+    http_config = config.http  # type: ignore[attr-defined]
+
+    print(f"Faster-whisper model: {faster_whisper_config.model}")
+    print(f"Device: {faster_whisper_config.device}")
+    print(f"Compute type: {faster_whisper_config.compute_type}")
+    print(f"HTTP timeout: {http_config.timeout} seconds")
 
     return config
 
@@ -146,11 +155,13 @@ def example_tts_service_config():
         print(f"✗ TTS configuration validation failed: {e}")
         return None
 
-    print(f"TTS port: {config.tts.port}")
-    print(f"Model path: {config.tts.model_path}")
-    print(f"Max text length: {config.tts.max_text_length}")
-    print(f"Max concurrency: {config.tts.max_concurrency}")
-    print(f"Rate limit: {config.tts.rate_limit_per_minute} requests/minute")
+    tts_config = config.tts  # type: ignore[attr-defined]
+
+    print(f"TTS port: {tts_config.port}")
+    print(f"Model path: {tts_config.model_path}")
+    print(f"Max text length: {tts_config.max_text_length}")
+    print(f"Max concurrency: {tts_config.max_concurrency}")
+    print(f"Rate limit: {tts_config.rate_limit_per_minute} requests/minute")
 
     return config
 
@@ -185,12 +196,15 @@ def example_orchestrator_service_config():
         print(f"✗ Orchestrator configuration validation failed: {e}")
         return None
 
-    print(f"Orchestrator port: {config.orchestrator.port}")
-    print(f"Llama model path: {config.llama.model_path}")
-    print(f"Context length: {config.llama.context_length}")
-    print(f"Threads: {config.llama.threads}")
-    print(f"TTS base URL: {config.orchestrator.tts_base_url}")
-    print(f"Auth token: {'Set' if config.orchestrator.auth_token else 'Not set'}")
+    orchestrator_config = config.orchestrator  # type: ignore[attr-defined]
+    llama_config = config.llama  # type: ignore[attr-defined]
+
+    print(f"Orchestrator port: {orchestrator_config.port}")
+    print(f"Llama model path: {llama_config.model_path}")
+    print(f"Context length: {llama_config.context_length}")
+    print(f"Threads: {llama_config.threads}")
+    print(f"TTS base URL: {orchestrator_config.tts_base_url}")
+    print(f"Auth token: {'Set' if orchestrator_config.auth_token else 'Not set'}")
 
     return config
 
@@ -302,9 +316,10 @@ def example_custom_configuration():
     try:
         config.validate()
         print("✓ Custom configuration is valid")
-        print(f"Service name: {config.custom.service_name}")
-        print(f"Max connections: {config.custom.max_connections}")
-        print(f"Feature X enabled: {config.custom.enable_feature_x}")
+        custom_config = config.custom  # type: ignore[attr-defined]
+        print(f"Service name: {custom_config.service_name}")
+        print(f"Max connections: {custom_config.max_connections}")
+        print(f"Feature X enabled: {custom_config.enable_feature_x}")
     except Exception as e:
         print(f"✗ Custom configuration validation failed: {e}")
 

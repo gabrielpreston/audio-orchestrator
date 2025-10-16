@@ -435,7 +435,7 @@ class EnvironmentLoader:
 
     def load_config(self, config_class: type[T]) -> T:
         """Load configuration for a given class from environment variables."""
-        field_definitions = config_class.get_field_definitions()
+        field_definitions = config_class.get_field_definitions()  # type: ignore[attr-defined]
         kwargs = {}
 
         for field_def in field_definitions:
@@ -471,7 +471,7 @@ class ConfigBuilder:
         """Create a configuration builder for a specific service."""
         return cls(service_name, environment)
 
-    def add_config(self, name: str, config_class: type[BaseConfig]) -> ConfigBuilder:
+    def add_config(self, name: str, config_class: type[BaseConfig]) -> ConfigBuilder:  # type: ignore[type-arg]
         """Add a configuration section."""
         config = self.loader.load_config(config_class)
         self._configs[name] = config

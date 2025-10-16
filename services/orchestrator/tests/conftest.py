@@ -123,7 +123,7 @@ def test_audio_data() -> bytes:
 
 
 @pytest.fixture
-def mock_file_system() -> Generator[mock.Mock, None, None]:
+def mock_file_system() -> Generator[dict[str, mock.Mock], None, None]:
     """Mock file system operations for testing."""
     with (
         mock.patch("pathlib.Path.write_bytes") as mock_write,

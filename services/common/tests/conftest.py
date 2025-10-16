@@ -7,7 +7,7 @@ from unittest import mock
 
 import pytest
 
-from services.common.config import ServiceConfig
+from services.common.config import Environment, ServiceConfig
 from services.common.service_configs import (
     AudioConfig,
     DiscordConfig,
@@ -67,7 +67,7 @@ def test_service_config(
     """Provide a test service configuration."""
     return ServiceConfig(
         service_name="test-service",
-        environment="development",
+        environment=Environment.DEVELOPMENT,
         configs={"logging": test_logging_config, "http": test_http_config},
     )
 
