@@ -105,7 +105,7 @@ jobs:
 
   typecheck:
     name: Type Check
-    needs: changes
+    needs: [changes, lint]
     if: |
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.workflows == 'true' ||
