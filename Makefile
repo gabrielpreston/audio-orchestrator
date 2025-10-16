@@ -1,7 +1,15 @@
 SHELL := /bin/bash
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
 
-# --- colors & helpers ----------------------------------------------------
+# =============================================================================
+# PHONY TARGETS
+# =============================================================================
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
+
+# =============================================================================
+# CONFIGURATION & VARIABLES
+# =============================================================================
+
+# Color support detection and definitions
 COLORS := $(shell tput colors 2>/dev/null || echo 0)
 ifeq ($(COLORS),0)
         COLOR_OFF :=
@@ -21,6 +29,7 @@ else
         COLOR_CYAN := $(shell printf '\033[36m')
 endif
 
+# Docker Compose detection
 DOCKER_COMPOSE := $(shell \
         if command -v docker-compose >/dev/null 2>&1; then \
 		    echo "docker-compose"; \
@@ -38,55 +47,34 @@ endif
 
 COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose.
 
-# Enable BuildKit by default for faster builds when Docker is available.
+# Docker BuildKit configuration
 DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
-# Python sources
+# Source paths and file discovery
 PYTHON_SOURCES := services
-
-# Type checking - check all services by default
 MYPY_PATHS ?= services
-
-# Auto-discover all Dockerfiles in services/
 DOCKERFILES := $(shell find services -type f -name 'Dockerfile' 2>/dev/null)
-
-# Auto-discover all YAML files (docker-compose + GitHub workflows)
 YAML_FILES := docker-compose.yml $(shell find .github/workflows -type f -name '*.yaml' -o -name '*.yml' 2>/dev/null)
-
-# Auto-discover all Markdown files
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' 2>/dev/null)
+
+# Container images and paths
 LINT_IMAGE ?= discord-voice-lab/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
 TEST_IMAGE ?= discord-voice-lab/test:latest
 TEST_DOCKERFILE := services/tester/Dockerfile
 TEST_WORKDIR := /workspace
+
+# Test configuration
 PYTEST_ARGS ?=
 RUN_SCRIPT := scripts/run-compose.sh
 
-# Default mypy scope for CI; override via environment if expanding coverage
-# (single definition above)
-
-define SHELL_CLEAN_COMMAND
-echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"
-if [ -d "logs" ]; then
-	echo "Removing logs in ./logs"
-	rm -rf logs/* || true
-fi
-if [ -d ".wavs" ]; then
-	echo "Removing saved wavs/sidecars in ./.wavs"
-	rm -rf .wavs/* || true
-fi
-if [ -d "services" ]; then
-	echo "Removing __pycache__ directories under ./services"
-	find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true
-fi
-endef
+# =============================================================================
+# DEFAULT TARGETS
+# =============================================================================
 
 all: help ## Default aggregate target
-
-test: test-container ## Run tests inside the test toolchain container
 
 help: ## Show this help (default)
 	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
@@ -95,9 +83,14 @@ help: ## Show this help (default)
 	@echo
 	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
+.DEFAULT_GOAL := help
+
+# =============================================================================
+# APPLICATION LIFECYCLE
+# =============================================================================
+
 run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
 	@$(RUN_SCRIPT)
-
 
 stop: ## Stop and remove containers for the compose stack
 	@echo -e "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)"
@@ -114,6 +107,14 @@ logs-dump: ## Capture docker logs to ./docker.logs
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) logs > ./docker.logs
 
+docker-status: ## Show status of docker-compose services
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@$(DOCKER_COMPOSE) ps
+
+# =============================================================================
+# DOCKER BUILD & MANAGEMENT
+# =============================================================================
+
 docker-build: ## Build or rebuild images for the compose stack
 	@echo -e "$(COLOR_GREEN)→ Building docker images$(COLOR_OFF)"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
@@ -129,19 +130,6 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|llm|orchestrator|tts)"; exit 1; fi
 	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
-
-docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
-	@echo -e "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)"
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
-	@docker buildx prune -f || true
-	@echo -e "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)"
-
-docker-validate: ## Validate Dockerfiles with hadolint
-	@command -v hadolint >/dev/null 2>&1 || { \
-		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)"
-	@hadolint $(DOCKERFILES)
-	@echo -e "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)"
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@echo -e "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)"
@@ -168,93 +156,26 @@ docker-smoke: ## Build images and validate docker-compose configuration for CI p
 	@$(DOCKER_COMPOSE) config --services
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --pull --progress=plain
 
-clean: ## Remove logs, cached audio artifacts, and debug files
-	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
-	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
-	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
-	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
-	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
+docker-validate: ## Validate Dockerfiles with hadolint
+	@command -v hadolint >/dev/null 2>&1 || { \
+		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)"
+	@hadolint $(DOCKERFILES)
+	@echo -e "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)"
 
-docker-clean: ## Bring down compose stack and prune unused docker resources
-	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then \
-		echo "$(COMPOSE_MISSING_MESSAGE) Skipping compose down."; \
-	else \
-		$(DOCKER_COMPOSE) down --rmi all -v --remove-orphans || true; \
-	fi
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
-	@echo "Pruning stopped containers..."
-	@docker container prune -f || true
-	@echo "Pruning unused images (this will remove dangling and unused images)..."
-	@docker image prune -a -f || true
-	@echo "Pruning unused volumes..."
-	@docker volume prune -f || true
-	@echo "Pruning unused networks..."
-	@docker network prune -f || true
+docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
+	@echo -e "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)"
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
+	@docker buildx prune -f || true
+	@echo -e "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)"
 
+# =============================================================================
+# TESTING
+# =============================================================================
 
-docker-status: ## Show status of docker-compose services
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@$(DOCKER_COMPOSE) ps
+test: test-container ## Run tests inside the test toolchain container (default)
 
-lint: lint-docker ## Run all linters in Docker container (default for local dev)
-
-lint-docker: lint-image ## Run linting via Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) \
-		$(LINT_IMAGE)
-
-lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
-	@echo "✓ All linting checks passed"
-
-lint-python: ## Python formatting and linting (black, isort, ruff)
-	@echo "→ Checking Python code formatting with black..."
-	@command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
-	@black --check $(PYTHON_SOURCES)
-	@echo "→ Checking Python import sorting with isort..."
-	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
-	@isort --check-only $(PYTHON_SOURCES)
-	@echo "→ Running Python linting with ruff..."
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
-	@ruff check $(PYTHON_SOURCES)
-	@echo "✓ Python linting passed"
-
-lint-mypy: ## Type checking with mypy
-	@echo "→ Running type checking with mypy..."
-	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
-	@mypy $(MYPY_PATHS)
-	@echo "✓ Type checking passed"
-
-lint-yaml: ## Lint all YAML files
-	@echo "→ Linting YAML files..."
-	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
-	@yamllint $(YAML_FILES)
-	@echo "✓ YAML linting passed"
-
-lint-dockerfiles: ## Lint all Dockerfiles
-	@echo "→ Linting Dockerfiles..."
-	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
-	@for dockerfile in $(DOCKERFILES); do \
-		echo "  Checking $$dockerfile"; \
-		hadolint $$dockerfile || exit 1; \
-	done
-	@echo "✓ Dockerfile linting passed"
-
-lint-makefile: ## Lint Makefile
-	@echo "→ Linting Makefile..."
-	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
-	@checkmake Makefile
-	@echo "✓ Makefile linting passed"
-
-lint-markdown: ## Lint Markdown files
-	@echo "→ Linting Markdown files..."
-	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
-	@markdownlint $(MARKDOWN_FILES)
-	@echo "✓ Markdown linting passed"
+test-ci: test-local ## Run tests using locally installed tooling (for CI)
 
 test-container: test-image ## Build test container (if needed) and run the test suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
@@ -281,10 +202,7 @@ test-local: ## Run tests using locally installed tooling
 		exit $$status; \
 	}
 
-# --- Enhanced test targets ----------------------------------------------------
-
-test-local: ## Run all unit and component tests using locally installed tooling
-
+# Test categories
 test-unit: ## Run unit tests only (fast, isolated)
 	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
 	@echo -e "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)"
@@ -343,6 +261,7 @@ test-e2e: ## Run end-to-end tests (manual trigger only)
 		exit 0; \
 	fi
 
+# Test utilities
 test-coverage: ## Generate coverage report
 	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
 	@echo -e "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)"
@@ -376,14 +295,76 @@ test-specific: ## Run specific tests (use PYTEST_ARGS="-k pattern")
 	@echo -e "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)"
 	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -xvs $(PYTEST_ARGS)
 
-# --- Quality gate targets -----------------------------------------------------
+# =============================================================================
+# LINTING & CODE QUALITY
+# =============================================================================
 
+lint: lint-docker ## Run all linters in Docker container (default for local dev)
 
-security: ## Run security scanning with pip-audit
-	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
-	@mkdir -p security-reports; audit_status=0; for req in services/*/requirements.txt; do report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; echo "Auditing $$req"; pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; done; if [ "$$audit_status" -ne 0 ]; then echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; exit $$audit_status; fi; echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
+lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
+	@echo "✓ All linting checks passed"
 
+# Docker-based linting
+lint-docker: lint-image ## Run linting via Docker container
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE)
+
+lint-image: ## Build the lint toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
+
+# Local linting tools
+lint-python: ## Python formatting and linting (black, isort, ruff)
+	@echo "→ Checking Python code formatting with black..."
+	@command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
+	@black --check $(PYTHON_SOURCES)
+	@echo "→ Checking Python import sorting with isort..."
+	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
+	@isort --check-only $(PYTHON_SOURCES)
+	@echo "→ Running Python linting with ruff..."
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
+	@ruff check $(PYTHON_SOURCES)
+	@echo "✓ Python linting passed"
+
+lint-mypy: ## Type checking with mypy
+	@echo "→ Running type checking with mypy..."
+	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
+	@mypy $(MYPY_PATHS)
+	@echo "✓ Type checking passed"
+
+lint-yaml: ## Lint all YAML files
+	@echo "→ Linting YAML files..."
+	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
+	@yamllint $(YAML_FILES)
+	@echo "✓ YAML linting passed"
+
+lint-dockerfiles: ## Lint all Dockerfiles
+	@echo "→ Linting Dockerfiles..."
+	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
+	@for dockerfile in $(DOCKERFILES); do \
+		echo "  Checking $$dockerfile"; \
+		hadolint $$dockerfile || exit 1; \
+	done
+	@echo "✓ Dockerfile linting passed"
+
+lint-makefile: ## Lint Makefile
+	@echo "→ Linting Makefile..."
+	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
+	@checkmake Makefile
+	@echo "✓ Makefile linting passed"
+
+lint-markdown: ## Lint Markdown files
+	@echo "→ Linting Markdown files..."
+	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
+	@markdownlint $(MARKDOWN_FILES)
+	@echo "✓ Markdown linting passed"
+
+# Code formatting
 lint-fix: lint-image ## Format sources using the lint container toolchain
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
 	@docker run --rm \
@@ -394,14 +375,51 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 		$(LINT_IMAGE) \
 		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES) && ruff check --fix $(PYTHON_SOURCES) && yamllint $(YAML_FILES) && markdownlint --fix $(MARKDOWN_FILES)"
 
-lint-image: ## Build the lint toolchain container image
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
+# =============================================================================
+# SECURITY & QUALITY GATES
+# =============================================================================
 
+security: ## Run security scanning with pip-audit
+	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
+	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
+	@mkdir -p security-reports; audit_status=0; for req in services/*/requirements.txt; do report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; echo "Auditing $$req"; pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; done; if [ "$$audit_status" -ne 0 ]; then echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; exit $$audit_status; fi; echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
+
+# =============================================================================
+# CLEANUP & MAINTENANCE
+# =============================================================================
+
+clean: ## Remove logs, cached audio artifacts, and debug files
+	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
+	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
+	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
+	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
+	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
+
+docker-clean: ## Bring down compose stack and prune unused docker resources
+	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then \
+		echo "$(COMPOSE_MISSING_MESSAGE) Skipping compose down."; \
+	else \
+		$(DOCKER_COMPOSE) down --rmi all -v --remove-orphans || true; \
+	fi
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
+	@echo "Pruning stopped containers..."
+	@docker container prune -f || true
+	@echo "Pruning unused images (this will remove dangling and unused images)..."
+	@docker image prune -a -f || true
+	@echo "Pruning unused volumes..."
+	@docker volume prune -f || true
+	@echo "Pruning unused networks..."
+	@docker network prune -f || true
+
+# =============================================================================
+# DOCUMENTATION & UTILITIES
+# =============================================================================
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)
 
+# Token management
 rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files
 	@echo -e "$(COLOR_CYAN)→ Rotating AUTH_TOKEN values$(COLOR_OFF)"
 	@./scripts/rotate_auth_tokens.py
@@ -414,6 +432,7 @@ validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
 	@echo -e "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)"
 	@./scripts/rotate_auth_tokens.py --validate-only
 
+# Model management
 models-download: ## Download required models to ./services/models/ subdirectories
 	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
 	@mkdir -p ./services/models/llm ./services/models/tts
@@ -455,5 +474,3 @@ models-clean: ## Remove downloaded models from ./services/models/
 	else \
 		echo "No models directory found."; \
 	fi
-
-.DEFAULT_GOAL := help
