@@ -19,6 +19,7 @@ This document provides comprehensive reference information for the utility scrip
 Splits the canonical `.env.sample` file into the environment files expected by docker-compose.
 
 **Usage:**
+
 ```bash
 # Generate all environment files from .env.sample
 python3 scripts/prepare_env_files.py
@@ -28,12 +29,14 @@ python3 scripts/prepare_env_files.py --force
 ```
 
 **What it does:**
+
 - Reads `.env.sample` and parses section headers (e.g., `# ./services/discord/.env.service #`)
 - Creates the corresponding environment files in the correct locations
 - Preserves comments and maintains the canonical source of truth
 - Supports dry-run mode for validation
 
 **Generated files:**
+
 - `.env.common` — Shared logging defaults
 - `.env.docker` — Container-specific overrides
 - `services/discord/.env.service` — Discord bot configuration
@@ -49,6 +52,7 @@ python3 scripts/prepare_env_files.py --force
 Automated token rotation for AUTH_TOKEN values across all environment files.
 
 **Usage:**
+
 ```bash
 # Rotate all AUTH_TOKENs
 make rotate-tokens
@@ -67,6 +71,7 @@ python3 scripts/rotate_auth_tokens.py --length 64
 ```
 
 **Features:**
+
 - Generates cryptographically secure random tokens (32 characters by default)
 - Updates all relevant environment files (`.env.sample`, service-specific `.env.service` files)
 - Validates token consistency after rotation
@@ -75,6 +80,7 @@ python3 scripts/rotate_auth_tokens.py --length 64
 - Maintains token format consistency across services
 
 **Affected tokens:**
+
 - `LLM_AUTH_TOKEN` — LLM service authentication
 - `ORCH_AUTH_TOKEN` — Orchestrator service authentication  
 - `TTS_AUTH_TOKEN` — TTS service authentication
@@ -86,6 +92,7 @@ python3 scripts/rotate_auth_tokens.py --length 64
 Maintenance utility for debug data collection and storage.
 
 **Usage:**
+
 ```bash
 # Show debug statistics
 python3 scripts/debug_manager.py --stats
@@ -101,6 +108,7 @@ python3 scripts/debug_manager.py --help
 ```
 
 **Features:**
+
 - **Statistics**: Show storage usage, file counts, and age distribution
 - **Archiving**: Move old debug data to compressed archives
 - **Cleanup**: Remove empty directories and orphaned files
@@ -108,6 +116,7 @@ python3 scripts/debug_manager.py --help
 - **Reporting**: Generate maintenance reports and recommendations
 
 **Debug data organization:**
+
 - Hierarchical structure: `debug/YYYY/MM/DD/correlation_id/`
 - Consolidated logs: `debug_log.json` per correlation ID
 - Audio files: Separate WAV files for playback
@@ -120,6 +129,7 @@ python3 scripts/debug_manager.py --help
 Validates documentation `last-updated` metadata consistency.
 
 **Usage:**
+
 ```bash
 # Verify all documentation metadata
 make docs-verify
@@ -132,6 +142,7 @@ python3 scripts/verify_last_updated.py
 ```
 
 **Validation checks:**
+
 - Every Markdown file under `docs/` must have YAML front matter with ISO-8601 `last-updated` field
 - Index table dates must align with referenced document front matter
 - Version history entries must match page `last-updated` values
@@ -139,6 +150,7 @@ python3 scripts/verify_last_updated.py
 - Surfaces all working tree modifications for reviewer confirmation
 
 **Error handling:**
+
 - Reports missing front matter
 - Identifies date mismatches in tables and version history
 - Flags stale documentation (outdated `last-updated` values)
@@ -168,24 +180,28 @@ make docs-verify            # Verify all documentation metadata
 
 ## Best Practices
 
-### Environment Management
+### Environment Management Best Practices
+
 - Always use `prepare_env_files.py` when adding new environment variables
 - Update `.env.sample` first, then regenerate service files
 - Test environment changes with `make run` before committing
 
-### Security Management
+### Security Management Best Practices
+
 - Rotate tokens regularly (quarterly recommended)
 - Use `--dry-run` to preview changes before applying
 - Validate token consistency after rotation
 - Document token rotation in security procedures
 
-### Debug Management
+### Debug Management Best Practices
+
 - Monitor debug storage usage regularly
 - Archive old data monthly to prevent storage bloat
 - Use correlation IDs for troubleshooting specific interactions
 - Clean up empty directories to maintain organization
 
-### Documentation Management
+### Documentation Management Best Practices
+
 - Run `make docs-verify` before committing documentation changes
 - Update `last-updated` dates when making substantive changes
 - Use `--allow-divergence` only when intentionally keeping old dates
@@ -196,21 +212,25 @@ make docs-verify            # Verify all documentation metadata
 ### Common Issues
 
 **Environment files not generated:**
+
 - Verify `.env.sample` exists and has proper section headers
 - Check file permissions in target directories
 - Use `--force` to overwrite existing files
 
 **Token rotation failures:**
+
 - Ensure all environment files are writable
 - Check for syntax errors in environment files
 - Validate token format requirements
 
 **Debug management errors:**
+
 - Verify debug directory permissions
 - Check for corrupted debug files
 - Ensure sufficient disk space for operations
 
 **Documentation verification failures:**
+
 - Check YAML front matter syntax
 - Verify date format (YYYY-MM-DD)
 - Ensure all referenced files exist
@@ -219,16 +239,19 @@ make docs-verify            # Verify all documentation metadata
 ### Getting Help
 
 For script-specific help:
+
 ```bash
 python3 scripts/script_name.py --help
 ```
 
 For Makefile integration:
+
 ```bash
 make help
 ```
 
 For documentation issues:
+
 ```bash
 make docs-verify ARGS="--verbose"
 ```

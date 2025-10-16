@@ -27,9 +27,11 @@ supporting services, and Docker Compose stack.
 ## Setup Steps
 
 1. Use the automated script to generate environment files from `.env.sample`:
+
    ```bash
    python3 scripts/prepare_env_files.py
    ```
+
 2. Populate secrets (Discord bot token, auth tokens) with production-ready values in the generated `.env.service` files.
 3. Verify configuration using the new configuration library (see [Configuration Library Reference](../reference/configuration-library.md)).
 4. Commit `.env.sample` changes when you introduce new keys so contributors can refresh their local files.
