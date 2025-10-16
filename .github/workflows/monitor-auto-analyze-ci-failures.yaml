@@ -1,0 +1,137 @@
+---
+# Workflow: Monitor Auto-Analyze CI Failures
+# Purpose: Automatically report and triage analyzer failures
+# when CI fails.
+name: Monitor Auto-Analyze CI Failures
+
+on:
+  workflow_run:
+    workflows: ["Auto-Analyze CI Failures"]  # ← monitor this specific workflow
+    types: [completed]
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: monitor-auto-analyze-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  report-auto-analyze-failure:
+    if: >
+      ${{
+        github.event.workflow_run.conclusion == 'failure' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      }}
+    runs-on: ubuntu-latest
+    env:
+      RUN_ID: ${{ github.event.workflow_run.id }}
+      RUN_ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
+      RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.event.workflow_run.id }}
+      HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Show context
+        run: |
+          echo "Monitoring failure of: $WORKFLOW_NAME"
+          echo "Run URL: $RUN_URL"
+          echo "Branch/SHA: $HEAD_BRANCH / $HEAD_SHA"
+
+      - name: Find associated PR (by commit/branch)
+        id: find_pr
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          PR_NUM="$(gh api repos/$REPO/commits/$HEAD_SHA/pulls -q '.[0].number' || true)"
+          if [ -z "${PR_NUM:-}" ]; then
+            PR_NUM="$(gh api \
+              'search/issues?q=repo:'"$REPO"'+type:pr+head:"'"$HEAD_BRANCH"'"' \
+              -q '.items[0].number' || true)"
+          fi
+          if [ -z "${PR_NUM:-}" ]; then
+            PR_NUM="$(gh pr list --repo "$REPO" --state all --json number,headRefName \
+              --jq '.[] | select(.headRefName=="'"$HEAD_BRANCH"'") | .number' | head -n1 || true)"
+          fi
+          echo "pr=${PR_NUM:-}" >> "$GITHUB_OUTPUT"
+
+      - name: Post starting note (PR or Issue)
+        id: start_note
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BODY=$'# 🔁 Auto-Analyze CI Failures **itself** failed\n\n'\
+$'**Run:** '"$RUN_URL"$'\n'\
+$'**Branch/SHA:** '"$HEAD_BRANCH / \`$HEAD_SHA\`"$'\n\n'\
+$'> Collecting logs and triaging why the analyzer failed…'
+
+          if [ -n "${{ steps.find_pr.outputs.pr }}" ]; then
+            COMMENT_ID="$(gh api repos/$REPO/issues/${{ steps.find_pr.outputs.pr }}/comments \
+              -f body="$BODY" -q '.id')"
+            echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+            echo "mode=pr" >> "$GITHUB_OUTPUT"
+          else
+            ISSUE_TITLE="Auto-Analyze CI Failures run failed (#${RUN_ID})"
+            ISSUE_NUM="$(gh api repos/$REPO/issues -f title="$ISSUE_TITLE" -f body="$BODY" -q '.number')"
+            COMMENT_ID="$(gh api repos/$REPO/issues/$ISSUE_NUM/comments -f body='Working…' -q '.id')"
+            echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+            echo "mode=issue" >> "$GITHUB_OUTPUT"
+            echo "issue_num=$ISSUE_NUM" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download analyzer run logs
+        run: |
+          set -euo pipefail
+          mkdir -p logs
+          gh run download "$RUN_ID" --repo "${{ github.repository }}" --dir logs
+          echo "Downloaded logs:"
+          find logs -type f | sed 's/^/ - /'
+
+      - name: Extract likely root cause of analyzer failure
+        id: triage
+        run: |
+          set -euo pipefail
+          OUT=monitor_analysis.md
+          {
+            echo "## 🔎 Why the analyzer failed"
+            echo ""
+            echo "- **Workflow:** $WORKFLOW_NAME"
+            echo "- **Run:** $RUN_URL"
+            echo "- **Branch/SHA:** $HEAD_BRANCH / \`$HEAD_SHA\`"
+            echo ""
+            echo "### Error signals (first 80 hits)"
+            echo ""
+            grep -RInE "(^Error:|error:|Traceback|FATAL|Exception|Command failed|Exit status|not found|permission denied|rate limit|HTTP 4|HTTP 5|timed out|network unreachable|no space left|Cannot find|ModuleNotFoundError)" logs \
+              | head -n 80 | sed 's/^/• /' || echo "_No obvious error lines found._"
+            echo ""
+            echo "### Quick next steps"
+            echo "- Inspect failing step in the analyzer workflow UI."
+            echo "- Confirm required secrets/tokens exist and have scopes: \`GITHUB_TOKEN\` + any extra needed."
+            echo "- If network tools (gh/curl) were used, check runner egress/network restrictions."
+            echo "- Re-run the analyzer after addressing the above."
+          } > "$OUT"
+          echo "summary=$OUT" >> "$GITHUB_OUTPUT"
+
+      - name: Update comment with results
+        if: always()
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          BODY="$(cat '${{ steps.triage.outputs.summary }}')"
+          BODY=$'## ❗ Auto-Analyze CI Failures run failed\n\n<details><summary>Details</summary>\n\n'"$BODY"$'\n\n</details>\n\n'\
+$'— _posted by **Monitor Auto-Analyze CI Failures**_'
+          gh api --method PATCH repos/$REPO/issues/comments/${{ steps.start_note.outputs.comment_id }} -f body="$BODY"
+
+      - name: Attach rerun hint
+        if: always() && steps.find_pr.outputs.pr != ''
+        run: |
+          set -euo pipefail
+          REPO="${{ github.repository }}"
+          gh api repos/$REPO/issues/${{ steps.find_pr.outputs.pr }}/comments \
+            -f body=$'🔁 You can retry the analyzer from the Actions tab → this run → **Rerun all jobs**.'

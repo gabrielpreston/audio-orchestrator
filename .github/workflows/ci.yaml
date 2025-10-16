@@ -1,4 +1,7 @@
 ---
+# Workflow: CI
+# Purpose: Run linting, testing, security scanning, and Docker smoke tests
+# when code changes are detected.
 name: CI
 
 on:
