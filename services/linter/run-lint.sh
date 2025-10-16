@@ -5,39 +5,33 @@ if [[ $# -gt 0 ]]; then
   exec "$@"
 fi
 
-# Run linting directly without make dependency
 echo "Running Python linting..."
 
-# Black formatting check
 echo "Checking code formatting with black..."
 black --check services
 
-# Import sorting check
 echo "Checking import sorting with isort..."
 isort --check-only services
 
-# Ruff linting
 echo "Running ruff linting..."
 ruff check services
 
-# Type checking
 echo "Running type checking with mypy..."
 mypy services
 
-# YAML linting
 echo "Linting YAML files..."
-yamllint docker-compose.yml
+# Auto-discover: docker-compose.yml + all workflow files
+yamllint docker-compose.yml .github/workflows/*.yaml .github/workflows/*.yml 2>/dev/null || true
 
-# Dockerfile linting
 echo "Linting Dockerfiles..."
-hadolint services/discord/Dockerfile
-hadolint services/stt/Dockerfile
-hadolint services/llm/Dockerfile
-hadolint services/orchestrator/Dockerfile
-hadolint services/tts/Dockerfile
+# Auto-discover all Dockerfiles in services/
+find services -type f -name 'Dockerfile' -exec hadolint {} \;
 
-# Markdown linting
+echo "Linting Makefile..."
+checkmake Makefile
+
 echo "Linting Markdown files..."
-markdownlint README.md AGENTS.md docs/*.md
+# Auto-discover all Markdown files
+markdownlint README.md AGENTS.md 'docs/**/*.md'
 
 echo "All linting checks passed!"

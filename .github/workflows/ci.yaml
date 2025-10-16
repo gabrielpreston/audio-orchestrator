@@ -86,10 +86,10 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install Python tooling
+      - name: Install Python linting tools
         run: |
           python -m pip install --upgrade pip
-          pip install black isort ruff mypy yamllint
+          pip install -r requirements-dev.txt
       - name: Install Hadolint
         run: |
           curl -sSL \
@@ -101,33 +101,10 @@ jobs:
           go install github.com/checkmake/checkmake/cmd/checkmake@latest
           echo "${HOME}/go/bin" >> $GITHUB_PATH
       - name: Install Markdownlint
-        run: npm install -g markdownlint-cli
-      - name: Run Makefile lint suite
-        run: make lint-local
+        run: npm install -g markdownlint-cli@0.39.0
+      - name: Run unified lint suite
+        run: make lint-ci
 
-  typecheck:
-    name: Type Check
-    needs: changes
-    if: |
-      needs.changes.outputs.python == 'true' ||
-      needs.changes.outputs.workflows == 'true' ||
-      github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Run type checking
-        run: make typecheck
   security-scan:
     name: Security scan
     needs: changes

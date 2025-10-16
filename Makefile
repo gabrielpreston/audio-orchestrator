@@ -42,12 +42,20 @@ COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked docker compose 
 DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
+# Python sources
 PYTHON_SOURCES := services
-# Limit mypy scope in CI to incrementally adopt typing.
-# Override with MYPY_PATHS="services" to check all modules locally.
-MYPY_PATHS ?= services/discord/app.py
-DOCKERFILES := services/discord/Dockerfile services/stt/Dockerfile services/llm/Dockerfile services/orchestrator/Dockerfile
-MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' -print | tr '\n' ' ')
+
+# Type checking - check all services by default
+MYPY_PATHS ?= services
+
+# Auto-discover all Dockerfiles in services/
+DOCKERFILES := $(shell find services -type f -name 'Dockerfile' 2>/dev/null)
+
+# Auto-discover all YAML files (docker-compose + GitHub workflows)
+YAML_FILES := docker-compose.yml $(shell find .github/workflows -type f -name '*.yaml' -o -name '*.yml' 2>/dev/null)
+
+# Auto-discover all Markdown files
+MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' 2>/dev/null)
 LINT_IMAGE ?= discord-voice-lab/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
@@ -189,7 +197,49 @@ docker-status: ## Show status of docker-compose services
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) ps
 
-lint: lint-container ## Run all linters inside the lint toolchain container
+lint: lint-docker ## Run all linters in Docker container (default for local dev)
+
+lint-docker: lint-image ## Run linting via Docker container
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE)
+
+lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
+
+lint-python: ## Python formatting and linting (black, isort, ruff)
+	@command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
+	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
+	@black --check $(PYTHON_SOURCES)
+	@isort --check-only $(PYTHON_SOURCES)
+	@ruff check $(PYTHON_SOURCES)
+
+lint-mypy: ## Type checking with mypy
+	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
+	@mypy $(MYPY_PATHS)
+
+lint-yaml: ## Lint all YAML files
+	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
+	@yamllint $(YAML_FILES)
+
+lint-dockerfiles: ## Lint all Dockerfiles
+	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
+	@for dockerfile in $(DOCKERFILES); do \
+		echo "Linting $$dockerfile"; \
+		hadolint $$dockerfile || exit 1; \
+	done
+
+lint-makefile: ## Lint Makefile
+	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
+	@checkmake Makefile
+
+lint-markdown: ## Lint Markdown files
+	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
+	@markdownlint $(MARKDOWN_FILES)
 
 test-container: test-image ## Build test container (if needed) and run the test suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
@@ -313,24 +363,11 @@ test-specific: ## Run specific tests (use PYTEST_ARGS="-k pattern")
 
 # --- Quality gate targets -----------------------------------------------------
 
-typecheck: ## Run type checking with mypy
-	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found; install it (e.g. pip install mypy)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running type checking$(COLOR_OFF)"
-	@mypy $(MYPY_PATHS)
 
 security: ## Run security scanning with pip-audit
 	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
 	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
 	@mkdir -p security-reports; audit_status=0; for req in services/*/requirements.txt; do report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; echo "Auditing $$req"; pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; done; if [ "$$audit_status" -ne 0 ]; then echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; exit $$audit_status; fi; echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
-
-lint-container: lint-image ## Build lint container (if needed) and run lint suite
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) \
-		$(LINT_IMAGE)
 
 lint-fix: lint-image ## Format sources using the lint container toolchain
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
@@ -340,61 +377,12 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) \
 		$(LINT_IMAGE) \
-		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES) && ruff check --fix $(PYTHON_SOURCES) && yamllint docker-compose.yml .github/workflows/ci.yaml && markdownlint --fix $(MARKDOWN_FILES)"
+		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES) && ruff check --fix $(PYTHON_SOURCES) && yamllint $(YAML_FILES) && markdownlint --fix $(MARKDOWN_FILES)"
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
 
-lint-local: lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown ## Run all linters using locally installed tooling
-
-lint-fix-local: lint-fix-python lint-fix-yaml lint-fix-markdown ## Apply auto-fixes using locally installed tooling
-
-lint-python: ## Run Python format and import order checks (black, isort, ruff)
-	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
-	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
-	@black --check $(PYTHON_SOURCES)
-	@isort --check-only $(PYTHON_SOURCES)
-	@ruff check $(PYTHON_SOURCES)
-
-
-
-lint-dockerfiles: ## Lint service Dockerfiles with hadolint
-	@command -v hadolint >/dev/null 2>&1 || { \
-		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
-	@hadolint $(DOCKERFILES)
-
-lint-compose: ## Lint docker-compose.yml with yamllint
-	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found; install it (e.g. pip install yamllint)." >&2; exit 1; }
-	@yamllint docker-compose.yml
-
-lint-makefile: ## Lint Makefile with checkmake
-	@command -v checkmake >/dev/null 2>&1 || { \
-		echo "checkmake not found; install via 'go install github.com/checkmake/checkmake/cmd/checkmake@latest'." >&2; exit 1; }
-	@checkmake Makefile
-
-lint-markdown: ## Lint Markdown docs with markdownlint
-	@command -v markdownlint >/dev/null 2>&1 || { \
-		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
-	@markdownlint $(MARKDOWN_FILES)
-
-lint-fix-python: ## Apply Python auto-fixes (black, isort, ruff)
-	@command -v black >/dev/null 2>&1 || { echo "black not found; install it (e.g. pip install black)." >&2; exit 1; }
-	@command -v isort >/dev/null 2>&1 || { echo "isort not found; install it (e.g. pip install isort)." >&2; exit 1; }
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found; install it (e.g. pip install ruff)." >&2; exit 1; }
-	@black $(PYTHON_SOURCES)
-	@isort $(PYTHON_SOURCES)
-	@ruff check --fix $(PYTHON_SOURCES)
-
-lint-fix-yaml: ## Apply YAML auto-fixes with yamllint
-	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found; install it (e.g. pip install yamllint)." >&2; exit 1; }
-	@yamllint docker-compose.yml .github/workflows/ci.yaml
-
-lint-fix-markdown: ## Apply Markdown auto-fixes with markdownlint
-	@command -v markdownlint >/dev/null 2>&1 || { \
-		echo "markdownlint not found; install it (e.g. npm install -g markdownlint-cli)." >&2; exit 1; }
-	@markdownlint --fix $(MARKDOWN_FILES)
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py $(ARGS)
