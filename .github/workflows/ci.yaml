@@ -100,7 +100,7 @@ jobs:
 
   test:
     name: Tests
-    needs: [changes, lint]
+    needs: [changes, lint, typecheck, security-scan]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
@@ -137,41 +137,9 @@ jobs:
           name: pytest-log
           path: pytest.log
 
-  docker-smoke:
-    name: Docker smoke
-    needs: [changes, lint]
-    if: |
-      (needs.changes.outputs.docker == 'true' ||
-       needs.changes.outputs.workflows == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
-    timeout-minutes: 30
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Prepare environment defaults
-        run: python3 scripts/prepare_env_files.py --force
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build and validate Compose stack
-        run: make docker-smoke | tee docker-smoke.log
-      - name: Capture rendered Compose config
-        run: docker compose config > docker-compose.config.yaml
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-smoke-artifacts
-          path: |
-            docker-smoke.log
-            docker-compose.config.yaml
-
   security-scan:
     name: Security scan
-    needs: [changes, lint]
+    needs: changes
     if: |
       (needs.changes.outputs.security == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
@@ -211,3 +179,36 @@ jobs:
         with:
           name: pip-audit-reports
           path: security-reports
+
+  docker-smoke:
+    name: Docker smoke
+    needs: [changes, lint, typecheck, test, security-scan]
+    if: |
+      (needs.changes.outputs.docker == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
+    runs-on: ubuntu-latest
+    environment: discord-voice-lab
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+      - name: Prepare environment defaults
+        run: python3 scripts/prepare_env_files.py --force
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and validate Compose stack
+        run: make docker-smoke | tee docker-smoke.log
+      - name: Capture rendered Compose config
+        run: docker compose config > docker-compose.config.yaml
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-smoke-artifacts
+          path: |
+            docker-smoke.log
+            docker-compose.config.yaml
+
