@@ -262,7 +262,6 @@ class SessionBroker:
 
     def cleanup_expired_sessions(self) -> int:
         """Clean up expired sessions."""
-        current_time = time.time()
         expired_sessions = []
 
         for session_id, session in self._sessions.items():

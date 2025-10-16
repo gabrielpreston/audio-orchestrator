@@ -280,8 +280,8 @@ class SurfaceAdapterChaosTester:
                     # Attempt recovery
                     try:
                         await adapter.disconnect()
-                    except Exception:
-                        pass  # Ignore cleanup errors
+                    except Exception as e:
+                        logger.warning("Cleanup error during chaos test: %s", e)
 
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
             error_messages.append(f"Test setup failed: {e}")
@@ -526,7 +526,7 @@ class SurfaceAdapterChaosTester:
         total_failures = 0
         total_recoveries = 0
 
-        for adapter_name, results in adapter_results.items():
+        for results in adapter_results.values():
             for result in results:
                 total_tests += 1
                 if result.success:

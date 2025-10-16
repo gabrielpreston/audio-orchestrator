@@ -7,6 +7,8 @@ to ensure it correctly validates adapter compliance.
 
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from services.common.surfaces.interfaces import (
     AudioSink,
     AudioSource,

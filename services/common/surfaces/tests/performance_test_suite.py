@@ -532,7 +532,7 @@ class SurfaceAdapterPerformanceTester:
             try:
                 await self.resource_monitor
             except asyncio.CancelledError:
-                pass
+                logger.debug("Resource monitoring cancelled")
             self.resource_monitor = None
 
     async def _monitor_resources(self) -> None:

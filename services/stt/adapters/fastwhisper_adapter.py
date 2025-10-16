@@ -151,11 +151,10 @@ class FastWhisperAdapter(STTAdapter):
                 import numpy as np
 
                 # Convert bytes to numpy array (simplified)
-                audio_array = np.frombuffer(audio_data, dtype=np.int16)
+                np.frombuffer(audio_data, dtype=np.int16)
             except ImportError:
                 # Fallback if numpy not available
                 logger.warning("numpy not available, using simplified audio processing")
-                audio_array = list(audio_data)
 
             # Transcribe using faster-whisper
             # This is a simplified implementation - in practice, you'd use the actual faster-whisper API

@@ -7,6 +7,12 @@ to ensure it correctly validates performance across different surfaces.
 
 from unittest.mock import AsyncMock
 
+from services.common.surfaces.interfaces import (
+    AudioSink,
+    AudioSource,
+    ControlChannel,
+    SurfaceLifecycle,
+)
 from services.common.surfaces.tests.parity_test_suite import (
     CrossSurfaceParityTester,
     LatencyTarget,

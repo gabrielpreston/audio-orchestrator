@@ -5,6 +5,7 @@ This module defines the interface for STT adapters, allowing different
 STT services to be used interchangeably in the voice pipeline.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from datetime import datetime
 from typing import Any
 
 from .types import AudioFormat, AudioMetadata
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -212,6 +215,6 @@ class STTAdapter(ABC):
         try:
             await self.disconnect()
             self._is_initialized = False
-        except Exception:
+        except Exception as e:
             # Log error but don't raise
-            pass
+            logger.warning("Error during cleanup: %s", e)

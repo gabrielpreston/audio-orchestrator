@@ -311,8 +311,7 @@ class TestSessionBroker:
         broker = SessionBroker(config)
 
         # Create session
-        session = broker.create_session("user123", "discord")
-        session_id = session.session_id
+        broker.create_session("user123", "discord")
 
         # Wait for inactivity timeout
         time.sleep(0.2)
