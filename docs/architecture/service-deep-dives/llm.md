@@ -1,27 +1,27 @@
 ---
-title: Orchestrator Service Deep Dive
+title: LLM Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
-> Docs ▸ Architecture ▸ Service Deep Dives ▸ Orchestrator
+> Docs ▸ Architecture ▸ Service Deep Dives ▸ LLM Service
 
-# LLM Orchestrator Service
+# LLM Service
 
-The orchestrator mediates between Discord transcripts, llama.cpp completions, and MCP tooling.
+The LLM service provides OpenAI-compatible completions and reasoning capabilities for the orchestrator service.
 
 ## Responsibilities
 
-- Accept OpenAI-compatible chat/completions requests from the Discord bot.
-- Invoke llama.cpp for local reasoning or route prompts to remote endpoints when configured.
-- Coordinate MCP tool calls and merge their outputs into model responses.
-- Provide bearer-authenticated APIs for downstream callers.
+- Provide OpenAI-compatible API endpoints for chat completions and text generation.
+- Execute llama.cpp inference for local reasoning tasks.
+- Handle authentication and request validation.
+- Expose health and metrics endpoints for monitoring.
 
 ## API Surface
 
-- `POST /v1/chat/completions` — Primary route used by the Discord service.
+- `POST /v1/chat/completions` — Primary route used by the orchestrator service.
 - `POST /v1/completions` — Compatibility endpoint for legacy clients.
 - `GET /health` — Container health check.
 - `GET /metrics` — Prometheus metrics when enabled.
@@ -29,18 +29,18 @@ The orchestrator mediates between Discord transcripts, llama.cpp completions, an
 ## Configuration Highlights
 
 - `LLAMA_BIN`, `LLAMA_MODEL_PATH`, `LLAMA_CTX`, `LLAMA_THREADS` — llama.cpp runtime controls.
-- `ORCH_AUTH_TOKEN` — Bearer token required for incoming requests.
+- `LLM_AUTH_TOKEN` — Bearer token required for incoming requests.
 - `TTS_BASE_URL`, `TTS_TIMEOUT`, `TTS_VOICE` — Downstream TTS integration defaults.
 - Logging inherits from `.env.common`.
 
 ## Observability
 
-- Structured logs track request IDs, MCP tool invocations, and latency breakdowns.
+- Structured logs track request IDs, model inference times, and response generation.
 - `/metrics` exposes request counters and duration histograms when scraped.
-- Use `make logs SERVICE=llm` to monitor orchestrated tool chains and llama.cpp output.
+- Use `make logs SERVICE=llm` to monitor llama.cpp output and API request handling.
 
 ## Dependencies
 
-- Receives transcripts from the Discord bot and optional MCP tool manifests.
-- Calls the TTS service to synthesize spoken responses.
-- May depend on additional capability servers registered through MCP manifests.
+- Receives reasoning requests from the orchestrator service.
+- Requires llama.cpp model files available in the container or mounted volume.
+- May call TTS service for spoken responses when configured.

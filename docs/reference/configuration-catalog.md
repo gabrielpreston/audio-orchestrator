@@ -2,7 +2,7 @@
 title: Configuration Catalog
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -12,6 +12,11 @@ last-updated: 2024-07-05
 
 This catalog aggregates environment variables defined in `.env.sample` and service-specific overrides.
 Update this file whenever you add, rename, or remove configuration keys.
+
+> **Note**: The project now uses a type-safe configuration library (`services.common.config`) for
+> configuration management. See the [Configuration Library Reference](configuration-library.md) for
+> details on the new `ConfigBuilder` approach and [Migration Guide](config-migration-guide.md) for
+> transitioning from manual environment variable parsing.
 
 ## Shared Defaults (`.env.common`)
 

@@ -2,7 +2,7 @@
 title: Getting Started Index
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->

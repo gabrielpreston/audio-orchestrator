@@ -2,7 +2,7 @@
 title: Runtime Quickstart
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -27,7 +27,8 @@ make run
 - `make logs` — Tail all services.
 - `make logs SERVICE=discord` — Focus on the Discord bot; useful for wake phrase debugging.
 - `make logs SERVICE=stt` — Inspect faster-whisper initialization and transcription speed.
-- `make logs SERVICE=llm` — Review orchestrator reasoning and MCP tool calls.
+- `make logs SERVICE=llm` — Review LLM service reasoning and API requests.
+- `make logs SERVICE=orchestrator` — Review orchestrator coordination and MCP tool calls.
 - `make logs SERVICE=tts` — Validate synthesis timing and concurrency.
 
 ## Shutdown & Cleanup

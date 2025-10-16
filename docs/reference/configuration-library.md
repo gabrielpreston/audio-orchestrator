@@ -1,3 +1,13 @@
+---
+title: Configuration Library Reference
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-16
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Reference ▸ Configuration Library Reference
+
 # Configuration Management Library
 
 The `services.common.config` module provides a comprehensive, type-safe, and validated configuration management system for all Python services in the discord-voice-lab project.

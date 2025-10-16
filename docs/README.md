@@ -2,7 +2,7 @@
 title: Documentation Hub
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-11
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -21,14 +21,18 @@ and reference content aligned with the current repository layout.
 | Evaluate the project | [Project overview](../README.md) | Goals, stack summary, quickstart. |
 | Onboard & configure | [Getting started index](getting-started/README.md) | Environment setup, local workflows, troubleshooting. |
 | Understand the system | [Architecture overview](architecture/system-overview.md) | Service relationships, audio and transcript flows. |
+| Shared utilities | [Shared utilities](architecture/shared-utilities.md) | Common libraries, configuration, debug management. |
 | Operate the stack | [Operations landing page](operations/README.md) | Runbooks, observability, security posture. |
 | Extend & integrate | [Reference catalog](reference/configuration-catalog.md) | Environment variables, API endpoints, manifests. |
+| Scripts & tools | [Scripts reference](reference/scripts-reference.md) | Utility scripts, maintenance procedures. |
 | Track strategy | [Roadmap index](roadmaps/README.md) | Active plans, historical revisions. |
 | Review research | [Reports index](reports/README.md) | Implementation notes, evaluation findings. |
 | Propose changes | [Proposal index](proposals/README.md) | Submission rules, lifecycle states. |
 
 ## Version History
 
+- **2025-10-16** — Updated documentation to reflect current codebase state, including 5-service
+  architecture, shared utilities, configuration library, and operational tooling.
 - **2025-10-11** — Added automated `last-updated` validation (`make docs-verify`) covering
   front matter, index tables, version history bullets, and commit recency checks.
 - **2024-07-05** — Adopted the documentation restructure proposal, centralizing onboarding,

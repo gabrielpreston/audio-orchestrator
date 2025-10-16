@@ -2,7 +2,7 @@
 title: Environment Configuration
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-16
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -26,9 +26,12 @@ supporting services, and Docker Compose stack.
 
 ## Setup Steps
 
-1. Duplicate `.env.sample` to a temporary location.
-2. Split the sections into the paths above, preserving comments for future updates.
-3. Populate secrets (Discord bot token, orchestrator auth token) with production-ready values.
+1. Use the automated script to generate environment files from `.env.sample`:
+   ```bash
+   python3 scripts/prepare_env_files.py
+   ```
+2. Populate secrets (Discord bot token, auth tokens) with production-ready values in the generated `.env.service` files.
+3. Verify configuration using the new configuration library (see [Configuration Library Reference](../reference/configuration-library.md)).
 4. Commit `.env.sample` changes when you introduce new keys so contributors can refresh their local files.
 
 ## Best Practices
@@ -36,6 +39,7 @@ supporting services, and Docker Compose stack.
 - Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
 - Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys.
 - Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
+- Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
 - Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.
 
 ## Validation Checklist

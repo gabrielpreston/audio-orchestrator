@@ -1,3 +1,13 @@
+---
+title: Configuration Migration Guide
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-16
+---
+
+<!-- markdownlint-disable-next-line MD041 -->
+> Docs ▸ Reference ▸ Configuration Migration Guide
+
 # Configuration Migration Guide
 
 This guide shows how to migrate each service from the current configuration management approach to the new common configuration library.
