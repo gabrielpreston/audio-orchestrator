@@ -66,14 +66,14 @@ class MCPManager:
 
         # Create HTTP-based Discord client for inter-container communication
         class HTTPDiscordClient:
-            def __init__(self):
+            def __init__(self) -> None:
                 self.name = "discord"
                 self.is_connected = True
                 self.base_url = "http://discord:8001"  # Discord service port
                 self._http_client = None
                 self._logger = get_logger(__name__, service_name="orchestrator")
 
-            async def _get_http_client(self):
+            async def _get_http_client(self) -> Any:
                 """Get or create HTTP client."""
                 if self._http_client is None:
                     import httpx
@@ -126,7 +126,7 @@ class MCPManager:
                             timeout=30.0,
                         )
                         response.raise_for_status()
-                        return response.json()
+                        return response.json()  # type: ignore[no-any-return]
 
                     elif name == "discord.send_message":
                         response = await client.post(
@@ -135,7 +135,7 @@ class MCPManager:
                             timeout=30.0,
                         )
                         response.raise_for_status()
-                        return response.json()
+                        return response.json()  # type: ignore[no-any-return]
 
                     else:
                         return {"error": f"Unknown tool: {name}"}

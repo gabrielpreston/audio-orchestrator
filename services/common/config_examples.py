@@ -7,6 +7,7 @@ services and scenarios.
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 from .config import ConfigBuilder, Environment, load_service_config
@@ -158,7 +159,7 @@ def example_orchestrator_service_config():
     os.environ["LLAMA_THREADS"] = "8"
     os.environ["TTS_BASE_URL"] = "http://tts:7000"
     os.environ["TTS_VOICE"] = "default"
-    os.environ["ORCH_AUTH_TOKEN"] = "secret-token"
+    os.environ["ORCH_AUTH_TOKEN"] = "demo-token-12345"  # noqa: S105
 
     builder = ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
     config = (
@@ -223,7 +224,7 @@ def example_configuration_persistence():
     config = load_service_config("discord", Environment.DOCKER)
 
     # Save to file
-    config_file = Path("/tmp/discord_config.json")
+    config_file = Path(tempfile.mkstemp(suffix=".json")[1])  # nosec S108
     config.save_to_file(config_file)
     print(f"✓ Configuration saved to {config_file}")
 

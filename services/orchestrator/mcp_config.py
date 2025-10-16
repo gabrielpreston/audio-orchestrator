@@ -6,6 +6,7 @@ import json
 import os
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from services.common.logging import get_logger
 
@@ -144,7 +145,7 @@ class MCPConfig:
         # Supports ${VAR} and $VAR syntax
         import re
 
-        def replace_var(match) -> str:
+        def replace_var(match: Any) -> str:
             var_name = match.group(1) or match.group(2)
             return os.getenv(var_name, match.group(0))
 

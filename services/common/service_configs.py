@@ -7,6 +7,7 @@ demonstrating how to use the common configuration library.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from .config import (
     BaseConfig,
@@ -31,8 +32,8 @@ class DiscordConfig(BaseConfig):
         voice_connect_max_attempts: int = 3,
         voice_reconnect_initial_backoff_seconds: float = 5.0,
         voice_reconnect_max_backoff_seconds: float = 60.0,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.token = token
         self.guild_id = guild_id
@@ -137,8 +138,8 @@ class AudioConfig(BaseConfig):
         vad_sample_rate_hz: int = 16000,
         vad_frame_duration_ms: int = 30,
         vad_aggressiveness: int = 1,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.silence_timeout_seconds = silence_timeout_seconds
         self.max_segment_duration_seconds = max_segment_duration_seconds
@@ -242,8 +243,8 @@ class STTConfig(BaseConfig):
         request_timeout_seconds: float = 45.0,
         max_retries: int = 3,
         forced_language: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.base_url = base_url
         self.request_timeout_seconds = request_timeout_seconds
@@ -297,8 +298,8 @@ class WakeConfig(BaseConfig):
         model_paths: list[Path] | None = None,
         activation_threshold: float = 0.5,
         target_sample_rate_hz: int = 16000,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.wake_phrases = wake_phrases or ["hey atlas", "ok atlas"]
         self.model_paths = model_paths or []
@@ -352,8 +353,8 @@ class MCPConfig(BaseConfig):
         command_path: Path | None = None,
         registration_url: str | None = None,
         heartbeat_interval_seconds: float = 30.0,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.manifest_paths = manifest_paths or []
         self.websocket_url = websocket_url
@@ -412,8 +413,8 @@ class TelemetryConfig(BaseConfig):
         log_json: bool = True,
         metrics_port: int | None = None,
         waveform_debug_dir: Path | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.log_level = log_level
         self.log_json = log_json
@@ -462,8 +463,8 @@ class FasterWhisperConfig(BaseConfig):
         model: str = "small",
         device: str = "cpu",
         compute_type: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.model = model
         self.device = device
@@ -515,8 +516,8 @@ class LlamaConfig(BaseConfig):
         model_path: str = "/app/models/llama2-7b.gguf",
         context_length: int = 2048,
         threads: int = 4,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.model_path = model_path
         self.context_length = context_length
@@ -569,8 +570,8 @@ class TTSConfig(BaseConfig):
         length_scale: float = 1.0,
         noise_scale: float = 0.667,
         noise_w: float = 0.8,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.port = port
         self.model_path = model_path
@@ -688,8 +689,8 @@ class OrchestratorConfig(BaseConfig):
         tts_voice: str | None = None,
         tts_timeout: float = 30.0,
         mcp_config_path: str = "./mcp.json",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.port = port
         self.auth_token = auth_token
@@ -764,8 +765,8 @@ class HttpConfig(BaseConfig):
         max_retries: int = 3,
         retry_delay: float = 1.0,
         user_agent: str = "discord-voice-lab/1.0",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.timeout = timeout
         self.max_retries = max_retries
@@ -820,8 +821,8 @@ class LoggingConfig(BaseConfig):
         level: str = "INFO",
         json_logs: bool = True,
         service_name: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.level = level
         self.json_logs = json_logs

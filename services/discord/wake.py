@@ -6,7 +6,7 @@ import audioop
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
 from rapidfuzz import fuzz, process, utils
@@ -52,7 +52,7 @@ class WakeDetector:
         self._threshold = config.activation_threshold
         self._model = self._load_model(config.model_paths)
 
-    def _load_model(self, paths: Iterable[Path]):
+    def _load_model(self, paths: Iterable[Path]) -> Any:
         model_paths = [str(path) for path in paths if path]
         if not model_paths:
             return None

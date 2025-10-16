@@ -49,10 +49,10 @@ def test_audio_config() -> AudioConfig:
 
 
 @pytest.fixture
-def test_discord_config() -> DiscordConfig:
+def test_discord_config() -> "DiscordConfig":
     """Provide a test Discord configuration."""
     return DiscordConfig(
-        token="test-token",
+        token="test-token",  # noqa: S106
         guild_id=123456789,
         voice_channel_id=987654321,
         intents=["guilds", "voice_states"],

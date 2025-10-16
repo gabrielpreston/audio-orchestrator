@@ -32,7 +32,7 @@ import json
 import os
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -52,7 +52,7 @@ class ConfigError(Exception):
 class ValidationError(ConfigError):
     """Exception raised when configuration validation fails."""
 
-    def __init__(self, field_name: str, value: Any, message: str):
+    def __init__(self, field_name: str, value: Any, message: str) -> None:
         self.field = field_name
         self.value = value
         self.message = message
@@ -62,7 +62,7 @@ class ValidationError(ConfigError):
 class RequiredFieldError(ConfigError):
     """Exception raised when a required field is missing."""
 
-    def __init__(self, field_name: str):
+    def __init__(self, field_name: str) -> None:
         self.field = field_name
         super().__init__(f"Required field '{field_name}' is missing")
 
@@ -92,7 +92,7 @@ class FieldDefinition:
     max_value: int | float | None = None
     pattern: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate field definition after initialization."""
         if self.required and self.default is not None:
             raise ValueError(
@@ -111,7 +111,7 @@ class FieldDefinition:
 class BaseConfig(ABC):
     """Abstract base class for configuration sections."""
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: Any) -> None:
         """Initialize configuration with provided values."""
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -212,8 +212,8 @@ class LoggingConfig(BaseConfig):
         level: str = "INFO",
         json_logs: bool = True,
         service_name: str | None = None,
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.level = level
         self.json_logs = json_logs
@@ -257,8 +257,8 @@ class DatabaseConfig(BaseConfig):
         user: str = "postgres",
         password: str = "",
         ssl_mode: str = "prefer",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.host = host
         self.port = port
@@ -334,8 +334,8 @@ class HttpConfig(BaseConfig):
         max_retries: int = 3,
         retry_delay: float = 1.0,
         user_agent: str = "discord-voice-lab/1.0",
-        **kwargs,
-    ):
+        **kwargs: Any,
+    ) -> None:
         super().__init__(**kwargs)
         self.timeout = timeout
         self.max_retries = max_retries
@@ -385,7 +385,7 @@ class HttpConfig(BaseConfig):
 class EnvironmentLoader:
     """Loads configuration from environment variables."""
 
-    def __init__(self, prefix: str = ""):
+    def __init__(self, prefix: str = "") -> None:
         """Initialize with optional prefix for environment variables."""
         self.prefix = prefix.upper() + "_" if prefix else ""
 
@@ -433,7 +433,7 @@ class EnvironmentLoader:
             # Try to use the type as a constructor
             return target_type(raw_value)  # type: ignore
 
-    def load_config(self, config_class: type[BaseConfig]) -> BaseConfig:
+    def load_config(self, config_class: type[T]) -> T:
         """Load configuration for a given class from environment variables."""
         field_definitions = config_class.get_field_definitions()
         kwargs = {}
@@ -492,7 +492,7 @@ class ServiceConfig:
 
     service_name: str
     environment: Environment
-    configs: dict[str, BaseConfig]
+    configs: Mapping[str, BaseConfig]
 
     def get_config(self, name: str) -> BaseConfig:
         """Get a specific configuration section."""

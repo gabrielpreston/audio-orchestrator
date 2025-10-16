@@ -164,9 +164,13 @@ def _pcm_to_wav(
                     pcm, 2, channels, sample_rate, target_sample_rate, None
                 )
                 sample_rate = target_sample_rate
-            except Exception:
+            except Exception as e:
                 # Fall back to the original sample rate if resampling fails.
-                pass
+                logger = get_logger(__name__, service_name="discord")
+                logger.debug(
+                    "Audio resampling failed, using original sample rate",
+                    extra={"error": str(e)},
+                )
 
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:

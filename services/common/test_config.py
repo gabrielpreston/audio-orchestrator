@@ -235,9 +235,11 @@ class TestEnvironmentLoader(TestCase):
             required=True,
         )
 
-        with mock.patch.dict(os.environ, {}, clear=True):
-            with self.assertRaises(RequiredFieldError):
-                self.loader.load_field(field_def)
+        with (
+            mock.patch.dict(os.environ, {}, clear=True),
+            self.assertRaises(RequiredFieldError),
+        ):
+            self.loader.load_field(field_def)
 
     def test_convert_value(self):
         """Test value conversion."""

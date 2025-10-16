@@ -56,6 +56,7 @@ ignore = [
     "UP038", # use X | Y in isinstance call instead of (X, Y)
     "S101",  # use of assert (common in tests)
     "S104",  # hardcoded bind all interfaces (common in Docker)
+    "S311",  # random usage for jitter in retry logic (non-cryptographic)
     "S603",  # subprocess call (common in Docker)
     "S607",  # starting a process with a partial executable path
     "RET504", # unnecessary assignment before return
@@ -85,33 +86,9 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 disallow_any_generics = true
-disallow_any_unimported = true
+disallow_any_unimported = false  # Allow external imports to be Any
 disallow_any_expr = false  # Too strict for practical use
-
-[[tool.mypy.overrides]]
-module = [
-    "discord.*",
-    "faster_whisper.*",
-    "openai.*",
-    "pydantic.*",
-    "fastapi.*",
-    "uvicorn.*",
-    "httpx.*",
-    "structlog.*",
-    "numpy.*",
-    "soundfile.*",
-    "librosa.*",
-    "webrtcvad.*",
-    "rapidfuzz.*",
-    "openwakeword.*",
-    "piper.*",
-    "prometheus_client.*",
-    "mcp.*",
-    "pytest.*",
-    "freezegun.*",
-    "llama_cpp.*",
-    "starlette.*",
-]
+# Ignore all external imports - focus on our code only
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

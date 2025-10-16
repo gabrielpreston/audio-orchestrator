@@ -7,7 +7,7 @@ This shows how any service can save debug files using the centralized debug mana
 from services.common.debug import get_debug_manager, save_debug_json, save_debug_text
 
 
-def example_discord_debug_usage():
+def example_discord_debug_usage() -> None:
     """Example of how the Discord service could use debug functionality."""
 
     # Method 1: Using the debug manager directly
@@ -54,7 +54,7 @@ def example_discord_debug_usage():
     )
 
 
-def example_convenience_functions():
+def example_convenience_functions() -> None:
     """Example using convenience functions."""
 
     correlation_id = "discord-54321-98765"

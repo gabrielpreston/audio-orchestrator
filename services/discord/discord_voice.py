@@ -942,7 +942,7 @@ class VoiceBot(discord.Client):
             )
 
     def _save_debug_wake_detection(
-        self, context: SegmentContext, transcript: TranscriptResult, detection
+        self, context: SegmentContext, transcript: TranscriptResult, detection: Any
     ) -> None:
         """Save debug data for wake word detection."""
         try:

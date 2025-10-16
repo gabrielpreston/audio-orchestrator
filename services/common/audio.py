@@ -69,11 +69,11 @@ class AudioProcessor:
         self.service_name = service_name
         self._logger = None  # Will be set by services that use logging
 
-    def set_logger(self, logger):
+    def set_logger(self, logger: Any) -> None:
         """Set logger for audio processing operations."""
         self._logger = logger
 
-    def _log(self, level: str, message: str, **kwargs):
+    def _log(self, level: str, message: str, **kwargs: Any) -> None:
         """Log audio processing operations."""
         if self._logger:
             getattr(self._logger, level)(message, **kwargs)

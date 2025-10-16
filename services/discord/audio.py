@@ -6,7 +6,7 @@ import audioop
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import webrtcvad
 
@@ -152,7 +152,7 @@ class AudioPipeline:
             )
             aggressiveness = clamped
         self._target_sample_rate = config.vad_sample_rate_hz
-        self._vad = webrtcvad.Vad(aggressiveness)
+        self._vad: Any = webrtcvad.Vad(aggressiveness)
         self._vad_frame_bytes = int(self._target_sample_rate * frame_ms / 1000) * 2
 
     def _allowed(self, user_id: int) -> bool:
@@ -182,7 +182,7 @@ class AudioPipeline:
             Accumulator(user_id=user_id, config=self._config),
         )
         accumulator.sequence += 1
-        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, rms)
+        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, target_rms=rms)
         frame = PCMFrame(
             pcm=normalized_pcm,
             timestamp=timestamp,
@@ -275,6 +275,7 @@ class AudioPipeline:
         decision: FlushDecision | None = None,
         trigger: str | None = None,
         override_reason: str | None = None,
+        timestamp: float | None = None,
     ) -> AudioSegment | None:
         from services.common.correlation import generate_discord_correlation_id
 

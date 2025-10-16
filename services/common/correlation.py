@@ -6,6 +6,7 @@ in the voice pipeline, ensuring proper hierarchical organization and traceabilit
 """
 
 import time
+from typing import Any
 
 
 class CorrelationIDGenerator:
@@ -142,7 +143,7 @@ class CorrelationIDGenerator:
         return f"manual-{service}{context_part}-{timestamp_ms}"
 
     @staticmethod
-    def parse_correlation_id(correlation_id: str) -> dict:
+    def parse_correlation_id(correlation_id: str) -> dict[str, Any]:
         """
         Parse a correlation ID to extract its components.
 
@@ -295,7 +296,7 @@ def generate_manual_correlation_id(service: str, context: str | None = None) -> 
     return CorrelationIDGenerator.generate_manual_correlation_id(service, context)
 
 
-def parse_correlation_id(correlation_id: str) -> dict:
+def parse_correlation_id(correlation_id: str) -> dict[str, Any]:
     """Parse a correlation ID."""
     return CorrelationIDGenerator.parse_correlation_id(correlation_id)
 
