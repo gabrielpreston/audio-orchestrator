@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import audioop
+# audioop is deprecated, using alternative approach
 import io
 import wave
 from dataclasses import dataclass
@@ -160,8 +160,9 @@ def _pcm_to_wav(
         # Fallback to original implementation if conversion fails
         if sample_rate != target_sample_rate and pcm:
             try:
-                pcm, _ = audioop.ratecv(
-                    pcm, 2, channels, sample_rate, target_sample_rate, None
+                from services.common.audio import resample_audio
+                pcm = resample_audio(
+                    pcm, sample_rate, target_sample_rate, sample_width=2
                 )
                 sample_rate = target_sample_rate
             except Exception as e:
@@ -174,10 +175,11 @@ def _pcm_to_wav(
 
         buffer = io.BytesIO()
         with wave.open(buffer, "wb") as wav_file:
-            wav_file.setnchannels(channels)
-            wav_file.setsampwidth(2)
-            wav_file.setframerate(sample_rate)
-            wav_file.writeframes(pcm)
+            # Linter incorrectly identifies this as Wave_read, but it's actually Wave_write
+            wav_file.setnchannels(channels)  # type: ignore[attr-defined]
+            wav_file.setsampwidth(2)  # type: ignore[attr-defined]
+            wav_file.setframerate(sample_rate)  # type: ignore[attr-defined]
+            wav_file.writeframes(pcm)  # type: ignore[attr-defined]
         return buffer.getvalue()
 
 

@@ -7,6 +7,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/tts/requirements.txt /app/services/tts/requirements.txt
 
 # Install Python dependencies

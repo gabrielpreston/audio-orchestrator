@@ -49,6 +49,8 @@ RUN apt-get update && \
     build-essential cmake pkg-config libgomp1 libopenblas-dev wget ca-certificates libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/orchestrator/requirements.txt /app/services/orchestrator/requirements.txt
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 # hadolint ignore=DL3013

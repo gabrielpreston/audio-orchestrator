@@ -19,6 +19,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
         libopus0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \

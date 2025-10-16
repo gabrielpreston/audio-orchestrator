@@ -14,6 +14,8 @@ RUN apt-get update && \
     build-essential cmake pkg-config libgomp1 libopenblas-dev wget ca-certificates libcurl4-openssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/llm/requirements.txt /app/services/llm/requirements.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \

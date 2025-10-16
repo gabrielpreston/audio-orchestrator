@@ -21,4 +21,4 @@ services/models/
 *.zip
 .npm/
 *.txt
-!requirements-dev.txt
+!requirements*.txt

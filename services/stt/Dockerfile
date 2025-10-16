@@ -17,6 +17,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Copy requirements files
+COPY requirements-base.txt /app/requirements-base.txt
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 
 # Install Python deps from the copied requirements

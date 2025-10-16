@@ -10,7 +10,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from .config import ConfigBuilder, Environment, load_service_config
+from .config import BaseConfig, ConfigBuilder, Environment, create_field_definition, load_service_config
 from .service_configs import (
     AudioConfig,
     DiscordConfig,
@@ -245,8 +245,6 @@ def example_configuration_persistence():
 def example_custom_configuration():
     """Example: Create a custom configuration class."""
     print("\n=== Custom Configuration Example ===")
-
-    from .config import BaseConfig, create_field_definition
 
     class CustomServiceConfig(BaseConfig):
         """Custom service configuration example."""
