@@ -390,8 +390,10 @@ class TestServiceConfig(TestCase):
             self.assertEqual(loaded_config.service_name, "test")
             self.assertEqual(loaded_config.environment.value, "development")
         finally:
-            if temp_file.exists():
-                temp_file.unlink()
+            from contextlib import suppress
+            with suppress(Exception):
+                if temp_file.exists():
+                    temp_file.unlink()
 
     def test_getattr(self):
         """Test direct access to configuration sections."""

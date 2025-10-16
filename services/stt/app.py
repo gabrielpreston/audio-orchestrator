@@ -287,10 +287,9 @@ async def _transcribe_request(
         raise HTTPException(status_code=500, detail=f"transcription error: {e}") from e
     finally:
         if tmp_path:
-            try:
+            from contextlib import suppress
+            with suppress(Exception):
                 os.unlink(tmp_path)
-            except Exception:
-                pass
 
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)

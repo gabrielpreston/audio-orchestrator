@@ -186,17 +186,16 @@ async def chat_completions(
     req_start = time.time()
 
     expected = os.getenv("LLM_AUTH_TOKEN")
-    if expected:
-        if (
-            not authorization
-            or not authorization.startswith("Bearer ")
-            or authorization.split(" ", 1)[1] != expected
-        ):
-            logger.warning(
-                "llm.unauthorized_request",
-                has_header=authorization is not None,
-            )
-            raise HTTPException(status_code=401, detail="unauthorized")
+    if expected and (
+        not authorization
+        or not authorization.startswith("Bearer ")
+        or authorization.split(" ", 1)[1] != expected
+    ):
+        logger.warning(
+            "llm.unauthorized_request",
+            has_header=authorization is not None,
+        )
+        raise HTTPException(status_code=401, detail="unauthorized")
 
     if not req.messages:
         logger.warning("llm.bad_request", reason="messages_missing")
