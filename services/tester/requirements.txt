@@ -1,15 +1,15 @@
 # Include test framework
--r ../../requirements-test.txt
+-r /workspace/requirements-test.txt
 
 # Include base requirements for all services
--r ../../requirements-base.txt
+-r /workspace/requirements-base.txt
 
 # Include all service-specific dependencies
--r ../discord/requirements.txt
--r ../stt/requirements.txt
--r ../llm/requirements.txt
--r ../orchestrator/requirements.txt
--r ../tts/requirements.txt
+-r /workspace/services/discord/requirements.txt
+-r /workspace/services/stt/requirements.txt
+-r /workspace/services/llm/requirements.txt
+-r /workspace/services/orchestrator/requirements.txt
+-r /workspace/services/tts/requirements.txt
 
 # Linter dependencies (for testing)
--r ../linter/requirements.txt
+-r /workspace/services/linter/requirements.txt

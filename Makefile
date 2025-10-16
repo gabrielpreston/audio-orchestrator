@@ -218,7 +218,7 @@ test-local: ## Run tests using locally installed tooling
 
 # --- Enhanced test targets ----------------------------------------------------
 
-test: test-local ## Run all unit and component tests (default test target)
+test-local: ## Run all unit and component tests using locally installed tooling
 
 test-unit: ## Run unit tests only (fast, isolated)
 	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
