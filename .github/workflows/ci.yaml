@@ -128,7 +128,6 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run type checking
         run: make typecheck
-        
   security-scan:
     name: Security scan
     needs: changes
