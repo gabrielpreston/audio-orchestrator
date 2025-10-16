@@ -1,12 +1,16 @@
-# Workflow: Auto-Analyze CI Failures using Cursor Agent
-# Purpose: When CI fails, run an AI-assisted analysis and propose fixes.
+# Workflow: Auto-Analyze CI Failures using Cursor Agent (revised)
+# Purpose: When CI fails, run an AI-assisted analysis on the *failing PR branch/commit*,
+# not on main. This uses workflow_run payload fields (head_sha/head_branch) and
+# optionally comments back on the PR, downloads artifacts, and updates commit status.
 
 name: Auto-Analyze CI Failures
 
 on:
   workflow_run:
-    workflows: ["CI"]         # Monitors your primary CI workflow
+    workflows: ["CI"]        # 👈 Name of the workflow you want to monitor
     types: [completed]
+    # Filter to runs from any branch (adjust as desired, e.g. ['**', '!main'])
+    branches: ['**']
 
 permissions:
   actions: read
@@ -19,71 +23,71 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  analyze-failure:
-    # Only run when the upstream CI failed, avoid self-trigger loops, and ignore cross-repo runs
-    if: >
-      ${{
-        github.event.workflow_run.conclusion == 'failure' &&
-        github.event.workflow_run.name != 'Auto-Analyze CI Failures' &&
-        github.event.workflow_run.head_repository.full_name == github.repository
-      }}
+  analyze_failure:
+    # Only run this job when the monitored workflow *failed*
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
-    environment: discord-voice-lab
 
-    # Make all later steps easy to read by defining shared context up-front
     env:
-      REPO: ${{ github.repository }}
-      OWNER: ${{ github.repository_owner }}
+      TARGET_REPO: ${{ github.event.workflow_run.repository.full_name }}
+      TARGET_SHA: ${{ github.event.workflow_run.head_sha }}
+      TARGET_BRANCH: ${{ github.event.workflow_run.head_branch }}
       RUN_ID: ${{ github.event.workflow_run.id }}
       RUN_URL: ${{ github.event.workflow_run.html_url }}
-      COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
-      HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
-      STATUS_CONTEXT: auto-fix-ci/analysis
+      STATUS_CONTEXT: Auto-Analyze CI Failures
+      GH_TOKEN: ${{ github.token }}
 
     steps:
-      # 0) Choose token source BEFORE any 'gh' calls (keeps forks/ext repos flexible)
-      - name: Select token source
-        id: tok
+      # 1) Show triggering context in the logs
+      - name: Show triggering context
         run: |
-          # Default to the ephemeral workflow token.
-          echo "value=${GITHUB_TOKEN}" >> "$GITHUB_OUTPUT"
-        env:
-          # Swap to a PAT (with repo + statuses scope) if you need to support fork PRs:
-          # GITHUB_TOKEN: ${{ secrets.GH_PAT }}
-          GITHUB_TOKEN: ${{ github.token }}
+          echo "Triggered by failed run:"
+          echo "  repo:        $TARGET_REPO"
+          echo "  branch:      $TARGET_BRANCH"
+          echo "  head sha:    $TARGET_SHA"
+          echo "  run id/url:  $RUN_ID / $RUN_URL"
 
-      # 1) Establish repo context for diffs/branches (fetch-depth=0)
-      - name: Checkout repository
+      # 2) Check out the failing commit (PR branch)
+      - name: Check out failing commit (PR branch)
         uses: actions/checkout@v4
         with:
+          repository: ${{ env.TARGET_REPO }}
+          ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
 
-      # 2) Ensure GitHub CLI is available & authenticated
+      # 3) Determine the PR number and ref (if CI came from a PR)
+      - name: Determine PR number (if CI came from a PR)
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prs = (context.payload.workflow_run.pull_requests || []);
+            core.setOutput("number", prs[0]?.number || "");
+            core.setOutput("ref", prs[0]?.head?.ref || "");
+            core.info(`Resolved PR number: ${prs[0]?.number || "(none)"}`);
+
+      # The following steps set up the environment and run Cursor Agent to analyze CI failures
+      # 4) Ensure GitHub CLI is available & authenticated
       - name: Verify gh availability & auth
-        env:
-          GH_TOKEN: ${{ steps.tok.outputs.value }}
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
           set -euo pipefail
           gh --version || { echo "gh CLI not found"; exit 1; }
           gh auth status || { echo "gh auth failed"; exit 1; }
           gh auth setup-git
 
-      # 3) Create initial pending status on the failing commit
+      # 5) Create initial pending status on the failing commit
       - name: Status → Starting analysis
-        env:
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
           set -euo pipefail
           gh api \
             --method POST \
-            repos/${{ env.REPO }}/statuses/${{ env.COMMIT_SHA }} \
+            repos/${{ env.TARGET_REPO }}/statuses/${{ env.TARGET_SHA }} \
             -f state="pending" \
             -f target_url="${{ env.RUN_URL }}" \
             -f description="Auto-Fix CI: Starting analysis…" \
-            -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"
+            -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"      
 
-      # 4) Install Cursor CLI (retry; add to PATH)
+      # 6) Install Cursor CLI (retry; add to PATH)
       - name: Install Cursor CLI
         run: |
           set -euo pipefail
@@ -105,7 +109,7 @@ jobs:
 
           cursor-agent --version
 
-      # 5) Configure git identity for any branch commits the agent may perform
+      # 7) Configure git identity for any branch commits the agent may perform
       - name: Configure git identity
         run: |
           set -euo pipefail
@@ -113,37 +117,23 @@ jobs:
           git config user.email "gpreston@gmail.com"
           git status >/dev/null
 
-      # 6) Sanity checks: API access, run visibility, repo info
-      - name: Verify API access & repo state
-        env:
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
-        run: |
-          set -euo pipefail
-          gh api repos/${{ env.REPO }} >/dev/null
-          gh api repos/${{ env.REPO }}/actions/runs/${{ env.RUN_ID }} >/dev/null
-          git remote -v
-          gh repo view --json name,defaultBranchRef
-
-      # 7) Move status forward (environment is ready; analysis begins)
+      # 8) Move status forward (environment is ready; analysis begins)
       - name: Status → Environment ready
-        env:
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
           set -euo pipefail
           gh api \
             --method POST \
-            repos/${{ env.REPO }}/statuses/${{ env.COMMIT_SHA }} \
+            repos/${{ env.TARGET_REPO }}/statuses/${{ env.TARGET_SHA }} \
             -f state="pending" \
             -f target_url="${{ env.RUN_URL }}" \
             -f description="Auto-Fix CI: Environment ready, starting analysis…" \
             -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"
 
-      # 8) Run the Cursor Agent to analyze the failing run and propose/apply a fix branch
+      # --- Analysis and Fix Implementation ---
+      # 9) Run the Cursor Agent to analyze the failing run and propose/apply a fix branch
       - name: Run Cursor Agent to analyze failure
         env:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
-          GH_TOKEN: ${{ steps.tok.outputs.value }}
           MODEL: gpt-5
           BRANCH_PREFIX: ci-fix
         run: |
@@ -154,8 +144,9 @@ jobs:
             The GitHub CLI ('gh') is authenticated and git is configured.
 
             Context:
-            - Repo: ${{ env.REPO }}
-            - Owner: ${{ env.OWNER }}
+            - Repo: ${{ env.TARGET_REPO }}
+            - Head SHA: ${{ env.TARGET_SHA }}
+            - Head Branch: ${{ env.TARGET_BRANCH }}
             - Workflow Run ID: ${{ env.RUN_ID }}
             - Workflow Run URL: ${{ env.RUN_URL }}
             - Fix Branch Prefix: ${BRANCH_PREFIX}
@@ -163,9 +154,10 @@ jobs:
             Goal:
             - Analyze failure logs for the run above.
             - Identify root cause(s) and validate against the codebase.
-            - Maintain a persistent fix branch for the PR head using the prefix.
+            - Maintain a persistent fix branch for the PR head using the branch prefix.
+            - Validate proposed changes against the codebase.
             - Push minimal, targeted changes aligned with existing style.
-            - DO NOT create PRs; instead, post/update a concise PR comment with the fix summary and a compare link to quick-create a PR.
+            - DO NOT create PRs; instead, post/update a concise PR comment with the fix summary (3-4 sentences) and a compare link to quick-create a PR.
             - If no actionable fix, make no changes and leave an explanation comment.
 
             Inputs & tools available:
@@ -173,26 +165,22 @@ jobs:
             - git (commits/push to the fix branch)
           " --model "$MODEL" --output-format=text --force
 
-      # 9) Mark success when the agent finishes
+      # 10) Mark success when the agent finishes
       - name: Status → Analysis completed
         if: success()
-        env:
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
           set -euo pipefail
           gh api \
             --method POST \
-            repos/${{ env.REPO }}/statuses/${{ env.COMMIT_SHA }} \
+            repos/${{ env.TARGET_REPO }}/statuses/${{ env.TARGET_SHA }} \
             -f state="success" \
             -f target_url="${{ env.RUN_URL }}" \
             -f description="Auto-Fix CI: Analysis completed — see PR comments for details" \
             -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"
 
-      # 10) Always set a final terminal status reflecting the job result
+      # 11) Always set a final terminal status reflecting the job result
       - name: Status → Final
         if: always()
-        env:
-          GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
         run: |
           set -euo pipefail
           if [ "${{ job.status }}" = "success" ]; then
@@ -205,7 +193,7 @@ jobs:
 
           gh api \
             --method POST \
-            repos/${{ env.REPO }}/statuses/${{ env.COMMIT_SHA }} \
+            repos/${{ env.TARGET_REPO }}/statuses/${{ env.TARGET_SHA }} \
             -f state="$STATE" \
             -f target_url="${{ env.RUN_URL }}" \
             -f description="$DESC" \
