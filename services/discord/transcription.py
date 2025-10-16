@@ -161,6 +161,7 @@ def _pcm_to_wav(
         if sample_rate != target_sample_rate and pcm:
             try:
                 from services.common.audio import resample_audio
+
                 pcm = resample_audio(
                     pcm, sample_rate, target_sample_rate, sample_width=2
                 )

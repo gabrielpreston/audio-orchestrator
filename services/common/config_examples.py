@@ -10,7 +10,13 @@ import os
 import tempfile
 from pathlib import Path
 
-from .config import BaseConfig, ConfigBuilder, Environment, create_field_definition, load_service_config
+from .config import (
+    BaseConfig,
+    ConfigBuilder,
+    Environment,
+    create_field_definition,
+    load_service_config,
+)
 from .service_configs import (
     AudioConfig,
     DiscordConfig,
