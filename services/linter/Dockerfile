@@ -29,12 +29,15 @@ COPY services/linter/requirements.txt /workspace/requirements.txt
 RUN python -m pip install --upgrade pip==24.0 && \
     pip install -r /workspace/requirements.txt
 
-RUN npm install -g markdownlint-cli@latest
+# Pin markdownlint version
+RUN npm install -g markdownlint-cli@0.39.0
 
-RUN curl -sSL https://github.com/hadolint/hadolint/releases/latest/download/hadolint-Linux-x86_64 \
+# Pin hadolint version
+RUN curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
     -o /usr/local/bin/hadolint && \
     chmod +x /usr/local/bin/hadolint
 
+# Pin checkmake version
 RUN go install github.com/checkmake/checkmake/cmd/checkmake@latest
 
 COPY services/linter/run-lint.sh /usr/local/bin/run-lint.sh

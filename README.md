@@ -195,7 +195,7 @@ consistent.
 GitHub Actions now mirrors the local Makefile workflow so every push and pull
 request to `main` exercises the same checks you run locally:
 
-- `Lint` — executes `make lint-local`, covering Black, isort, Ruff, MyPy,
+- `Lint` — executes `make lint-ci`, covering Black, isort, Ruff, MyPy,
   Hadolint, Yamllint, Checkmake, and Markdownlint.
 - `Tests` — calls `make test-local` with the repository root on `PYTHONPATH`
   so pytest behavior matches the `services/tester` container.
@@ -214,7 +214,7 @@ request to `main` exercises the same checks you run locally:
    `.env.common`, `.env.docker`, and `services/**/.env.service` files expected by
    `docker-compose`. Pass `--force` if you want to regenerate files that already
    exist (the CI workflow does this so every run starts from the sample defaults).
-3. Run `make lint-local`, `make test-local`, and `make docker-smoke` in that
+3. Run `make lint-ci`, `make test-local`, and `make docker-smoke` in that
    order to match the GitHub Actions jobs.
 4. When a job fails in CI, download the corresponding artifact (`pytest-log`,
    `docker-smoke-artifacts`, or `pip-audit-reports`) from the Actions run for
@@ -222,25 +222,25 @@ request to `main` exercises the same checks you run locally:
 
 ## Linting
 
-Run `make lint` to exercise all static checks inside a purpose-built container
+Run `make lint` (defaults to `make lint-docker`) to exercise all static checks inside a purpose-built container
 (`services/linter/`). Docker builds the `discord-voice-lab/lint` image (cached
 after the first run) and executes:
 
 - Python: `black`, `isort`, `ruff`, and `mypy`
-- Dockerfiles: `hadolint`
-- Compose YAML: `yamllint`
+- Dockerfiles: `hadolint` (auto-discovers all Dockerfiles)
+- YAML files: `yamllint` (docker-compose.yml + GitHub workflows)
 - Makefile: `checkmake`
-- Markdown: `markdownlint`
+- Markdown: `markdownlint` (auto-discovers all docs)
 
 Need to apply auto-formatting from the containerized toolchain? Run `make lint-fix`
 to execute `black` and `isort` inside the lint image with repository binds.
 
-Prefer to debug locally or avoid Docker? Use `make lint-local` to run the same
+For CI environments or local debugging without Docker, use `make lint-ci` to run the same
 toolchain with host-installed binaries. Install the Python packages via
-`pip install black isort ruff mypy yamllint`, the Dockerfile linter with
+`pip install -r requirements-dev.txt`, the Dockerfile linter with
 `hadolint`, the Makefile linter using
-`go install github.com/checkmake/checkmake/cmd/checkmake@latest`, and the
-Markdown linter with `npm install -g markdownlint-cli`.
+`go install github.com/checkmake/checkmake/cmd/checkmake@v0.2.2`, and the
+Markdown linter with `npm install -g markdownlint-cli@0.39.0`.
 
 ## Testing
 

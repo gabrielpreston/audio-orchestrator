@@ -87,7 +87,7 @@ jobs:
             -f state="pending" \
             -f target_url="${{ env.RUN_URL }}" \
             -f description="Auto-Fix CI: Starting analysis…" \
-            -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"      
+            -f context="${{ env.STATUS_CONTEXT }}" || echo "WARN: status POST failed"
 
       # 6) Install Cursor CLI (retry; add to PATH)
       - name: Install Cursor CLI
