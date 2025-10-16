@@ -149,7 +149,7 @@ class MCPManager:
             async def disconnect(self) -> None:
                 """Clean up HTTP client."""
                 if self._http_client:
-                    await self._http_client.aclose()
+                    await self._http_client.aclose()  # type: ignore[unreachable]
                     self._http_client = None
 
         client = HTTPDiscordClient()

@@ -125,7 +125,7 @@ class SynthesisRequest(BaseModel):
     noise_w: float | None = Field(None, ge=0.0, le=2.0)
     correlation_id: str | None = None
 
-    @model_validator(mode="before")
+    @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
     def _check_text_or_ssml(cls, data: Any) -> Any:
         if isinstance(data, dict):
@@ -348,7 +348,7 @@ def _synthesize_audio(
     return audio_bytes, getattr(_VOICE, "sample_rate", _VOICE_SAMPLE_RATE)
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     await asyncio.to_thread(_load_voice)
     logger.info(
@@ -359,7 +359,7 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/health", response_model=HealthResponse)  # type: ignore[misc]
 async def health() -> HealthResponse:
     status = "ok" if _VOICE is not None else "degraded"
     return HealthResponse(
@@ -369,12 +369,12 @@ async def health() -> HealthResponse:
     )
 
 
-@app.get("/metrics")
+@app.get("/metrics")  # type: ignore[misc]
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/voices", response_model=VoiceListResponse)
+@app.get("/voices", response_model=VoiceListResponse)  # type: ignore[misc]
 async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     if not _VOICE_OPTIONS:
         # Return a default voice option when no model is loaded
@@ -385,7 +385,7 @@ async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     return VoiceListResponse(sample_rate=_VOICE_SAMPLE_RATE, voices=voices)
 
 
-@app.post("/synthesize")
+@app.post("/synthesize")  # type: ignore[misc]
 async def synthesize(
     payload: SynthesisRequest,
     _: None = Depends(_require_auth),
@@ -463,7 +463,7 @@ async def synthesize(
         duration=duration,
     )
 
-    return StreamingResponse(
+    return StreamingResponse(  # type: ignore[no-any-return]
         iter([audio_bytes]), media_type="audio/wav", headers=headers
     )
 

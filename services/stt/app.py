@@ -34,7 +34,7 @@ configure_logging(
 logger = get_logger(__name__, service_name="stt")
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
 
@@ -362,7 +362,7 @@ async def _transcribe_request(
     return JSONResponse(resp, headers=headers)
 
 
-@app.post("/asr")
+@app.post("/asr")  # type: ignore[misc]
 async def asr(request: Request) -> dict[str, Any]:
     # Expect raw WAV bytes in the request body
     body = await request.body()
@@ -371,7 +371,7 @@ async def asr(request: Request) -> dict[str, Any]:
         content_length=len(body),
         correlation_id=request.headers.get("X-Correlation-ID"),
     )
-    return await _transcribe_request(
+    return await _transcribe_request(  # type: ignore[no-any-return]
         request,
         body,
         correlation_id=request.headers.get("X-Correlation-ID")
@@ -380,7 +380,7 @@ async def asr(request: Request) -> dict[str, Any]:
     )
 
 
-@app.post("/transcribe")
+@app.post("/transcribe")  # type: ignore[misc]
 async def transcribe(request: Request) -> dict[str, Any]:
     try:
         form = await request.form()
@@ -393,7 +393,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
             correlation_id=correlation_id,
             detail="client closed connection during multipart parse",
         )
-        return JSONResponse({"detail": "client disconnected"}, status_code=499)
+        return JSONResponse({"detail": "client disconnected"}, status_code=499)  # type: ignore[no-any-return]
     upload = form.get("file")
     if upload is None:
         logger.warning(
@@ -426,7 +426,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
         correlation_id=metadata_value,
     )
 
-    return await _transcribe_request(
+    return await _transcribe_request(  # type: ignore[no-any-return]
         request,
         wav_bytes,
         correlation_id=metadata_value,

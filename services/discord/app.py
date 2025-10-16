@@ -39,7 +39,7 @@ class TranscriptNotification(BaseModel):
     correlation_id: str | None = None
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
     global _bot
@@ -107,7 +107,7 @@ async def startup_event() -> None:
         logger.info("discord.http_api_started_with_error")
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def shutdown_event() -> None:
     """Shutdown HTTP API."""
     global _bot
@@ -117,7 +117,7 @@ async def shutdown_event() -> None:
         logger.info("discord.http_api_shutdown")
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[misc]
 async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {
@@ -128,7 +128,7 @@ async def health_check() -> dict[str, Any]:
     }
 
 
-@app.post("/mcp/play_audio")
+@app.post("/mcp/play_audio")  # type: ignore[misc]
 async def play_audio(request: PlayAudioRequest) -> dict[str, Any]:
     """Play audio in Discord voice channel via MCP."""
     if not _bot:
@@ -189,7 +189,7 @@ async def play_audio(request: PlayAudioRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/send_message")
+@app.post("/mcp/send_message")  # type: ignore[misc]
 async def send_message(request: SendMessageRequest) -> dict[str, Any]:
     """Send text message to Discord channel via MCP."""
     if not _bot:
@@ -222,7 +222,7 @@ async def send_message(request: SendMessageRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/transcript")
+@app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(notification: TranscriptNotification) -> dict[str, Any]:
     """Handle transcript notification from orchestrator."""
     if not _bot:
@@ -256,7 +256,7 @@ async def handle_transcript(notification: TranscriptNotification) -> dict[str, A
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/mcp/tools")
+@app.get("/mcp/tools")  # type: ignore[misc]
 async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     return {

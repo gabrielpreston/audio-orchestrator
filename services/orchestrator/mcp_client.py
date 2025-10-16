@@ -53,7 +53,7 @@ class StdioMCPClient:
                 raise RuntimeError("Failed to create stdio client")
 
             # Enter the context manager and get the streams
-            read_stream, write_stream = await self._client.__aenter__()
+            read_stream, write_stream = await self._client.__aenter__()  # type: ignore[unreachable]
 
             # Create a session from the streams
             from mcp import ClientSession
@@ -84,7 +84,7 @@ class StdioMCPClient:
     async def disconnect(self) -> None:
         """Disconnect from the MCP server."""
         if self._client:
-            try:
+            try:  # type: ignore[unreachable]
                 await self._client.__aexit__(None, None, None)
                 self._logger.info("mcp.client_disconnected", name=self.name)
             except Exception as exc:

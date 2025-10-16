@@ -142,7 +142,7 @@ async def _synthesize_tts(text: str) -> dict[str, Any] | None:
     }
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize LLM model on startup."""
     try:
@@ -157,7 +157,7 @@ async def _startup_event() -> None:
         # Continue without model for compatibility
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown LLM service."""
     global _TTS_CLIENT
@@ -178,7 +178,7 @@ class ChatRequest(BaseModel):
     max_tokens: int | None = None
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions")  # type: ignore[misc]
 async def chat_completions(
     req: ChatRequest,
     authorization: str | None = Header(None),
@@ -304,10 +304,10 @@ async def chat_completions(
         headers["X-Audio-Size"] = str(audio["size_bytes"])
     if audio and audio.get("content_type"):
         headers["X-Audio-Content-Type"] = str(audio["content_type"])
-    return JSONResponse(response, headers=headers)
+    return JSONResponse(response, headers=headers)  # type: ignore[no-any-return]
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[misc]
 async def health_check() -> dict[str, Any]:
     """Health check endpoint."""
     return {

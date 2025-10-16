@@ -47,7 +47,7 @@ async def _ensure_llm_client() -> httpx.AsyncClient | None:
     return _LLM_CLIENT
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize MCP manager and orchestrator on startup."""
     global _MCP_MANAGER, _ORCHESTRATOR
@@ -67,7 +67,7 @@ async def _startup_event() -> None:
         # Continue without MCP integration for compatibility
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown MCP manager and orchestrator."""
     global _LLM_CLIENT, _MCP_MANAGER, _ORCHESTRATOR
@@ -93,7 +93,7 @@ class TranscriptRequest(BaseModel):
     correlation_id: str | None = None
 
 
-@app.post("/mcp/transcript")
+@app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     if not _ORCHESTRATOR:
@@ -131,7 +131,7 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/tools")
+@app.get("/mcp/tools")  # type: ignore[misc]
 async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
@@ -144,7 +144,7 @@ async def list_mcp_tools() -> dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/connections")
+@app.get("/mcp/connections")  # type: ignore[misc]
 async def list_mcp_connections() -> dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
@@ -153,7 +153,7 @@ async def list_mcp_connections() -> dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health")
+@app.get("/health")  # type: ignore[misc]
 async def health_check() -> dict[str, Any]:
     """Health check endpoint with MCP status."""
     mcp_status = {}
@@ -169,7 +169,7 @@ async def health_check() -> dict[str, Any]:
     }
 
 
-@app.get("/audio/{filename}")
+@app.get("/audio/{filename}")  # type: ignore[misc]
 async def serve_audio(filename: str) -> FileResponse:
     """Serve audio files for Discord playback."""
     try:
