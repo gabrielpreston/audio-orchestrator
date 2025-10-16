@@ -35,18 +35,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-    get_args,
-    get_origin,
-)
+from typing import Any, Callable, Dict, List, Optional, Type, TypeVar, Union, get_args, get_origin
 
 from services.common.logging import get_logger
 
