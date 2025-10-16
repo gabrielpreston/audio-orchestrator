@@ -161,9 +161,32 @@ jobs:
             coverage.xml
             htmlcov/
 
+  docs-verify:
+    name: Documentation verification
+    needs: changes
+    if: |
+      (needs.changes.outputs.docs == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success'
+    runs-on: ubuntu-latest
+    environment: discord-voice-lab
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install development dependencies
+        run: make install-dev-deps
+      - name: Verify documentation metadata
+        run: make docs-verify
+
   docker-smoke:
     name: Docker smoke
-    needs: [changes, lint, test, security-scan]
+    needs: [changes, lint, test, security-scan, docs-verify]
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
