@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # =============================================================================
 # PHONY TARGETS
 # =============================================================================
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific typecheck security docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -411,6 +411,36 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 	@docker volume prune -f || true
 	@echo "Pruning unused networks..."
 	@docker network prune -f || true
+
+# =============================================================================
+# CI SETUP & DEPENDENCIES
+# =============================================================================
+
+install-dev-deps: ## Install development dependencies for CI
+	@echo "→ Installing development dependencies"
+	@python -m pip install --upgrade pip
+	@pip install -r requirements-dev.txt
+
+install-ci-tools: ## Install CI-specific tools (hadolint, checkmake, markdownlint)
+	@echo "→ Installing CI tools"
+	@command -v hadolint >/dev/null 2>&1 || { \
+		echo "Installing Hadolint..."; \
+		curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
+			-o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint; \
+	}
+	@command -v checkmake >/dev/null 2>&1 || { \
+		echo "Installing Checkmake..."; \
+		go install github.com/checkmake/checkmake/cmd/checkmake@latest; \
+		echo "$${HOME}/go/bin" >> $$GITHUB_PATH; \
+	}
+	@command -v markdownlint >/dev/null 2>&1 || { \
+		echo "Installing Markdownlint..."; \
+		npm install -g markdownlint-cli@0.39.0; \
+	}
+	@echo "✓ CI tools installed"
+
+ci-setup: install-dev-deps install-ci-tools ## Complete CI environment setup
+	@echo "✓ CI environment ready"
 
 # =============================================================================
 # DOCUMENTATION & UTILITIES

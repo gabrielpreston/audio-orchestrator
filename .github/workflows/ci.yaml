@@ -86,22 +86,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install Python linting tools
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Install Hadolint
-        run: |
-          curl -sSL \
-            https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
-            -o /usr/local/bin/hadolint
-          chmod +x /usr/local/bin/hadolint
-      - name: Install Checkmake
-        run: |
-          go install github.com/checkmake/checkmake/cmd/checkmake@latest
-          echo "${HOME}/go/bin" >> $GITHUB_PATH
-      - name: Install Markdownlint
-        run: npm install -g markdownlint-cli@0.39.0
+      - name: Install CI tools and dependencies
+        run: make ci-setup
       - name: Run unified lint suite
         run: make lint-ci
 
@@ -125,22 +111,8 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install pip-audit
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-audit
-      - name: Run pip-audit across requirements
-        run: |
-          mkdir -p security-reports
-          for req in services/*/requirements.txt; do
-            report="security-reports/$(basename $(dirname "$req"))-requirements.json"
-            echo "Auditing $req"
-            pip-audit --progress-spinner off --format json --requirement "$req" > "$report" || audit_status=$?
-          done
-          if [ "${audit_status:-0}" -ne 0 ]; then
-            echo "pip-audit reported vulnerabilities" >&2
-            exit $audit_status
-          fi
+      - name: Run security scan
+        run: make security
       - name: Upload pip-audit reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -168,14 +140,12 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
+      - name: Install development dependencies
+        run: make install-dev-deps
       - name: Run unit and component tests
         env:
           PYTHONPATH: ${{ github.workspace }}
-        run: make test | tee pytest.log
+        run: make test-ci | tee pytest.log
       - name: Upload pytest log
         if: always()
         uses: actions/upload-artifact@v4
