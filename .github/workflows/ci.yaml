@@ -150,7 +150,7 @@ jobs:
 
   test:
     name: Tests
-    needs: [changes, lint, typecheck, security-scan]
+    needs: [changes, lint, security-scan]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
@@ -193,7 +193,7 @@ jobs:
 
   docker-smoke:
     name: Docker smoke
-    needs: [changes, lint, typecheck, test, security-scan]
+    needs: [changes, lint, test, security-scan]
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
