@@ -27,6 +27,7 @@ jobs:
     # Only run this job when the monitored workflow *failed*
     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
     runs-on: ubuntu-latest
+    environment: discord-voice-lab
 
     env:
       TARGET_REPO: ${{ github.event.workflow_run.repository.full_name }}
