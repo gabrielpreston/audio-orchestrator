@@ -66,10 +66,12 @@ jobs:
         run: |
           set -euo pipefail
           REPO="${{ github.repository }}"
-          BODY=$'# 🔁 Auto-Analyze CI Failures **itself** failed\n\n'\
-$'**Run:** '"$RUN_URL"$'\n'\
-$'**Branch/SHA:** '"$HEAD_BRANCH / \`$HEAD_SHA\`"$'\n\n'\
-$'> Collecting logs and triaging why the analyzer failed…'
+          BODY="# 🔁 Auto-Analyze CI Failures **itself** failed
+
+          **Run:** $RUN_URL
+          **Branch/SHA:** $HEAD_BRANCH / \`$HEAD_SHA\`
+
+          > Collecting logs and triaging why the analyzer failed…"
 
           if [ -n "${{ steps.find_pr.outputs.pr }}" ]; then
             COMMENT_ID="$(gh api repos/$REPO/issues/${{ steps.find_pr.outputs.pr }}/comments \
@@ -124,8 +126,15 @@ $'> Collecting logs and triaging why the analyzer failed…'
           set -euo pipefail
           REPO="${{ github.repository }}"
           BODY="$(cat '${{ steps.triage.outputs.summary }}')"
-          BODY=$'## ❗ Auto-Analyze CI Failures run failed\n\n<details><summary>Details</summary>\n\n'"$BODY"$'\n\n</details>\n\n'\
-$'— _posted by **Monitor Auto-Analyze CI Failures**_'
+          BODY="## ❗ Auto-Analyze CI Failures run failed
+
+          <details><summary>Details</summary>
+
+          $BODY
+
+          </details>
+
+          — _posted by **Monitor Auto-Analyze CI Failures**_"
           gh api --method PATCH repos/$REPO/issues/comments/${{ steps.start_note.outputs.comment_id }} -f body="$BODY"
 
       - name: Attach rerun hint
@@ -134,4 +143,4 @@ $'— _posted by **Monitor Auto-Analyze CI Failures**_'
           set -euo pipefail
           REPO="${{ github.repository }}"
           gh api repos/$REPO/issues/${{ steps.find_pr.outputs.pr }}/comments \
-            -f body=$'🔁 You can retry the analyzer from the Actions tab → this run → **Rerun all jobs**.'
+            -f body="🔁 You can retry the analyzer from the Actions tab → this run → **Rerun all jobs**."
