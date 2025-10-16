@@ -156,7 +156,6 @@ jobs:
             - Analyze failure logs for the run above.
             - Identify root cause(s) and validate against the codebase.
             - Maintain a persistent fix branch for the PR head using the branch prefix.
-            - Validate proposed changes against the codebase.
             - Push minimal, targeted changes aligned with existing style.
             - DO NOT create PRs; instead, post/update a concise PR comment with the fix summary (3-4 sentences) and a compare link to quick-create a PR.
             - If no actionable fix, make no changes and leave an explanation comment.
