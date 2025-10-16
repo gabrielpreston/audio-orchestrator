@@ -3,12 +3,13 @@
 # Purpose: Run linting, testing, security scanning, and Docker smoke tests
 # when code changes are detected.
 name: CI
-
+description: |
+  CI workflow validation steps
 on:
   push:
-    branches: ["main"]
+    branches: [main]
   pull_request:
-    branches: ["main"]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -106,7 +107,7 @@ jobs:
 
   typecheck:
     name: Type Check
-    needs: [changes, lint]
+    needs: changes
     if: |
       needs.changes.outputs.python == 'true' ||
       needs.changes.outputs.workflows == 'true' ||
@@ -127,10 +128,53 @@ jobs:
           pip install -r requirements-dev.txt
       - name: Run type checking
         run: make typecheck
+        
+  security-scan:
+    name: Security scan
+    needs: changes
+    if: |
+      (needs.changes.outputs.security == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
+    runs-on: ubuntu-latest
+    environment: discord-voice-lab
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      - name: Run pip-audit across requirements
+        run: |
+          mkdir -p security-reports
+          for req in services/*/requirements.txt; do
+            report="security-reports/$(basename $(dirname "$req"))-requirements.json"
+            echo "Auditing $req"
+            pip-audit --progress-spinner off --format json --requirement "$req" > "$report" || audit_status=$?
+          done
+          if [ "${audit_status:-0}" -ne 0 ]; then
+            echo "pip-audit reported vulnerabilities" >&2
+            exit $audit_status
+          fi
+      - name: Upload pip-audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-reports
+          path: security-reports
 
   test:
     name: Tests
-    needs: [changes, lint]
+    needs: [changes, lint, typecheck, security-scan]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
@@ -173,7 +217,7 @@ jobs:
 
   docker-smoke:
     name: Docker smoke
-    needs: [changes, lint]
+    needs: [changes, lint, typecheck, test, security-scan]
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
@@ -202,36 +246,3 @@ jobs:
           path: |
             docker-smoke.log
             docker-compose.config.yaml
-
-  security-scan:
-    name: Security scan
-    needs: [changes, lint]
-    if: |
-      (needs.changes.outputs.security == 'true' ||
-       needs.changes.outputs.workflows == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
-    timeout-minutes: 10
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements-dev.txt
-      - name: Run security scan
-        run: make security
-      - name: Upload security reports
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: security-reports
-          path: security-reports/
