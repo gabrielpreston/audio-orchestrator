@@ -30,6 +30,11 @@ jobs:
         with:
           fetch-depth: 0  # full history needed for branch context / diffs
 
+      - name: Extract commit SHA
+        run: |
+          echo "COMMIT_SHA=${{ github.event.workflow_run.head_sha }}" >> $GITHUB_ENV
+          echo "Extracted commit SHA: ${{ github.event.workflow_run.head_sha }}"
+
       - name: Update status check - Installing tools
         env:
           GITHUB_TOKEN: ${{ steps.tok.outputs.value }}
@@ -38,7 +43,7 @@ jobs:
           echo "Updating status check - Installing tools..."
 
           # Update status check to show tool installation
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="pending" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -141,7 +146,7 @@ jobs:
           echo "Updating status check - Tools installed..."
 
           # Update status check to show tools are installed
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="pending" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -188,7 +193,7 @@ jobs:
           echo "Updating status check - Environment ready..."
 
           # Update status check to show environment is ready
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="pending" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -294,13 +299,13 @@ jobs:
 
           # Get the commit SHA from the workflow run
             DESCRIPTION="Auto-Fix CI: Analysis completed successfully - Check PR comments for fix details"
-          echo "Target commit SHA: $COMMIT_SHA"
+          echo "Target commit SHA: ${{ env.COMMIT_SHA }}"
 
           # Store commit SHA for later steps
-          echo "COMMIT_SHA=$COMMIT_SHA" >> $GITHUB_ENV
+          echo "COMMIT_SHA=${{ env.COMMIT_SHA }}" >> $GITHUB_ENV
 
           # Create initial status check
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="pending" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -319,7 +324,7 @@ jobs:
           echo "Updating status check - Analysis in progress..."
 
           # Update status check to show analysis is in progress
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="pending" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -403,7 +408,7 @@ jobs:
           echo "Updating status check - Analysis completed..."
 
           # Update status check to show analysis completed successfully
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="success" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
@@ -432,7 +437,7 @@ jobs:
           fi
 
           # Update status check with final result
-          gh api repos/${{ github.repository }}/statuses/$COMMIT_SHA \
+          gh api repos/${{ github.repository }}/statuses/${{ env.COMMIT_SHA }} \
             --method POST \
             --field state="$STATE" \
             --field target_url="${{ github.event.workflow_run.html_url }}" \
