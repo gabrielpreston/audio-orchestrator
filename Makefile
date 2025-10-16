@@ -209,37 +209,52 @@ lint-docker: lint-image ## Run linting via Docker container
 		$(LINT_IMAGE)
 
 lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
+	@echo "✓ All linting checks passed"
 
 lint-python: ## Python formatting and linting (black, isort, ruff)
+	@echo "→ Checking Python code formatting with black..."
 	@command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
-	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
 	@black --check $(PYTHON_SOURCES)
+	@echo "→ Checking Python import sorting with isort..."
+	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
 	@isort --check-only $(PYTHON_SOURCES)
+	@echo "→ Running Python linting with ruff..."
+	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
 	@ruff check $(PYTHON_SOURCES)
+	@echo "✓ Python linting passed"
 
 lint-mypy: ## Type checking with mypy
+	@echo "→ Running type checking with mypy..."
 	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
 	@mypy $(MYPY_PATHS)
+	@echo "✓ Type checking passed"
 
 lint-yaml: ## Lint all YAML files
+	@echo "→ Linting YAML files..."
 	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
 	@yamllint $(YAML_FILES)
+	@echo "✓ YAML linting passed"
 
 lint-dockerfiles: ## Lint all Dockerfiles
+	@echo "→ Linting Dockerfiles..."
 	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
 	@for dockerfile in $(DOCKERFILES); do \
-		echo "Linting $$dockerfile"; \
+		echo "  Checking $$dockerfile"; \
 		hadolint $$dockerfile || exit 1; \
 	done
+	@echo "✓ Dockerfile linting passed"
 
 lint-makefile: ## Lint Makefile
+	@echo "→ Linting Makefile..."
 	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
 	@checkmake Makefile
+	@echo "✓ Makefile linting passed"
 
 lint-markdown: ## Lint Markdown files
+	@echo "→ Linting Markdown files..."
 	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
 	@markdownlint $(MARKDOWN_FILES)
+	@echo "✓ Markdown linting passed"
 
 test-container: test-image ## Build test container (if needed) and run the test suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
