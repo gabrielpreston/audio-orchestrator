@@ -391,6 +391,7 @@ class TestServiceConfig(TestCase):
             self.assertEqual(loaded_config.environment.value, "development")
         finally:
             from contextlib import suppress
+
             with suppress(Exception):
                 if temp_file.exists():
                     temp_file.unlink()
