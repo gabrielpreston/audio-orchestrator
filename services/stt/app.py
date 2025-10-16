@@ -288,6 +288,7 @@ async def _transcribe_request(
     finally:
         if tmp_path:
             from contextlib import suppress
+
             with suppress(Exception):
                 os.unlink(tmp_path)
 
