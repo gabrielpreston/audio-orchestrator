@@ -1,5 +1,8 @@
+# YAML: CI workflow validation steps
+---
 name: CI
-
+description: |
+  CI workflow validation steps
 on:
   push:
     branches: ["main"]
@@ -98,18 +101,15 @@ jobs:
       - name: Run Makefile lint suite
         run: make lint-local
 
-  test:
-    name: Tests
-    needs: [changes, lint, typecheck, security-scan]
+  typecheck:
+    name: Type Check
+    needs: changes
     if: |
-      (needs.changes.outputs.python == 'true' ||
-       needs.changes.outputs.workflows == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
+      needs.changes.outputs.python == 'true' ||
+      needs.changes.outputs.workflows == 'true' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    environment: discord-voice-lab
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4.2.2
@@ -118,25 +118,13 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-      - name: Install service dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r services/tester/requirements.txt
-          pip install -r services/discord/requirements.txt
-          pip install -r services/stt/requirements.txt
-          pip install -r services/llm/requirements.txt
-          pip install -r services/tts/requirements.txt
-      - name: Run pytest via Makefile
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: make test-local | tee pytest.log
-      - name: Upload pytest log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: pytest-log
-          path: pytest.log
-
+          pip install -r requirements-dev.txt
+      - name: Run type checking
+        run: make typecheck
+        
   security-scan:
     name: Security scan
     needs: changes
@@ -179,6 +167,45 @@ jobs:
         with:
           name: pip-audit-reports
           path: security-reports
+
+  test:
+    name: Tests
+    needs: [changes, lint, typecheck, security-scan]
+    if: |
+      (needs.changes.outputs.python == 'true' ||
+       needs.changes.outputs.workflows == 'true' ||
+       github.event_name == 'workflow_dispatch') &&
+      needs.changes.result == 'success' &&
+      needs.lint.result == 'success'
+    runs-on: ubuntu-latest
+    environment: discord-voice-lab
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4.2.2
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      - name: Install service dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r services/tester/requirements.txt
+          pip install -r services/discord/requirements.txt
+          pip install -r services/stt/requirements.txt
+          pip install -r services/llm/requirements.txt
+          pip install -r services/tts/requirements.txt
+      - name: Run pytest via Makefile
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: make test-local | tee pytest.log
+      - name: Upload pytest log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: pytest.log
 
   docker-smoke:
     name: Docker smoke
