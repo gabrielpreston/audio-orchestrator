@@ -107,7 +107,7 @@ def mock_mcp_client() -> Generator[mock.Mock, None, None]:
 def test_discord_config() -> DiscordConfig:
     """Provide test Discord configuration."""
     return DiscordConfig(
-        token="test-token",
+        token="test-token",  # noqa: S106 - test fixture token
         guild_id=123456789,
         voice_channel_id=987654321,
         intents=["guilds", "voice_states"],

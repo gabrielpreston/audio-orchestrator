@@ -32,10 +32,8 @@ else:
     recv_client_cls = getattr(_voice_recv, "VoiceRecvClient", None)
     if isinstance(recv_client_cls, type):
         discord.VoiceClient = recv_client_cls
-    try:
+    with suppress(OSError):
         discord.opus._load_default()
-    except OSError:
-        pass
 
 discord_voice_recv: Any | None = _voice_recv
 
@@ -119,22 +117,16 @@ class VoiceBot(discord.Client):
         for task in reconnect_tasks:
             task.cancel()
         for task in reconnect_tasks:
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
         if self._segment_task:
             self._segment_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._segment_task
-            except asyncio.CancelledError:
-                pass
         if self._idle_flush_task:
             self._idle_flush_task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await self._idle_flush_task
-            except asyncio.CancelledError:
-                pass
         disconnect_coros: list[Awaitable[None]] = []
         for voice_client in list(self.voice_clients):
             guild_id = voice_client.guild.id if voice_client.guild else None
@@ -278,7 +270,7 @@ class VoiceBot(discord.Client):
                     exponential = base_backoff * (2 ** (attempt - 1))
                     delay = min(max_backoff, exponential) + random.uniform(
                         0, base_backoff
-                    )
+                    )  # noqa: S311 - jitter for retries, not cryptographic
                     continue
 
             self._logger.error(
@@ -752,7 +744,9 @@ class VoiceBot(discord.Client):
                 await self.join_voice_channel(guild_id, channel_id)
             except Exception as exc:
                 exponential = base_backoff * (2 ** max(0, attempt - 1))
-                delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)
+                delay = min(max_backoff, exponential) + random.uniform(
+                    0, base_backoff
+                )  # noqa: S311 - jitter for retries, not cryptographic
                 self._logger.warning(
                     "discord.voice_reconnect_retry",
                     guild_id=guild_id,
