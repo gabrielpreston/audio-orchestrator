@@ -24,6 +24,16 @@ class OrchestratorClient:
             self._http_client = httpx.AsyncClient(timeout=30.0)
         return self._http_client
 
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
+
     async def process_transcript(
         self,
         guild_id: str,

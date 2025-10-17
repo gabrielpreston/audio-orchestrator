@@ -1,3 +1,9 @@
+---
+title: Development Environment Setup
+description: Multi-virtual environment setup for the discord-voice-lab project
+last_updated: 2025-01-17
+---
+
 # Development Environment Setup
 
 This document describes the multi-virtual environment setup for the `discord-voice-lab` project, designed to provide optimal development experience with Cursor/VS Code.
@@ -70,6 +76,7 @@ When working on shared code or running the full stack:
 **Purpose**: Shared dependencies and `services.common` library
 
 **Contains**:
+
 - Base requirements (`requirements-base.txt`)
 - Development tools (`requirements-dev.txt`)
 - All service dependencies (for full-stack development)
@@ -81,22 +88,27 @@ When working on shared code or running the full stack:
 Each service has its own `.venv/` with:
 
 **Discord Service** (`services/discord/.venv/`):
+
 - Base requirements + Discord-specific deps
 - `discord.py[voice]`, `discord-ext-voice_recv`, `PyNaCl`, `rapidfuzz`, `webrtcvad`
 
 **STT Service** (`services/stt/.venv/`):
+
 - Base requirements + STT-specific deps
 - `faster-whisper`, `python-multipart`
 
 **LLM Service** (`services/llm/.venv/`):
+
 - Base requirements + LLM-specific deps
 - `llama-cpp-python`
 
 **Orchestrator Service** (`services/orchestrator/.venv/`):
+
 - Base requirements + Orchestrator-specific deps
 - `mcp`, `instructor`
 
 **TTS Service** (`services/tts/.venv/`):
+
 - Base requirements + TTS-specific deps
 - `piper-tts`, `prometheus_client`
 
@@ -247,6 +259,7 @@ If IntelliSense isn't working:
 ### Adding New Dependencies
 
 **For a specific service**:
+
 ```bash
 cd services/[service-name]/
 source .venv/bin/activate
@@ -255,6 +268,7 @@ pip freeze > requirements.txt
 ```
 
 **For shared dependencies**:
+
 ```bash
 cd /path/to/discord-voice-lab
 source .venv/bin/activate
@@ -265,6 +279,7 @@ pip install [new-package]
 ### Updating Dependencies
 
 **Service-specific**:
+
 ```bash
 cd services/[service-name]/
 source .venv/bin/activate
@@ -272,6 +287,7 @@ pip install --upgrade [package]
 ```
 
 **Global**:
+
 ```bash
 cd /path/to/discord-voice-lab
 source .venv/bin/activate
@@ -279,4 +295,3 @@ pip install --upgrade [package]
 ```
 
 This setup provides the best of both worlds: complete service isolation with shared library access, optimized for the `discord-voice-lab` project architecture.
-

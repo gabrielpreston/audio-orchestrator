@@ -92,7 +92,7 @@ class TestCircuitBreakerLogging:
             client._logger = Mock()
 
             # Test health check failure
-            result = await client._check_health()
+            result = await client.check_health()
 
             # Should return False
             assert result is False
@@ -216,7 +216,7 @@ class TestCircuitBreakerLogging:
             client._logger = Mock()
 
             # Test health check with open circuit
-            result = await client._check_health()
+            result = await client.check_health()
 
             # Should return False
             assert result is False
@@ -297,7 +297,7 @@ class TestCircuitBreakerLogging:
             client._logger = Mock()
 
             # Test health check with logging
-            await client._check_health()
+            await client.check_health()
 
             # Should log with proper context
             client._logger.warning.assert_called_once()

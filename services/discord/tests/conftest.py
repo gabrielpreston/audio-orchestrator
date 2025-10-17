@@ -126,16 +126,15 @@ def mock_config(tmp_path):
         max_segment_duration_seconds=15.0,
         min_segment_duration_seconds=0.3,
         aggregation_window_seconds=1.5,
-        sample_rate_hz=48000,
+        input_sample_rate_hz=48000,
         vad_sample_rate_hz=16000,
         vad_frame_duration_ms=30,
         vad_aggressiveness=2,
-        target_rms=2000.0,
     )
 
     stt_config = STTConfig(
         base_url="http://test-stt:9000",
-        timeout_seconds=45,
+        request_timeout_seconds=45,
         max_retries=3,
         forced_language="en",
     )

@@ -50,6 +50,15 @@ class STTConfig:
 
 
 @dataclass(slots=True)
+class OrchestratorConfig:
+    """Orchestrator service configuration."""
+
+    base_url: str
+    timeout_seconds: float = 30.0
+    max_retries: int = 3
+
+
+@dataclass(slots=True)
 class MCPConfig:
     """Configuration for manifest loading and transports."""
 

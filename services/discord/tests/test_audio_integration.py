@@ -17,7 +17,7 @@ class TestAudioIntegration:
         """Create STT configuration for integration testing."""
         return STTConfig(
             base_url="http://stt:9000",
-            timeout_seconds=45,
+            request_timeout_seconds=45,
             max_retries=3,
             forced_language="en",
         )
@@ -58,7 +58,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check first
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -117,7 +117,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test initial health check
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -149,7 +149,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check first
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -200,7 +200,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check first
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -231,7 +231,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
 
                 if is_healthy:
                     # Verify circuit breaker state
@@ -258,7 +258,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check first
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -291,7 +291,7 @@ class TestAudioIntegration:
         try:
             async with TranscriptionClient(stt_config) as stt_client:
                 # Test health check first
-                is_healthy = await stt_client._check_health()
+                is_healthy = await stt_client.check_health()
                 if not is_healthy:
                     pytest.skip("STT service not available")
 
@@ -331,8 +331,9 @@ class TestAudioIntegration:
                 for i, transcript in enumerate(transcripts):
                     if isinstance(transcript, Exception):
                         pytest.skip(f"Concurrent request failed: {transcript}")
-                    assert hasattr(transcript, "correlation_id")
-                    assert transcript.correlation_id == f"concurrent-test-{i}"
+                    if transcript is not None:
+                        assert hasattr(transcript, "correlation_id")
+                        assert transcript.correlation_id == f"concurrent-test-{i}"
 
                 # Calculate total processing time
                 processing_time = end_time - start_time

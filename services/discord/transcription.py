@@ -106,7 +106,9 @@ class TranscriptionClient:
         try:
             # Check if STT is healthy before attempting
             if not await self._http_client.check_health():
-                circuit_state = self._http_client._circuit_breaker.get_state().value
+                circuit_state = "unknown"
+                if hasattr(self._http_client, '_circuit_breaker') and self._http_client._circuit_breaker:
+                    circuit_state = self._http_client._circuit_breaker.get_state().value
                 logger.warning(
                     "stt.service_not_ready",
                     correlation_id=segment.correlation_id,
