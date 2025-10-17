@@ -21,7 +21,7 @@ mypy services
 
 echo "Linting YAML files..."
 # Auto-discover: docker-compose.yml + all workflow files
-yamllint docker-compose.yml .github/workflows/*.yaml .github/workflows/*.yml 2>/dev/null || true
+yamllint docker-compose.yml .github/workflows/*.yaml .github/workflows/*.yml 2>/dev/null
 
 echo "Linting Dockerfiles..."
 # Auto-discover all Dockerfiles in services/
