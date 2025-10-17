@@ -2,7 +2,6 @@
 
 import json
 import logging
-import sys
 from collections.abc import Generator
 from io import StringIO
 
@@ -25,123 +24,108 @@ class TestLoggingConfiguration:
     @pytest.mark.unit
     def test_configure_logging_basic(self, isolated_structlog):
         """Test basic logging configuration."""
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = StringIO()
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
 
-        try:
-            configure_logging(level="INFO", json_logs=True, service_name="test_service")
+        logger = get_logger("test_logger")
+        logger.info("test message", extra_field="test_value")
 
-            logger = get_logger("test_logger")
-            logger.info("test message", extra_field="test_value")
+        log_output = captured_output.getvalue()
+        log_data = json.loads(log_output.strip())
 
-            log_output = captured_output.getvalue()
-            log_data = json.loads(log_output.strip())
-
-            assert log_data["event"] == "test message"
-            assert log_data["extra_field"] == "test_value"
-            assert log_data["service"] == "test_service"
-            assert "timestamp" in log_data
-            assert "level" in log_data
-
-        finally:
-            sys.stdout = old_stdout
+        assert log_data["event"] == "test message"
+        assert log_data["extra_field"] == "test_value"
+        assert log_data["service"] == "test_service"
+        assert "timestamp" in log_data
+        assert "level" in log_data
 
     @pytest.mark.unit
     def test_configure_logging_console_output(self, isolated_structlog):
         """Test console output configuration."""
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = StringIO()
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=False,
+            service_name="test_service",
+            stream=captured_output,
+        )
 
-        try:
-            configure_logging(
-                level="INFO", json_logs=False, service_name="test_service"
-            )
+        logger = get_logger("test_logger")
+        logger.info("test message", extra_field="test_value")
 
-            logger = get_logger("test_logger")
-            logger.info("test message", extra_field="test_value")
+        log_output = captured_output.getvalue()
 
-            log_output = captured_output.getvalue()
+        assert "test message" in log_output
+        assert "test_service" in log_output
+        assert "test_value" in log_output
 
-            assert "test message" in log_output
-            assert "test_service" in log_output
-            assert "test_value" in log_output
-
-            with pytest.raises(json.JSONDecodeError):
-                json.loads(log_output.strip())
-
-        finally:
-            sys.stdout = old_stdout
+        with pytest.raises(json.JSONDecodeError):
+            json.loads(log_output.strip())
 
     @pytest.mark.unit
     def test_configure_logging_log_levels(self, isolated_structlog):
         """Test different log levels."""
         for level in ["DEBUG", "INFO", "WARNING", "ERROR"]:
-            old_stdout = sys.stdout
-            sys.stdout = captured_output = StringIO()
+            captured_output = StringIO()
+            configure_logging(level=level, json_logs=True, stream=captured_output)
 
-            try:
-                configure_logging(level=level, json_logs=True)
+            logger = get_logger("test_logger")
+            logger.debug("debug message")
+            logger.info("info message")
+            logger.warning("warning message")
+            logger.error("error message")
 
-                logger = get_logger("test_logger")
-                logger.debug("debug message")
-                logger.info("info message")
-                logger.warning("warning message")
-                logger.error("error message")
+            log_output = captured_output.getvalue()
+            log_lines = [line for line in log_output.strip().split("\n") if line]
 
-                log_output = captured_output.getvalue()
-                log_lines = [line for line in log_output.strip().split("\n") if line]
-
-                if level == "DEBUG":
-                    assert len(log_lines) == 4
-                elif level == "INFO":
-                    assert len(log_lines) == 3
-                elif level == "WARNING":
-                    assert len(log_lines) == 2
-                elif level == "ERROR":
-                    assert len(log_lines) == 1
-
-            finally:
-                sys.stdout = old_stdout
+            if level == "DEBUG":
+                assert len(log_lines) == 4
+            elif level == "INFO":
+                assert len(log_lines) == 3
+            elif level == "WARNING":
+                assert len(log_lines) == 2
+            elif level == "ERROR":
+                assert len(log_lines) == 1
 
     @pytest.mark.unit
     def test_configure_logging_service_name_injection(self, isolated_structlog):
         """Test service name injection in logs."""
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = StringIO()
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
 
-        try:
-            configure_logging(level="INFO", json_logs=True, service_name="test_service")
+        logger = get_logger("test_logger")
+        logger.info("test message")
 
-            logger = get_logger("test_logger")
-            logger.info("test message")
+        log_output = captured_output.getvalue()
+        log_data = json.loads(log_output.strip())
 
-            log_output = captured_output.getvalue()
-            log_data = json.loads(log_output.strip())
-
-            assert log_data["service"] == "test_service"
-
-        finally:
-            sys.stdout = old_stdout
+        assert log_data["service"] == "test_service"
 
     @pytest.mark.unit
     def test_configure_logging_no_service_name(self, isolated_structlog):
         """Test logging without service name."""
-        old_stdout = sys.stdout
-        sys.stdout = captured_output = StringIO()
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO", json_logs=True, service_name=None, stream=captured_output
+        )
 
-        try:
-            configure_logging(level="INFO", json_logs=True, service_name=None)
+        logger = get_logger("test_logger")
+        logger.info("test message")
 
-            logger = get_logger("test_logger")
-            logger.info("test message")
+        log_output = captured_output.getvalue()
+        log_data = json.loads(log_output.strip())
 
-            log_output = captured_output.getvalue()
-            log_data = json.loads(log_output.strip())
-
-            assert "service" not in log_data
-
-        finally:
-            sys.stdout = old_stdout
+        assert "service" not in log_data
 
     @pytest.mark.unit
     def test_configure_logging_structlog_processors(self, isolated_structlog):

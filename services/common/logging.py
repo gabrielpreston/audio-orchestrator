@@ -6,7 +6,7 @@ import logging
 import sys
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import IO, Any
 
 import structlog
 
@@ -35,10 +35,30 @@ def configure_logging(
     *,
     json_logs: bool = True,
     service_name: str | None = None,
+    stream: IO[str] | None = None,
 ) -> None:
-    """Configure structlog + stdlib logging for the process."""
+    """Configure structlog + stdlib logging for the process.
+
+    Args:
+        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+        json_logs: Whether to output JSON formatted logs (True) or console format (False)
+        service_name: Optional service name to include in all log messages
+        stream: Optional output stream for logs (defaults to sys.stdout).
+                Useful for testing to capture log output to StringIO.
+
+    Example:
+        # Production usage
+        configure_logging(level="INFO", json_logs=True, service_name="discord")
+
+        # Test usage
+        from io import StringIO
+        output = StringIO()
+        configure_logging(level="INFO", json_logs=True, stream=output)
+    """
 
     numeric_level = _numeric_level(level)
+    output_stream = stream if stream is not None else sys.stdout
+
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
@@ -57,7 +77,7 @@ def configure_logging(
             structlog.dev.ConsoleRenderer(),
         ]
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(output_stream)
     handler.setFormatter(
         structlog.stdlib.ProcessorFormatter(
             foreign_pre_chain=shared_processors,
@@ -141,7 +161,10 @@ def correlation_context(
         # correlation_id automatically cleaned up
     """
     if correlation_id:
-        structlog.contextvars.clear_contextvars()
+        # Store the previous correlation_id to restore it later
+        previous_correlation_id = structlog.contextvars.get_contextvars().get(
+            "correlation_id"
+        )
         structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
 
     logger = structlog.stdlib.get_logger()
@@ -150,7 +173,13 @@ def correlation_context(
         yield logger
     finally:
         if correlation_id:
-            structlog.contextvars.clear_contextvars()
+            # Restore the previous correlation_id or clear if there wasn't one
+            if previous_correlation_id is not None:
+                structlog.contextvars.bind_contextvars(
+                    correlation_id=previous_correlation_id
+                )
+            else:
+                structlog.contextvars.unbind_contextvars("correlation_id")
 
 
 __all__ = [

@@ -26,3 +26,4 @@ services/models/
 coverage.xml
 junit.xml
 htmlcov/
+.cursor/rules/
