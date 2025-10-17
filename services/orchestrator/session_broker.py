@@ -24,8 +24,6 @@ from .session import (
     SessionType,
 )
 
-logger = get_logger(__name__)
-
 
 @dataclass
 class BrokerConfig:

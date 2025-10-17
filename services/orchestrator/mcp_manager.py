@@ -85,19 +85,6 @@ class MCPManager:
                 """Return Discord MCP tools that can be called via HTTP."""
                 return [
                     {
-                        "name": "discord.play_audio",
-                        "description": "Play audio in Discord voice channel",
-                        "inputSchema": {
-                            "type": "object",
-                            "properties": {
-                                "guild_id": {"type": "string"},
-                                "channel_id": {"type": "string"},
-                                "audio_url": {"type": "string"},
-                            },
-                            "required": ["guild_id", "channel_id", "audio_url"],
-                        },
-                    },
-                    {
                         "name": "discord.send_message",
                         "description": "Send a text message to Discord channel",
                         "inputSchema": {
@@ -119,16 +106,7 @@ class MCPManager:
                 try:
                     client = await self._get_http_client()
 
-                    if name == "discord.play_audio":
-                        response = await client.post(
-                            f"{self.base_url}/mcp/play_audio",
-                            json=arguments,
-                            timeout=30.0,
-                        )
-                        response.raise_for_status()
-                        return response.json()  # type: ignore[no-any-return]
-
-                    elif name == "discord.send_message":
+                    if name == "discord.send_message":
                         response = await client.post(
                             f"{self.base_url}/mcp/send_message",
                             json=arguments,
@@ -153,7 +131,7 @@ class MCPManager:
                     self._http_client = None
 
         client = HTTPDiscordClient()
-        self.clients["discord"] = client  # type: ignore
+        self.clients["discord"] = client
         self._logger.info("mcp.discord_http_client_created")
 
     async def _connect_external_servers(self) -> None:

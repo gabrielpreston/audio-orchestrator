@@ -4,8 +4,7 @@ import os
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 from services.common.logging import configure_logging, get_logger
@@ -169,32 +168,6 @@ async def health_check() -> dict[str, Any]:
     }
 
 
-@app.get("/audio/{filename}")  # type: ignore[misc]
-async def serve_audio(filename: str) -> FileResponse:
-    """Serve audio files for Discord playback."""
-    try:
-        import glob
-        from pathlib import Path
-
-        # Search for audio file in flattened correlation-based directory structure
-        debug_dir = Path("/app/debug")
-        audio_pattern = str(debug_dir / "*" / filename)
-        matching_files = glob.glob(audio_pattern)
-
-        if not matching_files:
-            raise HTTPException(status_code=404, detail="Audio file not found")
-
-        # Use the first matching file
-        file_path = Path(matching_files[0])
-
-        return FileResponse(
-            path=str(file_path), media_type="audio/wav", filename=filename
-        )
-    except Exception as exc:
-        logger.error(
-            "orchestrator.audio_serve_failed", error=str(exc), filename=filename
-        )
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

@@ -246,20 +246,6 @@ class MCPServer:
                 },
                 handler=self._tool_send_message,
             ),
-            "discord.play_audio": ToolDefinition(
-                name="discord.play_audio",
-                description="Play an audio URL inside a connected voice channel.",
-                input_schema={
-                    "type": "object",
-                    "properties": {
-                        "guild_id": {"type": "integer"},
-                        "channel_id": {"type": "integer"},
-                        "audio_url": {"type": "string"},
-                    },
-                    "required": ["guild_id", "channel_id", "audio_url"],
-                },
-                handler=self._tool_play_audio,
-            ),
         }
 
     def _require_voice_bot(self) -> VoiceBot:
@@ -303,12 +289,6 @@ class MCPServer:
         bot = self._require_voice_bot()
         return await bot.send_text_message(channel_id, content)
 
-    async def _tool_play_audio(self, arguments: dict[str, Any]) -> dict[str, Any]:
-        guild_id = self._require_int(arguments, "guild_id")
-        channel_id = self._require_int(arguments, "channel_id")
-        audio_url = self._require_str(arguments, "audio_url")
-        bot = self._require_voice_bot()
-        return await bot.play_audio_from_url(guild_id, channel_id, audio_url)
 
     async def _pump_stdin(self) -> None:
         loop = asyncio.get_running_loop()

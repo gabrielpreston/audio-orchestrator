@@ -16,8 +16,6 @@ from services.common.logging import get_logger
 
 from .policy_config import PolicyConfig
 
-logger = get_logger(__name__)
-
 
 class EndpointingState(Enum):
     """Endpointing state machine."""

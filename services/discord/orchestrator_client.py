@@ -5,9 +5,9 @@ Orchestrator client for Discord service to communicate with the LLM orchestrator
 from typing import Any
 
 import httpx
-import structlog
+from services.common.logging import get_logger
 
-logger = structlog.get_logger()
+logger = get_logger(__name__, service_name="discord")
 
 
 class OrchestratorClient:
@@ -70,42 +70,6 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def play_audio(
-        self, guild_id: str, channel_id: str, audio_url: str
-    ) -> dict[str, Any]:
-        """Request audio playback via orchestrator."""
-        try:
-            client = await self._get_http_client()
-
-            payload = {
-                "guild_id": guild_id,
-                "channel_id": channel_id,
-                "audio_url": audio_url,
-            }
-
-            response = await client.post(
-                f"{self.orchestrator_url}/mcp/play_audio", json=payload, timeout=30.0
-            )
-            response.raise_for_status()
-
-            result: dict[str, Any] = response.json()
-            logger.info(
-                "discord.audio_playback_requested",
-                guild_id=guild_id,
-                channel_id=channel_id,
-                audio_url=audio_url,
-            )
-
-            return result
-
-        except Exception as exc:
-            logger.error(
-                "discord.audio_playback_failed",
-                error=str(exc),
-                guild_id=guild_id,
-                channel_id=channel_id,
-            )
-            return {"error": str(exc)}
 
     async def send_message(
         self, guild_id: str, channel_id: str, message: str

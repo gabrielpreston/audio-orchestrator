@@ -15,7 +15,6 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
-from services.common.debug import get_debug_manager
 from services.common.logging import configure_logging, get_logger
 
 
@@ -80,7 +79,6 @@ _VOICE_OPTIONS: list[VoiceOption] = []
 _VOICE_LOOKUP: dict[str, VoiceOption] = {}
 
 # Debug manager for saving debug files
-_debug_manager = get_debug_manager("tts")
 
 _SYNTHESIS_COUNTER = Counter(
     "tts_requests_total",
@@ -447,117 +445,12 @@ async def synthesize(
         duration_ms=int(duration * 1000),
     )
 
-    # Save debug data for TTS synthesis
-    _save_debug_synthesis(
-        audio_id=audio_id,
-        text_source=text_source,
-        is_ssml=is_ssml,
-        text_length=text_length,
-        option=option,
-        length_scale=length_scale,
-        noise_scale=noise_scale,
-        noise_w=noise_w,
-        audio_bytes=audio_bytes,
-        sample_rate=sample_rate,
-        size_bytes=size_bytes,
-        duration=duration,
-    )
 
     return StreamingResponse(  # type: ignore[no-any-return]
         iter([audio_bytes]), media_type="audio/wav", headers=headers
     )
 
 
-def _save_debug_synthesis(
-    audio_id: str,
-    text_source: str,
-    is_ssml: bool,
-    text_length: int,
-    option: VoiceOption,
-    length_scale: float,
-    noise_scale: float,
-    noise_w: float,
-    audio_bytes: bytes,
-    sample_rate: int,
-    size_bytes: int,
-    duration: float,
-) -> None:
-    """Save debug data for TTS synthesis requests."""
-    try:
-        # Use audio_id as correlation_id for TTS debug files
-        correlation_id = audio_id
-
-        # Save input text/SSML
-        _debug_manager.save_text_file(
-            correlation_id=correlation_id,
-            content=f"TTS Input ({'SSML' if is_ssml else 'Text'}):\n{text_source}",
-            filename_prefix="tts_input",
-        )
-
-        # Save generated audio
-        _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=audio_bytes,
-            filename_prefix="tts_output",
-        )
-
-        # Save synthesis parameters
-        _debug_manager.save_json_file(
-            correlation_id=correlation_id,
-            data={
-                "audio_id": audio_id,
-                "text_source": text_source,
-                "is_ssml": is_ssml,
-                "text_length": text_length,
-                "voice_key": option.key,
-                "voice_speaker_id": option.speaker_id,
-                "voice_language": option.language,
-                "length_scale": length_scale,
-                "noise_scale": noise_scale,
-                "noise_w": noise_w,
-                "sample_rate": sample_rate,
-                "size_bytes": size_bytes,
-                "duration_seconds": duration,
-                "model_path": _MODEL_PATH,
-                "model_config_path": _MODEL_CONFIG_PATH,
-            },
-            filename_prefix="tts_parameters",
-        )
-
-        # Save manifest
-        files = {}
-        audio_file = _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=audio_bytes,
-            filename_prefix="tts_output",
-        )
-        if audio_file:
-            files["tts_output"] = str(audio_file)
-
-        _debug_manager.save_manifest(
-            correlation_id=correlation_id,
-            metadata={
-                "service": "tts",
-                "event": "synthesis_complete",
-                "audio_id": audio_id,
-                "voice": option.key,
-                "is_ssml": is_ssml,
-            },
-            files=files,
-            stats={
-                "text_length": text_length,
-                "size_bytes": size_bytes,
-                "duration_seconds": duration,
-                "sample_rate": sample_rate,
-            },
-        )
-
-    except Exception as exc:
-        logger.error(
-            "tts.debug_synthesis_save_failed",
-            audio_id=audio_id,
-            error=str(exc),
-        )
 
 
 __all__ = ["app"]

@@ -17,8 +17,6 @@ from services.common.surfaces.interfaces import AudioSink
 from services.common.surfaces.media_gateway import MediaGateway
 from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
-logger = get_logger(__name__)
-
 
 class DiscordAudioSink(AudioSink):
     """Discord audio sink adapter implementing AudioSink interface."""
@@ -36,7 +34,6 @@ class DiscordAudioSink(AudioSink):
         # Playback state
         self._is_playing = False
         self._playback_handlers: list[Callable[[str, Any], None]] = []
-        self._current_audio_url: str | None = None
         self._playback_start_time = 0.0
 
         # Audio metadata
@@ -55,7 +52,22 @@ class DiscordAudioSink(AudioSink):
         self._total_playback_requests = 0
         self._last_playback_time = 0.0
 
-        self._logger = get_logger(__name__)
+        self._logger = get_logger(__name__, service_name="discord")
+
+    def _check_playing_state(self, operation: str) -> bool:
+        """Check if playback is active, log warning if not."""
+        if not self._is_playing:
+            self._logger.warning(f"discord_sink.not_playing_for_{operation}")
+            return False
+        return True
+
+    def _notify_handlers(self, event: str, data: dict[str, Any]) -> None:
+        """Notify all registered handlers of an event."""
+        for handler in self._playback_handlers:
+            try:
+                handler(event, data)
+            except (ValueError, TypeError, KeyError) as e:
+                self._logger.error("discord_sink.playback_handler_failed", error=str(e))
 
     async def start_playback(self) -> None:
         """Start audio playback to Discord voice channel."""
@@ -74,15 +86,7 @@ class DiscordAudioSink(AudioSink):
             )
 
             # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler(
-                        "playback_started", {"timestamp": self._playback_start_time}
-                    )
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
+            self._notify_handlers("playback_started", {"timestamp": self._playback_start_time})
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_start_failed", error=str(e))
@@ -91,13 +95,11 @@ class DiscordAudioSink(AudioSink):
 
     async def stop_playback(self) -> None:
         """Stop audio playback to Discord voice channel."""
-        if not self._is_playing:
-            self._logger.warning("discord_sink.not_playing")
+        if not self._check_playing_state("stop"):
             return
 
         try:
             self._is_playing = False
-            self._current_audio_url = None
 
             playback_duration = time.time() - self._playback_start_time
             self._total_audio_played += playback_duration
@@ -110,13 +112,7 @@ class DiscordAudioSink(AudioSink):
             )
 
             # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler("playback_stopped", {"duration": playback_duration})
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
+            self._notify_handlers("playback_stopped", {"duration": playback_duration})
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_stop_failed", error=str(e))
@@ -124,8 +120,7 @@ class DiscordAudioSink(AudioSink):
 
     async def play_audio_chunk(self, frame: PCMFrame) -> None:
         """Play a chunk of decoded audio to Discord voice channel."""
-        if not self._is_playing:
-            self._logger.warning("discord_sink.not_playing")
+        if not self._check_playing_state("play_chunk"):
             return
 
         try:
@@ -166,22 +161,16 @@ class DiscordAudioSink(AudioSink):
             self._last_playback_time = time.time()
 
             # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler(
-                        "frame_played",
-                        {
-                            "frame_size": len(frame.pcm),
-                            "sample_rate": frame.sample_rate,
-                            "channels": frame.channels,
-                            "duration": frame.duration,
-                            "timestamp": frame.timestamp,
-                        },
-                    )
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
+            self._notify_handlers(
+                "frame_played",
+                {
+                    "frame_size": len(frame.pcm),
+                    "sample_rate": frame.sample_rate,
+                    "channels": frame.channels,
+                    "duration": frame.duration,
+                    "timestamp": frame.timestamp,
+                },
+            )
 
             self._logger.debug(
                 "discord_sink.frame_played",
@@ -212,7 +201,6 @@ class DiscordAudioSink(AudioSink):
             "total_audio_played": self._total_audio_played,
             "total_playback_requests": self._total_playback_requests,
             "last_playback_time": self._last_playback_time,
-            "current_audio_url": self._current_audio_url,
             "playback_start_time": self._playback_start_time,
         }
 
@@ -228,14 +216,6 @@ class DiscordAudioSink(AudioSink):
         """Get Discord channel ID."""
         return self.channel_id
 
-    def get_current_audio_url(self) -> str | None:
-        """Get current audio URL being played."""
-        return self._current_audio_url
-
-    def set_current_audio_url(self, audio_url: str) -> None:
-        """Set current audio URL."""
-        self._current_audio_url = audio_url
-        self._logger.debug("discord_sink.audio_url_set", url=audio_url)
 
     def set_media_gateway(self, media_gateway: MediaGateway) -> None:
         """Set the media gateway for audio processing."""
@@ -246,44 +226,10 @@ class DiscordAudioSink(AudioSink):
         """Get the current media gateway."""
         return self.media_gateway
 
-    async def play_audio_from_url(self, audio_url: str) -> bool:
-        """Play audio from URL (Discord-specific method)."""
-        if not self._is_playing:
-            await self.start_playback()
-
-        try:
-            self._current_audio_url = audio_url
-            self._total_playback_requests += 1
-
-            # This is a stub implementation
-            # In a real implementation, this would fetch and play audio from URL
-
-            self._logger.info(
-                "discord_sink.audio_url_playback_started",
-                url=audio_url,
-                guild_id=self.guild_id,
-                channel_id=self.channel_id,
-            )
-
-            # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler("audio_url_playback_started", {"url": audio_url})
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
-
-            return True
-
-        except (ValueError, TypeError, KeyError) as e:
-            self._logger.error("discord_sink.audio_url_playback_failed", error=str(e))
-            return False
 
     async def pause_playback(self) -> None:
         """Pause audio playback."""
-        if not self._is_playing:
-            self._logger.warning("discord_sink.not_playing")
+        if not self._check_playing_state("pause"):
             return
 
         try:
@@ -293,13 +239,7 @@ class DiscordAudioSink(AudioSink):
             self._logger.info("discord_sink.playback_paused")
 
             # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler("playback_paused", {"timestamp": time.time()})
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
+            self._notify_handlers("playback_paused", {"timestamp": time.time()})
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_pause_failed", error=str(e))
@@ -307,8 +247,7 @@ class DiscordAudioSink(AudioSink):
 
     async def resume_playback(self) -> None:
         """Resume audio playback."""
-        if not self._is_playing:
-            self._logger.warning("discord_sink.not_playing")
+        if not self._check_playing_state("resume"):
             return
 
         try:
@@ -318,13 +257,7 @@ class DiscordAudioSink(AudioSink):
             self._logger.info("discord_sink.playback_resumed")
 
             # Notify handlers
-            for handler in self._playback_handlers:
-                try:
-                    handler("playback_resumed", {"timestamp": time.time()})
-                except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_sink.playback_handler_failed", error=str(e)
-                    )
+            self._notify_handlers("playback_resumed", {"timestamp": time.time()})
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_resume_failed", error=str(e))
@@ -344,7 +277,6 @@ class DiscordAudioSink(AudioSink):
             "total_audio_played": self._total_audio_played,
             "total_playback_requests": self._total_playback_requests,
             "last_playback_time": self._last_playback_time,
-            "current_audio_url": self._current_audio_url,
             "playback_start_time": self._playback_start_time,
             "metadata": {
                 "sample_rate": self._metadata.sample_rate,

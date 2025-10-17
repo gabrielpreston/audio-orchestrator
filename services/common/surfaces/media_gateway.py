@@ -15,8 +15,6 @@ from services.common.logging import get_logger
 
 from .audio_contract import AudioContract, AudioContractSpec
 
-logger = get_logger(__name__)
-
 
 @dataclass
 class JitterBuffer:

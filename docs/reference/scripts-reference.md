@@ -85,42 +85,6 @@ python3 scripts/rotate_auth_tokens.py --length 64
 - `ORCH_AUTH_TOKEN` — Orchestrator service authentication  
 - `TTS_AUTH_TOKEN` — TTS service authentication
 
-## Debug Management
-
-### `scripts/debug_manager.py`
-
-Maintenance utility for debug data collection and storage.
-
-**Usage:**
-
-```bash
-# Show debug statistics
-python3 scripts/debug_manager.py --stats
-
-# Archive data older than 30 days
-python3 scripts/debug_manager.py --archive 30
-
-# Remove empty directories
-python3 scripts/debug_manager.py --cleanup
-
-# Show help
-python3 scripts/debug_manager.py --help
-```
-
-**Features:**
-
-- **Statistics**: Show storage usage, file counts, and age distribution
-- **Archiving**: Move old debug data to compressed archives
-- **Cleanup**: Remove empty directories and orphaned files
-- **Validation**: Verify debug data integrity and structure
-- **Reporting**: Generate maintenance reports and recommendations
-
-**Debug data organization:**
-
-- Hierarchical structure: `debug/YYYY/MM/DD/correlation_id/`
-- Consolidated logs: `debug_log.json` per correlation ID
-- Audio files: Separate WAV files for playback
-- Metadata: Complete pipeline execution context
 
 ## Documentation Management
 
@@ -169,10 +133,6 @@ make rotate-tokens          # Rotate all tokens
 make rotate-tokens-dry-run  # Preview changes
 make validate-tokens        # Check consistency
 
-# Debug maintenance
-make debug-stats            # Show debug statistics
-make debug-archive          # Archive old debug data
-make debug-cleanup          # Clean up empty directories
 
 # Documentation validation
 make docs-verify            # Verify all documentation metadata
@@ -193,12 +153,6 @@ make docs-verify            # Verify all documentation metadata
 - Validate token consistency after rotation
 - Document token rotation in security procedures
 
-### Debug Management Best Practices
-
-- Monitor debug storage usage regularly
-- Archive old data monthly to prevent storage bloat
-- Use correlation IDs for troubleshooting specific interactions
-- Clean up empty directories to maintain organization
 
 ### Documentation Management Best Practices
 
@@ -223,11 +177,6 @@ make docs-verify            # Verify all documentation metadata
 - Check for syntax errors in environment files
 - Validate token format requirements
 
-**Debug management errors:**
-
-- Verify debug directory permissions
-- Check for corrupted debug files
-- Ensure sufficient disk space for operations
 
 **Documentation verification failures:**
 

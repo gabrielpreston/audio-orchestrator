@@ -6,12 +6,12 @@ import asyncio
 import os
 from typing import Any
 
-import structlog
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 # Configure logging
-logger = structlog.get_logger()
+from services.common.logging import get_logger
+logger = get_logger(__name__, service_name="discord")
 
 app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
@@ -19,10 +19,6 @@ app = FastAPI(title="Discord Voice Service", version="1.0.0")
 _bot: Any | None = None
 
 
-class PlayAudioRequest(BaseModel):
-    guild_id: str
-    channel_id: str
-    audio_url: str
 
 
 class SendMessageRequest(BaseModel):
@@ -128,65 +124,6 @@ async def health_check() -> dict[str, Any]:
     }
 
 
-@app.post("/mcp/play_audio")  # type: ignore[misc]
-async def play_audio(request: PlayAudioRequest) -> dict[str, Any]:
-    """Play audio in Discord voice channel via MCP."""
-    if not _bot:
-        raise HTTPException(status_code=503, detail="Discord service not ready")
-
-    try:
-        logger.info(
-            "discord.play_audio_requested",
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            audio_url=request.audio_url,
-        )
-
-        # Check if we have a full Discord bot instance
-        if hasattr(_bot, "play_audio_from_url"):
-            # Use the actual VoiceBot to play audio
-            result = await _bot.play_audio_from_url(
-                guild_id=int(request.guild_id),
-                channel_id=int(request.channel_id),
-                audio_url=request.audio_url,
-            )
-
-            logger.info(
-                "discord.audio_playback_success",
-                guild_id=request.guild_id,
-                channel_id=request.channel_id,
-                result=result,
-            )
-
-            return {
-                "status": "success",
-                "guild_id": request.guild_id,
-                "channel_id": request.channel_id,
-                "audio_url": request.audio_url,
-                "result": result,
-            }
-        else:
-            # Fallback for HTTP mode without full bot
-            logger.warning(
-                "discord.play_audio_no_bot_method",
-                guild_id=request.guild_id,
-                channel_id=request.channel_id,
-                audio_url=request.audio_url,
-            )
-
-            return {
-                "status": "success",
-                "guild_id": request.guild_id,
-                "channel_id": request.channel_id,
-                "audio_url": request.audio_url,
-                "result": {
-                    "message": "Audio playback requested (HTTP mode - no bot method)"
-                },
-            }
-
-    except Exception as exc:
-        logger.error("discord.play_audio_failed", error=str(exc))
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @app.post("/mcp/send_message")  # type: ignore[misc]
@@ -261,19 +198,6 @@ async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     return {
         "tools": [
-            {
-                "name": "discord.play_audio",
-                "description": "Play audio in Discord voice channel",
-                "inputSchema": {
-                    "type": "object",
-                    "properties": {
-                        "guild_id": {"type": "string"},
-                        "channel_id": {"type": "string"},
-                        "audio_url": {"type": "string"},
-                    },
-                    "required": ["guild_id", "channel_id", "audio_url"],
-                },
-            },
             {
                 "name": "discord.send_message",
                 "description": "Send a text message to Discord channel",

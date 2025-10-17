@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import os
 import struct
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
 
-from services.common.debug import get_debug_manager
 from services.common.logging import get_logger
 
 from .mcp_manager import MCPManager
@@ -55,52 +51,6 @@ class Orchestrator:
             await self._http_client.aclose()
         self._logger.info("orchestrator.shutdown")
 
-    def _save_debug_data(
-        self,
-        transcript: str,
-        response: str,
-        audio_data: bytes,
-        metadata: dict[str, Any],
-    ) -> None:
-        """Save debug data to disk for analysis, grouped by correlation_id."""
-        from services.common.debug import get_debug_manager
-
-        try:
-            correlation_id = metadata.get("correlation_id", "unknown")
-            debug_manager = get_debug_manager("orchestrator")
-
-            # Save text response
-            response_content = (
-                f"Original Transcript: {transcript}\n\nLLM Response: {response}"
-            )
-            response_file = debug_manager.save_text_file(
-                correlation_id=correlation_id,
-                content=response_content,
-                filename_prefix="response",
-            )
-
-            # Save manifest with metadata
-            files = {}
-            if response_file:
-                files["response_file"] = str(response_file)
-
-            debug_manager.save_manifest(
-                correlation_id=correlation_id,
-                metadata=metadata,
-                files=files,
-                stats={
-                    "transcript_length": len(transcript),
-                    "response_length": len(response),
-                    "audio_size_bytes": len(audio_data) if audio_data else 0,
-                },
-            )
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.debug_save_failed",
-                error=str(exc),
-                correlation_id=metadata.get("correlation_id", "unknown"),
-            )
 
     def _convert_raw_to_wav(
         self,
@@ -186,40 +136,6 @@ class Orchestrator:
 
         return riff_chunk + fmt_chunk + struct.pack("<4sI", data_id, data_size)
 
-    def _save_audio_file(self, audio_data: bytes, correlation_id: str) -> str:
-        """Save audio data to a temporary file and return the file path."""
-        from services.common.debug import get_debug_manager
-
-        try:
-            debug_manager = get_debug_manager("orchestrator")
-            file_path = debug_manager.save_audio_file(
-                correlation_id=correlation_id,
-                audio_data=audio_data,
-                filename_prefix="audio",
-                convert_to_wav=True,
-            )
-
-            if file_path:
-                return str(file_path)
-            else:
-                # Fallback to old method if debug saving is disabled
-                correlation_dir = Path("/app/debug") / correlation_id
-                correlation_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_audio.wav"
-                file_path = correlation_dir / filename
-                wav_data = self._convert_raw_to_wav(audio_data)
-                with open(file_path, "wb") as f:
-                    f.write(wav_data)
-                return str(file_path)
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.audio_file_save_failed",
-                error=str(exc),
-                correlation_id=correlation_id,
-            )
-            raise
 
     async def process_transcript(
         self,
@@ -451,40 +367,6 @@ class Orchestrator:
                 size_bytes=len(audio_data),
             )
 
-            # Save debug data
-            debug_metadata = {
-                "audio_id": audio_id,
-                "tts_service_url": self.tts_base_url,
-                "voice": "default",
-                "correlation_id": context.get("correlation_id"),
-                "guild_id": context.get("guild_id"),
-                "channel_id": context.get("channel_id"),
-                "user_id": context.get("user_id"),
-            }
-            self._save_debug_data(
-                transcript=context.get("text", ""),
-                response=text,
-                audio_data=audio_data,
-                metadata=debug_metadata,
-            )
-
-            # Save audio file and create HTTP URL
-            audio_file_path = self._save_audio_file(
-                audio_data, context.get("correlation_id", "unknown")
-            )
-            audio_url = (
-                f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
-            )
-
-            # Play audio in Discord
-            await self.mcp_manager.call_discord_tool(
-                "discord.play_audio",
-                {
-                    "guild_id": context.get("guild_id"),
-                    "channel_id": context.get("channel_id"),
-                    "audio_url": audio_url,
-                },
-            )
 
             self._logger.info(
                 "orchestrator.audio_played",
@@ -497,62 +379,6 @@ class Orchestrator:
                 error=str(exc),
             )
 
-    def _save_debug_mcp_tool_call(
-        self,
-        client_name: str,
-        tool_name: str,
-        arguments: dict[str, Any],
-        result: dict[str, Any],
-        success: bool,
-        context: dict[str, Any],
-    ) -> None:
-        """Save debug data for MCP tool calls."""
-        try:
-            from services.common.correlation import generate_mcp_correlation_id
-
-            base_correlation_id = context.get("correlation_id", "unknown")
-            correlation_id = generate_mcp_correlation_id(
-                base_correlation_id, client_name, tool_name
-            )
-            debug_manager = get_debug_manager("orchestrator")
-
-            # Save tool call details
-            tool_call_content = f"""MCP Tool Call:
-Client: {client_name}
-Tool: {tool_name}
-Arguments: {json.dumps(arguments, indent=2)}
-Success: {success}
-Result: {json.dumps(result, indent=2)}
-Context: {json.dumps(context, indent=2)}"""
-
-            debug_manager.save_text_file(
-                correlation_id=correlation_id,
-                content=tool_call_content,
-                filename_prefix=f"mcp_tool_call_{client_name}_{tool_name}",
-            )
-
-            # Save tool call metadata
-            debug_manager.save_json_file(
-                correlation_id=correlation_id,
-                data={
-                    "client_name": client_name,
-                    "tool_name": tool_name,
-                    "arguments": arguments,
-                    "result": result,
-                    "success": success,
-                    "context": context,
-                    "timestamp": datetime.now().isoformat(),
-                },
-                filename_prefix=f"mcp_metadata_{client_name}_{tool_name}",
-            )
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.debug_mcp_tool_call_save_failed",
-                client_name=client_name,
-                tool_name=tool_name,
-                error=str(exc),
-            )
 
 
 __all__ = ["Orchestrator"]
