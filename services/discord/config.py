@@ -90,6 +90,7 @@ class WakeConfig:
     model_paths: list[Path] = field(default_factory=list)
     activation_threshold: float = 0.5
     target_sample_rate_hz: int = 16000
+    enabled: bool = True
 
 
 def _require_env(name: str) -> str:
@@ -177,6 +178,7 @@ def load_config() -> BotConfig:
         target_sample_rate_hz=int(
             os.getenv("WAKE_SAMPLE_RATE", os.getenv("AUDIO_VAD_SAMPLE_RATE", "16000"))
         ),
+        enabled=os.getenv("WAKE_DETECTION_ENABLED", "true").lower() == "true",
     )
 
     manifest_paths = [Path(part) for part in _split_csv(os.getenv("MCP_MANIFESTS", ""))]

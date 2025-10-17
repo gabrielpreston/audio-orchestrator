@@ -155,6 +155,18 @@ class AudioPipeline:
         self._vad: Any = webrtcvad.Vad(aggressiveness)
         self._vad_frame_bytes = int(self._target_sample_rate * frame_ms / 1000) * 2
 
+        self._logger.info(
+            "voice.vad_configured",
+            aggressiveness=aggressiveness,
+            frame_duration_ms=frame_ms,
+            target_sample_rate=self._target_sample_rate,
+            frame_bytes=self._vad_frame_bytes,
+            min_segment_duration=self._config.min_segment_duration_seconds,
+            max_segment_duration=self._config.max_segment_duration_seconds,
+            silence_timeout=self._config.silence_timeout_seconds,
+            aggregation_window=self._config.aggregation_window_seconds,
+        )
+
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
             return True
@@ -193,6 +205,17 @@ class AudioPipeline:
         )
 
         is_speech = self._is_speech(frame.pcm, frame.sample_rate)
+
+        self._logger.debug(
+            "voice.vad_decision",
+            user_id=user_id,
+            sequence=accumulator.sequence,
+            is_speech=is_speech,
+            rms=adjusted_rms,
+            frame_bytes=len(normalized_pcm),
+            sample_rate=sample_rate,
+        )
+
         if not is_speech:
             accumulator.mark_silence(timestamp)
             decision = accumulator.should_flush(timestamp)
@@ -364,7 +387,7 @@ def rms_from_pcm(pcm: bytes) -> float:
     from services.common.audio import AudioProcessor
 
     processor = AudioProcessor("discord")
-    return processor.calculate_rms(pcm, 2)
+    return float(processor.calculate_rms(pcm, 2))
 
 
 __all__ = ["Accumulator", "AudioPipeline", "AudioSegment", "PCMFrame", "rms_from_pcm"]

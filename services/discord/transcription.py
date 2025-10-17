@@ -106,9 +106,11 @@ class TranscriptionClient:
         try:
             # Check if STT is healthy before attempting
             if not await self._http_client.check_health():
+                circuit_state = self._http_client._circuit_breaker.get_state().value
                 logger.warning(
                     "stt.service_not_ready",
                     correlation_id=segment.correlation_id,
+                    circuit_state=circuit_state,
                     action="dropping_segment",
                 )
                 return None
@@ -162,6 +164,16 @@ class TranscriptionClient:
             raw_response=payload,
         )
 
+    def get_circuit_stats(self) -> dict[str, Any]:
+        """Get circuit breaker statistics."""
+        try:
+            if hasattr(self._http_client, '_circuit_breaker') and self._http_client._circuit_breaker is not None:
+                stats = self._http_client._circuit_breaker.get_stats()
+                return dict(stats) if stats else {"state": "unknown", "available": True}
+            return {"state": "unknown", "available": True}
+        except Exception:
+            return {"state": "unknown", "available": True}
+
 
 def _pcm_to_wav(
     pcm: bytes,
@@ -189,7 +201,7 @@ def _pcm_to_wav(
     )
 
     if result.success:
-        return result.audio_data
+        return bytes(result.audio_data)
     else:
         # Fallback to original implementation if conversion fails
         if sample_rate != target_sample_rate and pcm:

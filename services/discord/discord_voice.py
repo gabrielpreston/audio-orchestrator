@@ -468,6 +468,41 @@ class VoiceBot(discord.Client):
                 return member.voice
         return None
 
+    def _save_debug_wav(self, segment: AudioSegment, prefix: str = "segment") -> None:
+        """Save segment as WAV file for debugging."""
+        if not self.config.telemetry.waveform_debug_dir:
+            return
+        
+        try:
+            import time
+            import wave
+            
+            debug_dir = self.config.telemetry.waveform_debug_dir
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            
+            timestamp = int(time.time() * 1000)
+            filename = f"{prefix}_{segment.correlation_id}_{timestamp}.wav"
+            filepath = debug_dir / filename
+            
+            with wave.open(str(filepath), 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(segment.sample_rate)
+                wav_file.writeframes(segment.pcm)
+            
+            self._logger.debug(
+                "voice.debug_wav_saved",
+                correlation_id=segment.correlation_id,
+                filepath=str(filepath),
+                size_bytes=len(segment.pcm),
+            )
+        except Exception as exc:
+            self._logger.warning(
+                "voice.debug_wav_save_failed",
+                correlation_id=segment.correlation_id,
+                error=str(exc),
+            )
+
     async def _idle_flush_loop(self) -> None:
         """Periodically flush stale accumulators so silence gaps emit segments."""
 
@@ -538,16 +573,24 @@ class VoiceBot(discord.Client):
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:
+                    self._save_debug_wav(context.segment, prefix="captured")
+                    
                     # Bind correlation ID to logger for this segment
                     segment_logger = self._logger.bind(
                         correlation_id=context.segment.correlation_id
                     )
 
+                    # Get circuit breaker stats for logging
+                    circuit_stats = stt_client.get_circuit_stats()
                     segment_logger.debug(
                         "voice.segment_processing_start",
                         guild_id=context.guild_id,
                         channel_id=context.channel_id,
                         frames=context.segment.frame_count,
+                        stt_circuit_state=circuit_stats.get("state", "unknown"),
+                        stt_circuit_available=circuit_stats.get("available", True),
+                        stt_circuit_failure_count=circuit_stats.get("failure_count", 0),
+                        stt_circuit_success_count=circuit_stats.get("success_count", 0),
                     )
                     transcript = await stt_client.transcribe(context.segment)
 
@@ -594,6 +637,17 @@ class VoiceBot(discord.Client):
         transcript_logger = bind_correlation_id(self._logger, transcript.correlation_id)
 
         detection = self._wake_detector.detect(context.segment, transcript.text)
+
+        transcript_logger.debug(
+            "voice.wake_detection_result",
+            detected=bool(detection),
+            wake_phrase=detection.phrase if detection else None,
+            wake_confidence=detection.confidence if detection else None,
+            wake_source=detection.source if detection else None,
+            transcript_preview=_truncate_text(transcript.text),
+            wake_enabled=self._wake_detector._config.enabled,
+        )
+
         if not detection:
             transcript_logger.debug(
                 "voice.segment_ignored",
@@ -629,6 +683,8 @@ class VoiceBot(discord.Client):
             guild_id=context.guild_id,
             channel_id=context.channel_id,
         )
+
+        self._save_debug_wav(context.segment, prefix="wake_detected")
 
         # Save debug data for wake detection
         # Send transcript to orchestrator for processing

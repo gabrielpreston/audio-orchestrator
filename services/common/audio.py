@@ -311,6 +311,10 @@ class AudioProcessor:
             elif sample_width == 4:
                 resampled_float = resampled_float * 2147483648.0
                 resampled_array = resampled_float.astype(np.int32)
+            else:
+                # Fallback to int16 for unsupported sample widths
+                resampled_float = resampled_float * 32768.0
+                resampled_array = resampled_float.astype(np.int16)
 
             resampled_data = resampled_array.tobytes()
 
@@ -331,26 +335,18 @@ class AudioProcessor:
     def normalize_audio(
         self, pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
     ) -> tuple[bytes, float]:
-        """
-        Normalize audio to target RMS level using librosa.
-
-        Args:
-            pcm_data: Raw PCM audio data
-            target_rms: Target RMS level
-            sample_width: Bytes per sample
-
-        Returns:
-            Tuple of (normalized PCM data, new RMS value)
-        """
+        """Normalize audio to target RMS level with proper scaling."""
         try:
             if not pcm_data:
                 return pcm_data, 0.0
 
-            # Convert to numpy array for processing
+            # Convert to numpy array
             if sample_width == 2:
                 dtype = np.int16
+                max_val = 32768.0
             elif sample_width == 4:
                 dtype = np.int32
+                max_val = 2147483648.0
             else:
                 raise ValueError(f"Unsupported sample width: {sample_width}")
 
@@ -358,39 +354,31 @@ class AudioProcessor:
             if array.size == 0:
                 return pcm_data, 0.0
 
-            # Convert to float32 for librosa processing
-            audio_float = array.astype(np.float32)
-            if sample_width == 2:
-                audio_float = audio_float / 32768.0
-            elif sample_width == 4:
-                audio_float = audio_float / 2147483648.0
+            # Calculate current RMS
+            current_rms = np.sqrt(np.mean(np.square(array.astype(np.float64))))
+            
+            if current_rms < 1.0:  # Avoid amplifying silence
+                self._log("debug", "audio.normalize_skipped_silence", current_rms=current_rms)
+                return pcm_data, float(current_rms)
 
-            # Use librosa's robust normalization
-            normalized_float = librosa.util.normalize(audio_float, norm=target_rms)
+            # Scale to target RMS
+            scaling_factor = target_rms / current_rms
+            normalized_float = array.astype(np.float64) * scaling_factor
+            normalized_array = np.clip(normalized_float, -max_val + 1, max_val - 1).astype(dtype)
 
-            # Convert back to original format
-            if sample_width == 2:
-                normalized_float = normalized_float * 32768.0
-                normalized_array = np.clip(normalized_float, -32768.0, 32767.0).astype(
-                    np.int16
-                )
-            elif sample_width == 4:
-                normalized_float = normalized_float * 2147483648.0
-                normalized_array = np.clip(
-                    normalized_float, -2147483648.0, 2147483647.0
-                ).astype(np.int32)
+            # Verify new RMS
+            new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
-            # Calculate new RMS
-            new_rms = float(np.sqrt(np.mean(np.square(normalized_float))))
+            self._log("debug", "audio.normalized", 
+                      current_rms=float(current_rms),
+                      target_rms=target_rms, 
+                      new_rms=float(new_rms),
+                      scaling_factor=float(scaling_factor))
 
-            self._log(
-                "debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms
-            )
-
-            return normalized_array.tobytes(), new_rms
+            return normalized_array.tobytes(), float(new_rms)
         except Exception as exc:
             self._log("error", "audio.normalize_failed", error=str(exc))
-            return pcm_data, 0.0
+            return pcm_data, self.calculate_rms(pcm_data, sample_width)
 
     def convert_audio_format(
         self,
@@ -572,7 +560,7 @@ class AudioProcessor:
 
             # Use librosa's RMS calculation
             rms = librosa.feature.rms(y=audio_float)[0]
-            return float(np.mean(rms))
+            return float(np.mean(rms).item())
         except Exception:
             return 0.0
 
