@@ -69,7 +69,7 @@ class Orchestrator:
             wav_data = processor.pcm_to_wav(
                 raw_audio_data, sample_rate, num_channels, sample_width
             )
-            return wav_data
+            return bytes(wav_data)
 
         except Exception as exc:
             self._logger.error(
@@ -144,6 +144,24 @@ class Orchestrator:
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
         """Process a transcript from Discord service."""
+        import time
+
+        from services.common.logging import bind_correlation_id
+
+        # Bind correlation ID to logger
+        logger = bind_correlation_id(self._logger, correlation_id)
+        start_time = time.monotonic()
+
+        # Log orchestrator request
+        logger.info(
+            "orchestrator.processing_started",
+            correlation_id=correlation_id,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            text_length=len(transcript),
+        )
+
         try:
             from services.common.correlation import generate_orchestrator_correlation_id
 
@@ -159,6 +177,14 @@ class Orchestrator:
 
             # Process the transcript
             await self._process_transcript(transcript_data)
+
+            # Log orchestrator completion
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+            logger.info(
+                "orchestrator.processing_completed",
+                correlation_id=correlation_id,
+                latency_ms=latency_ms,
+            )
 
             return {
                 "status": "processed",

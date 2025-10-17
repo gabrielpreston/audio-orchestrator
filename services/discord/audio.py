@@ -199,7 +199,9 @@ class AudioPipeline:
             Accumulator(user_id=user_id, config=self._config),
         )
         accumulator.sequence += 1
-        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, target_rms=rms)
+        normalized_pcm, adjusted_rms = self._normalize_pcm(
+            pcm, target_rms=rms, user_id=user_id
+        )
         frame = PCMFrame(
             pcm=normalized_pcm,
             timestamp=timestamp,
@@ -221,6 +223,8 @@ class AudioPipeline:
                 rms=adjusted_rms,
                 frame_bytes=len(normalized_pcm),
                 sample_rate=sample_rate,
+                raw_pcm_bytes=len(pcm),  # NEW: Show original PCM size
+                pcm_is_empty=len(pcm) == 0,  # NEW: Check if PCM is empty
             )
 
         # Record metrics for monitoring
@@ -328,6 +332,10 @@ class AudioPipeline:
             or trigger
             or "unknown"
         )
+        # Count speech vs silence frames for diagnostics
+        speech_frames = sum(1 for frame in accumulator.frames if frame.rms > 100)
+        silence_frames = len(accumulator.frames) - speech_frames
+
         segment_logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
@@ -340,6 +348,8 @@ class AudioPipeline:
             total_duration=decision.total_duration if decision else segment.duration,
             flush_trigger=trigger,
             correlation_id=segment.correlation_id,
+            speech_frames=speech_frames,  # NEW: Count of speech frames
+            silence_frames=silence_frames,  # NEW: Count of silence frames
         )
 
         # Record segment flush in metrics
@@ -383,6 +393,7 @@ class AudioPipeline:
         pcm: bytes,
         *,
         target_rms: float = 2000.0,
+        user_id: int | None = None,
     ) -> tuple[bytes, float]:
         """Bring audio closer to a target RMS to reduce overly quiet or loud frames using standardized audio processing."""
         from services.common.audio import AudioProcessor
@@ -390,8 +401,14 @@ class AudioPipeline:
         processor = AudioProcessor("discord")
         processor.set_logger(self._logger)
 
-        # Use standardized normalization
-        normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2)
+        # Use standardized normalization with user_id for logging
+        # If the provided target_rms is unit-scale (0..1), convert to int16 domain
+        if target_rms <= 1.0:
+            target_rms = max(1.0, target_rms * 32768.0)
+
+        normalized_pcm, new_rms = processor.normalize_audio(
+            pcm, target_rms, 2, user_id=user_id
+        )
 
         return normalized_pcm, new_rms
 

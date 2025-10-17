@@ -417,7 +417,13 @@ class VoiceBot(discord.Client):
         channel_id = voice_state.channel.id
         self._voice_contexts[user_id] = (guild_id, channel_id)
 
-        rms = rms_from_pcm(pcm)
+        # Use int16-domain RMS to align with normalization target units
+        try:
+            import audioop
+
+            rms = float(audioop.rms(pcm, 2))
+        except Exception:
+            rms = rms_from_pcm(pcm)
         segment = self.audio_pipeline.register_frame(
             user_id, pcm, rms, frame_duration, sample_rate
         )

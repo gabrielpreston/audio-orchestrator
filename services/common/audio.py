@@ -338,6 +338,7 @@ class AudioProcessor:
         target_rms: float = 2000.0,
         sample_width: int = 2,
         log_sample_rate: float = 0.01,
+        user_id: int | None = None,
     ) -> tuple[bytes, float]:
         """Normalize audio to target RMS level with proper scaling."""
         try:
@@ -373,6 +374,25 @@ class AudioProcessor:
 
             # Scale to target RMS
             scaling_factor = target_rms / current_rms
+            # Safety rails to avoid annihilating or blasting audio
+            min_shrink = 1e-3  # do not shrink below this factor
+            max_boost = 50.0  # do not boost above this factor
+            if scaling_factor < min_shrink:
+                self._log(
+                    "debug",
+                    "audio.normalize_scaling_capped",
+                    scaling_factor=float(scaling_factor),
+                    reason="too_small",
+                )
+                scaling_factor = min_shrink
+            elif scaling_factor > max_boost:
+                self._log(
+                    "debug",
+                    "audio.normalize_scaling_capped",
+                    scaling_factor=float(scaling_factor),
+                    reason="too_large",
+                )
+                scaling_factor = max_boost
             normalized_float = array.astype(np.float64) * scaling_factor
             normalized_array = np.clip(
                 normalized_float, -max_val + 1, max_val - 1
@@ -383,14 +403,16 @@ class AudioProcessor:
 
             # Only log normalization occasionally to reduce verbosity
             if np.random.random() < log_sample_rate:
-                self._log(
-                    "debug",
-                    "audio.normalized",
-                    current_rms=float(current_rms),
-                    target_rms=target_rms,
-                    new_rms=float(new_rms),
-                    scaling_factor=float(scaling_factor),
-                )
+                log_data = {
+                    "current_rms": float(current_rms),
+                    "target_rms": target_rms,
+                    "new_rms": float(new_rms),
+                    "scaling_factor": float(scaling_factor),
+                }
+                if user_id is not None:
+                    log_data["user_id"] = user_id
+
+                self._log("debug", "audio.normalized", **log_data)
 
             return normalized_array.tobytes(), float(new_rms)
         except Exception as exc:
@@ -660,11 +682,16 @@ def resample_audio(
 
 
 def normalize_audio(
-    pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
+    pcm_data: bytes,
+    target_rms: float = 2000.0,
+    sample_width: int = 2,
+    user_id: int | None = None,
 ) -> tuple[bytes, float]:
     """Normalize audio to target RMS."""
     processor = AudioProcessor()
-    return processor.normalize_audio(pcm_data, target_rms, sample_width)
+    return processor.normalize_audio(
+        pcm_data, target_rms, sample_width, user_id=user_id
+    )
 
 
 def calculate_rms(pcm_data: bytes, sample_width: int = 2) -> float:

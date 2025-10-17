@@ -90,9 +90,32 @@ def configure_logging(
     root.setLevel(numeric_level)
     logging.captureWarnings(True)
 
-    # Set Numba logging to WARNING to reduce noise
+    # Set third-party library loggers to WARNING to reduce noise
     numba_logger = logging.getLogger("numba")
     numba_logger.setLevel(logging.WARNING)
+
+    # Suppress noisy HTTP and Discord library logs
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(
+        logging.WARNING
+    )  # Changed from INFO to reduce HTTP request noise
+    logging.getLogger("discord.gateway").setLevel(logging.INFO)
+    logging.getLogger("discord.voice_client").setLevel(logging.WARNING)
+    logging.getLogger("discord.client").setLevel(logging.INFO)
+
+    # Suppress Discord HTTP logs that expose OAuth payloads
+    logging.getLogger("discord.http").setLevel(logging.WARNING)
+
+    # Suppress discord-ext-voice-recv logs that cause spam
+    logging.getLogger("discord.ext.voice_recv").setLevel(logging.WARNING)
+
+    # Suppress RTP/RTCP packet logs from discord.py
+    logging.getLogger("discord.voice").setLevel(logging.WARNING)
+
+    # Suppress "Received packet for unknown ssrc" and similar logs
+    # These come from discord-ext-voice-recv internal logging
+    logging.getLogger("discord.ext.voice_recv.sinks").setLevel(logging.WARNING)
+    logging.getLogger("discord.ext.voice_recv.reader").setLevel(logging.WARNING)
 
     structlog.configure(
         processors=[
@@ -114,6 +137,22 @@ def get_logger(
     """Return a structlog logger bound with standard metadata."""
 
     logger = structlog.stdlib.get_logger(name)
+
+    # Bind trace context if available
+    try:
+        from opentelemetry import trace
+
+        span = trace.get_current_span()
+        if span.is_recording():
+            ctx = span.get_span_context()
+            logger = logger.bind(
+                trace_id=format(ctx.trace_id, "032x"),
+                span_id=format(ctx.span_id, "016x"),
+            )
+    except ImportError:
+        # OpenTelemetry not available, continue without trace context
+        pass
+
     if correlation_id:
         logger = logger.bind(correlation_id=correlation_id)
     if service_name:

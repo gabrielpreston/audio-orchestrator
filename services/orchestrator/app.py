@@ -13,6 +13,14 @@ from services.common.logging import configure_logging, get_logger
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
 
+# Prometheus metrics
+try:
+    from prometheus_client import make_asgi_app
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
 app = FastAPI(title="Voice Assistant Orchestrator")
 
 configure_logging(
@@ -198,6 +206,12 @@ async def health_ready() -> dict[str, Any]:
         "orchestrator_active": _ORCHESTRATOR is not None,
         "health_details": health_status.details,
     }
+
+
+# Add Prometheus metrics endpoint if available
+if PROMETHEUS_AVAILABLE:
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

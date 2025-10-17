@@ -15,6 +15,22 @@ from services.common.circuit_breaker import CircuitBreakerConfig
 from services.common.logging import get_logger
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 
+# Prometheus metrics
+try:
+    from prometheus_client import Counter, Histogram
+
+    PROMETHEUS_AVAILABLE = True
+
+    stt_requests = Counter(
+        "stt_requests_total", "Total STT requests", ["service", "status"]
+    )
+
+    stt_latency = Histogram("stt_latency_seconds", "STT request latency", ["service"])
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    stt_requests = None
+    stt_latency = None
+
 from .audio import AudioSegment
 from .config import STTConfig
 
@@ -76,6 +92,44 @@ class TranscriptionClient:
                 "TranscriptionClient must be used as an async context manager"
             )
 
+        import time
+
+        from services.common.logging import bind_correlation_id
+
+        logger = bind_correlation_id(self._logger, segment.correlation_id)
+
+        # Log STT request initiation
+        logger.info(
+            "stt.request_initiated",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            audio_bytes=len(_pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)),
+            duration=segment.duration,
+            sample_rate=segment.sample_rate,
+            frames=segment.frame_count,
+            language=self._config.forced_language,
+        )
+
+        start_time = time.monotonic()
+
+        # Record metrics if Prometheus is available
+        if PROMETHEUS_AVAILABLE and stt_latency:
+            with stt_latency.labels(service="discord").time():
+                result = await self._do_transcribe(segment, logger, start_time)
+        else:
+            result = await self._do_transcribe(segment, logger, start_time)
+
+        # Record request metrics
+        if PROMETHEUS_AVAILABLE and stt_requests:
+            status = "success" if result else "failure"
+            stt_requests.labels(service="discord", status=status).inc()
+
+        return result
+
+    async def _do_transcribe(
+        self, segment: AudioSegment, logger: Any, start_time: float
+    ) -> TranscriptResult | None:
+        """Internal transcription logic."""
         wav_bytes = _pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)
         files = {
             "file": (
@@ -88,15 +142,7 @@ class TranscriptionClient:
         params: dict[str, Any] = {}
         if self._config.forced_language:
             params["language"] = self._config.forced_language
-        from services.common.logging import bind_correlation_id
 
-        logger = bind_correlation_id(self._logger, segment.correlation_id)
-        logger.debug(
-            "stt.transcribe_request",
-            frames=segment.frame_count,
-            payload_bytes=len(wav_bytes),
-            language=params.get("language"),
-        )
         processing_timeout = max(
             self._config.request_timeout_seconds,
             (segment.duration * 4.0) + 5.0,
@@ -155,12 +201,21 @@ class TranscriptionClient:
         payload = response.json()
         await response.aclose()
         text = payload.get("text", "")
+
+        # Log STT response with latency
+        import time
+
+        latency_ms = int((time.monotonic() - start_time) * 1000)
         logger.info(
-            "stt.transcribe_success",
-            language=payload.get("language"),
-            confidence=payload.get("confidence"),
+            "stt.response_received",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
             text_length=len(text),
+            confidence=payload.get("confidence"),
+            language=payload.get("language"),
+            latency_ms=latency_ms,
         )
+
         if text:
             logger.debug("stt.transcribe_text", text=text)
         return TranscriptResult(
