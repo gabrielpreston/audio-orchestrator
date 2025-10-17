@@ -334,13 +334,13 @@ class DiscordMediaGatewayIntegration:
         """Background task for audio processing."""
         try:
             while self._is_connected and self.audio_source:
-                # Process audio frames from source
+                # Process audio frames from source (returns a single PCMFrame)
                 frame = await self.audio_source.read_audio_frame()
                 if frame:
                     # Process frame through MediaGateway
                     processed_frame = await self.process_audio_frame(frame)
                     if processed_frame:
-                        # Send to sink
+                        # Send to sink (play_audio_chunk expects a PCMFrame)
                         await self.audio_sink.play_audio_chunk(processed_frame)
 
                 await asyncio.sleep(0.01)  # 10ms loop

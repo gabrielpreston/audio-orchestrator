@@ -93,12 +93,12 @@ class MediaGateway:
         start_time = time.time()
 
         try:
-            # Validate input
-            if not self.contract.validate_audio_data(audio_data, input_metadata):
-                self._logger.warning("media_gateway.invalid_input")
+            # Validate that we have audio data (but don't require canonical format yet)
+            if not audio_data:
+                self._logger.warning("media_gateway.empty_audio_data")
                 return audio_data, input_metadata
 
-            # Normalize to canonical format
+            # Normalize to canonical format (handles non-canonical formats)
             normalized_data, normalized_metadata = self.contract.normalize_audio(
                 audio_data, input_metadata
             )
@@ -293,20 +293,36 @@ class MediaGateway:
         from_format: str,
         from_metadata: Any,
     ) -> Any:
-        """Process incoming audio data."""
+        """Process incoming audio data from transport to canonical format."""
         try:
-            # Simple stub implementation
+            # Convert metadata to dict if it's an AudioMetadata object
+            if hasattr(from_metadata, "__dict__"):
+                metadata_dict = {
+                    "sample_rate": getattr(from_metadata, "sample_rate", 16000),
+                    "channels": getattr(from_metadata, "channels", 1),
+                    "sample_width": getattr(from_metadata, "sample_width", 2),
+                    "format": getattr(from_metadata, "format", "pcm"),
+                }
+            else:
+                metadata_dict = from_metadata if isinstance(from_metadata, dict) else {}
+
+            # Convert from transport codec if needed
+            normalized_data, normalized_metadata = await self.convert_from_transport(
+                audio_data, from_format, metadata_dict
+            )
+
             return type(
                 "Result",
                 (),
                 {
                     "success": True,
-                    "audio_data": audio_data,
-                    "metadata": from_metadata,
+                    "audio_data": normalized_data,
+                    "metadata": type("Metadata", (), normalized_metadata)(),
                     "error": None,
                 },
             )()
         except Exception as e:
+            self._logger.error("media_gateway.process_incoming_failed", error=str(e))
             return type(
                 "Result",
                 (),
@@ -324,20 +340,45 @@ class MediaGateway:
         to_format: str,
         to_metadata: Any,
     ) -> Any:
-        """Process outgoing audio data."""
+        """Process outgoing audio data from canonical to transport format."""
         try:
-            # Simple stub implementation
+            # Convert metadata to dict if it's a PCMFrame or AudioMetadata object
+            if hasattr(to_metadata, "pcm"):
+                # It's a PCMFrame
+                metadata_dict = {
+                    "sample_rate": getattr(to_metadata, "sample_rate", 16000),
+                    "channels": getattr(to_metadata, "channels", 1),
+                    "sample_width": getattr(to_metadata, "sample_width", 2),
+                    "format": "pcm",
+                }
+            elif hasattr(to_metadata, "__dict__"):
+                # It's an AudioMetadata or similar object
+                metadata_dict = {
+                    "sample_rate": getattr(to_metadata, "sample_rate", 16000),
+                    "channels": getattr(to_metadata, "channels", 1),
+                    "sample_width": getattr(to_metadata, "sample_width", 2),
+                    "format": getattr(to_metadata, "format", "pcm"),
+                }
+            else:
+                metadata_dict = to_metadata if isinstance(to_metadata, dict) else {}
+
+            # Convert to transport codec if needed
+            converted_data, converted_metadata = await self.convert_to_transport(
+                audio_data, metadata_dict, to_format
+            )
+
             return type(
                 "Result",
                 (),
                 {
                     "success": True,
-                    "audio_data": audio_data,
-                    "metadata": to_metadata,
+                    "audio_data": converted_data,
+                    "metadata": type("Metadata", (), converted_metadata)(),
                     "error": None,
                 },
             )()
         except Exception as e:
+            self._logger.error("media_gateway.process_outgoing_failed", error=str(e))
             return type(
                 "Result",
                 (),

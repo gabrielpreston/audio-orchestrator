@@ -152,7 +152,7 @@ class Session:
     updated_at: float = field(default_factory=time.time)
 
     # Activity tracking
-    last_audio_time: float = 0.0
+    last_audio_time: float = field(default_factory=time.time)
     last_activity_time: float = field(default_factory=time.time)
 
     # Error tracking
