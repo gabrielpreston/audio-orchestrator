@@ -243,6 +243,14 @@ addopts =
 - **Types**: Sine waves, voice range frequencies, silence, various amplitudes
 - **Generation**: `python services/tests/fixtures/audio/generate_samples_simple.py`
 
+#### TTS Baseline Samples
+
+- **Location**: `services/tests/fixtures/tts/samples/`
+- **Format**: WAV files with 16-bit PCM, 22.05kHz sample rate
+- **Types**: Short phrases, medium phrases, SSML samples, silence
+- **Generation**: `python services/tests/fixtures/tts/generate_baselines.py`
+- **Metadata**: JSON files with quality metrics and parameters
+
 #### Reference Data
 
 - **Location**: `services/tests/fixtures/audio/`
@@ -273,6 +281,49 @@ addopts =
   - `stop_test_services()`: Stop test services
   - `get_service_health()`: Get service health status
   - `test_services_context()`: Context manager for test services
+
+### TTS Test Helpers
+
+- **Location**: `services/tests/fixtures/tts/tts_test_helpers.py`
+- **Functions**:
+  - `generate_tts_baseline_samples()`: Generate baseline audio with metadata
+  - `load_tts_baseline_metadata()`: Load baseline sample metadata
+  - `validate_tts_audio_format()`: Validate TTS WAV format
+  - `validate_tts_audio_quality()`: Validate TTS audio quality metrics
+
+### Test Artifacts Management
+
+- **Location**: `services/tests/conftest.py`
+- **Functions**:
+  - `test_artifacts_dir()`: Centralized test artifacts directory
+  - `tts_artifacts_dir()`: TTS-specific artifacts directory
+  - `temp_dir()`: Temporary directory for test files
+- **Configuration**: `TEST_ARTIFACTS_DIR` environment variable
+- **Cleanup**: Automatic after test session
+
+## TTS Testing
+
+### Overview
+
+TTS (Text-to-Speech) testing covers audio format validation, quality metrics, performance thresholds, and integration testing with real TTS models. Tests are organized by category and use appropriate mocking strategies.
+
+### Test Categories
+
+- **Unit Tests**: Fast, isolated tests of TTS components
+- **Component Tests**: TTS components with mocked dependencies
+- **Integration Tests**: Real TTS synthesis with actual models
+
+### Quality Thresholds
+
+- **Audio Format**: 22.05kHz, mono, 16-bit PCM
+- **Production Quality Metrics**: SNR ≥ 20dB, THD ≤ 1% (for real TTS integration tests)
+- **Test Quality Metrics**: SNR ≥ 3dB, THD ≤ 50%, Voice Range ≥ 30% (for synthetic component tests)
+- **Performance**: Latency ≤ 1s, Memory ≤ 50MB
+
+### Documentation
+
+- [TTS Testing Guide](TTS_TESTING.md) - Detailed TTS testing documentation
+- [Test Artifacts Management](TEST_ARTIFACTS.md) - Test artifact storage and cleanup
 
 ## Troubleshooting
 

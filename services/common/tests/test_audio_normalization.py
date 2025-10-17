@@ -139,10 +139,13 @@ class TestAudioNormalization:
 
     @pytest.mark.unit
     def test_normalize_audio_logs_metrics(self, audio_processor, sample_pcm_audio):
-        """Test that normalize_audio logs all metrics."""
+        """Test that normalize_audio logs metrics when sampling is set to 100%."""
         target_rms = 2000.0
 
-        audio_processor.normalize_audio(sample_pcm_audio, target_rms=target_rms)
+        # Set log_sample_rate to 1.0 to ensure logging happens for testing
+        audio_processor.normalize_audio(
+            sample_pcm_audio, target_rms=target_rms, log_sample_rate=1.0
+        )
 
         # Check that debug log was called with expected metrics
         audio_processor._logger.debug.assert_called_once()
@@ -216,8 +219,9 @@ class TestAudioNormalization:
         audio_array = np.frombuffer(sample_pcm_audio, dtype=np.int16)
         current_rms = float(np.sqrt(np.mean(np.square(audio_array.astype(np.float64)))))
 
+        # Set log_sample_rate to 1.0 to ensure logging happens for testing
         normalized_audio, new_rms = audio_processor.normalize_audio(
-            sample_pcm_audio, target_rms=target_rms
+            sample_pcm_audio, target_rms=target_rms, log_sample_rate=1.0
         )
 
         # Get the logged scaling factor

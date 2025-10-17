@@ -27,3 +27,6 @@ coverage.xml
 junit.xml
 htmlcov/
 .cursor/rules/
+test_artifacts/
+.pytest_cache/
+.cursor/commands/

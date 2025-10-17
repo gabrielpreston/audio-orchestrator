@@ -167,6 +167,11 @@ class AudioPipeline:
             aggregation_window=self._config.aggregation_window_seconds,
         )
 
+        # Initialize metrics reporter
+        from services.common.audio_metrics import create_audio_metrics_reporter
+
+        self._metrics_reporter = create_audio_metrics_reporter("discord")
+
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
             return True
@@ -206,15 +211,20 @@ class AudioPipeline:
 
         is_speech = self._is_speech(frame.pcm, frame.sample_rate)
 
-        self._logger.debug(
-            "voice.vad_decision",
-            user_id=user_id,
-            sequence=accumulator.sequence,
-            is_speech=is_speech,
-            rms=adjusted_rms,
-            frame_bytes=len(normalized_pcm),
-            sample_rate=sample_rate,
-        )
+        # Sample VAD decisions to reduce log verbosity
+        if self._should_log_vad_decision(accumulator.sequence):
+            self._logger.debug(
+                "voice.vad_decision",
+                user_id=user_id,
+                sequence=accumulator.sequence,
+                is_speech=is_speech,
+                rms=adjusted_rms,
+                frame_bytes=len(normalized_pcm),
+                sample_rate=sample_rate,
+            )
+
+        # Record metrics for monitoring
+        self._metrics_reporter.record_frame(is_speech, adjusted_rms)
 
         if not is_speech:
             accumulator.mark_silence(timestamp)
@@ -329,7 +339,11 @@ class AudioPipeline:
             silence_age=decision.silence_age if decision else None,
             total_duration=decision.total_duration if decision else segment.duration,
             flush_trigger=trigger,
+            correlation_id=segment.correlation_id,
         )
+
+        # Record segment flush in metrics
+        self._metrics_reporter.record_segment_flush(reason, segment.duration)
         return segment
 
     def _prepare_vad_frame(self, pcm: bytes, sample_rate: int) -> bytes:
@@ -380,6 +394,11 @@ class AudioPipeline:
         normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2)
 
         return normalized_pcm, new_rms
+
+    def _should_log_vad_decision(self, sequence: int) -> bool:
+        """Determine if VAD decision should be logged to reduce verbosity."""
+        # Log first 10 decisions, then 1% sampling
+        return sequence <= 10 or sequence % 100 == 0
 
 
 def rms_from_pcm(pcm: bytes) -> float:

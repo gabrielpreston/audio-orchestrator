@@ -1,6 +1,7 @@
 """Test configuration for services.tts module."""
 
 from collections.abc import Generator
+from pathlib import Path
 from typing import Any
 from unittest import mock
 
@@ -113,3 +114,11 @@ def test_rate_limit_config() -> dict[str, Any]:
         "max_concurrent_requests": 4,
         "max_text_length": 1000,
     }
+
+
+@pytest.fixture
+def tts_artifacts_dir(tmp_path: Path) -> Path:
+    """Get TTS test artifacts directory."""
+    tts_dir = tmp_path / "tts"
+    tts_dir.mkdir(parents=True, exist_ok=True)
+    return tts_dir

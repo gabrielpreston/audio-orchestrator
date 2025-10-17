@@ -333,7 +333,11 @@ class AudioProcessor:
             raise
 
     def normalize_audio(
-        self, pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
+        self,
+        pcm_data: bytes,
+        target_rms: float = 2000.0,
+        sample_width: int = 2,
+        log_sample_rate: float = 0.01,
     ) -> tuple[bytes, float]:
         """Normalize audio to target RMS level with proper scaling."""
         try:
@@ -358,9 +362,13 @@ class AudioProcessor:
             current_rms = np.sqrt(np.mean(np.square(array.astype(np.float64))))
 
             if current_rms < 1.0:  # Avoid amplifying silence
-                self._log(
-                    "debug", "audio.normalize_skipped_silence", current_rms=current_rms
-                )
+                # Only log silence skipping occasionally to reduce verbosity
+                if np.random.random() < log_sample_rate:
+                    self._log(
+                        "debug",
+                        "audio.normalize_skipped_silence",
+                        current_rms=current_rms,
+                    )
                 return pcm_data, float(current_rms)
 
             # Scale to target RMS
@@ -373,14 +381,16 @@ class AudioProcessor:
             # Verify new RMS
             new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
-            self._log(
-                "debug",
-                "audio.normalized",
-                current_rms=float(current_rms),
-                target_rms=target_rms,
-                new_rms=float(new_rms),
-                scaling_factor=float(scaling_factor),
-            )
+            # Only log normalization occasionally to reduce verbosity
+            if np.random.random() < log_sample_rate:
+                self._log(
+                    "debug",
+                    "audio.normalized",
+                    current_rms=float(current_rms),
+                    target_rms=target_rms,
+                    new_rms=float(new_rms),
+                    scaling_factor=float(scaling_factor),
+                )
 
             return normalized_array.tobytes(), float(new_rms)
         except Exception as exc:
