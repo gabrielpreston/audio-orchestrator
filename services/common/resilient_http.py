@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
 import time
 from typing import Any
 
 import httpx
 
-from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitOpenError
+from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .http import post_with_retries
 from .logging import get_logger
 

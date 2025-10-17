@@ -7,8 +7,8 @@ import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from services.common.logging import configure_logging, get_logger
 from services.common.health import HealthManager
+from services.common.logging import configure_logging, get_logger
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator

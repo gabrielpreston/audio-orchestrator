@@ -13,8 +13,8 @@ from typing import Any
 import discord
 import httpx
 
-from services.common.logging import get_logger
 from services.common.health import HealthManager
+from services.common.logging import get_logger
 
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig

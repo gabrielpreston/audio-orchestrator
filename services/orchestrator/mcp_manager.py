@@ -243,7 +243,7 @@ class MCPManager:
                 client=client_name,
                 tool=tool_name,
             )
-            return result
+            return result  # type: ignore[no-any-return]
         except Exception as exc:
             self._logger.error(
                 "mcp.tool_call_failed",

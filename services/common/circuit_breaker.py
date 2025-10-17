@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 from .logging import get_logger
 
@@ -66,9 +67,9 @@ class CircuitBreaker:
         if self._state == CircuitState.HALF_OPEN:
             return True
 
-        return False
+        return False  # type: ignore[unreachable]
 
-    async def call(self, func: Callable, *args, **kwargs) -> Any:
+    async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Execute function with circuit breaker protection."""
         if not self.is_available():
             raise CircuitOpenError(f"Circuit {self._name} is open")
@@ -82,7 +83,7 @@ class CircuitBreaker:
             self._on_success()
             return result
 
-        except Exception as exc:
+        except Exception:
             self._on_failure()
             raise
 

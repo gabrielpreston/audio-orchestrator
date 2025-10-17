@@ -11,9 +11,9 @@ from typing import Any
 
 import httpx
 
+from services.common.circuit_breaker import CircuitBreakerConfig
 from services.common.logging import get_logger
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
-from services.common.circuit_breaker import CircuitBreakerConfig
 
 from .audio import AudioSegment
 from .config import STTConfig

@@ -15,8 +15,8 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, model_validator
 
-from services.common.logging import configure_logging, get_logger
 from services.common.health import HealthManager
+from services.common.logging import configure_logging, get_logger
 
 
 def _env_bool(name: str, default: str = "true") -> bool:

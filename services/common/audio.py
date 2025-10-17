@@ -383,9 +383,9 @@ class AudioProcessor:
             # Calculate new RMS
             new_rms = float(np.sqrt(np.mean(np.square(normalized_float))))
 
-                self._log(
-                    "debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms
-                )
+            self._log(
+                "debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms
+            )
 
             return normalized_array.tobytes(), new_rms
         except Exception as exc:

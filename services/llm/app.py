@@ -12,8 +12,8 @@ from fastapi.responses import JSONResponse
 from llama_cpp import Llama
 from pydantic import BaseModel
 
-from services.common.logging import configure_logging, get_logger
 from services.common.health import HealthManager
+from services.common.logging import configure_logging, get_logger
 
 app = FastAPI(title="Local LLM Service")
 

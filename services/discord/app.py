@@ -9,9 +9,10 @@ from typing import Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
+from services.common.health import HealthManager
+
 # Configure logging
 from services.common.logging import get_logger
-from services.common.health import HealthManager
 
 logger = get_logger(__name__, service_name="discord")
 
