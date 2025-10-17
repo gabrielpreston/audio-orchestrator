@@ -122,7 +122,7 @@ jobs:
 
   test:
     name: Tests
-    needs: [changes, lint, security-scan]
+    needs: [changes, lint]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
