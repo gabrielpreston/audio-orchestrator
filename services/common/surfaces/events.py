@@ -94,7 +94,7 @@ class VADEndSpeechEvent(ControlEvent):
     duration_ms: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(VADEndSpeechEvent, self).to_dict()
         base.update(
             {
                 "ts_device": self.ts_device,
@@ -113,7 +113,7 @@ class BargeInRequestEvent(ControlEvent):
     ts_device: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(BargeInRequestEvent, self).to_dict()
         base.update(
             {
                 "reason": self.reason,
@@ -131,7 +131,7 @@ class SessionStateEvent(ControlEvent):
     action: SessionAction = SessionAction.JOIN
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(SessionStateEvent, self).to_dict()
         base.update(
             {
                 "action": self.action.value,
@@ -149,7 +149,7 @@ class RouteChangeEvent(ControlEvent):
     output: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(RouteChangeEvent, self).to_dict()
         base.update(
             {
                 "input": self.input,
@@ -189,7 +189,7 @@ class EndpointingEvent(ControlEvent):
     state: EndpointingState = EndpointingState.LISTENING
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(EndpointingEvent, self).to_dict()
         base.update(
             {
                 "state": self.state.value,
@@ -208,7 +208,7 @@ class TranscriptPartialEvent(ControlEvent):
     ts_server: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(TranscriptPartialEvent, self).to_dict()
         base.update(
             {
                 "text": self.text,
@@ -266,7 +266,7 @@ class TelemetrySnapshotEvent(ControlEvent):
         pass
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(TelemetrySnapshotEvent, self).to_dict()
         base.update(
             {
                 "rtt_ms": self.metrics.rtt_ms,
@@ -292,7 +292,7 @@ class ErrorEvent(ControlEvent):
     recoverable: bool = True
 
     def to_dict(self) -> dict[str, Any]:
-        base = super(VADStartSpeechEvent, self).to_dict()
+        base = super(ErrorEvent, self).to_dict()
         base.update(
             {
                 "code": self.code,
