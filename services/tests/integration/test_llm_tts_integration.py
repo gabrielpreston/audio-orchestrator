@@ -27,31 +27,33 @@ class TestLLMTTSIntegration:
     @pytest.mark.integration
     async def test_llm_response_to_tts_synthesis(self, sample_text):
         """Test LLM response → TTS synthesis."""
-        async with (
-            test_services_context(["llm", "tts"]),
+        with (
             patch("services.discord.discord_voice.OrchestratorClient") as mock_llm,
             patch("services.discord.discord_voice.TTSClient") as mock_tts,
         ):
-            # Mock LLM service
-            mock_llm.return_value.process_transcript.return_value = Mock(
-                text="Hello! How can I help you today?", correlation_id="test-123"
-            )
+            async with test_services_context(["llm", "tts"]):
+                # Mock LLM service
+                mock_llm.return_value.process_transcript.return_value = Mock(
+                    text="Hello! How can I help you today?", correlation_id="test-123"
+                )
 
-            # Mock TTS service
-            mock_tts.return_value.synthesize.return_value = b"synthesized audio data"
+                # Mock TTS service
+                mock_tts.return_value.synthesize.return_value = (
+                    b"synthesized audio data"
+                )
 
-            # Test LLM → TTS flow
-            llm_result = await mock_llm.return_value.process_transcript(
-                guild_id="123456789",
-                channel_id="987654321",
-                user_id="12345",
-                transcript=sample_text,
-            )
-            assert llm_result.text == "Hello! How can I help you today?"
-            assert llm_result.correlation_id == "test-123"
+                # Test LLM → TTS flow
+                llm_result = await mock_llm.return_value.process_transcript(
+                    guild_id="123456789",
+                    channel_id="987654321",
+                    user_id="12345",
+                    transcript=sample_text,
+                )
+                assert llm_result.text == "Hello! How can I help you today?"
+                assert llm_result.correlation_id == "test-123"
 
-            _tts_result = await mock_tts.return_value.synthesize(llm_result.text)
-            assert _tts_result == b"synthesized audio data"
+                _tts_result = await mock_tts.return_value.synthesize(llm_result.text)
+                assert _tts_result == b"synthesized audio data"
 
     @pytest.mark.integration
     async def test_correlation_id_handoff(self, sample_text):

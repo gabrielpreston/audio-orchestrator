@@ -1,7 +1,7 @@
 ---
 title: Testing Guide
 description: Comprehensive guidance for testing the discord-voice-lab audio pipeline
-last_updated: 2025-01-17
+last-updated: 2025-10-17
 ---
 
 # Testing Guide
@@ -62,7 +62,7 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 - **FastWhisper Adapter**: Test STT model integration, transcription, and telemetry
 - **Piper Adapter**: Test TTS model integration, synthesis, and voice management
 
-### Integration Tests
+### End-to-End Integration Tests
 
 #### Full Pipeline E2E
 
@@ -77,7 +77,7 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 - **LLM-TTS Integration**: Test LLM response to TTS synthesis with format validation
 - **Service Health**: Test service discovery and health check integration
 
-### Quality Tests
+### Audio Quality Tests
 
 #### Audio Fidelity
 

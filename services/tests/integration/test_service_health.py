@@ -14,38 +14,37 @@ class TestServiceHealth:
     @pytest.mark.integration
     async def test_all_services_health_endpoints_accessible(self):
         """Test all services health endpoints accessible."""
-        async with test_services_context(["stt", "tts", "llm", "orchestrator"]):
+        async with (
+            test_services_context(["stt", "tts", "llm", "orchestrator"]),
+            httpx.AsyncClient() as client,
+        ):
             # Test STT service health
-            async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:9000/health/ready")
-                assert response.status_code in [200, 503]  # Ready or not ready
+            response = await client.get("http://localhost:9000/health/ready")
+            assert response.status_code in [200, 503]  # Ready or not ready
 
-                response = await client.get("http://localhost:9000/health/live")
-                assert response.status_code == 200
+            response = await client.get("http://localhost:9000/health/live")
+            assert response.status_code == 200
 
             # Test TTS service health
-            async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:7000/health/ready")
-                assert response.status_code in [200, 503]  # Ready or not ready
+            response = await client.get("http://localhost:7000/health/ready")
+            assert response.status_code in [200, 503]  # Ready or not ready
 
-                response = await client.get("http://localhost:7000/health/live")
-                assert response.status_code == 200
+            response = await client.get("http://localhost:7000/health/live")
+            assert response.status_code == 200
 
             # Test LLM service health
-            async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:8000/health/ready")
-                assert response.status_code in [200, 503]  # Ready or not ready
+            response = await client.get("http://localhost:8000/health/ready")
+            assert response.status_code in [200, 503]  # Ready or not ready
 
-                response = await client.get("http://localhost:8000/health/live")
-                assert response.status_code == 200
+            response = await client.get("http://localhost:8000/health/live")
+            assert response.status_code == 200
 
             # Test Orchestrator service health
-            async with httpx.AsyncClient() as client:
-                response = await client.get("http://localhost:8001/health/ready")
-                assert response.status_code in [200, 503]  # Ready or not ready
+            response = await client.get("http://localhost:8001/health/ready")
+            assert response.status_code in [200, 503]  # Ready or not ready
 
-                response = await client.get("http://localhost:8001/health/live")
-                assert response.status_code == 200
+            response = await client.get("http://localhost:8001/health/live")
+            assert response.status_code == 200
 
     @pytest.mark.integration
     async def test_service_startup_order_independence(self):
@@ -93,22 +92,24 @@ class TestServiceHealth:
     @pytest.mark.integration
     async def test_health_check_circuit_breakers(self):
         """Test health check circuit breakers."""
-        async with test_services_context(["stt", "tts", "llm", "orchestrator"]):
+        async with (
+            test_services_context(["stt", "tts", "llm", "orchestrator"]),
+            httpx.AsyncClient() as client,
+        ):
             # Test circuit breaker behavior for health checks
-            async with httpx.AsyncClient() as client:
-                # Make multiple health check requests
-                for _ in range(5):
-                    response = await client.get("http://localhost:9000/health/ready")
-                    assert response.status_code in [200, 503]
+            # Make multiple health check requests
+            for _ in range(5):
+                response = await client.get("http://localhost:9000/health/ready")
+                assert response.status_code in [200, 503]
 
-                    response = await client.get("http://localhost:7000/health/ready")
-                    assert response.status_code in [200, 503]
+                response = await client.get("http://localhost:7000/health/ready")
+                assert response.status_code in [200, 503]
 
-                    response = await client.get("http://localhost:8000/health/ready")
-                    assert response.status_code in [200, 503]
+                response = await client.get("http://localhost:8000/health/ready")
+                assert response.status_code in [200, 503]
 
-                    response = await client.get("http://localhost:8001/health/ready")
-                    assert response.status_code in [200, 503]
+                response = await client.get("http://localhost:8001/health/ready")
+                assert response.status_code in [200, 503]
 
 
 class TestServiceDiscovery:

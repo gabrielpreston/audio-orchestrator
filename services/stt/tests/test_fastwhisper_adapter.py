@@ -105,14 +105,17 @@ class TestFastWhisperAdapterTranscription:
 
             # Test transcription
             from services.common.surfaces.types import AudioFormat
+
             result = await adapter.transcribe(sample_audio_data, AudioFormat.PCM)
 
             assert result.text == "hello world"
-            assert result.start_timestamp == 0.0
-            assert result.end_timestamp == 1.0
+            assert result.start_time == 0.0
+            assert result.end_time == 1.0
             mock_model.transcribe.assert_called_once()
 
-    async def test_streaming_transcription(self, mock_adapter_config, sample_audio_data):
+    async def test_streaming_transcription(
+        self, mock_adapter_config, sample_audio_data
+    ):
         """Test streaming transcription."""
         with patch("services.stt.models.FastWhisperAdapter._load_model") as mock_load:
             mock_model = Mock()
@@ -127,6 +130,7 @@ class TestFastWhisperAdapterTranscription:
 
             # Test streaming transcription
             from services.common.surfaces.types import AudioFormat
+
             result = await adapter.transcribe(sample_audio_data, AudioFormat.PCM)
 
             assert result.text == "streaming test"
@@ -147,6 +151,7 @@ class TestFastWhisperAdapterTranscription:
 
             # Test transcription with telemetry
             from services.common.surfaces.types import AudioFormat
+
             result = await adapter.transcribe(sample_audio_data, AudioFormat.PCM)
 
             assert result.text == "telemetry test"
@@ -202,6 +207,7 @@ class TestFastWhisperAdapterErrorHandling:
 
             # Test transcription with invalid audio
             from services.common.surfaces.types import AudioFormat
+
             with pytest.raises(ValueError):
                 await adapter.transcribe(b"invalid audio data", AudioFormat.PCM)
 
@@ -211,6 +217,7 @@ class TestFastWhisperAdapterErrorHandling:
 
         # Test operations before initialization
         from services.common.surfaces.types import AudioFormat
+
         with pytest.raises(RuntimeError):
             await adapter.transcribe(b"test audio", AudioFormat.PCM)
 
@@ -225,6 +232,7 @@ class TestFastWhisperAdapterErrorHandling:
 
             # Test operations without connection
             from services.common.surfaces.types import AudioFormat
+
             with pytest.raises(RuntimeError):
                 await adapter.transcribe(b"test audio", AudioFormat.PCM)
 
@@ -317,6 +325,7 @@ class TestFastWhisperAdapterPerformance:
 
             start_time = time.time()
             from services.common.surfaces.types import AudioFormat
+
             result = await adapter.transcribe(sample_audio_data, AudioFormat.PCM)
             end_time = time.time()
 
@@ -334,12 +343,14 @@ class TestFastWhisperAdapterPerformance:
             await adapter.connect()
 
             # Test memory usage tracking
-            telemetry = adapter.get_telemetry()
+            telemetry = await adapter.get_telemetry()
             assert telemetry is not None
             # Memory usage should be tracked in telemetry
             assert "memory_usage" in telemetry or "model_size" in telemetry
 
-    async def test_concurrent_transcriptions(self, mock_adapter_config, sample_audio_data):
+    async def test_concurrent_transcriptions(
+        self, mock_adapter_config, sample_audio_data
+    ):
         """Test concurrent transcriptions."""
         with patch("services.stt.models.FastWhisperAdapter._load_model") as mock_load:
             mock_model = Mock()
@@ -354,8 +365,9 @@ class TestFastWhisperAdapterPerformance:
 
             # Test concurrent transcriptions
             import asyncio
+
             from services.common.surfaces.types import AudioFormat
-            
+
             tasks = []
             for _ in range(3):
                 task = adapter.transcribe(sample_audio_data, AudioFormat.PCM)

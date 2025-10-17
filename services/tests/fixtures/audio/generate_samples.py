@@ -2,6 +2,7 @@
 
 import sys
 from pathlib import Path
+from typing import cast
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent.parent
@@ -86,11 +87,11 @@ def generate_audio_samples():
 
         # Generate PCM data
         pcm_data = generate_test_audio(
-            duration=float(sample["duration"]),
+            duration=cast(float, sample["duration"]),
             sample_rate=16000,
-            frequency=float(sample["frequency"]),
-            amplitude=float(sample["amplitude"]),
-            noise_level=float(sample["noise_level"]),
+            frequency=cast(float, sample["frequency"]),
+            amplitude=cast(float, sample["amplitude"]),
+            noise_level=cast(float, sample["noise_level"]),
         )
 
         # Create WAV file

@@ -2,6 +2,7 @@
 Orchestrator client for Discord service to communicate with the LLM orchestrator.
 """
 
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -24,11 +25,16 @@ class OrchestratorClient:
             self._http_client = httpx.AsyncClient(timeout=30.0)
         return self._http_client
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "OrchestratorClient":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit."""
         if self._http_client:
             await self._http_client.aclose()

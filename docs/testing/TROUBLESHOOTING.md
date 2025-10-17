@@ -1,7 +1,7 @@
 ---
 title: Testing Troubleshooting Guide
 description: Guide for diagnosing and resolving common testing issues in the discord-voice-lab audio pipeline
-last_updated: 2025-01-17
+last-updated: 2025-10-17
 ---
 
 # Testing Troubleshooting Guide
@@ -12,13 +12,13 @@ This guide helps diagnose and resolve common issues encountered during testing o
 
 ### Service Not Ready
 
-#### Symptoms
+#### Service Not Ready Symptoms
 
 - Tests fail with "Service not ready" errors
 - Health check endpoints return 503 status
 - Services fail to start or respond
 
-#### Diagnosis
+#### Service Not Ready Diagnosis
 
 ```bash
 # Check service health
@@ -44,13 +44,13 @@ make logs SERVICE=orchestrator
 
 ### Audio Format Issues
 
-#### Symptoms
+#### Audio Format Symptoms
 
 - Tests fail with "Invalid audio format" errors
 - WAV validation failures
 - Audio processing errors
 
-#### Diagnosis
+#### Audio Format Diagnosis
 
 ```bash
 # Check audio format
@@ -67,7 +67,7 @@ print(result)
 "
 ```
 
-#### Solutions
+#### Service Not Ready Solutions
 
 1. **Check Audio Format**: Ensure audio is 16-bit PCM WAV
 2. **Verify Sample Rate**: Check sample rate matches requirements
@@ -77,14 +77,14 @@ print(result)
 
 ### Quality Threshold Failures
 
-#### Symptoms
+#### Quality Threshold Symptoms
 
 - Tests fail with quality threshold violations
 - SNR below threshold
 - THD above threshold
 - Latency above threshold
 
-#### Diagnosis
+#### Quality Threshold Diagnosis
 
 ```bash
 # Check quality metrics
@@ -100,7 +100,7 @@ print(f'THD: {thd:.2f}%')
 "
 ```
 
-#### Solutions
+#### Quality Threshold Solutions
 
 1. **Adjust Thresholds**: Modify quality thresholds if appropriate
 2. **Check Audio Quality**: Ensure test audio meets quality requirements
@@ -110,14 +110,14 @@ print(f'THD: {thd:.2f}%')
 
 ### Performance Issues
 
-#### Symptoms
+#### Performance Symptoms
 
 - Tests fail with performance threshold violations
 - High latency
 - High memory usage
 - High CPU usage
 
-#### Diagnosis
+#### Performance Diagnosis
 
 ```bash
 # Check system resources
@@ -131,7 +131,7 @@ make logs SERVICE=stt | grep -i performance
 make logs SERVICE=tts | grep -i performance
 ```
 
-#### Solutions
+#### Performance Solutions
 
 1. **Optimize Configuration**: Adjust service configuration for better performance
 2. **Check Resource Usage**: Ensure sufficient system resources
@@ -170,7 +170,7 @@ make logs SERVICE=tts | grep -i debug
 
 ### Save Debug Audio
 
-#### Configuration
+#### Debug Audio Configuration
 
 ```bash
 # Enable debug WAV generation
@@ -181,7 +181,7 @@ export DEBUG_WAV_DIR=./debug_wavs
 mkdir -p ./debug_wavs
 ```
 
-#### Usage
+#### Debug Audio Usage
 
 ```bash
 # Run tests with debug audio
@@ -280,13 +280,13 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 ### Slow Tests
 
-#### Symptoms
+#### Slow Test Symptoms
 
 - Tests take too long to complete
 - Timeout errors
 - Performance threshold violations
 
-#### Solutions
+#### Slow Test Solutions
 
 1. **Skip Slow Tests**: Use `pytest -m "not slow"` to skip slow tests
 2. **Parallel Execution**: Use `pytest -n auto` for parallel execution
@@ -296,13 +296,13 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 ### Memory Issues
 
-#### Symptoms
+#### Memory Symptoms
 
 - Out of memory errors
 - High memory usage
 - Memory leaks
 
-#### Solutions
+#### Memory Solutions
 
 1. **Check Memory Usage**: Monitor memory usage during tests
 2. **Optimize Configuration**: Adjust memory-related configuration
@@ -312,13 +312,13 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 ### CPU Issues
 
-#### Symptoms
+#### CPU Symptoms
 
 - High CPU usage
 - CPU timeout errors
 - Performance degradation
 
-#### Solutions
+#### CPU Solutions
 
 1. **Check CPU Usage**: Monitor CPU usage during tests
 2. **Optimize Configuration**: Adjust CPU-related configuration
@@ -330,13 +330,13 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 ### Connectivity Problems
 
-#### Symptoms
+#### Connectivity Symptoms
 
 - Connection refused errors
 - Timeout errors
 - Network unreachable errors
 
-#### Diagnosis
+#### Connectivity Diagnosis
 
 ```bash
 # Check network connectivity
@@ -350,7 +350,7 @@ telnet localhost 8001  # Orchestrator service
 netstat -tlnp | grep -E "(9000|7000|8000|8001)"
 ```
 
-#### Solutions
+#### Connectivity Solutions
 
 1. **Check Port Availability**: Ensure ports are available
 2. **Check Firewall**: Verify firewall settings
@@ -360,13 +360,13 @@ netstat -tlnp | grep -E "(9000|7000|8000|8001)"
 
 ### Timeout Issues
 
-#### Symptoms
+#### Timeout Symptoms
 
 - Request timeout errors
 - Connection timeout errors
 - Service timeout errors
 
-#### Solutions
+#### Timeout Solutions
 
 1. **Increase Timeouts**: Adjust timeout settings
 2. **Check Service Performance**: Ensure services are performing well
@@ -378,13 +378,13 @@ netstat -tlnp | grep -E "(9000|7000|8000|8001)"
 
 ### Environment Variables
 
-#### Symptoms
+#### Environment Symptoms
 
 - Configuration errors
 - Service startup failures
 - Test failures due to missing configuration
 
-#### Diagnosis
+#### Environment Diagnosis
 
 ```bash
 # Check environment variables
@@ -396,7 +396,7 @@ cat .env.common
 cat .env.docker
 ```
 
-#### Solutions
+#### Environment Solutions
 
 1. **Check Environment Variables**: Ensure all required environment variables are set
 2. **Check Configuration Files**: Verify configuration files are correct
@@ -406,13 +406,13 @@ cat .env.docker
 
 ### Dependency Issues
 
-#### Symptoms
+#### Dependency Symptoms
 
 - Import errors
 - Module not found errors
 - Version compatibility issues
 
-#### Diagnosis
+#### Dependency Diagnosis
 
 ```bash
 # Check Python dependencies
@@ -422,7 +422,7 @@ pip list | grep -E "(fastapi|discord|numpy|scipy)"
 ldd $(which python)
 ```
 
-#### Solutions
+#### Dependency Solutions
 
 1. **Install Dependencies**: Install missing dependencies
 2. **Update Dependencies**: Update dependencies to compatible versions

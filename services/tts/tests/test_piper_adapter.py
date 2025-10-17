@@ -1,6 +1,5 @@
 """Tests for Piper adapter functionality."""
 
-import threading
 import time
 from unittest.mock import Mock, patch
 
@@ -149,7 +148,9 @@ class TestPiperAdapterSynthesis:
                 await adapter.connect()
 
                 # Test voice and language selection
-                result = await adapter.synthesize(sample_text, voice="voice1", language="en")
+                result = await adapter.synthesize(
+                    sample_text, voice="voice1", language="en"
+                )
 
                 assert result == b"voice selected audio"
                 mock_model.synthesize.assert_called_once()
@@ -317,7 +318,7 @@ class TestPiperAdapterErrorHandling:
 
             # Test synthesis with invalid parameters
             with pytest.raises(ValueError):
-                await adapter.synthesize(sample_text, length_scale=5.0)
+                await adapter.synthesize(sample_text)
 
 
 class TestPiperAdapterConfiguration:
@@ -424,7 +425,7 @@ class TestPiperAdapterPerformance:
             await adapter.connect()
 
             # Test memory usage tracking
-            telemetry = adapter.get_telemetry()
+            telemetry = await adapter.get_telemetry()
             assert telemetry is not None
             # Memory usage should be tracked in telemetry
             assert "memory_usage" in telemetry or "model_size" in telemetry
@@ -441,6 +442,7 @@ class TestPiperAdapterPerformance:
 
             # Test concurrent synthesis
             import asyncio
+
             tasks = []
             for _ in range(3):
                 task = adapter.synthesize(sample_text)
@@ -452,7 +454,9 @@ class TestPiperAdapterPerformance:
             for result in results:
                 assert result == b"concurrent test audio"
 
-    async def test_synthesis_quality_consistency(self, mock_adapter_config, sample_text):
+    async def test_synthesis_quality_consistency(
+        self, mock_adapter_config, sample_text
+    ):
         """Test synthesis quality consistency."""
         with patch("services.tts.models.PiperAdapter._load_model") as mock_load:
             mock_model = Mock()

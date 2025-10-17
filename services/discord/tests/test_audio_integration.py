@@ -90,7 +90,9 @@ class TestAudioIntegration:
                 base_url="http://orchestrator:8000", timeout_seconds=30
             )
 
-            async with OrchestratorClient(orchestrator_config) as orchestrator_client:
+            async with OrchestratorClient(
+                orchestrator_config.base_url
+            ) as orchestrator_client:
                 # Test orchestrator processing
                 result = await orchestrator_client.process_transcript(
                     guild_id="123456789",

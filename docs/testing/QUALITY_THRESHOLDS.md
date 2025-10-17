@@ -1,7 +1,7 @@
 ---
 title: Audio Quality Thresholds
 description: Quality thresholds and benchmarks for the discord-voice-lab audio pipeline
-last_updated: 2025-01-17
+last-updated: 2025-10-17
 ---
 
 # Audio Quality Thresholds
@@ -268,7 +268,7 @@ def monitor_quality():
 4. **Expert Input**: Get expert input on threshold settings
 5. **Continuous Improvement**: Continuously improve threshold settings
 
-### Monitoring and Alerting
+### Quality Monitoring
 
 1. **Proactive Monitoring**: Monitor quality metrics proactively
 2. **Early Warning**: Set up early warning systems

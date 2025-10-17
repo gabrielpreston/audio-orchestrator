@@ -66,6 +66,10 @@ class TranscriptionClient:
         if self._owns_session and self._session:
             await self._session.aclose()
 
+    async def check_health(self) -> bool:
+        """Check if the STT service is healthy."""
+        return await self._http_client.check_health()
+
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult | None:
         if not self._session:
             raise RuntimeError(
@@ -107,7 +111,10 @@ class TranscriptionClient:
             # Check if STT is healthy before attempting
             if not await self._http_client.check_health():
                 circuit_state = "unknown"
-                if hasattr(self._http_client, '_circuit_breaker') and self._http_client._circuit_breaker:
+                if (
+                    hasattr(self._http_client, "_circuit_breaker")
+                    and self._http_client._circuit_breaker
+                ):
                     circuit_state = self._http_client._circuit_breaker.get_state().value
                 logger.warning(
                     "stt.service_not_ready",

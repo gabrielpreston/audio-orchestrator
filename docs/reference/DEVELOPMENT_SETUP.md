@@ -1,7 +1,7 @@
 ---
 title: Development Environment Setup
 description: Multi-virtual environment setup for the discord-voice-lab project
-last_updated: 2025-01-17
+last-updated: 2025-10-17
 ---
 
 # Development Environment Setup
@@ -18,7 +18,7 @@ The project uses a **hybrid virtual environment approach**:
 
 ## 📁 Directory Structure
 
-```
+```text
 discord-voice-lab/
 ├── .venv/                           # Global environment (shared deps + services.common)
 ├── .vscode/settings.json           # Root workspace settings
