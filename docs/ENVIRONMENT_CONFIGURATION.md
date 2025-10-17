@@ -1,3 +1,7 @@
+---
+last-updated: 2025-10-16
+---
+
 # Environment Configuration Guide
 
 ## Overview

@@ -38,6 +38,18 @@ class ChaosTestResult:
     error_messages: list[str]
     timestamp: datetime
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert result to dictionary."""
+        return {
+            "test_name": self.test_name,
+            "success": self.success,
+            "failure_count": self.failure_count,
+            "recovery_count": self.recovery_count,
+            "test_duration_seconds": self.test_duration_seconds,
+            "error_messages": self.error_messages,
+            "timestamp": self.timestamp.isoformat(),
+        }
+
 
 class SurfaceAdapterChaosTester:
     """
@@ -349,13 +361,15 @@ class SurfaceAdapterChaosTester:
             results = await asyncio.gather(*tasks, return_exceptions=True)
 
             # Count failures
-            for result in results:
-                if isinstance(result, Exception):
-                    error_messages.append(f"Concurrent task failed: {result}")
+            for task_result in results:
+                if isinstance(task_result, Exception):
+                    error_messages.append(f"Concurrent task failed: {task_result}")
                     failure_count += 1
-                elif isinstance(result, dict) and result.get("failures", 0) > 0:
-                    failure_count += result["failures"]
-                    error_messages.extend(result.get("errors", []))
+                elif (
+                    isinstance(task_result, dict) and task_result.get("failures", 0) > 0
+                ):
+                    failure_count += task_result["failures"]
+                    error_messages.extend(task_result.get("errors", []))
 
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
             error_messages.append(f"Test setup failed: {e}")
@@ -370,7 +384,7 @@ class SurfaceAdapterChaosTester:
         test_duration = (datetime.now() - start_time).total_seconds()
         success = failure_count == 0 or recovery_count > 0
 
-        result = ChaosTestResult(
+        result: ChaosTestResult = ChaosTestResult(
             test_name=test_name,
             success=success,
             failure_count=failure_count,
@@ -400,7 +414,7 @@ class SurfaceAdapterChaosTester:
         Returns:
             Comprehensive chaos test results
         """
-        results = {
+        results: dict[str, Any] = {
             "total_adapters": len(adapters),
             "adapter_results": {},
             "summary": {},
@@ -467,7 +481,12 @@ class SurfaceAdapterChaosTester:
             await adapter.read_audio_frame()
         elif isinstance(adapter, AudioSink):
             dummy_frame = PCMFrame(
-                pcm=b"\x00" * 1024, rms=0.0, duration=0.1, sequence=1, sample_rate=16000
+                pcm=b"\x00" * 1024,
+                timestamp=time.time(),
+                rms=0.0,
+                duration=0.1,
+                sequence=1,
+                sample_rate=16000,
             )
             await adapter.play_audio_chunk(dummy_frame)
         elif isinstance(adapter, ControlChannel):

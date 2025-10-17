@@ -89,9 +89,9 @@ class SurfaceAdapterPerformanceTester:
             "Starting AudioSource performance test for %s seconds", duration_seconds
         )
 
-        # Initialize and connect adapter
-        await adapter.initialize()
-        await adapter.connect()
+        # Start capture for audio source
+        if hasattr(adapter, "start_capture"):
+            await adapter.start_capture()
 
         # Start resource monitoring
         await self._start_resource_monitoring()
@@ -135,7 +135,8 @@ class SurfaceAdapterPerformanceTester:
             await self._stop_resource_monitoring()
 
             # Disconnect adapter
-            await adapter.disconnect()
+            if hasattr(adapter, "stop_capture"):
+                await adapter.stop_capture()
 
         # Calculate metrics
         test_duration = time.time() - start_time
@@ -175,9 +176,9 @@ class SurfaceAdapterPerformanceTester:
             "Starting AudioSink performance test for %s seconds", duration_seconds
         )
 
-        # Initialize and connect adapter
-        await adapter.initialize()
-        await adapter.connect()
+        # Start capture for audio source
+        if hasattr(adapter, "start_capture"):
+            await adapter.start_capture()
 
         # Start resource monitoring
         await self._start_resource_monitoring()
@@ -194,6 +195,7 @@ class SurfaceAdapterPerformanceTester:
                     # Create dummy audio frame
                     dummy_frame = PCMFrame(
                         pcm=b"\x00" * 1024,
+                        timestamp=time.time(),
                         rms=0.0,
                         duration=0.1,
                         sequence=operation_count,
@@ -230,7 +232,8 @@ class SurfaceAdapterPerformanceTester:
             await self._stop_resource_monitoring()
 
             # Disconnect adapter
-            await adapter.disconnect()
+            if hasattr(adapter, "stop_capture"):
+                await adapter.stop_capture()
 
         # Calculate metrics
         test_duration = time.time() - start_time
@@ -270,9 +273,9 @@ class SurfaceAdapterPerformanceTester:
             "Starting ControlChannel performance test for %s seconds", duration_seconds
         )
 
-        # Initialize and connect adapter
-        await adapter.initialize()
-        await adapter.connect()
+        # Start capture for audio source
+        if hasattr(adapter, "start_capture"):
+            await adapter.start_capture()
 
         # Start resource monitoring
         await self._start_resource_monitoring()
@@ -321,7 +324,8 @@ class SurfaceAdapterPerformanceTester:
             await self._stop_resource_monitoring()
 
             # Disconnect adapter
-            await adapter.disconnect()
+            if hasattr(adapter, "stop_capture"):
+                await adapter.stop_capture()
 
         # Calculate metrics
         test_duration = time.time() - start_time
@@ -362,9 +366,9 @@ class SurfaceAdapterPerformanceTester:
             duration_seconds,
         )
 
-        # Initialize and connect adapter
-        await adapter.initialize()
-        await adapter.connect()
+        # Connect lifecycle adapter
+        if hasattr(adapter, "connect"):
+            await adapter.connect()
 
         # Start resource monitoring
         await self._start_resource_monitoring()
@@ -408,7 +412,8 @@ class SurfaceAdapterPerformanceTester:
             await self._stop_resource_monitoring()
 
             # Disconnect adapter
-            await adapter.disconnect()
+            if hasattr(adapter, "stop_capture"):
+                await adapter.stop_capture()
 
         # Calculate metrics
         test_duration = time.time() - start_time

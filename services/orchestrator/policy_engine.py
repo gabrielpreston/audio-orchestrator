@@ -96,6 +96,41 @@ class PolicyEngine:
         self._decision_count = 0
         self._total_decision_time = 0.0
 
+    async def initialize(self) -> None:
+        """Initialize the policy engine."""
+        self._logger.info("policy_engine.initializing")
+        # Initialization logic here
+        pass
+
+    def evaluate_transcript(self, transcript: str, confidence: float) -> dict[str, Any]:
+        """Evaluate transcript for policy decisions."""
+        try:
+            # Simple stub implementation
+            return {
+                "should_respond": confidence > 0.5,
+                "confidence": confidence,
+                "transcript": transcript,
+                "timestamp": time.time(),
+            }
+        except (ValueError, TypeError, KeyError) as e:
+            self._logger.error("policy_engine.evaluate_transcript_failed", error=str(e))
+            return {
+                "should_respond": False,
+                "confidence": 0.0,
+                "transcript": transcript,
+                "timestamp": time.time(),
+            }
+
+    def get_telemetry(self) -> dict[str, Any]:
+        """Get telemetry data."""
+        return {
+            "current_state": self._current_state.value,
+            "is_speaking": self._is_speaking,
+            "decision_count": self._decision_count,
+            "total_decision_time": self._total_decision_time,
+            "current_time": time.time(),
+        }
+
     def evaluate_vad(
         self, audio_data: bytes, rms: float, metadata: dict[str, Any]
     ) -> VADDecision:

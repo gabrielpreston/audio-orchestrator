@@ -128,7 +128,7 @@ class DiscordAdapterIntegration:
             logger.info("Connecting Discord adapters")
 
             # Connect lifecycle first
-            if not await self._surface_lifecycle.connect():
+            if self._surface_lifecycle and not await self._surface_lifecycle.connect():
                 logger.error("Failed to connect surface lifecycle")
                 return False
 
@@ -308,7 +308,7 @@ class DiscordAdapterIntegration:
             # Process audio frame
             if self._audio_source:
                 # Get audio metadata
-                metadata = await self._audio_source.get_telemetry()
+                metadata = self._audio_source.get_telemetry()
 
                 # Emit audio frame event
                 await self._emit_event(
@@ -372,10 +372,9 @@ class DiscordAdapterIntegration:
         try:
             while self._is_connected and self._audio_source:
                 # Process audio frames
-                frames = await self._audio_source.read_audio_frame()
-                if frames:
-                    for frame in frames:
-                        await self._handle_audio_frame(frame)
+                frame = await self._audio_source.read_audio_frame()
+                if frame:
+                    await self._handle_audio_frame(frame)
 
                 await asyncio.sleep(0.01)  # 10ms loop
 
@@ -423,7 +422,7 @@ class DiscordAdapterIntegration:
         Returns:
             Dictionary containing integration metrics
         """
-        metrics = {
+        metrics: dict[str, Any] = {
             "is_initialized": self._is_initialized,
             "is_connected": self._is_connected,
             "adapter_tasks_count": len(self._adapter_tasks),
@@ -435,15 +434,13 @@ class DiscordAdapterIntegration:
 
         # Add adapter-specific metrics
         if self._audio_source:
-            metrics["audio_source_metrics"] = await self._audio_source.get_telemetry()
+            metrics["audio_source_metrics"] = self._audio_source.get_telemetry()
 
         if self._audio_sink:
-            metrics["audio_sink_metrics"] = await self._audio_sink.get_telemetry()
+            metrics["audio_sink_metrics"] = self._audio_sink.get_telemetry()
 
         if self._control_channel:
-            metrics["control_channel_metrics"] = (
-                await self._control_channel.get_telemetry()
-            )
+            metrics["control_channel_metrics"] = self._control_channel.get_telemetry()
 
         if self._surface_lifecycle:
             metrics["surface_lifecycle_metrics"] = (

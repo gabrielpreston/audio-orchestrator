@@ -5,6 +5,7 @@ This module provides unit tests for the parity testing framework
 to ensure it correctly validates performance across different surfaces.
 """
 
+import time
 from unittest.mock import AsyncMock
 
 from services.common.surfaces.interfaces import (
@@ -77,7 +78,12 @@ class TestCrossSurfaceParityTester:
         audio_source.disconnect.return_value = None
         audio_source.read_audio_frame.return_value = [
             PCMFrame(
-                pcm=b"\x00" * 1024, rms=0.0, duration=0.1, sequence=1, sample_rate=16000
+                pcm=b"\x00" * 1024,
+                timestamp=time.time(),
+                rms=0.0,
+                duration=0.1,
+                sequence=1,
+                sample_rate=16000,
             )
         ]
 
@@ -222,7 +228,12 @@ class TestCrossSurfaceParityTester:
         audio_source.disconnect.return_value = None
         audio_source.read_audio_frame.return_value = [
             PCMFrame(
-                pcm=b"\x00" * 1024, rms=0.0, duration=0.1, sequence=1, sample_rate=16000
+                pcm=b"\x00" * 1024,
+                timestamp=time.time(),
+                rms=0.0,
+                duration=0.1,
+                sequence=1,
+                sample_rate=16000,
             )
         ]
 

@@ -8,14 +8,14 @@ must implement to participate in the composable audio architecture.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from .types import AudioMetadata, PCMFrame, TelemetryMetrics
 
 
-class AudioSource(Protocol):
-    """Protocol for audio capture from surfaces."""
+class AudioSource(ABC):
+    """Abstract base class for audio capture from surfaces."""
 
     @abstractmethod
     async def start_capture(self) -> None:
@@ -26,8 +26,8 @@ class AudioSource(Protocol):
         """Stop audio capture."""
 
     @abstractmethod
-    async def get_audio_frames(self) -> AsyncIterator[PCMFrame]:
-        """Get audio frames as they arrive."""
+    async def read_audio_frame(self) -> PCMFrame | None:
+        """Read a single audio frame."""
 
     @abstractmethod
     def get_metadata(self) -> AudioMetadata:
@@ -38,12 +38,12 @@ class AudioSource(Protocol):
         """Set callback for incoming audio frames."""
 
 
-class AudioSink(Protocol):
-    """Protocol for audio playback to surfaces."""
+class AudioSink(ABC):
+    """Abstract base class for audio playback to surfaces."""
 
     @abstractmethod
-    async def play_audio(self, audio_data: bytes, metadata: AudioMetadata) -> None:
-        """Play audio data."""
+    async def play_audio_chunk(self, frame: PCMFrame) -> None:
+        """Play audio frame."""
 
     @abstractmethod
     async def pause_playback(self) -> None:
@@ -62,54 +62,46 @@ class AudioSink(Protocol):
         """Check if currently playing audio."""
 
 
-class ControlChannel(Protocol):
-    """Protocol for bidirectional control communication."""
+class ControlChannel(ABC):
+    """Abstract base class for bidirectional control communication."""
 
     @abstractmethod
     async def send_event(self, event: Any) -> None:
         """Send control event."""
 
     @abstractmethod
-    async def receive_events(self) -> AsyncIterator[Any]:
-        """Receive control events."""
+    async def receive_event(self) -> Any | None:
+        """Receive a single control event."""
 
     @abstractmethod
-    def set_event_handler(
+    def register_event_handler(
         self, event_type: str, handler: Callable[[Any], None]
     ) -> None:
         """Set handler for specific event type."""
 
     @abstractmethod
-    async def close(self) -> None:
-        """Close control channel."""
-
-
-class SurfaceLifecycle(Protocol):
-    """Protocol for surface connection lifecycle."""
-
-    @abstractmethod
-    async def prepare(self) -> None:
-        """Prepare surface for connection."""
-
-    @abstractmethod
-    async def connect(self) -> None:
-        """Connect to surface."""
-
-    @abstractmethod
     async def disconnect(self) -> None:
-        """Disconnect from surface."""
+        """Disconnect control channel."""
+
+
+class SurfaceLifecycle(ABC):
+    """Abstract base class for surface connection lifecycle."""
 
     @abstractmethod
-    async def publish(self, data: Any) -> None:
-        """Publish data to surface."""
+    async def connect(self) -> bool:
+        """Connect to surface. Returns success status."""
 
     @abstractmethod
-    async def subscribe(self, callback: Callable[[Any], None]) -> None:
-        """Subscribe to surface events."""
+    async def disconnect(self) -> bool:
+        """Disconnect from surface. Returns success status."""
 
     @abstractmethod
     def is_connected(self) -> bool:
         """Check if surface is connected."""
+
+    @abstractmethod
+    async def get_telemetry(self) -> dict[str, Any]:
+        """Get telemetry data."""
 
 
 class SurfaceAdapter(ABC):

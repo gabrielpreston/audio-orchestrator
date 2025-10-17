@@ -5,6 +5,8 @@ This module validates that the core interfaces are properly defined
 and that data types can be serialized/deserialized correctly.
 """
 
+import pytest
+
 from services.common.surfaces.events import (
     PlaybackControlEvent,
     TranscriptFinalEvent,
@@ -33,6 +35,8 @@ from services.common.surfaces.types import (
 class TestAudioMetadata:
     """Test AudioMetadata data structure."""
 
+    @pytest.mark.unit
+    @pytest.mark.unit
     def test_audio_metadata_creation(self):
         """Test creating AudioMetadata with valid data."""
         metadata = AudioMetadata(
@@ -53,6 +57,8 @@ class TestAudioMetadata:
         assert metadata.format == AudioFormat.PCM
         assert metadata.bit_depth == 16
 
+    @pytest.mark.unit
+    @pytest.mark.unit
     def test_audio_metadata_properties(self):
         """Test AudioMetadata calculated properties."""
         metadata = AudioMetadata(
@@ -72,6 +78,7 @@ class TestAudioMetadata:
 class TestPCMFrame:
     """Test PCMFrame data structure."""
 
+    @pytest.mark.unit
     def test_pcm_frame_creation(self):
         """Test creating PCMFrame with valid data."""
         frame = PCMFrame(
@@ -92,6 +99,7 @@ class TestPCMFrame:
         assert frame.channels == 1  # default
         assert frame.sample_width == 2  # default
 
+    @pytest.mark.unit
     def test_pcm_frame_properties(self):
         """Test PCMFrame calculated properties."""
         frame = PCMFrame(
@@ -109,6 +117,7 @@ class TestPCMFrame:
 class TestAudioSegment:
     """Test AudioSegment data structure."""
 
+    @pytest.mark.unit
     def test_audio_segment_creation(self):
         """Test creating AudioSegment with valid data."""
         segment = AudioSegment(
@@ -129,6 +138,7 @@ class TestAudioSegment:
         assert segment.frame_count == 100
         assert segment.sample_rate == 16000
 
+    @pytest.mark.unit
     def test_audio_segment_properties(self):
         """Test AudioSegment calculated properties."""
         segment = AudioSegment(
@@ -149,6 +159,7 @@ class TestAudioSegment:
 class TestControlEvents:
     """Test control event serialization."""
 
+    @pytest.mark.unit
     def test_wake_detected_event(self):
         """Test WakeDetectedEvent serialization."""
         event = WakeDetectedEvent(
@@ -163,6 +174,7 @@ class TestControlEvents:
         assert data["confidence"] == 0.95
         assert data["ts_device"] == 1234567890.0
 
+    @pytest.mark.unit
     def test_vad_start_speech_event(self):
         """Test VADStartSpeechEvent serialization."""
         event = VADStartSpeechEvent(
@@ -175,6 +187,7 @@ class TestControlEvents:
         assert data["correlation_id"] == "corr123"
         assert data["ts_device"] == 1234567890.0
 
+    @pytest.mark.unit
     def test_playback_control_event(self):
         """Test PlaybackControlEvent serialization."""
         event = PlaybackControlEvent(
@@ -189,6 +202,7 @@ class TestControlEvents:
         assert data["action"] == "pause"
         assert data["reason"] == "user_interruption"
 
+    @pytest.mark.unit
     def test_transcript_final_event(self):
         """Test TranscriptFinalEvent with word timestamps."""
         words = [
@@ -216,18 +230,21 @@ class TestControlEvents:
 class TestEnums:
     """Test enum values."""
 
+    @pytest.mark.unit
     def test_audio_format_enum(self):
         """Test AudioFormat enum values."""
         assert AudioFormat.PCM.value == "pcm"
         assert AudioFormat.WAV.value == "wav"
         assert AudioFormat.OPUS.value == "opus"
 
+    @pytest.mark.unit
     def test_endpointing_state_enum(self):
         """Test EndpointingState enum values."""
         assert EndpointingState.LISTENING.value == "listening"
         assert EndpointingState.PROCESSING.value == "processing"
         assert EndpointingState.RESPONDING.value == "responding"
 
+    @pytest.mark.unit
     def test_playback_action_enum(self):
         """Test PlaybackAction enum values."""
         assert PlaybackAction.START.value == "start"
@@ -235,6 +252,7 @@ class TestEnums:
         assert PlaybackAction.RESUME.value == "resume"
         assert PlaybackAction.STOP.value == "stop"
 
+    @pytest.mark.unit
     def test_session_action_enum(self):
         """Test SessionAction enum values."""
         assert SessionAction.JOIN.value == "join"
@@ -246,6 +264,7 @@ class TestEnums:
 class TestTelemetryMetrics:
     """Test TelemetryMetrics data structure."""
 
+    @pytest.mark.unit
     def test_telemetry_metrics_creation(self):
         """Test creating TelemetryMetrics with valid data."""
         metrics = TelemetryMetrics(
@@ -272,6 +291,7 @@ class TestTelemetryMetrics:
 class TestProtocolCompliance:
     """Test that protocols are properly defined."""
 
+    @pytest.mark.unit
     def test_audio_source_protocol(self):
         """Test AudioSource protocol has required methods."""
         # This is a structural test - we can't easily test protocols
@@ -279,14 +299,17 @@ class TestProtocolCompliance:
         # protocol is properly defined by checking it exists
         assert hasattr(AudioSource, "__abstractmethods__")
 
+    @pytest.mark.unit
     def test_audio_sink_protocol(self):
         """Test AudioSink protocol has required methods."""
         assert hasattr(AudioSink, "__abstractmethods__")
 
+    @pytest.mark.unit
     def test_control_channel_protocol(self):
         """Test ControlChannel protocol has required methods."""
         assert hasattr(ControlChannel, "__abstractmethods__")
 
+    @pytest.mark.unit
     def test_surface_lifecycle_protocol(self):
         """Test SurfaceLifecycle protocol has required methods."""
         assert hasattr(SurfaceLifecycle, "__abstractmethods__")

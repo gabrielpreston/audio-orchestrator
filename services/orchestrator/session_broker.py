@@ -85,6 +85,56 @@ class SessionBroker:
         # Telemetry tracking
         self._last_telemetry = time.time()
 
+    async def initialize(self) -> None:
+        """Initialize the session broker."""
+        self._logger.info("session_broker.initializing")
+        # Initialization logic here
+        pass
+
+    async def cleanup(self) -> None:
+        """Cleanup the session broker."""
+        self._logger.info("session_broker.cleaning_up")
+        # Cleanup logic here
+        pass
+
+    def end_session(self, session_id: str) -> bool:
+        """End a session."""
+        try:
+            if session_id in self._sessions:
+                del self._sessions[session_id]
+                self._logger.info("session_broker.session_ended", session_id=session_id)
+                return True
+            return False
+        except (ValueError, TypeError, KeyError) as e:
+            self._logger.error("session_broker.end_session_failed", error=str(e))
+            return False
+
+    def update_session_metadata(
+        self, session_id: str, metadata: dict[str, Any]
+    ) -> bool:
+        """Update session metadata."""
+        try:
+            if session_id in self._sessions:
+                # Update session metadata directly
+                session = self._sessions[session_id]
+                for key, value in metadata.items():
+                    if hasattr(session.metadata, key):
+                        setattr(session.metadata, key, value)
+                return True
+            return False
+        except (ValueError, TypeError, KeyError) as e:
+            self._logger.error("session_broker.update_metadata_failed", error=str(e))
+            return False
+
+    def get_telemetry(self) -> dict[str, Any]:
+        """Get telemetry data."""
+        return {
+            "active_sessions": len(self._sessions),
+            "total_sessions": self._session_stats.total_sessions,
+            "completed_sessions": self._session_stats.completed_sessions,
+            "current_time": time.time(),
+        }
+
     def create_session(
         self,
         user_id: str,
@@ -332,7 +382,6 @@ class SessionBroker:
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("session_broker.cleanup_failed", error=str(e))
             return {
-                "error": str(e),
                 "expired_sessions": 0,
                 "inactive_sessions": 0,
                 "total_sessions": 0,
@@ -409,10 +458,10 @@ class SessionBroker:
 
             self._last_telemetry = time.time()
 
-            active_sessions = telemetry_data.get("active_sessions", [])
+            active_sessions = telemetry_data.get("active_sessions", 0)
             self._logger.debug(
                 "session_broker.telemetry_emitted",
-                active_sessions=len(active_sessions),
+                active_sessions=active_sessions,
             )
 
             return telemetry_data

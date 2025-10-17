@@ -165,11 +165,12 @@ class SessionOrchestratorIntegration:
             Session ID if successful, None otherwise
         """
         try:
-            session_id = await self.session_broker.create_session(
-                surface_id=surface_id, user_id=user_id, metadata=metadata
+            session = self.session_broker.create_session(
+                surface_id=surface_id, user_id=user_id, surface_metadata=metadata
             )
 
-            if session_id:
+            if session:
+                session_id = session.session_id
                 logger.info("Created session %s for surface %s", session_id, surface_id)
 
                 # Emit session created event
@@ -184,7 +185,7 @@ class SessionOrchestratorIntegration:
                     },
                 )
 
-            return session_id
+            return str(session_id)
 
         except Exception as e:
             logger.error("Failed to create session: %s", e)
@@ -204,7 +205,7 @@ class SessionOrchestratorIntegration:
             True if successful, False otherwise
         """
         try:
-            success = await self.session_broker.end_session(session_id, reason)
+            success = self.session_broker.end_session(session_id)
 
             if success:
                 logger.info("Ended session %s with reason: %s", session_id, reason)
@@ -219,7 +220,7 @@ class SessionOrchestratorIntegration:
                     },
                 )
 
-            return success
+            return bool(success)
 
         except Exception as e:
             logger.error("Failed to end session %s: %s", session_id, e)
@@ -241,36 +242,45 @@ class SessionOrchestratorIntegration:
         """
         try:
             # Get session information
-            session = await self.session_broker.get_session(session_id)
+            session = self.session_broker.get_session(session_id)
             if not session:
                 logger.error("Session %s not found", session_id)
                 return {"error": "Session not found"}
 
             # Apply policy engine rules
-            policy_result = await self.policy_engine.evaluate_transcript(
+            policy_result = self.policy_engine.evaluate_transcript(
                 transcript=transcript,
-                session_metadata=session.metadata,
-                is_final=is_final,
+                confidence=0.9,  # Default confidence
             )
 
-            if not policy_result.should_process:
+            if not policy_result.get("should_process", True):
                 logger.debug(
                     "Transcript rejected by policy engine for session %s", session_id
                 )
-                return {"status": "rejected", "reason": policy_result.reason}
+                return {
+                    "status": "rejected",
+                    "reason": policy_result.get("reason", "Policy rejection"),
+                }
 
             # Process through orchestrator
             result = await self._send_to_orchestrator(
                 session_id=session_id,
-                surface_id=session.surface_id,
-                user_id=session.user_id,
+                surface_id=session.metadata.surface_id,
+                user_id=session.metadata.user_id,
                 transcript=transcript,
                 is_final=is_final,
-                metadata=session.metadata,
+                metadata={
+                    "user_id": session.metadata.user_id,
+                    "surface_id": session.metadata.surface_id,
+                    "session_type": session.metadata.session_type.value,
+                    "created_at": session.metadata.created_at,
+                    "last_activity": session.metadata.last_activity,
+                    "correlation_id": session.metadata.correlation_id,
+                },
             )
 
             # Update session with processing result
-            await self.session_broker.update_session_metadata(
+            self.session_broker.update_session_metadata(
                 session_id=session_id,
                 metadata={
                     "last_transcript": transcript,
@@ -419,12 +429,12 @@ class SessionOrchestratorIntegration:
                 await asyncio.sleep(self._cleanup_interval)
 
                 # Clean up expired sessions
-                expired_count = await self.session_broker.cleanup_expired_sessions()
+                expired_count = self.session_broker.cleanup_expired_sessions()
                 if expired_count > 0:
                     logger.info("Cleaned up %d expired sessions", expired_count)
 
                 # Clean up inactive sessions
-                inactive_count = await self.session_broker.cleanup_inactive_sessions()
+                inactive_count = self.session_broker.cleanup_inactive_sessions()
                 if inactive_count > 0:
                     logger.info("Cleaned up %d inactive sessions", inactive_count)
 
@@ -440,12 +450,12 @@ class SessionOrchestratorIntegration:
                 await asyncio.sleep(30.0)  # Check every 30 seconds
 
                 # Check session broker health
-                broker_health = await self.session_broker.get_telemetry()
+                broker_health = self.session_broker.get_telemetry()
                 if not broker_health.get("is_healthy", False):
                     logger.warning("Session broker health check failed")
 
                 # Check policy engine health
-                policy_health = await self.policy_engine.get_telemetry()
+                policy_health = self.policy_engine.get_telemetry()
                 if not policy_health.get("is_healthy", False):
                     logger.warning("Policy engine health check failed")
 
@@ -541,11 +551,9 @@ class SessionOrchestratorIntegration:
 
         # Add component-specific metrics
         if self.session_broker:
-            metrics["session_broker_metrics"] = (
-                await self.session_broker.get_telemetry()
-            )
+            metrics["session_broker_metrics"] = self.session_broker.get_telemetry()
 
         if self.policy_engine:
-            metrics["policy_engine_metrics"] = await self.policy_engine.get_telemetry()
+            metrics["policy_engine_metrics"] = self.policy_engine.get_telemetry()
 
         return metrics

@@ -22,3 +22,5 @@ services/models/
 .npm/
 *.txt
 !requirements*.txt
+.coverage
+coverage.xml

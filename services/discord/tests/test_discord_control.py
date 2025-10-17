@@ -22,6 +22,7 @@ from services.discord.adapters.discord_control import DiscordControlChannel
 class TestDiscordControlChannel:
     """Test DiscordControlChannel functionality."""
 
+    @pytest.mark.component
     def test_discord_control_channel_creation(self):
         """Test creating DiscordControlChannel with basic parameters."""
         control = DiscordControlChannel(
@@ -36,6 +37,7 @@ class TestDiscordControlChannel:
         assert control._total_events_sent == 0
         assert control._total_events_received == 0
 
+    @pytest.mark.component
     def test_discord_control_channel_creation_with_user(self):
         """Test creating DiscordControlChannel with user ID."""
         control = DiscordControlChannel(
@@ -48,6 +50,7 @@ class TestDiscordControlChannel:
         assert control.channel_id == 987654321
         assert control.user_id == 555666777
 
+    @pytest.mark.component
     def test_get_surface_id(self):
         """Test getting surface ID."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -55,6 +58,7 @@ class TestDiscordControlChannel:
 
         assert surface_id == "discord_control:123456789:987654321"
 
+    @pytest.mark.component
     def test_get_voice_state_initial(self):
         """Test initial voice state."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -64,6 +68,7 @@ class TestDiscordControlChannel:
         assert not control.is_deaf()
         assert not control.is_mute()
 
+    @pytest.mark.component
     def test_update_voice_state(self):
         """Test updating voice state."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -74,6 +79,7 @@ class TestDiscordControlChannel:
         control.update_voice_state("speaking")
         assert control.get_voice_state() == "speaking"
 
+    @pytest.mark.component
     def test_update_speaking_state(self):
         """Test updating speaking state."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -84,6 +90,7 @@ class TestDiscordControlChannel:
         control.update_speaking_state(False)
         assert not control.is_speaking()
 
+    @pytest.mark.component
     def test_update_deaf_state(self):
         """Test updating deaf state."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -94,6 +101,7 @@ class TestDiscordControlChannel:
         control.update_deaf_state(False)
         assert not control.is_deaf()
 
+    @pytest.mark.component
     def test_update_mute_state(self):
         """Test updating mute state."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -104,25 +112,28 @@ class TestDiscordControlChannel:
         control.update_mute_state(False)
         assert not control.is_mute()
 
+    @pytest.mark.component
     def test_register_event_handler(self):
         """Test registering event handler."""
         control = DiscordControlChannel(123456789, 987654321)
 
         handler = Mock()
-        control.register_event_handler(handler)
+        control.register_event_handler("test_event", handler)
 
         assert handler in control._event_handlers
 
+    @pytest.mark.component
     def test_unregister_event_handler(self):
         """Test unregistering event handler."""
         control = DiscordControlChannel(123456789, 987654321)
 
         handler = Mock()
-        control.register_event_handler(handler)
+        control.register_event_handler("test_event", handler)
         control.unregister_event_handler(handler)
 
         assert handler not in control._event_handlers
 
+    @pytest.mark.component
     def test_unregister_event_handler_not_registered(self):
         """Test unregistering non-registered event handler."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -133,6 +144,7 @@ class TestDiscordControlChannel:
         # Should not raise exception
         control.unregister_event_handler(handler)
 
+    @pytest.mark.component
     def test_get_connection_stats(self):
         """Test getting connection statistics."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -156,6 +168,7 @@ class TestDiscordControlChannel:
         assert stats["deaf"] is False
         assert stats["mute"] is False
 
+    @pytest.mark.component
     def test_get_telemetry(self):
         """Test getting telemetry data."""
         control = DiscordControlChannel(123456789, 987654321, user_id=555666777)
@@ -181,6 +194,7 @@ class TestDiscordControlChannel:
         assert telemetry["user_id"] == 555666777
         assert telemetry["is_connected"] is False
 
+    @pytest.mark.component
     def test_update_policy(self):
         """Test updating surface policies."""
         control = DiscordControlChannel(123456789, 987654321)
@@ -194,6 +208,7 @@ class TestDiscordControlChannel:
         # Should not raise exception
         control.update_policy(policy_config)
 
+    @pytest.mark.component
     def test_repr(self):
         """Test string representation."""
         control = DiscordControlChannel(123456789, 987654321, user_id=555666777)
@@ -295,7 +310,8 @@ class TestDiscordControlChannel:
 
         # Should not raise exception
         events = []
-        async for event in control.receive_event():
+        event = await control.receive_event()
+        if event:
             events.append(event)
 
         assert len(events) == 0
@@ -310,10 +326,10 @@ class TestDiscordControlChannel:
         await control.send_event({"event_type": "test2"})
 
         events = []
-        async for event in control.receive_event():
-            events.append(event)
-            if len(events) >= 3:  # Connection + 2 test events
-                break
+        for _ in range(3):  # Connection + 2 test events
+            event = await control.receive_event()
+            if event:
+                events.append(event)
 
         assert len(events) == 3
         assert events[0]["event_type"] == "connection.established"
@@ -326,17 +342,17 @@ class TestDiscordControlChannel:
         control = DiscordControlChannel(123456789, 987654321)
 
         handler = Mock()
-        control.register_event_handler(handler)
+        control.register_event_handler("test_event", handler)
 
         await control.connect()
         await control.send_event({"event_type": "test"})
 
         # Process events
         events = []
-        async for event in control.receive_event():
-            events.append(event)
-            if len(events) >= 2:  # Connection + test event
-                break
+        for _ in range(2):  # Connection + test event
+            event = await control.receive_event()
+            if event:
+                events.append(event)
 
         # Handler should be called for both events
         assert handler.call_count >= 2
@@ -348,18 +364,18 @@ class TestDiscordControlChannel:
 
         handler1 = Mock()
         handler2 = Mock()
-        control.register_event_handler(handler1)
-        control.register_event_handler(handler2)
+        control.register_event_handler("test_event", handler1)
+        control.register_event_handler("test_event", handler2)
 
         await control.connect()
         await control.send_event({"event_type": "test"})
 
         # Process events
         events = []
-        async for event in control.receive_event():
-            events.append(event)
-            if len(events) >= 2:  # Connection + test event
-                break
+        for _ in range(2):  # Connection + test event
+            event = await control.receive_event()
+            if event:
+                events.append(event)
 
         # Both handlers should be called
         assert handler1.call_count >= 2
@@ -374,18 +390,18 @@ class TestDiscordControlChannel:
             raise ValueError("Handler failed")
 
         handler = Mock()
-        control.register_event_handler(failing_handler)
-        control.register_event_handler(handler)
+        control.register_event_handler("test_event", failing_handler)
+        control.register_event_handler("test_event", handler)
 
         await control.connect()
         await control.send_event({"event_type": "test"})
 
         # Process events
         events = []
-        async for event in control.receive_event():
-            events.append(event)
-            if len(events) >= 2:  # Connection + test event
-                break
+        for _ in range(2):  # Connection + test event
+            event = await control.receive_event()
+            if event:
+                events.append(event)
 
         # Should not raise exception
         assert len(events) == 2

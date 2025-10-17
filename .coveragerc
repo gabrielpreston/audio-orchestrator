@@ -54,15 +54,9 @@ directory = htmlcov
 # HTML report title
 title = Discord Voice Lab Coverage Report
 
-# Show missing lines in HTML
-show_missing = True
-
 # Skip covered files in HTML
 skip_covered = False
 
 [xml]
 # XML report filename
 output = coverage.xml
-
-# Include source code in XML
-include_source = True

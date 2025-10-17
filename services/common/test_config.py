@@ -5,6 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest import TestCase, mock
 
+import pytest
+
 from .config import (
     BaseConfig,
     ConfigBuilder,
@@ -27,6 +29,7 @@ from .service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConf
 class TestFieldDefinition(TestCase):
     """Test FieldDefinition class."""
 
+    @pytest.mark.unit
     def test_field_definition_creation(self):
         """Test creating field definitions."""
         field = FieldDefinition(
@@ -43,6 +46,7 @@ class TestFieldDefinition(TestCase):
         self.assertFalse(field.required)
         self.assertEqual(field.description, "Test field")
 
+    @pytest.mark.unit
     def test_field_definition_validation(self):
         """Test field definition validation."""
         # Test required field with default (should fail)
@@ -67,6 +71,7 @@ class TestFieldDefinition(TestCase):
 class TestValidators(TestCase):
     """Test validation functions."""
 
+    @pytest.mark.unit
     def test_validate_url(self):
         """Test URL validation."""
         self.assertTrue(validate_url("http://example.com"))
@@ -78,6 +83,7 @@ class TestValidators(TestCase):
         self.assertFalse(validate_url("ftp://example.com"))
         self.assertFalse(validate_url(""))
 
+    @pytest.mark.unit
     def test_validate_port(self):
         """Test port validation."""
         self.assertTrue(validate_port(1))
@@ -88,6 +94,7 @@ class TestValidators(TestCase):
         self.assertFalse(validate_port(65536))
         self.assertFalse(validate_port(-1))
 
+    @pytest.mark.unit
     def test_validate_positive(self):
         """Test positive number validation."""
         self.assertTrue(validate_positive(1))
@@ -98,6 +105,7 @@ class TestValidators(TestCase):
         self.assertFalse(validate_positive(-1))
         self.assertFalse(validate_positive(-0.1))
 
+    @pytest.mark.unit
     def test_validate_non_negative(self):
         """Test non-negative number validation."""
         self.assertTrue(validate_non_negative(0))
@@ -111,6 +119,7 @@ class TestValidators(TestCase):
 class TestBaseConfig(TestCase):
     """Test BaseConfig class."""
 
+    @pytest.mark.unit
     def test_config_initialization(self):
         """Test configuration initialization."""
 
@@ -135,6 +144,7 @@ class TestBaseConfig(TestCase):
         self.assertEqual(config.field1, "custom")
         self.assertEqual(config.field2, 100)
 
+    @pytest.mark.unit
     def test_config_validation(self):
         """Test configuration validation."""
 
@@ -170,6 +180,7 @@ class TestBaseConfig(TestCase):
         with self.assertRaises(ValidationError):
             config.validate()
 
+    @pytest.mark.unit
     def test_config_to_dict(self):
         """Test converting configuration to dictionary."""
 
@@ -200,6 +211,7 @@ class TestEnvironmentLoader(TestCase):
         """Set up test environment."""
         self.loader = EnvironmentLoader("TEST")
 
+    @pytest.mark.unit
     def test_load_field_with_default(self):
         """Test loading field with default value."""
         field_def = FieldDefinition(
@@ -213,6 +225,7 @@ class TestEnvironmentLoader(TestCase):
             value = self.loader.load_field(field_def)
             self.assertEqual(value, "default_value")
 
+    @pytest.mark.unit
     def test_load_field_with_environment_variable(self):
         """Test loading field from environment variable."""
         field_def = FieldDefinition(
@@ -227,6 +240,7 @@ class TestEnvironmentLoader(TestCase):
             value = self.loader.load_field(field_def)
             self.assertEqual(value, "env_value")
 
+    @pytest.mark.unit
     def test_load_field_required_missing(self):
         """Test loading required field that's missing."""
         field_def = FieldDefinition(
@@ -241,6 +255,7 @@ class TestEnvironmentLoader(TestCase):
         ):
             self.loader.load_field(field_def)
 
+    @pytest.mark.unit
     def test_convert_value(self):
         """Test value conversion."""
         # Test string conversion
@@ -261,6 +276,7 @@ class TestEnvironmentLoader(TestCase):
         # Test list conversion
         self.assertEqual(self.loader._convert_value("a,b,c", list), ["a", "b", "c"])
 
+    @pytest.mark.unit
     def test_load_config(self):
         """Test loading complete configuration."""
 
@@ -288,12 +304,14 @@ class TestEnvironmentLoader(TestCase):
 class TestConfigBuilder(TestCase):
     """Test ConfigBuilder class."""
 
+    @pytest.mark.unit
     def test_builder_creation(self):
         """Test creating configuration builder."""
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
         self.assertEqual(builder.service_name, "test")
         self.assertEqual(builder.environment, Environment.DEVELOPMENT)
 
+    @pytest.mark.unit
     def test_add_config(self):
         """Test adding configuration sections."""
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
@@ -302,6 +320,7 @@ class TestConfigBuilder(TestCase):
         self.assertIn("logging", builder._configs)
         self.assertIsInstance(builder._configs["logging"], LoggingConfig)
 
+    @pytest.mark.unit
     def test_load(self):
         """Test loading complete configuration."""
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
@@ -316,6 +335,7 @@ class TestConfigBuilder(TestCase):
 class TestServiceConfig(TestCase):
     """Test ServiceConfig class."""
 
+    @pytest.mark.unit
     def test_service_config_creation(self):
         """Test creating service configuration."""
         configs = {"logging": LoggingConfig()}
@@ -329,6 +349,7 @@ class TestServiceConfig(TestCase):
         self.assertEqual(service_config.environment, Environment.DEVELOPMENT)
         self.assertEqual(service_config.configs, configs)
 
+    @pytest.mark.unit
     def test_get_config(self):
         """Test getting configuration section."""
         configs = {"logging": LoggingConfig()}
@@ -344,6 +365,7 @@ class TestServiceConfig(TestCase):
         with self.assertRaises(KeyError):
             service_config.get_config("nonexistent")
 
+    @pytest.mark.unit
     def test_validate(self):
         """Test configuration validation."""
         configs = {"logging": LoggingConfig()}
@@ -356,6 +378,7 @@ class TestServiceConfig(TestCase):
         # Should not raise
         service_config.validate()
 
+    @pytest.mark.unit
     def test_to_dict(self):
         """Test converting to dictionary."""
         configs = {"logging": LoggingConfig()}
@@ -370,6 +393,7 @@ class TestServiceConfig(TestCase):
         self.assertEqual(config_dict["environment"], "development")
         self.assertIn("configs", config_dict)
 
+    @pytest.mark.unit
     def test_save_and_load_file(self):
         """Test saving and loading configuration to/from file."""
         configs = {"logging": LoggingConfig()}
@@ -398,6 +422,7 @@ class TestServiceConfig(TestCase):
                 if temp_file.exists():
                     temp_file.unlink()
 
+    @pytest.mark.unit
     def test_getattr(self):
         """Test direct access to configuration sections."""
         configs = {"logging": LoggingConfig()}
@@ -414,6 +439,7 @@ class TestServiceConfig(TestCase):
 class TestServiceConfigs(TestCase):
     """Test service-specific configuration classes."""
 
+    @pytest.mark.unit
     def test_discord_config(self):
         """Test Discord configuration."""
         config = DiscordConfig()
@@ -423,6 +449,7 @@ class TestServiceConfigs(TestCase):
         self.assertEqual(config.intents, ["guilds", "voice_states", "guild_messages"])
         self.assertFalse(config.auto_join)
 
+    @pytest.mark.unit
     def test_audio_config(self):
         """Test Audio configuration."""
         config = AudioConfig()
@@ -431,6 +458,7 @@ class TestServiceConfigs(TestCase):
         self.assertEqual(config.input_sample_rate_hz, 48000)
         self.assertEqual(config.vad_sample_rate_hz, 16000)
 
+    @pytest.mark.unit
     def test_http_config(self):
         """Test HTTP configuration."""
         config = HttpConfig()
@@ -439,6 +467,7 @@ class TestServiceConfigs(TestCase):
         self.assertEqual(config.retry_delay, 1.0)
         self.assertEqual(config.user_agent, "discord-voice-lab/1.0")
 
+    @pytest.mark.unit
     def test_logging_config(self):
         """Test Logging configuration."""
         config = LoggingConfig()
@@ -450,6 +479,7 @@ class TestServiceConfigs(TestCase):
 class TestConvenienceFunctions(TestCase):
     """Test convenience functions."""
 
+    @pytest.mark.unit
     def test_create_field_definition(self):
         """Test create_field_definition function."""
         field = create_field_definition(
@@ -464,6 +494,7 @@ class TestConvenienceFunctions(TestCase):
         self.assertEqual(field.default, "test_value")
         self.assertEqual(field.description, "Test field")
 
+    @pytest.mark.unit
     def test_load_service_config(self):
         """Test load_service_config function."""
         config = load_service_config("test", Environment.DEVELOPMENT)

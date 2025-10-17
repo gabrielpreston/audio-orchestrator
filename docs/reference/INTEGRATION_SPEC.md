@@ -1,3 +1,7 @@
+---
+last-updated: 2025-10-16
+---
+
 # Composable Surface Architecture - Integration Specification
 
 ## Overview
@@ -7,16 +11,19 @@ The Composable Surface Architecture provides a flexible, extensible framework fo
 ## Architecture Principles
 
 ### 1. **Composability**
+
 - Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
 - Each component can be implemented independently and swapped without affecting others
 - Components communicate through well-defined interfaces
 
 ### 2. **Extensibility**
+
 - New surface types can be added by implementing the four core interfaces
 - Existing surfaces can be enhanced without breaking changes
 - Plugin architecture supports third-party surface implementations
 
 ### 3. **Consistency**
+
 - All surfaces provide consistent behavior through standardized interfaces
 - Common patterns for error handling, configuration, and lifecycle management
 - Unified event system across all surface types
@@ -39,6 +46,7 @@ class AudioSource(ABC):
 ```
 
 **Responsibilities:**
+
 - Capture audio from the surface
 - Provide audio frames in standardized PCM format
 - Handle audio quality and format conversion
@@ -60,6 +68,7 @@ class AudioSink(ABC):
 ```
 
 **Responsibilities:**
+
 - Play audio to the surface
 - Handle audio format conversion
 - Manage audio playback timing and synchronization
@@ -85,6 +94,7 @@ class ControlChannel(ABC):
 ```
 
 **Responsibilities:**
+
 - Handle surface-specific control events
 - Manage user interactions (wake words, button presses, etc.)
 - Route events between surface and voice pipeline
@@ -114,6 +124,7 @@ class SurfaceLifecycle(ABC):
 ```
 
 **Responsibilities:**
+
 - Manage surface connection lifecycle
 - Handle authentication and permissions
 - Monitor connection health
@@ -285,6 +296,7 @@ except ConnectionError as e:
 ### Contract Testing
 
 All surface adapters must pass contract tests that validate:
+
 - Interface compliance
 - Performance requirements
 - Error handling behavior
@@ -293,6 +305,7 @@ All surface adapters must pass contract tests that validate:
 ### Parity Testing
 
 Cross-surface parity tests ensure:
+
 - Consistent performance across surface types
 - Uniform behavior patterns
 - Comparable latency characteristics
@@ -300,6 +313,7 @@ Cross-surface parity tests ensure:
 ### Chaos Testing
 
 Reliability testing includes:
+
 - Network fault injection
 - Memory pressure testing
 - Rapid connect/disconnect cycles

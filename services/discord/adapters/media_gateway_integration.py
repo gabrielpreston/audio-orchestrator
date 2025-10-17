@@ -335,14 +335,13 @@ class DiscordMediaGatewayIntegration:
         try:
             while self._is_connected and self.audio_source:
                 # Process audio frames from source
-                frames = await self.audio_source.read_audio_frame()
-                if frames:
-                    for frame in frames:
-                        # Process frame through MediaGateway
-                        processed_frame = await self.process_audio_frame(frame)
-                        if processed_frame:
-                            # Send to sink
-                            await self.audio_sink.play_audio_chunk(processed_frame)
+                frame = await self.audio_source.read_audio_frame()
+                if frame:
+                    # Process frame through MediaGateway
+                    processed_frame = await self.process_audio_frame(frame)
+                    if processed_frame:
+                        # Send to sink
+                        await self.audio_sink.play_audio_chunk(processed_frame)
 
                 await asyncio.sleep(0.01)  # 10ms loop
 
@@ -387,7 +386,7 @@ class DiscordMediaGatewayIntegration:
         Returns:
             Dictionary containing integration metrics
         """
-        metrics = {
+        metrics: dict[str, Any] = {
             "is_initialized": self._is_initialized,
             "is_connected": self._is_connected,
             "processing_tasks_count": len(self._processing_tasks),

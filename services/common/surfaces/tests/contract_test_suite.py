@@ -6,6 +6,7 @@ of surface adapters with the defined interfaces and contracts.
 """
 
 import asyncio
+import time
 from datetime import datetime
 from typing import Any
 
@@ -377,7 +378,7 @@ class SurfaceAdapterContractTester:
                 return {
                     "test_name": "audio_frame_reading",
                     "passed": frames is not None,
-                    "details": f"Read {len(frames) if frames else 0} frames",
+                    "details": f"Read {1 if frames else 0} frames",
                 }
             else:
                 return {
@@ -399,6 +400,7 @@ class SurfaceAdapterContractTester:
                 # Create dummy audio frame
                 dummy_frame = PCMFrame(
                     pcm=b"\x00" * 1024,
+                    timestamp=time.time(),
                     rms=0.0,
                     duration=0.1,
                     sequence=1,

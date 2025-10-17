@@ -94,14 +94,13 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             self._start_health_monitoring()
 
             # Emit connection event
-            await self._emit_lifecycle_event(
-                ConnectionEvent(
-                    event_type="connection.established",
-                    surface_id=self._surface_config.surface_id,
-                    timestamp=datetime.now().timestamp(),
-                    connection_params=self._surface_config.config,
-                )
+            connection_event = ConnectionEvent(
+                event_type="connection.established",
+                surface_id=self._surface_config.surface_id,
+                timestamp=datetime.now().timestamp(),
+                connection_params=self._surface_config.config,
             )
+            await self._emit_lifecycle_event(connection_event.to_dict())
 
             logger.info(
                 "Successfully connected to Discord voice channel %s", self.channel_id
@@ -110,14 +109,13 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
 
         except (ValueError, TypeError, OSError) as e:
             logger.error("Failed to connect to Discord voice channel: %s", e)
-            await self._emit_lifecycle_event(
-                ErrorEvent(
-                    event_type="error",
-                    code="CONNECTION_FAILED",
-                    message=f"Failed to connect to Discord voice channel: {e}",
-                    recoverable=True,
-                )
+            error_event = ErrorEvent(
+                event_type="error",
+                code="CONNECTION_FAILED",
+                message=f"Failed to connect to Discord voice channel: {e}",
+                recoverable=True,
             )
+            await self._emit_lifecycle_event(error_event.to_dict())
             return False
 
     async def disconnect(self) -> bool:
@@ -138,14 +136,13 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             self._surface_config.status = SurfaceStatus.DISCONNECTED
 
             # Emit disconnection event
-            await self._emit_lifecycle_event(
-                ConnectionEvent(
-                    event_type="connection.closed",
-                    surface_id=self._surface_config.surface_id,
-                    timestamp=datetime.now().timestamp(),
-                    connection_params=self._surface_config.config,
-                )
+            disconnect_event = ConnectionEvent(
+                event_type="connection.closed",
+                surface_id=self._surface_config.surface_id,
+                timestamp=datetime.now().timestamp(),
+                connection_params=self._surface_config.config,
             )
+            await self._emit_lifecycle_event(disconnect_event.to_dict())
 
             logger.info(
                 "Successfully disconnected from Discord voice channel %s",
@@ -218,6 +215,26 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
     def get_surface_config(self) -> SurfaceConfig:
         """Get surface configuration."""
         return self._surface_config
+
+    async def get_telemetry(self) -> dict[str, Any]:
+        """Get telemetry data."""
+        return {
+            "surface_id": self._surface_config.surface_id,
+            "guild_id": self.guild_id,
+            "channel_id": self.channel_id,
+            "user_id": self.user_id,
+            "is_connected": self._is_connected,
+            "connection_start_time": (
+                self._connection_start_time.isoformat()
+                if self._connection_start_time
+                else None
+            ),
+            "last_heartbeat": (
+                self._last_heartbeat.isoformat() if self._last_heartbeat else None
+            ),
+            "reconnect_attempts": self._reconnect_attempts,
+            "status": self._surface_config.status.value,
+        }
 
     async def register_lifecycle_handler(
         self, event_type: str, handler: Callable[[dict[str, Any]], Awaitable[None]]

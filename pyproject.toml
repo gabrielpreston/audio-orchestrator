@@ -116,3 +116,58 @@ warn_no_return = false
 warn_unreachable = false
 strict_equality = false
 
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["services"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+# Test execution options
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=services",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=14",
+    "--junitxml=junit.xml",
+    "-ra",
+    "--tb=short",
+    "--maxfail=10",
+]
+
+# Asyncio configuration
+asyncio_default_fixture_loop_scope = "function"
+
+# Markers for test categorization
+markers = [
+    "unit: Unit tests (fast, isolated, no external dependencies)",
+    "component: Component tests (with mocked external dependencies)",
+    "integration: Integration tests (require Docker Compose)",
+    "e2e: End-to-end tests (manual trigger only)",
+    "slow: Slow tests (>1 second execution time)",
+    "external: Tests requiring external services or network access",
+    "audio: Tests involving audio processing",
+    "discord: Tests involving Discord API",
+    "stt: Tests involving speech-to-text",
+    "tts: Tests involving text-to-speech",
+    "llm: Tests involving language model",
+    "orchestrator: Tests involving orchestration logic",
+]
+
+# Warnings configuration
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:librosa",
+    "ignore::UserWarning:soundfile",
+    "ignore::FutureWarning:numpy",
+    "ignore::RuntimeWarning:numpy",
+]
+
+
+# Minimum version requirements
+minversion = "8.0"
+

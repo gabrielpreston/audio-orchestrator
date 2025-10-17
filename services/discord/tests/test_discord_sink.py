@@ -13,13 +13,14 @@ from unittest.mock import Mock
 import pytest
 
 from services.common.surfaces.media_gateway import MediaGateway
-from services.common.surfaces.types import AudioMetadata
+from services.common.surfaces.types import PCMFrame
 from services.discord.adapters.discord_sink import DiscordAudioSink
 
 
 class TestDiscordAudioSink:
     """Test DiscordAudioSink functionality."""
 
+    @pytest.mark.component
     def test_discord_audio_sink_creation(self):
         """Test creating DiscordAudioSink with basic parameters."""
         sink = DiscordAudioSink(
@@ -33,6 +34,7 @@ class TestDiscordAudioSink:
         assert not sink.is_playing()
         assert sink.get_current_audio_url() is None
 
+    @pytest.mark.component
     def test_discord_audio_sink_creation_with_media_gateway(self):
         """Test creating DiscordAudioSink with custom media gateway."""
         media_gateway = MediaGateway()
@@ -44,6 +46,7 @@ class TestDiscordAudioSink:
 
         assert sink.media_gateway is media_gateway
 
+    @pytest.mark.component
     def test_get_surface_id(self):
         """Test getting surface ID."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -51,6 +54,7 @@ class TestDiscordAudioSink:
 
         assert surface_id == "discord_sink:123456789:987654321"
 
+    @pytest.mark.component
     def test_get_guild_id(self):
         """Test getting guild ID."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -58,6 +62,7 @@ class TestDiscordAudioSink:
 
         assert guild_id == 123456789
 
+    @pytest.mark.component
     def test_get_channel_id(self):
         """Test getting channel ID."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -65,18 +70,21 @@ class TestDiscordAudioSink:
 
         assert channel_id == 987654321
 
+    @pytest.mark.component
     def test_is_playing_initial(self):
         """Test initial playing state."""
         sink = DiscordAudioSink(123456789, 987654321)
 
         assert not sink.is_playing()
 
+    @pytest.mark.component
     def test_get_current_audio_url_initial(self):
         """Test initial audio URL."""
         sink = DiscordAudioSink(123456789, 987654321)
 
         assert sink.get_current_audio_url() is None
 
+    @pytest.mark.component
     def test_set_current_audio_url(self):
         """Test setting current audio URL."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -86,6 +94,7 @@ class TestDiscordAudioSink:
 
         assert sink.get_current_audio_url() == audio_url
 
+    @pytest.mark.component
     def test_register_playback_handler(self):
         """Test registering playback handler."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -95,6 +104,7 @@ class TestDiscordAudioSink:
 
         assert handler in sink._playback_handlers
 
+    @pytest.mark.component
     def test_unregister_playback_handler(self):
         """Test unregistering playback handler."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -105,6 +115,7 @@ class TestDiscordAudioSink:
 
         assert handler not in sink._playback_handlers
 
+    @pytest.mark.component
     def test_unregister_playback_handler_not_registered(self):
         """Test unregistering non-registered playback handler."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -115,6 +126,7 @@ class TestDiscordAudioSink:
         # Should not raise exception
         sink.unregister_playback_handler(handler)
 
+    @pytest.mark.component
     def test_set_media_gateway(self):
         """Test setting media gateway."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -124,6 +136,7 @@ class TestDiscordAudioSink:
 
         assert sink.media_gateway is new_gateway
 
+    @pytest.mark.component
     def test_get_media_gateway(self):
         """Test getting media gateway."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -132,6 +145,7 @@ class TestDiscordAudioSink:
         assert gateway is not None
         assert isinstance(gateway, MediaGateway)
 
+    @pytest.mark.component
     def test_get_playback_stats(self):
         """Test getting playback statistics."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -150,6 +164,7 @@ class TestDiscordAudioSink:
         assert stats["current_audio_url"] is None
         assert stats["playback_start_time"] == 0.0
 
+    @pytest.mark.component
     def test_get_telemetry(self):
         """Test getting telemetry data."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -171,6 +186,7 @@ class TestDiscordAudioSink:
         assert telemetry["channel_id"] == 987654321
         assert telemetry["is_playing"] is False
 
+    @pytest.mark.component
     def test_update_policy(self):
         """Test updating surface policies."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -184,6 +200,7 @@ class TestDiscordAudioSink:
         # Should not raise exception
         sink.update_policy(policy_config)
 
+    @pytest.mark.component
     def test_repr(self):
         """Test string representation."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -239,18 +256,16 @@ class TestDiscordAudioSink:
         """Test playing audio chunk when not playing."""
         sink = DiscordAudioSink(123456789, 987654321)
 
-        metadata = AudioMetadata(
-            sample_rate=48000,
-            channels=2,
-            sample_width=2,
-            duration=0.1,
-            frames=4800,
-            format="pcm",
-            bit_depth=16,
-        )
-
         # Should not raise exception
-        await sink.play_audio_chunk(b"test_audio_data", metadata)
+        frame = PCMFrame(
+            pcm=b"test_audio_data",
+            timestamp=time.time(),
+            rms=0.0,
+            duration=0.1,
+            sequence=1,
+            sample_rate=48000,
+        )
+        await sink.play_audio_chunk(frame)
 
     @pytest.mark.asyncio
     async def test_play_audio_chunk_playing(self):
@@ -259,18 +274,16 @@ class TestDiscordAudioSink:
 
         await sink.start_playback()
 
-        metadata = AudioMetadata(
-            sample_rate=48000,
-            channels=2,
-            sample_width=2,
-            duration=0.1,
-            frames=4800,
-            format="pcm",
-            bit_depth=16,
-        )
-
         # Should not raise exception
-        await sink.play_audio_chunk(b"test_audio_data", metadata)
+        frame = PCMFrame(
+            pcm=b"test_audio_data",
+            timestamp=time.time(),
+            rms=0.0,
+            duration=0.1,
+            sequence=1,
+            sample_rate=48000,
+        )
+        await sink.play_audio_chunk(frame)
 
         assert sink._last_playback_time > 0
 
@@ -284,17 +297,15 @@ class TestDiscordAudioSink:
 
         await sink.start_playback()
 
-        metadata = AudioMetadata(
-            sample_rate=48000,
-            channels=2,
-            sample_width=2,
+        frame = PCMFrame(
+            pcm=b"test_audio_data",
+            timestamp=time.time(),
+            rms=0.0,
             duration=0.1,
-            frames=4800,
-            format="pcm",
-            bit_depth=16,
+            sequence=1,
+            sample_rate=48000,
         )
-
-        await sink.play_audio_chunk(b"test_audio_data", metadata)
+        await sink.play_audio_chunk(frame)
 
         # Should be called for start_playback and audio_chunk_played
         assert handler.call_count >= 2
@@ -311,17 +322,15 @@ class TestDiscordAudioSink:
 
         await sink.start_playback()
 
-        metadata = AudioMetadata(
-            sample_rate=48000,
-            channels=2,
-            sample_width=2,
+        frame = PCMFrame(
+            pcm=b"test_audio_data",
+            timestamp=time.time(),
+            rms=0.0,
             duration=0.1,
-            frames=4800,
-            format="pcm",
-            bit_depth=16,
+            sequence=1,
+            sample_rate=48000,
         )
-
-        await sink.play_audio_chunk(b"test_audio_data", metadata)
+        await sink.play_audio_chunk(frame)
 
         # Both handlers should be called
         assert handler1.call_count >= 2
@@ -341,18 +350,16 @@ class TestDiscordAudioSink:
 
         await sink.start_playback()
 
-        metadata = AudioMetadata(
-            sample_rate=48000,
-            channels=2,
-            sample_width=2,
-            duration=0.1,
-            frames=4800,
-            format="pcm",
-            bit_depth=16,
-        )
-
         # Should not raise exception
-        await sink.play_audio_chunk(b"test_audio_data", metadata)
+        frame = PCMFrame(
+            pcm=b"test_audio_data",
+            timestamp=time.time(),
+            rms=0.0,
+            duration=0.1,
+            sequence=1,
+            sample_rate=48000,
+        )
+        await sink.play_audio_chunk(frame)
 
         handler.assert_called()
 
@@ -455,6 +462,7 @@ class TestDiscordAudioSink:
         events = [call[0][0] for call in handler.call_args_list]
         assert "audio_url_playback_started" in events
 
+    @pytest.mark.component
     def test_playback_stats_after_playback(self):
         """Test playback stats after playing audio."""
         sink = DiscordAudioSink(123456789, 987654321)

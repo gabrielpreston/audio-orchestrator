@@ -148,6 +148,7 @@ class TestSessionBroker:
 
         # Verify state change
         updated_session = broker.get_session(session_id)
+        assert updated_session is not None
         assert updated_session.state == SessionState.CONNECTED
 
         # Test with non-existent session
@@ -167,6 +168,7 @@ class TestSessionBroker:
 
         # Verify activity update
         updated_session = broker.get_session(session_id)
+        assert updated_session is not None
         assert updated_session.last_audio_time > 0
 
         # Test with non-existent session
@@ -186,6 +188,7 @@ class TestSessionBroker:
 
         # Verify error recording
         updated_session = broker.get_session(session_id)
+        assert updated_session is not None
         assert updated_session.error_count == 1
         assert updated_session.last_error == "Test error"
         assert broker._session_stats.total_errors == 1

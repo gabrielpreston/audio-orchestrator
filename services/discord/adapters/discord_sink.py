@@ -15,7 +15,7 @@ from typing import Any
 from services.common.logging import get_logger
 from services.common.surfaces.interfaces import AudioSink
 from services.common.surfaces.media_gateway import MediaGateway
-from services.common.surfaces.types import AudioMetadata
+from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
 logger = get_logger(__name__)
 
@@ -46,7 +46,7 @@ class DiscordAudioSink(AudioSink):
             sample_width=2,  # 16-bit PCM
             duration=0.0,
             frames=0,
-            format="pcm",
+            format=AudioFormat.PCM,
             bit_depth=16,
         )
 
@@ -122,9 +122,7 @@ class DiscordAudioSink(AudioSink):
             self._logger.error("discord_sink.playback_stop_failed", error=str(e))
             raise
 
-    async def play_audio_chunk(
-        self, audio_chunk: bytes, metadata: AudioMetadata
-    ) -> None:
+    async def play_audio_chunk(self, frame: PCMFrame) -> None:
         """Play a chunk of decoded audio to Discord voice channel."""
         if not self._is_playing:
             self._logger.warning("discord_sink.not_playing")
@@ -133,10 +131,10 @@ class DiscordAudioSink(AudioSink):
         try:
             # Process audio through media gateway if available
             if self.media_gateway:
-                result = self.media_gateway.process_outgoing_audio(
-                    audio_data=audio_chunk,
+                result = await self.media_gateway.process_outgoing_audio(
+                    audio_data=frame.pcm,
                     to_format="pcm",
-                    to_metadata=metadata,
+                    to_metadata=frame,
                 )
 
                 if not result.success:
@@ -146,8 +144,7 @@ class DiscordAudioSink(AudioSink):
                     )
                     return
 
-                audio_chunk = result.audio_data
-                metadata = result.metadata
+                frame.pcm = result.audio_data
 
             # This is a stub implementation
             # In a real implementation, this would send audio to Discord's voice channel
@@ -157,21 +154,28 @@ class DiscordAudioSink(AudioSink):
             await asyncio.sleep(0.01)  # 10ms processing time
 
             # Update metadata
-            self._metadata = metadata
+            self._metadata = AudioMetadata(
+                sample_rate=frame.sample_rate,
+                channels=frame.channels,
+                sample_width=frame.sample_width,
+                duration=frame.duration,
+                frames=1,
+                format=AudioFormat.PCM,
+                bit_depth=frame.sample_width * 8,
+            )
             self._last_playback_time = time.time()
 
             # Notify handlers
             for handler in self._playback_handlers:
                 try:
                     handler(
-                        "audio_chunk_played",
+                        "frame_played",
                         {
-                            "chunk_size": len(audio_chunk),
-                            "metadata": {
-                                "sample_rate": metadata.sample_rate,
-                                "channels": metadata.channels,
-                                "duration": metadata.duration,
-                            },
+                            "frame_size": len(frame.pcm),
+                            "sample_rate": frame.sample_rate,
+                            "channels": frame.channels,
+                            "duration": frame.duration,
+                            "timestamp": frame.timestamp,
                         },
                     )
                 except (ValueError, TypeError, KeyError) as e:
@@ -180,10 +184,10 @@ class DiscordAudioSink(AudioSink):
                     )
 
             self._logger.debug(
-                "discord_sink.audio_chunk_played",
-                chunk_size=len(audio_chunk),
-                sample_rate=metadata.sample_rate,
-                channels=metadata.channels,
+                "discord_sink.frame_played",
+                frame_size=len(frame.pcm),
+                sample_rate=frame.sample_rate,
+                channels=frame.channels,
             )
 
         except (ValueError, TypeError, KeyError) as e:

@@ -174,6 +174,7 @@ class TestJitterBuffer:
 
         buffer.add_frame(audio_data, timestamp)
 
+        assert buffer.current_frames is not None
         assert len(buffer.current_frames) == 1
         assert buffer.current_frames[0] == (audio_data, timestamp)
 
@@ -192,6 +193,7 @@ class TestJitterBuffer:
 
         assert len(ready_frames) == 1
         assert ready_frames[0] == b"\x00\x01"
+        assert buffer.current_frames is not None
         assert len(buffer.current_frames) == 1  # One frame removed
 
     def test_jitter_buffer_is_empty(self):
@@ -307,6 +309,8 @@ class TestMediaGateway:
         gateway.add_to_jitter_buffer(audio_data, timestamp)
 
         # Should have one frame in buffer
+        assert gateway.jitter_buffer is not None
+        assert gateway.jitter_buffer.current_frames is not None
         assert len(gateway.jitter_buffer.current_frames) == 1
 
         # Get frames (none should be ready yet)
@@ -315,6 +319,8 @@ class TestMediaGateway:
 
         # Clear buffer
         gateway.clear_jitter_buffer()
+        assert gateway.jitter_buffer is not None
+        assert gateway.jitter_buffer.current_frames is not None
         assert len(gateway.jitter_buffer.current_frames) == 0
 
     def test_performance_stats(self):

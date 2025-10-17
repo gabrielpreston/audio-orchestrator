@@ -318,6 +318,7 @@ class TestSurfaceRegistry:
 
         # Verify status update
         updated_surface = registry.get_surface("test_surface")
+        assert updated_surface is not None
         assert updated_surface.status == SurfaceStatus.BUSY
 
         # Test with non-existent surface
@@ -343,6 +344,7 @@ class TestSurfaceRegistry:
 
         # Verify config update
         updated_surface = registry.get_surface("test_surface")
+        assert updated_surface is not None
         assert updated_surface.config["timeout_ms"] == 5000.0
         assert updated_surface.config["retry_count"] == 5
 

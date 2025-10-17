@@ -33,7 +33,7 @@ class FastWhisperAdapter(STTAdapter):
             config: STT configuration
         """
         super().__init__(config)
-        self._model = None
+        self._model: Any | None = None
         self._model_info: dict[str, Any] = {}
         self._telemetry: dict[str, Any] = {
             "total_transcriptions": 0,
@@ -213,9 +213,13 @@ class FastWhisperAdapter(STTAdapter):
                 confidence = sum(confidences) / len(confidences) if confidences else 0.0
 
             # Calculate duration
-            duration = len(audio_data) / (
-                audio_format.sample_rate * audio_format.channels * 2
-            )  # 2 bytes per sample
+            if metadata:
+                duration = len(audio_data) / (
+                    metadata.sample_rate * metadata.channels * 2
+                )  # 2 bytes per sample
+            else:
+                # Default values if metadata not provided
+                duration = len(audio_data) / (16000 * 1 * 2)  # 16kHz, mono, 16-bit
 
             # Create result
             result = STTResult(
@@ -249,7 +253,7 @@ class FastWhisperAdapter(STTAdapter):
             self._telemetry["error_count"] += 1
             raise
 
-    async def transcribe_stream(
+    async def transcribe_stream(  # type: ignore[override]
         self,
         audio_stream: AsyncGenerator[bytes, None],
         audio_format: AudioFormat,

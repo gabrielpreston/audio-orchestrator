@@ -24,7 +24,7 @@ class JitterBuffer:
 
     max_size: int = 10  # Maximum frames to buffer
     target_latency_ms: float = 100.0  # Target latency in milliseconds
-    current_frames: list[tuple[bytes, float]] = None  # (audio_data, timestamp)
+    current_frames: list[tuple[bytes, float]] | None = None  # (audio_data, timestamp)
 
     def __post_init__(self) -> None:
         if self.current_frames is None:
@@ -32,6 +32,8 @@ class JitterBuffer:
 
     def add_frame(self, audio_data: bytes, timestamp: float) -> None:
         """Add frame to jitter buffer."""
+        if self.current_frames is None:
+            self.current_frames = []
         self.current_frames.append((audio_data, timestamp))
 
         # Remove old frames if buffer is too large
@@ -40,6 +42,9 @@ class JitterBuffer:
 
     def get_ready_frames(self, current_time: float) -> list[bytes]:
         """Get frames that are ready to play based on target latency."""
+        if self.current_frames is None:
+            return []
+
         ready_frames = []
         ready_indices = []
 
@@ -51,12 +56,15 @@ class JitterBuffer:
 
         # Remove ready frames from buffer
         for i in reversed(ready_indices):
-            self.current_frames.pop(i)
+            if self.current_frames is not None:
+                self.current_frames.pop(i)
 
         return ready_frames
 
     def is_empty(self) -> bool:
         """Check if buffer is empty."""
+        if self.current_frames is None:
+            return True
         return len(self.current_frames) == 0
 
 
@@ -201,7 +209,7 @@ class MediaGateway:
 
     def clear_jitter_buffer(self) -> None:
         """Clear jitter buffer."""
-        if self.jitter_buffer:
+        if self.jitter_buffer and self.jitter_buffer.current_frames is not None:
             self.jitter_buffer.current_frames.clear()
 
     def get_performance_stats(self) -> dict[str, Any]:
@@ -218,7 +226,9 @@ class MediaGateway:
             "avg_conversion_time_ms": avg_conversion_time * 1000,
             "jitter_buffer_enabled": self.enable_jitter_buffer,
             "jitter_buffer_size": (
-                len(self.jitter_buffer.current_frames) if self.jitter_buffer else 0
+                len(self.jitter_buffer.current_frames)
+                if self.jitter_buffer and self.jitter_buffer.current_frames is not None
+                else 0
             ),
         }
 
@@ -278,3 +288,65 @@ class MediaGateway:
             return audio_data
         except Exception:
             return audio_data
+
+    async def process_incoming_audio(
+        self,
+        audio_data: bytes,
+        from_format: str,
+        from_metadata: Any,
+    ) -> Any:
+        """Process incoming audio data."""
+        try:
+            # Simple stub implementation
+            return type(
+                "Result",
+                (),
+                {
+                    "success": True,
+                    "audio_data": audio_data,
+                    "metadata": from_metadata,
+                    "error": None,
+                },
+            )()
+        except Exception as e:
+            return type(
+                "Result",
+                (),
+                {
+                    "success": False,
+                    "audio_data": audio_data,
+                    "metadata": from_metadata,
+                    "error": str(e),
+                },
+            )()
+
+    async def process_outgoing_audio(
+        self,
+        audio_data: bytes,
+        to_format: str,
+        to_metadata: Any,
+    ) -> Any:
+        """Process outgoing audio data."""
+        try:
+            # Simple stub implementation
+            return type(
+                "Result",
+                (),
+                {
+                    "success": True,
+                    "audio_data": audio_data,
+                    "metadata": to_metadata,
+                    "error": None,
+                },
+            )()
+        except Exception as e:
+            return type(
+                "Result",
+                (),
+                {
+                    "success": False,
+                    "audio_data": audio_data,
+                    "metadata": to_metadata,
+                    "error": str(e),
+                },
+            )()

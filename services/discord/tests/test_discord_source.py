@@ -6,18 +6,19 @@ the AudioSource interface and handles audio capture properly.
 """
 
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
 from services.common.surfaces.media_gateway import MediaGateway
-from services.common.surfaces.types import PCMFrame
+from services.common.surfaces.types import AudioFormat, PCMFrame
 from services.discord.adapters.discord_source import DiscordAudioSource
 
 
 class TestDiscordAudioSource:
     """Test DiscordAudioSource functionality."""
 
+    @pytest.mark.component
     def test_discord_audio_source_creation(self):
         """Test creating DiscordAudioSource with basic parameters."""
         source = DiscordAudioSource(
@@ -32,6 +33,7 @@ class TestDiscordAudioSource:
         assert not source.is_capturing()
         assert source.get_buffer_size() == 0
 
+    @pytest.mark.component
     def test_discord_audio_source_creation_with_user(self):
         """Test creating DiscordAudioSource with user filter."""
         source = DiscordAudioSource(
@@ -44,6 +46,7 @@ class TestDiscordAudioSource:
         assert source.channel_id == 987654321
         assert source.user_id == 555666777
 
+    @pytest.mark.component
     def test_discord_audio_source_creation_with_media_gateway(self):
         """Test creating DiscordAudioSource with custom media gateway."""
         media_gateway = MediaGateway()
@@ -55,6 +58,7 @@ class TestDiscordAudioSource:
 
         assert source.media_gateway is media_gateway
 
+    @pytest.mark.component
     def test_get_metadata(self):
         """Test getting audio metadata."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -64,8 +68,9 @@ class TestDiscordAudioSource:
         assert metadata.channels == 2
         assert metadata.sample_width == 2
         assert metadata.bit_depth == 16
-        assert metadata.format == "pcm"
+        assert metadata.format == AudioFormat.PCM
 
+    @pytest.mark.component
     def test_get_surface_id(self):
         """Test getting surface ID."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -73,6 +78,7 @@ class TestDiscordAudioSource:
 
         assert surface_id == "discord:123456789:987654321"
 
+    @pytest.mark.component
     def test_get_guild_id(self):
         """Test getting guild ID."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -80,6 +86,7 @@ class TestDiscordAudioSource:
 
         assert guild_id == 123456789
 
+    @pytest.mark.component
     def test_get_channel_id(self):
         """Test getting channel ID."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -87,6 +94,7 @@ class TestDiscordAudioSource:
 
         assert channel_id == 987654321
 
+    @pytest.mark.component
     def test_get_user_id(self):
         """Test getting user ID."""
         source = DiscordAudioSource(123456789, 987654321, user_id=555666777)
@@ -94,6 +102,7 @@ class TestDiscordAudioSource:
 
         assert user_id == 555666777
 
+    @pytest.mark.component
     def test_get_user_id_none(self):
         """Test getting user ID when not set."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -101,29 +110,33 @@ class TestDiscordAudioSource:
 
         assert user_id is None
 
+    @pytest.mark.component
     def test_is_capturing_initial(self):
         """Test initial capturing state."""
         source = DiscordAudioSource(123456789, 987654321)
 
         assert not source.is_capturing()
 
+    @pytest.mark.component
     def test_get_buffer_size_initial(self):
         """Test initial buffer size."""
         source = DiscordAudioSource(123456789, 987654321)
 
         assert source.get_buffer_size() == 0
 
+    @pytest.mark.component
     def test_clear_buffer(self):
         """Test clearing audio buffer."""
         source = DiscordAudioSource(123456789, 987654321)
 
         # Add some frames to buffer (simulated)
-        source._audio_buffer = [Mock(), Mock(), Mock()]  # type: ignore
+        source._audio_buffer = [Mock(), Mock(), Mock()]
 
         source.clear_buffer()
 
         assert source.get_buffer_size() == 0
 
+    @pytest.mark.component
     def test_register_frame_handler(self):
         """Test registering frame handler."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -131,8 +144,9 @@ class TestDiscordAudioSource:
         handler = Mock()
         source.register_frame_handler(handler)
 
-        assert handler in source._frame_handlers  # type: ignore
+        assert handler in source._frame_handlers
 
+    @pytest.mark.component
     def test_unregister_frame_handler(self):
         """Test unregistering frame handler."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -141,8 +155,9 @@ class TestDiscordAudioSource:
         source.register_frame_handler(handler)
         source.unregister_frame_handler(handler)
 
-        assert handler not in source._frame_handlers  # type: ignore
+        assert handler not in source._frame_handlers
 
+    @pytest.mark.component
     def test_unregister_frame_handler_not_registered(self):
         """Test unregistering non-registered frame handler."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -153,6 +168,7 @@ class TestDiscordAudioSource:
         # Should not raise exception
         source.unregister_frame_handler(handler)
 
+    @pytest.mark.component
     def test_set_media_gateway(self):
         """Test setting media gateway."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -162,6 +178,7 @@ class TestDiscordAudioSource:
 
         assert source.media_gateway is new_gateway
 
+    @pytest.mark.component
     def test_get_media_gateway(self):
         """Test getting media gateway."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -170,6 +187,7 @@ class TestDiscordAudioSource:
         assert gateway is not None
         assert isinstance(gateway, MediaGateway)
 
+    @pytest.mark.component
     def test_get_capture_stats(self):
         """Test getting capture statistics."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -188,6 +206,7 @@ class TestDiscordAudioSource:
         assert stats["buffer_size"] == 0
         assert stats["sequence_counter"] == 0
 
+    @pytest.mark.component
     def test_get_telemetry(self):
         """Test getting telemetry data."""
         source = DiscordAudioSource(123456789, 987654321, user_id=555666777)
@@ -211,6 +230,7 @@ class TestDiscordAudioSource:
         assert telemetry["user_id"] == 555666777
         assert telemetry["is_capturing"] is False
 
+    @pytest.mark.component
     def test_update_policy(self):
         """Test updating surface policies."""
         source = DiscordAudioSource(123456789, 987654321)
@@ -224,6 +244,7 @@ class TestDiscordAudioSource:
         # Should not raise exception
         source.update_policy(policy_config)
 
+    @pytest.mark.component
     def test_repr(self):
         """Test string representation."""
         source = DiscordAudioSource(123456789, 987654321, user_id=555666777)
@@ -243,7 +264,7 @@ class TestDiscordAudioSource:
         await source.start_capture()
 
         assert source.is_capturing()
-        assert source._sequence_counter == 0  # type: ignore
+        assert source._sequence_counter == 0
 
     @pytest.mark.asyncio
     async def test_start_capture_already_capturing(self):
@@ -309,8 +330,8 @@ class TestDiscordAudioSource:
         frame1 = await source.read_audio_frame()
         frame2 = await source.read_audio_frame()
 
-        assert frame1.sequence == 0
-        assert frame2.sequence == 1
+        assert frame1 is not None and frame1.sequence == 0
+        assert frame2 is not None and frame2.sequence == 1
 
     @pytest.mark.asyncio
     async def test_read_audio_frame_handlers(self):
@@ -364,7 +385,8 @@ class TestDiscordAudioSource:
     async def test_process_audio_frame_no_media_gateway(self):
         """Test processing audio frame without media gateway."""
         source = DiscordAudioSource(123456789, 987654321)
-        source.media_gateway = None
+        # Test without media gateway - temporarily set to None for testing
+        source.media_gateway = None  # type: ignore[assignment]
 
         frame = PCMFrame(
             pcm=b"test_data",
@@ -416,9 +438,9 @@ class TestDiscordAudioSource:
                 source._is_capturing = False  # Stop the loop
                 return None
 
-        source.read_audio_frame = mock_read
-
-        await source.start_capture_loop()
+        # Mock the read_audio_frame method
+        with patch.object(source, "read_audio_frame", side_effect=mock_read):
+            await source.start_capture_loop()
 
         assert call_count > 0
 
@@ -441,24 +463,24 @@ class TestDiscordAudioSource:
         async def failing_read():
             raise ValueError("Read failed")
 
-        source.read_audio_frame = failing_read
-
-        await source.start_capture()
+        with patch.object(source, "read_audio_frame", side_effect=failing_read):
+            await source.start_capture()
 
         # Should not raise exception
         await source.start_capture_loop()
 
         assert not source.is_capturing()
 
+    @pytest.mark.component
     def test_capture_stats_after_frames(self):
         """Test capture stats after reading frames."""
         source = DiscordAudioSource(123456789, 987654321)
 
         # Simulate some captured frames
-        source._total_frames_captured = 10  # type: ignore
-        source._total_audio_duration = 0.2  # type: ignore
-        source._last_frame_time = time.time()  # type: ignore
-        source._sequence_counter = 10  # type: ignore
+        source._total_frames_captured = 10
+        source._total_audio_duration = 0.2
+        source._last_frame_time = time.time()
+        source._sequence_counter = 10
 
         stats = source.get_capture_stats()
 

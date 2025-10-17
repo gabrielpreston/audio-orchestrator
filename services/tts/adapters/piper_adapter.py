@@ -33,7 +33,7 @@ class PiperAdapter(TTSAdapter):
             config: TTS configuration
         """
         super().__init__(config)
-        self._model = None
+        self._model: Any | None = None
         self._model_info: dict[str, Any] = {}
         self._telemetry: dict[str, Any] = {
             "total_syntheses": 0,
@@ -193,7 +193,7 @@ class PiperAdapter(TTSAdapter):
             self._telemetry["error_count"] += 1
             raise
 
-    async def synthesize_stream(
+    async def synthesize_stream(  # type: ignore[override]
         self, text: str, voice: str | None = None, language: str | None = None
     ) -> AsyncGenerator[TTSResult, None]:
         """
@@ -215,7 +215,6 @@ class PiperAdapter(TTSAdapter):
             # In a real implementation, you'd stream the synthesis
             result = await self.synthesize(text, voice, language)
             yield result
-
         except Exception as e:
             logger.error("Failed to synthesize streaming text: %s", e)
             self._telemetry["error_count"] += 1
@@ -355,7 +354,7 @@ class PiperAdapter(TTSAdapter):
                 audio_array = (audio_array * 32767).astype(np.int16)
 
                 # Convert to bytes
-                audio_data = audio_array.tobytes()
+                audio_data: bytes = audio_array.tobytes()
             except ImportError:
                 # Fallback if numpy not available
                 logger.warning("numpy not available, using simplified audio generation")

@@ -55,7 +55,7 @@ class ParityTestResult:
             "target_latency_ms": self.target_latency_ms,
             "meets_target": self.meets_target,
             "error_message": self.error_message,
-            "timestamp": self.timestamp.isoformat(),
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
         }
 
 
@@ -211,6 +211,7 @@ class CrossSurfaceParityTester:
                 # Create dummy audio frame
                 dummy_frame = PCMFrame(
                     pcm=b"\x00" * 1024,
+                    timestamp=time.time(),
                     rms=0.0,
                     duration=0.1,
                     sequence=1,

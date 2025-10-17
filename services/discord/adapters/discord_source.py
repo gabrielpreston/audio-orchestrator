@@ -15,7 +15,7 @@ from typing import Any
 from services.common.logging import get_logger
 from services.common.surfaces.interfaces import AudioSource
 from services.common.surfaces.media_gateway import MediaGateway
-from services.common.surfaces.types import AudioMetadata, PCMFrame
+from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
 logger = get_logger(__name__)
 
@@ -48,7 +48,7 @@ class DiscordAudioSource(AudioSource):
             sample_width=2,  # 16-bit PCM
             duration=0.0,
             frames=0,
-            format="pcm",
+            format=AudioFormat.PCM,
             bit_depth=16,
         )
 
@@ -216,6 +216,10 @@ class DiscordAudioSource(AudioSource):
         """Get the current media gateway."""
         return self.media_gateway
 
+    def set_frame_callback(self, callback: Callable[[PCMFrame], None]) -> None:
+        """Set callback for incoming audio frames."""
+        self._frame_handlers.append(callback)
+
     async def process_audio_frame(self, frame: PCMFrame) -> PCMFrame | None:
         """Process audio frame through media gateway."""
         if not self.media_gateway:
@@ -230,12 +234,12 @@ class DiscordAudioSource(AudioSource):
                 sample_width=2,
                 duration=frame.duration,
                 frames=len(audio_data) // 4,  # 2 channels * 2 bytes per sample
-                format="pcm",
+                format=AudioFormat.PCM,
                 bit_depth=16,
             )
 
             # Process through media gateway
-            result = self.media_gateway.process_incoming_audio(
+            result = await self.media_gateway.process_incoming_audio(
                 audio_data=audio_data,
                 from_format="pcm",
                 from_metadata=metadata,

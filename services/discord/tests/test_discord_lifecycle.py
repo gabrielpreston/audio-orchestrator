@@ -8,16 +8,18 @@ connection management functionality.
 
 import asyncio
 from typing import Any
+from unittest.mock import patch
 
 import pytest
 
-from services.common.surfaces.config import SurfaceStatus
+from services.common.surfaces.config import SurfaceStatus, SurfaceType
 from services.discord.adapters.discord_lifecycle import DiscordSurfaceLifecycle
 
 
 class TestDiscordSurfaceLifecycle:
     """Test cases for DiscordSurfaceLifecycle."""
 
+    @pytest.mark.component
     def test_initialization(self):
         """Test DiscordSurfaceLifecycle initialization."""
         lifecycle = DiscordSurfaceLifecycle(123456789, 987654321, 555666777)
@@ -27,7 +29,7 @@ class TestDiscordSurfaceLifecycle:
         assert lifecycle.user_id == 555666777
         assert not lifecycle.is_connected()
         assert lifecycle._surface_config.surface_id == "discord_123456789_987654321"
-        assert lifecycle._surface_config.surface_type == "discord"
+        assert lifecycle._surface_config.surface_type == SurfaceType.DISCORD
         assert lifecycle._surface_config.status == SurfaceStatus.DISCONNECTED
 
     @pytest.mark.asyncio
@@ -53,9 +55,8 @@ class TestDiscordSurfaceLifecycle:
         async def mock_connect():
             raise ValueError("Connection failed")
 
-        lifecycle.connect = mock_connect
-
-        result = await lifecycle.connect()
+        with patch.object(lifecycle, "connect", side_effect=mock_connect):
+            result = await lifecycle.connect()
 
         assert result is False
         assert not lifecycle.is_connected()
@@ -89,9 +90,8 @@ class TestDiscordSurfaceLifecycle:
         async def mock_disconnect():
             raise ValueError("Disconnection failed")
 
-        lifecycle.disconnect = mock_disconnect
-
-        result = await lifecycle.disconnect()
+        with patch.object(lifecycle, "disconnect", side_effect=mock_disconnect):
+            result = await lifecycle.disconnect()
 
         assert result is False
 
@@ -126,6 +126,7 @@ class TestDiscordSurfaceLifecycle:
 
         assert result is False
 
+    @pytest.mark.component
     def test_get_connection_info(self):
         """Test getting connection information."""
         lifecycle = DiscordSurfaceLifecycle(123456789, 987654321, 555666777)
@@ -139,6 +140,7 @@ class TestDiscordSurfaceLifecycle:
         assert info["is_connected"] is False
         assert info["status"] == SurfaceStatus.DISCONNECTED.value
 
+    @pytest.mark.component
     def test_get_surface_config(self):
         """Test getting surface configuration."""
         lifecycle = DiscordSurfaceLifecycle(123456789, 987654321, 555666777)
@@ -315,10 +317,9 @@ class TestDiscordSurfaceLifecycle:
         async def mock_connect():
             raise ValueError("Connection failed")
 
-        lifecycle.connect = mock_connect
-
-        # Attempt connection
-        result = await lifecycle.connect()
+        with patch.object(lifecycle, "connect", side_effect=mock_connect):
+            # Attempt connection
+            result = await lifecycle.connect()
 
         assert result is False
         assert len(error_events) > 0
