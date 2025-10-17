@@ -69,6 +69,10 @@ def configure_logging(
     root.setLevel(numeric_level)
     logging.captureWarnings(True)
 
+    # Set Numba logging to WARNING to reduce noise
+    numba_logger = logging.getLogger("numba")
+    numba_logger.setLevel(logging.WARNING)
+
     structlog.configure(
         processors=[
             *shared_processors,

@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from services.common.logging import configure_logging, get_logger
+from services.common.health import HealthManager
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
@@ -24,6 +25,7 @@ logger = get_logger(__name__, service_name="orchestrator")
 _ORCHESTRATOR: Orchestrator | None = None
 _MCP_MANAGER: MCPManager | None = None
 _LLM_CLIENT: httpx.AsyncClient | None = None
+_health_manager = HealthManager("orchestrator")
 
 _LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm:8000")
 _LLM_AUTH_TOKEN = os.getenv("LLM_AUTH_TOKEN")
@@ -152,22 +154,34 @@ async def list_mcp_connections() -> dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health")  # type: ignore[misc]
-async def health_check() -> dict[str, Any]:
-    """Health check endpoint with MCP status."""
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "orchestrator"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _ORCHESTRATOR is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
+
     mcp_status = {}
     if _MCP_MANAGER:
         mcp_status = _MCP_MANAGER.get_client_status()
 
+    health_status = await _health_manager.get_health_status()
     return {
-        "status": "healthy",
+        "status": "ready",
+        "service": "orchestrator",
         "llm_available": _LLM_BASE_URL is not None,
         "tts_available": _TTS_BASE_URL is not None,
         "mcp_clients": mcp_status,
         "orchestrator_active": _ORCHESTRATOR is not None,
+        "health_details": health_status.details,
     }
-
-
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint

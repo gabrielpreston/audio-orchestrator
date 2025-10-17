@@ -13,6 +13,7 @@ from llama_cpp import Llama
 from pydantic import BaseModel
 
 from services.common.logging import configure_logging, get_logger
+from services.common.health import HealthManager
 
 app = FastAPI(title="Local LLM Service")
 
@@ -26,6 +27,7 @@ logger = get_logger(__name__, service_name="llm")
 _LLAMA: Llama | None = None
 _LLAMA_INFO: dict[str, Any] = {}
 _TTS_CLIENT: httpx.AsyncClient | None = None
+_health_manager = HealthManager("llm")
 
 _TTS_BASE_URL = os.getenv("TTS_BASE_URL")
 _TTS_VOICE = os.getenv("TTS_VOICE")
@@ -307,13 +309,25 @@ async def chat_completions(
     return JSONResponse(response, headers=headers)  # type: ignore[no-any-return]
 
 
-@app.get("/health")  # type: ignore[misc]
-async def health_check() -> dict[str, Any]:
-    """Health check endpoint."""
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "llm"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _LLAMA is None:
+        raise HTTPException(status_code=503, detail="LLM model not loaded")
+
+    health_status = await _health_manager.get_health_status()
     return {
-        "status": "healthy",
+        "status": "ready",
+        "service": "llm",
         "llm_loaded": _LLAMA is not None,
         "tts_available": _TTS_BASE_URL is not None,
+        "health_details": health_status.details,
     }
 
 

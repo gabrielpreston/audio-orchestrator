@@ -86,7 +86,9 @@ class DiscordAudioSink(AudioSink):
             )
 
             # Notify handlers
-            self._notify_handlers("playback_started", {"timestamp": self._playback_start_time})
+            self._notify_handlers(
+                "playback_started", {"timestamp": self._playback_start_time}
+            )
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_start_failed", error=str(e))
@@ -216,7 +218,6 @@ class DiscordAudioSink(AudioSink):
         """Get Discord channel ID."""
         return self.channel_id
 
-
     def set_media_gateway(self, media_gateway: MediaGateway) -> None:
         """Set the media gateway for audio processing."""
         self.media_gateway = media_gateway
@@ -225,7 +226,6 @@ class DiscordAudioSink(AudioSink):
     def get_media_gateway(self) -> MediaGateway:
         """Get the current media gateway."""
         return self.media_gateway
-
 
     async def pause_playback(self) -> None:
         """Pause audio playback."""

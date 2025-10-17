@@ -36,6 +36,7 @@ services:
       - ./.env.docker
       - ./services/stt/.env.service
     volumes:
+      - ./services/models/stt:/app/models:ro
       - ./debug:/app/debug
     restart: unless-stopped
 

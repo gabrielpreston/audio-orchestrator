@@ -5,6 +5,7 @@ Orchestrator client for Discord service to communicate with the LLM orchestrator
 from typing import Any
 
 import httpx
+
 from services.common.logging import get_logger
 
 logger = get_logger(__name__, service_name="discord")
@@ -69,7 +70,6 @@ class OrchestratorClient:
                 user_id=user_id,
             )
             return {"error": str(exc)}
-
 
     async def send_message(
         self, guild_id: str, channel_id: str, message: str

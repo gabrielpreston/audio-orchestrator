@@ -289,7 +289,6 @@ class MCPServer:
         bot = self._require_voice_bot()
         return await bot.send_text_message(channel_id, content)
 
-
     async def _pump_stdin(self) -> None:
         loop = asyncio.get_running_loop()
 

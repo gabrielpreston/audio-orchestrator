@@ -48,7 +48,6 @@ to stdout by default. Configure verbosity with `LOG_LEVEL` (e.g., `DEBUG`,
 logs through `docker-compose logs`, making it easy to aggregate or ship them to
 your preferred observability stack.
 
-
 ## Voice connection tuning
 
 The Discord bot now retries voice handshakes automatically if the gateway or media edge stalls.

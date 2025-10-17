@@ -24,3 +24,4 @@ services/models/
 !requirements*.txt
 .coverage
 coverage.xml
+junit.xml

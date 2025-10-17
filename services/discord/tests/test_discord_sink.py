@@ -32,7 +32,6 @@ class TestDiscordAudioSink:
         assert sink.channel_id == 987654321
         assert sink.media_gateway is not None
         assert not sink.is_playing()
-        assert sink.get_current_audio_url() is None
 
     @pytest.mark.component
     def test_discord_audio_sink_creation_with_media_gateway(self):
@@ -76,23 +75,6 @@ class TestDiscordAudioSink:
         sink = DiscordAudioSink(123456789, 987654321)
 
         assert not sink.is_playing()
-
-    @pytest.mark.component
-    def test_get_current_audio_url_initial(self):
-        """Test initial audio URL."""
-        sink = DiscordAudioSink(123456789, 987654321)
-
-        assert sink.get_current_audio_url() is None
-
-    @pytest.mark.component
-    def test_set_current_audio_url(self):
-        """Test setting current audio URL."""
-        sink = DiscordAudioSink(123456789, 987654321)
-
-        audio_url = "https://example.com/audio.wav"
-        sink.set_current_audio_url(audio_url)
-
-        assert sink.get_current_audio_url() == audio_url
 
     @pytest.mark.component
     def test_register_playback_handler(self):
@@ -155,13 +137,11 @@ class TestDiscordAudioSink:
         assert "total_audio_played" in stats
         assert "total_playback_requests" in stats
         assert "last_playback_time" in stats
-        assert "current_audio_url" in stats
         assert "playback_start_time" in stats
 
         assert stats["is_playing"] is False
         assert stats["total_audio_played"] == 0.0
         assert stats["total_playback_requests"] == 0
-        assert stats["current_audio_url"] is None
         assert stats["playback_start_time"] == 0.0
 
     @pytest.mark.component
@@ -177,7 +157,6 @@ class TestDiscordAudioSink:
         assert "total_audio_played" in telemetry
         assert "total_playback_requests" in telemetry
         assert "last_playback_time" in telemetry
-        assert "current_audio_url" in telemetry
         assert "playback_start_time" in telemetry
         assert "metadata" in telemetry
 
@@ -240,7 +219,6 @@ class TestDiscordAudioSink:
         await sink.stop_playback()
 
         assert not sink.is_playing()
-        assert sink.get_current_audio_url() is None
 
     @pytest.mark.asyncio
     async def test_stop_playback_not_playing(self):
@@ -364,32 +342,6 @@ class TestDiscordAudioSink:
         handler.assert_called()
 
     @pytest.mark.asyncio
-    async def test_play_audio_from_url(self):
-        """Test playing audio from URL."""
-        sink = DiscordAudioSink(123456789, 987654321)
-
-        audio_url = "https://example.com/audio.wav"
-        success = await sink.play_audio_from_url(audio_url)
-
-        assert success is True
-        assert sink.is_playing()
-        assert sink.get_current_audio_url() == audio_url
-        assert sink._total_playback_requests == 1
-
-    @pytest.mark.asyncio
-    async def test_play_audio_from_url_already_playing(self):
-        """Test playing audio from URL when already playing."""
-        sink = DiscordAudioSink(123456789, 987654321)
-
-        await sink.start_playback()
-        audio_url = "https://example.com/audio.wav"
-        success = await sink.play_audio_from_url(audio_url)
-
-        assert success is True
-        assert sink.is_playing()
-        assert sink.get_current_audio_url() == audio_url
-
-    @pytest.mark.asyncio
     async def test_pause_playback(self):
         """Test pausing audio playback."""
         sink = DiscordAudioSink(123456789, 987654321)
@@ -443,24 +395,6 @@ class TestDiscordAudioSink:
         events = [call[0][0] for call in handler.call_args_list]
         assert "playback_started" in events
         assert "playback_stopped" in events
-
-    @pytest.mark.asyncio
-    async def test_playback_handlers_url_events(self):
-        """Test that handlers are called for URL playback events."""
-        sink = DiscordAudioSink(123456789, 987654321)
-
-        handler = Mock()
-        sink.register_playback_handler(handler)
-
-        audio_url = "https://example.com/audio.wav"
-        await sink.play_audio_from_url(audio_url)
-
-        # Should be called for start and URL playback
-        assert handler.call_count >= 2
-
-        # Check that URL playback event was called
-        events = [call[0][0] for call in handler.call_args_list]
-        assert "audio_url_playback_started" in events
 
     @pytest.mark.component
     def test_playback_stats_after_playback(self):

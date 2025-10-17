@@ -527,7 +527,6 @@ class ServiceConfig:
             },
         }
 
-
     def __getattr__(self, name: str) -> BaseConfig:
         """Allow direct access to configuration sections."""
         return self.get_config(name)

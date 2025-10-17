@@ -16,6 +16,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel, Field, model_validator
 
 from services.common.logging import configure_logging, get_logger
+from services.common.health import HealthManager
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -77,6 +78,7 @@ _VOICE: PiperVoice | None = None
 _VOICE_SAMPLE_RATE: int = 0
 _VOICE_OPTIONS: list[VoiceOption] = []
 _VOICE_LOOKUP: dict[str, VoiceOption] = {}
+_health_manager = HealthManager("tts")
 
 # Debug manager for saving debug files
 
@@ -357,14 +359,26 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health", response_model=HealthResponse)  # type: ignore[misc]
-async def health() -> HealthResponse:
-    status = "ok" if _VOICE is not None else "degraded"
-    return HealthResponse(
-        status=status,
-        sample_rate=_VOICE_SAMPLE_RATE,
-        max_concurrency=_MAX_CONCURRENCY,
-    )
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "tts"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _VOICE is None:
+        raise HTTPException(status_code=503, detail="Voice model not loaded")
+
+    health_status = await _health_manager.get_health_status()
+    return {
+        "status": "ready",
+        "service": "tts",
+        "sample_rate": _VOICE_SAMPLE_RATE,
+        "max_concurrency": _MAX_CONCURRENCY,
+        "health_details": health_status.details,
+    }
 
 
 @app.get("/metrics")  # type: ignore[misc]
@@ -445,12 +459,9 @@ async def synthesize(
         duration_ms=int(duration * 1000),
     )
 
-
     return StreamingResponse(  # type: ignore[no-any-return]
         iter([audio_bytes]), media_type="audio/wav", headers=headers
     )
-
-
 
 
 __all__ = ["app"]

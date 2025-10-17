@@ -18,7 +18,7 @@ class MCPManager:
 
     def __init__(self, config_path: str = "./mcp.json"):
         self.config = MCPConfig(config_path)
-        self.clients: dict[str, StdioMCPClient] = {}
+        self.clients: dict[str, Any] = {}
         self._logger = get_logger(__name__, service_name="orchestrator")
         self._notification_handlers: list[
             Callable[[str, str, dict[str, Any]], Awaitable[None]]

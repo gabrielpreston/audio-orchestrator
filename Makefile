@@ -603,7 +603,7 @@ validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
 # Model management
 models-download: ## Download required models to ./services/models/ subdirectories
 	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
-	@mkdir -p ./services/models/llm ./services/models/tts
+	@mkdir -p ./services/models/llm ./services/models/tts ./services/models/stt
 	@echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
 	@if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then \
 		wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
@@ -627,11 +627,30 @@ models-download: ## Download required models to ./services/models/ subdirectorie
 	else \
 		echo "TTS model config already exists, skipping download."; \
 	fi
+	@echo "Downloading STT model (faster-whisper medium.en)..."
+	@if [ ! -d "./services/models/stt/medium.en" ]; then \
+		mkdir -p ./services/models/stt/medium.en; \
+		wget -O ./services/models/stt/medium.en/config.json \
+		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/config.json" || \
+		echo "Failed to download STT model config."; \
+		wget -O ./services/models/stt/medium.en/model.bin \
+		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/model.bin" || \
+		echo "Failed to download STT model weights."; \
+		wget -O ./services/models/stt/medium.en/tokenizer.json \
+		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/tokenizer.json" || \
+		echo "Failed to download STT tokenizer."; \
+		wget -O ./services/models/stt/medium.en/vocabulary.txt \
+		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/vocabulary.txt" || \
+		echo "Failed to download STT vocabulary."; \
+	else \
+		echo "STT model already exists, skipping download."; \
+	fi
 	@echo -e "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)"
 	@echo "Models downloaded to:"
-	@echo "  - LLM: ./services/models/llama-2-7b.Q4_K_M.gguf"
+	@echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
 	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
 	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
+	@echo "  - STT: ./services/models/stt/medium.en/"
 
 models-clean: ## Remove downloaded models from ./services/models/
 	@echo -e "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)"

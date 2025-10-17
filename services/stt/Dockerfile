@@ -51,6 +51,9 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY services/common /app/services/common
 COPY services/stt /app/services/stt
 
+# Create models directory (faster-whisper models will be mounted via volume)
+RUN mkdir -p /app/models
+
 EXPOSE 9000
 
 ENV HOST=0.0.0.0

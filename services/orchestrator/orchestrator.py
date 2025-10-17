@@ -51,7 +51,6 @@ class Orchestrator:
             await self._http_client.aclose()
         self._logger.info("orchestrator.shutdown")
 
-
     def _convert_raw_to_wav(
         self,
         raw_audio_data: bytes,
@@ -135,7 +134,6 @@ class Orchestrator:
         riff_chunk = struct.pack("<4sI4s", riff_id, file_size, riff_format)
 
         return riff_chunk + fmt_chunk + struct.pack("<4sI", data_id, data_size)
-
 
     async def process_transcript(
         self,
@@ -367,7 +365,6 @@ class Orchestrator:
                 size_bytes=len(audio_data),
             )
 
-
             self._logger.info(
                 "orchestrator.audio_played",
                 correlation_id=context.get("correlation_id"),
@@ -378,7 +375,6 @@ class Orchestrator:
                 "orchestrator.audio_playback_failed",
                 error=str(exc),
             )
-
 
 
 __all__ = ["Orchestrator"]

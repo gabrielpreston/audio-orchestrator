@@ -85,7 +85,6 @@ python3 scripts/rotate_auth_tokens.py --length 64
 - `ORCH_AUTH_TOKEN` — Orchestrator service authentication  
 - `TTS_AUTH_TOKEN` — TTS service authentication
 
-
 ## Documentation Management
 
 ### `scripts/verify_last_updated.py`
@@ -153,7 +152,6 @@ make docs-verify            # Verify all documentation metadata
 - Validate token consistency after rotation
 - Document token rotation in security procedures
 
-
 ### Documentation Management Best Practices
 
 - Run `make docs-verify` before committing documentation changes
@@ -176,7 +174,6 @@ make docs-verify            # Verify all documentation metadata
 - Ensure all environment files are writable
 - Check for syntax errors in environment files
 - Validate token format requirements
-
 
 **Documentation verification failures:**
 

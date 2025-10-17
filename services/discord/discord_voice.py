@@ -14,6 +14,7 @@ import discord
 import httpx
 
 from services.common.logging import get_logger
+from services.common.health import HealthManager
 
 from .audio import AudioPipeline, AudioSegment, rms_from_pcm
 from .config import BotConfig, DiscordConfig
@@ -86,6 +87,13 @@ class VoiceBot(discord.Client):
         self._voice_join_locks: dict[int, asyncio.Lock] = {}
         self._voice_reconnect_tasks: dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: set[int] = set()
+
+        # Health manager for service resilience
+        self._health_manager = HealthManager("discord")
+        self._required_services = {
+            "stt": self.config.stt.base_url,
+            "orchestrator": "http://orchestrator:8000",  # Default orchestrator URL
+        }
 
         # Initialize orchestrator client
         self._orchestrator_client = OrchestratorClient()
@@ -385,7 +393,6 @@ class VoiceBot(discord.Client):
             payload["channel_type"] = channel_type_name
         return payload
 
-
     async def ingest_voice_packet(
         self,
         user_id: int,
@@ -487,7 +494,45 @@ class VoiceBot(discord.Client):
         finally:
             self._logger.debug("voice.idle_flush_loop_stopped")
 
+    async def _wait_for_dependencies(self, timeout: float = 300.0) -> bool:
+        """Wait for critical services to be ready before processing."""
+        start = asyncio.get_event_loop().time()
+
+        for service_name, base_url in self._required_services.items():
+            self._logger.info(
+                "service.waiting_for_dependency", dependency=service_name, url=base_url
+            )
+
+            while asyncio.get_event_loop().time() - start < timeout:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.get(
+                            f"{base_url}/health/ready", timeout=5.0
+                        )
+                        if response.status_code == 200:
+                            self._logger.info(
+                                "service.dependency_ready", dependency=service_name
+                            )
+                            break
+                except Exception:
+                    await asyncio.sleep(5.0)
+            else:
+                self._logger.error(
+                    "service.dependency_timeout",
+                    dependency=service_name,
+                    timeout=timeout,
+                )
+                return False
+
+        return True
+
     async def _segment_consumer(self) -> None:
+        """Consumer with dependency wait."""
+        # Wait for STT to be ready before processing
+        if not await self._wait_for_dependencies():
+            self._logger.error("service.startup_failed_dependencies")
+            return
+
         await asyncio.sleep(0)
         async with TranscriptionClient(self.config.stt) as stt_client:
             while not self._shutdown.is_set():
@@ -501,6 +546,20 @@ class VoiceBot(discord.Client):
                         frames=context.segment.frame_count,
                     )
                     transcript = await stt_client.transcribe(context.segment)
+
+                    if transcript is None:
+                        # STT unavailable - drop segment
+                        self._logger.info(
+                            "voice.segment_dropped_stt_unavailable",
+                            correlation_id=context.segment.correlation_id,
+                            guild_id=context.guild_id,
+                            channel_id=context.channel_id,
+                        )
+                        # TODO: Future enhancement - send pre-canned text response
+                        # await self._send_fallback_response(context, "Voice processing unavailable")
+                        continue
+
+                    # Process transcript normally
                     self._logger.info(
                         "voice.segment_processing_complete",
                         correlation_id=transcript.correlation_id,
@@ -608,7 +667,6 @@ class VoiceBot(discord.Client):
             guild_id=context.guild_id,
             channel_id=context.channel_id,
         )
-
 
     def _voice_client_for_guild(self, guild_id: int) -> discord.VoiceClient | None:
         for voice_client in self.voice_clients:
@@ -794,11 +852,6 @@ class VoiceBot(discord.Client):
             if hasattr(intents, name):
                 setattr(intents, name, True)
         return intents
-
-
-
-
-
 
 
 async def run_bot(config: BotConfig) -> None:

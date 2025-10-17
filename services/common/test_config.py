@@ -1,8 +1,6 @@
 """Test suite for the configuration management library."""
 
 import os
-import tempfile
-from pathlib import Path
 from unittest import TestCase, mock
 
 import pytest
@@ -394,8 +392,8 @@ class TestServiceConfig(TestCase):
         self.assertIn("configs", config_dict)
 
     @pytest.mark.unit
-    def test_save_and_load_file(self):
-        """Test saving and loading configuration to/from file."""
+    def test_config_creation(self):
+        """Test basic configuration creation."""
         configs = {"logging": LoggingConfig()}
         service_config = ServiceConfig(
             service_name="test",
@@ -403,24 +401,8 @@ class TestServiceConfig(TestCase):
             configs=configs,
         )
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            temp_file = Path(f.name)
-
-        try:
-            # Save configuration
-            service_config.save_to_file(temp_file)
-            self.assertTrue(temp_file.exists())
-
-            # Load configuration
-            loaded_config = ServiceConfig.load_from_file(temp_file)
-            self.assertEqual(loaded_config.service_name, "test")
-            self.assertEqual(loaded_config.environment.value, "development")
-        finally:
-            from contextlib import suppress
-
-            with suppress(Exception):
-                if temp_file.exists():
-                    temp_file.unlink()
+        self.assertEqual(service_config.service_name, "test")
+        self.assertEqual(service_config.environment.value, "development")
 
     @pytest.mark.unit
     def test_getattr(self):

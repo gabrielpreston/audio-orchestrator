@@ -2,6 +2,7 @@ import io
 import os
 import time
 import wave
+from collections.abc import Iterable
 from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
@@ -10,13 +11,16 @@ from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
 from services.common.logging import configure_logging, get_logger
+from services.common.health import HealthManager
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
 MODEL_NAME = os.environ.get("FW_MODEL", "small")
+MODEL_PATH = os.environ.get("FW_MODEL_PATH", "/app/models")
 # Module-level cached model to avoid repeated loads
 _model: Any = None
-# Debug manager for saving debug files
+# Health manager for service resilience
+_health_manager = HealthManager("stt")
 
 
 def _env_bool(name: str, default: str = "true") -> bool:
@@ -38,6 +42,7 @@ async def _warm_model() -> None:
     try:
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
+        _health_manager.mark_startup_complete()  # Mark as ready
     except HTTPException:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
@@ -46,6 +51,28 @@ async def _warm_model() -> None:
             "stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc)
         )
         raise
+
+
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "stt"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+
+    health_status = await _health_manager.get_health_status()
+    return {
+        "status": "ready",
+        "service": "stt",
+        "model": MODEL_NAME,
+        "startup_complete": _health_manager._startup_complete,
+        "health_details": health_status.details,
+    }
 
 
 def _parse_bool(value: str | None) -> bool:
@@ -70,14 +97,25 @@ def _lazy_load_model() -> Any:
 
     device = os.environ.get("FW_DEVICE", "cpu")
     compute_type = os.environ.get("FW_COMPUTE_TYPE")
+
+    # Check if we have a local model directory
+    local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
+    model_path_or_name = (
+        local_model_path if os.path.exists(local_model_path) else MODEL_NAME
+    )
+
     try:
         if compute_type:
-            _model = WhisperModel(MODEL_NAME, device=device, compute_type=compute_type)
+            _model = WhisperModel(
+                model_path_or_name, device=device, compute_type=compute_type
+            )
         else:
-            _model = WhisperModel(MODEL_NAME, device=device)
+            _model = WhisperModel(model_path_or_name, device=device)
         logger.info(
             "stt.model_loaded",
             model_name=MODEL_NAME,
+            model_path=model_path_or_name,
+            is_local=os.path.exists(local_model_path),
             device=device,
             compute_type=compute_type or "default",
         )
@@ -292,7 +330,6 @@ async def _transcribe_request(
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
 
-
     resp: dict[str, Any] = {
         "text": text,
         "duration": getattr(info, "duration", None),
@@ -412,5 +449,3 @@ async def transcribe(request: Request) -> dict[str, Any]:
         correlation_id=metadata_value,
         filename=filename,
     )
-
-

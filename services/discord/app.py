@@ -11,14 +11,15 @@ from pydantic import BaseModel
 
 # Configure logging
 from services.common.logging import get_logger
+from services.common.health import HealthManager
+
 logger = get_logger(__name__, service_name="discord")
 
 app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
 # Global bot instance (simplified for HTTP mode)
 _bot: Any | None = None
-
-
+_health_manager = HealthManager("discord")
 
 
 class SendMessageRequest(BaseModel):
@@ -113,17 +114,26 @@ async def shutdown_event() -> None:
         logger.info("discord.http_api_shutdown")
 
 
-@app.get("/health")  # type: ignore[misc]
-async def health_check() -> dict[str, Any]:
-    """Health check endpoint."""
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "discord"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _bot is None:
+        raise HTTPException(status_code=503, detail="Bot not connected")
+
+    health_status = await _health_manager.get_health_status()
     return {
-        "status": "healthy",
-        "bot_connected": _bot is not None,
+        "status": "ready",
         "service": "discord",
+        "bot_connected": _bot is not None,
         "mode": "http",
+        "health_details": health_status.details,
     }
-
-
 
 
 @app.post("/mcp/send_message")  # type: ignore[misc]

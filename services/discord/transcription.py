@@ -11,8 +11,9 @@ from typing import Any
 
 import httpx
 
-from services.common.http import post_with_retries
 from services.common.logging import get_logger
+from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
+from services.common.circuit_breaker import CircuitBreakerConfig
 
 from .audio import AudioSegment
 from .config import STTConfig
@@ -32,7 +33,7 @@ class TranscriptResult:
 
 
 class TranscriptionClient:
-    """Async client that sends audio segments to the STT service."""
+    """Async client that sends audio segments to the STT service with resilience."""
 
     def __init__(
         self, config: STTConfig, *, session: httpx.AsyncClient | None = None
@@ -41,6 +42,14 @@ class TranscriptionClient:
         self._session = session
         self._owns_session = session is None
         self._logger = get_logger(__name__, service_name="discord")
+
+        # Set up resilient HTTP client with circuit breaker
+        circuit_config = CircuitBreakerConfig(
+            failure_threshold=5, success_threshold=2, timeout_seconds=30.0
+        )
+        self._http_client = ResilientHTTPClient(
+            service_name="stt", base_url=config.base_url, circuit_config=circuit_config
+        )
 
     async def __aenter__(self) -> TranscriptionClient:
         if self._session is None:
@@ -57,7 +66,7 @@ class TranscriptionClient:
         if self._owns_session and self._session:
             await self._session.aclose()
 
-    async def transcribe(self, segment: AudioSegment) -> TranscriptResult:
+    async def transcribe(self, segment: AudioSegment) -> TranscriptResult | None:
         if not self._session:
             raise RuntimeError(
                 "TranscriptionClient must be used as an async context manager"
@@ -93,20 +102,35 @@ class TranscriptionClient:
             pool=None,
         )
         try:
-            response = await post_with_retries(
-                self._session,
-                f"{self._config.base_url}/transcribe",
+            # Check if STT is healthy before attempting
+            if not await self._http_client.check_health():
+                logger.warning(
+                    "stt.service_not_ready",
+                    correlation_id=segment.correlation_id,
+                    action="dropping_segment",
+                )
+                return None
+
+            response = await self._http_client.post_with_retry(
+                "/transcribe",
                 files=files,
                 data=data,
+                params=params or None,
+                timeout=request_timeout,
                 max_retries=self._config.max_retries,
                 log_fields={"correlation_id": segment.correlation_id},
                 logger=logger,
-                params=params or None,
-                timeout=request_timeout,
             )
+        except ServiceUnavailableError:
+            logger.warning(
+                "stt.circuit_open",
+                correlation_id=segment.correlation_id,
+                action="dropping_segment",
+            )
+            return None
         except Exception as exc:
             logger.error("stt.transcribe_failed", error=str(exc))
-            raise
+            return None
         payload = response.json()
         await response.aclose()
         text = payload.get("text", "")
