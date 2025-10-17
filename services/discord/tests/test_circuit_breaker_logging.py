@@ -1,11 +1,11 @@
 """Tests for circuit breaker integration and logging functionality."""
 
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from services.discord.transcription import TranscriptionClient
 from services.discord.config import STTConfig
+from services.discord.transcription import TranscriptionClient
 
 
 class TestCircuitBreakerLogging:
@@ -18,7 +18,7 @@ class TestCircuitBreakerLogging:
             base_url="http://test-stt:9000",
             request_timeout_seconds=45,
             max_retries=3,
-            forced_language="en"
+            forced_language="en",
         )
 
     @pytest.fixture
@@ -31,7 +31,7 @@ class TestCircuitBreakerLogging:
             "state": "closed",
             "available": True,
             "failure_count": 0,
-            "success_count": 5
+            "success_count": 5,
         }
         mock_client._circuit_breaker = mock_circuit_breaker
         mock_client.check_health = AsyncMock(return_value=True)
@@ -40,11 +40,14 @@ class TestCircuitBreakerLogging:
     @pytest.mark.component
     def test_circuit_stats_method_returns_state(self, stt_config, mock_http_client):
         """Test that TranscriptionClient exposes circuit breaker stats."""
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
-            
+
             # Should return circuit breaker stats
             assert "state" in stats
             assert "available" in stats
@@ -57,39 +60,47 @@ class TestCircuitBreakerLogging:
         # Create client without circuit breaker
         mock_client_no_cb = Mock()
         mock_client_no_cb._circuit_breaker = None
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_client_no_cb):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_client_no_cb,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
-            
+
             # Should return fallback stats
             assert stats["state"] == "unknown"
             assert stats["available"] is True
 
     @pytest.mark.component
-    async def test_stt_health_check_logs_circuit_state(self, stt_config, mock_http_client):
+    async def test_stt_health_check_logs_circuit_state(
+        self, stt_config, mock_http_client
+    ):
         """Test that STT health check logs circuit state on failure."""
         # Mock circuit breaker in open state
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
         mock_http_client.check_health = AsyncMock(return_value=False)
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             # Mock logger
             client._logger = Mock()
-            
+
             # Test health check failure
             result = await client._check_health()
-            
+
             # Should return False
             assert result is False
-            
+
             # Should log circuit state
             client._logger.warning.assert_called_once()
             call_args = client._logger.warning.call_args
-            
+
             assert call_args[0][0] == "stt.service_not_ready"
             assert "circuit_state" in call_args[1]
             assert call_args[1]["circuit_state"] == "open"
@@ -98,23 +109,28 @@ class TestCircuitBreakerLogging:
     def test_segment_consumer_logs_circuit_state(self, stt_config, mock_http_client):
         """Test that segment consumer logs circuit state at processing start."""
         # Mock circuit breaker in half-open state
-        mock_http_client._circuit_breaker.get_state.return_value = Mock(value="half-open")
+        mock_http_client._circuit_breaker.get_state.return_value = Mock(
+            value="half-open"
+        )
         mock_http_client._circuit_breaker.get_stats.return_value = {
             "state": "half-open",
             "available": True,
             "failure_count": 2,
-            "success_count": 1
+            "success_count": 1,
         }
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             # Mock logger
             client._logger = Mock()
-            
+
             # Test get_circuit_stats method
             stats = client.get_circuit_stats()
-            
+
             # Should return circuit stats
             assert stats["state"] == "half-open"
             assert stats["available"] is True
@@ -128,71 +144,87 @@ class TestCircuitBreakerLogging:
             "state": "closed",
             "available": True,
             "failure_count": 0,
-            "success_count": 10
+            "success_count": 10,
         }
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
             assert stats["state"] == "closed"
             assert stats["available"] is True
-        
+
         # Test open state
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
         mock_http_client._circuit_breaker.get_stats.return_value = {
             "state": "open",
             "available": False,
             "failure_count": 5,
-            "success_count": 0
+            "success_count": 0,
         }
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
             assert stats["state"] == "open"
             assert stats["available"] is False
-        
+
         # Test half-open state
-        mock_http_client._circuit_breaker.get_state.return_value = Mock(value="half-open")
+        mock_http_client._circuit_breaker.get_state.return_value = Mock(
+            value="half-open"
+        )
         mock_http_client._circuit_breaker.get_stats.return_value = {
             "state": "half-open",
             "available": True,
             "failure_count": 3,
-            "success_count": 1
+            "success_count": 1,
         }
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
             assert stats["state"] == "half-open"
             assert stats["available"] is True
 
     @pytest.mark.component
-    async def test_circuit_breaker_unavailable_fallback(self, stt_config, mock_http_client):
+    async def test_circuit_breaker_unavailable_fallback(
+        self, stt_config, mock_http_client
+    ):
         """Test that circuit breaker unavailable fallback works correctly."""
         # Mock circuit breaker in open state (unavailable)
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
         mock_http_client.check_health = AsyncMock(return_value=False)
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             # Mock logger
             client._logger = Mock()
-            
+
             # Test health check with open circuit
             result = await client._check_health()
-            
+
             # Should return False
             assert result is False
-            
+
             # Should log circuit state
             client._logger.warning.assert_called_once()
             call_args = client._logger.warning.call_args
-            
+
             assert call_args[0][0] == "stt.service_not_ready"
             assert call_args[1]["circuit_state"] == "open"
             assert call_args[1]["action"] == "dropping_segment"
@@ -209,14 +241,17 @@ class TestCircuitBreakerLogging:
             "last_failure_time": None,
             "last_success_time": "2024-01-01T12:00:00Z",
             "consecutive_failures": 0,
-            "consecutive_successes": 15
+            "consecutive_successes": 15,
         }
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
-            
+
             # Should return all stats
             assert stats["state"] == "closed"
             assert stats["available"] is True
@@ -229,13 +264,18 @@ class TestCircuitBreakerLogging:
     def test_circuit_breaker_error_handling(self, stt_config, mock_http_client):
         """Test that circuit breaker error handling works correctly."""
         # Mock circuit breaker that raises exception
-        mock_http_client._circuit_breaker.get_stats.side_effect = Exception("Circuit breaker error")
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+        mock_http_client._circuit_breaker.get_stats.side_effect = Exception(
+            "Circuit breaker error"
+        )
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             stats = client.get_circuit_stats()
-            
+
             # Should return fallback stats on error
             assert stats["state"] == "unknown"
             assert stats["available"] is True
@@ -246,20 +286,23 @@ class TestCircuitBreakerLogging:
         # Mock circuit breaker in open state
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
         mock_http_client.check_health = AsyncMock(return_value=False)
-        
-        with patch('services.discord.transcription.ResilientHTTPClient', return_value=mock_http_client):
+
+        with patch(
+            "services.discord.transcription.ResilientHTTPClient",
+            return_value=mock_http_client,
+        ):
             client = TranscriptionClient(stt_config)
-            
+
             # Mock logger
             client._logger = Mock()
-            
+
             # Test health check with logging
-            result = await client._check_health()
-            
+            await client._check_health()
+
             # Should log with proper context
             client._logger.warning.assert_called_once()
             call_args = client._logger.warning.call_args
-            
+
             assert call_args[0][0] == "stt.service_not_ready"
             assert "correlation_id" in call_args[1]
             assert "circuit_state" in call_args[1]

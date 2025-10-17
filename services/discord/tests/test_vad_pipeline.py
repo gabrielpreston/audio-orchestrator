@@ -1,11 +1,10 @@
 """Tests for VAD (Voice Activity Detection) pipeline functionality."""
 
-import time
 from unittest.mock import Mock, patch
 
 import pytest
 
-from services.discord.audio import AudioPipeline, AudioConfig
+from services.discord.audio import AudioPipeline
 from services.discord.config import AudioConfig as DiscordAudioConfig
 
 
@@ -44,9 +43,10 @@ class TestVADPipeline:
         sample_rate = 16000
         frame_duration = 0.030  # 30ms
         samples = int(sample_rate * frame_duration)
-        
+
         # Create a sine wave for speech-like content
         import numpy as np
+
         t = np.linspace(0, frame_duration, samples, False)
         audio_float = np.sin(2 * np.pi * 440 * t) * 0.5  # 440Hz tone
         audio_int16 = (audio_float * 32767).astype(np.int16)
@@ -59,21 +59,21 @@ class TestVADPipeline:
         sample_rate = 16000
         frame_duration = 0.030  # 30ms
         samples = int(sample_rate * frame_duration)
-        return b'\x00' * (samples * 2)  # 2 bytes per int16 sample
+        return b"\x00" * (samples * 2)  # 2 bytes per int16 sample
 
     @pytest.mark.component
     def test_vad_initialization_logs_config(self, audio_config, mock_logger):
         """Test that VAD initialization logs configuration."""
-        with patch('services.discord.audio.get_logger', return_value=mock_logger):
+        with patch("services.discord.audio.get_logger", return_value=mock_logger):
             AudioPipeline(audio_config)
-        
+
         # Check that info log was called with VAD configuration
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
-        
+
         assert call_args[0][0] == "voice.vad_configured"
         kwargs = call_args[1]
-        
+
         assert "aggressiveness" in kwargs
         assert "frame_duration_ms" in kwargs
         assert "target_sample_rate" in kwargs
@@ -97,10 +97,10 @@ class TestVADPipeline:
             vad_frame_duration_ms=30,
             vad_aggressiveness=5,  # Too high
         )
-        
-        with patch('services.discord.audio.get_logger', return_value=mock_logger):
+
+        with patch("services.discord.audio.get_logger", return_value=mock_logger):
             AudioPipeline(config_high)
-        
+
         # Should log warning about clamping
         mock_logger.warning.assert_called_once()
         warning_call = mock_logger.warning.call_args
@@ -123,10 +123,10 @@ class TestVADPipeline:
             vad_frame_duration_ms=5,  # Too low
             vad_aggressiveness=2,
         )
-        
-        with patch('services.discord.audio.get_logger', return_value=mock_logger):
+
+        with patch("services.discord.audio.get_logger", return_value=mock_logger):
             AudioPipeline(config_invalid)
-        
+
         # Should log warning about frame duration clamping
         mock_logger.warning.assert_called_once()
         warning_call = mock_logger.warning.call_args
@@ -135,19 +135,20 @@ class TestVADPipeline:
         assert warning_call[1]["applied"] == 10  # Should be clamped to 10ms
 
     @pytest.mark.component
-    def test_vad_decision_logs_speech_frame(self, audio_pipeline, sample_pcm_frame, mock_logger):
+    def test_vad_decision_logs_speech_frame(
+        self, audio_pipeline, sample_pcm_frame, mock_logger
+    ):
         """Test that VAD decision logging works for speech frames."""
         user_id = 12345
         rms = 1000.0
         duration = 0.030
         sample_rate = 16000
-        timestamp = time.time()
-        
+
         # Mock the logger in the pipeline
         audio_pipeline._logger = mock_logger
-        
+
         # Mock the VAD to return speech
-        with patch.object(audio_pipeline, '_is_speech', return_value=True):
+        with patch.object(audio_pipeline, "_is_speech", return_value=True):
             audio_pipeline.register_frame(
                 user_id=user_id,
                 pcm=sample_pcm_frame,
@@ -155,18 +156,21 @@ class TestVADPipeline:
                 duration=duration,
                 sample_rate=sample_rate,
             )
-        
+
         # Check that debug log was called with VAD decision
         mock_logger.debug.assert_called()
-        
+
         # Find the VAD decision log call
-        vad_log_calls = [call for call in mock_logger.debug.call_args_list 
-                        if call[0][0] == "voice.vad_decision"]
+        vad_log_calls = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call[0][0] == "voice.vad_decision"
+        ]
         assert len(vad_log_calls) > 0
-        
+
         vad_call = vad_log_calls[0]
         kwargs = vad_call[1]
-        
+
         assert kwargs["user_id"] == user_id
         assert kwargs["is_speech"] is True
         # RMS may be normalized, so check it's close to expected value
@@ -175,19 +179,20 @@ class TestVADPipeline:
         assert kwargs["sample_rate"] == sample_rate
 
     @pytest.mark.component
-    def test_vad_decision_logs_silence_frame(self, audio_pipeline, silence_frame, mock_logger):
+    def test_vad_decision_logs_silence_frame(
+        self, audio_pipeline, silence_frame, mock_logger
+    ):
         """Test that VAD decision logging works for silence frames."""
         user_id = 12345
         rms = 10.0  # Low RMS for silence
         duration = 0.030
         sample_rate = 16000
-        timestamp = time.time()
-        
+
         # Mock the logger in the pipeline
         audio_pipeline._logger = mock_logger
-        
+
         # Mock the VAD to return silence
-        with patch.object(audio_pipeline, '_is_speech', return_value=False):
+        with patch.object(audio_pipeline, "_is_speech", return_value=False):
             audio_pipeline.register_frame(
                 user_id=user_id,
                 pcm=silence_frame,
@@ -195,39 +200,45 @@ class TestVADPipeline:
                 duration=duration,
                 sample_rate=sample_rate,
             )
-        
+
         # Check that debug log was called with VAD decision
         mock_logger.debug.assert_called()
-        
+
         # Find the VAD decision log call
-        vad_log_calls = [call for call in mock_logger.debug.call_args_list 
-                        if call[0][0] == "voice.vad_decision"]
+        vad_log_calls = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call[0][0] == "voice.vad_decision"
+        ]
         assert len(vad_log_calls) > 0
-        
+
         vad_call = vad_log_calls[0]
         kwargs = vad_call[1]
-        
+
         assert kwargs["user_id"] == user_id
         assert kwargs["is_speech"] is False
         # RMS may be normalized, so check it's close to expected value (allow more tolerance for silence)
-        assert abs(kwargs["rms"] - rms) < 20.0  # Allow more tolerance for silence normalization
+        assert (
+            abs(kwargs["rms"] - rms) < 20.0
+        )  # Allow more tolerance for silence normalization
         assert kwargs["frame_bytes"] == len(silence_frame)
         assert kwargs["sample_rate"] == sample_rate
 
     @pytest.mark.component
-    def test_vad_handles_rate_conversion(self, audio_pipeline, sample_pcm_frame, mock_logger):
+    def test_vad_handles_rate_conversion(
+        self, audio_pipeline, sample_pcm_frame, mock_logger
+    ):
         """Test that VAD handles sample rate conversion correctly."""
         user_id = 12345
         rms = 1000.0
         duration = 0.030
         sample_rate = 48000  # Different from VAD sample rate (16000)
-        timestamp = time.time()
-        
+
         # Mock the logger in the pipeline
         audio_pipeline._logger = mock_logger
-        
+
         # Mock the VAD to return speech
-        with patch.object(audio_pipeline, '_is_speech', return_value=True):
+        with patch.object(audio_pipeline, "_is_speech", return_value=True):
             audio_pipeline.register_frame(
                 user_id=user_id,
                 pcm=sample_pcm_frame,
@@ -235,39 +246,43 @@ class TestVADPipeline:
                 duration=duration,
                 sample_rate=sample_rate,
             )
-        
+
         # Check that debug log was called with VAD decision
         mock_logger.debug.assert_called()
-        
+
         # Find the VAD decision log call
-        vad_log_calls = [call for call in mock_logger.debug.call_args_list 
-                        if call[0][0] == "voice.vad_decision"]
+        vad_log_calls = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call[0][0] == "voice.vad_decision"
+        ]
         assert len(vad_log_calls) > 0
-        
+
         vad_call = vad_log_calls[0]
         kwargs = vad_call[1]
-        
+
         # Should log the original sample rate
         assert kwargs["sample_rate"] == sample_rate
         assert kwargs["user_id"] == user_id
         assert kwargs["is_speech"] is True
 
     @pytest.mark.component
-    def test_vad_sequence_numbering(self, audio_pipeline, sample_pcm_frame, mock_logger):
+    def test_vad_sequence_numbering(
+        self, audio_pipeline, sample_pcm_frame, mock_logger
+    ):
         """Test that VAD logs include sequence numbers."""
         user_id = 12345
         rms = 1000.0
         duration = 0.030
         sample_rate = 16000
-        timestamp = time.time()
-        
+
         # Mock the logger in the pipeline
         audio_pipeline._logger = mock_logger
-        
+
         # Mock the VAD to return speech
-        with patch.object(audio_pipeline, '_is_speech', return_value=True):
+        with patch.object(audio_pipeline, "_is_speech", return_value=True):
             # Register multiple frames
-            for i in range(3):
+            for _ in range(3):
                 audio_pipeline.register_frame(
                     user_id=user_id,
                     pcm=sample_pcm_frame,
@@ -275,30 +290,34 @@ class TestVADPipeline:
                     duration=duration,
                     sample_rate=sample_rate,
                 )
-        
+
         # Check that debug logs were called with sequence numbers
-        vad_log_calls = [call for call in mock_logger.debug.call_args_list 
-                        if call[0][0] == "voice.vad_decision"]
+        vad_log_calls = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call[0][0] == "voice.vad_decision"
+        ]
         assert len(vad_log_calls) == 3
-        
+
         # Check sequence numbers are incrementing
         sequences = [call[1]["sequence"] for call in vad_log_calls]
         assert sequences == [1, 2, 3]
 
     @pytest.mark.component
-    def test_vad_logs_frame_buffering(self, audio_pipeline, sample_pcm_frame, mock_logger):
+    def test_vad_logs_frame_buffering(
+        self, audio_pipeline, sample_pcm_frame, mock_logger
+    ):
         """Test that VAD logs frame buffering for speech frames."""
         user_id = 12345
         rms = 1000.0
         duration = 0.030
         sample_rate = 16000
-        timestamp = time.time()
-        
+
         # Mock the logger in the pipeline
         audio_pipeline._logger = mock_logger
-        
+
         # Mock the VAD to return speech
-        with patch.object(audio_pipeline, '_is_speech', return_value=True):
+        with patch.object(audio_pipeline, "_is_speech", return_value=True):
             audio_pipeline.register_frame(
                 user_id=user_id,
                 pcm=sample_pcm_frame,
@@ -306,15 +325,18 @@ class TestVADPipeline:
                 duration=duration,
                 sample_rate=sample_rate,
             )
-        
+
         # Check that frame buffering was logged
-        frame_log_calls = [call for call in mock_logger.debug.call_args_list 
-                          if call[0][0] == "voice.frame_buffered"]
+        frame_log_calls = [
+            call
+            for call in mock_logger.debug.call_args_list
+            if call[0][0] == "voice.frame_buffered"
+        ]
         assert len(frame_log_calls) > 0
-        
+
         frame_call = frame_log_calls[0]
         kwargs = frame_call[1]
-        
+
         assert kwargs["user_id"] == user_id
         assert kwargs["sequence"] == 1
         assert kwargs["duration"] == duration

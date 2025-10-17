@@ -167,7 +167,10 @@ class TranscriptionClient:
     def get_circuit_stats(self) -> dict[str, Any]:
         """Get circuit breaker statistics."""
         try:
-            if hasattr(self._http_client, '_circuit_breaker') and self._http_client._circuit_breaker is not None:
+            if (
+                hasattr(self._http_client, "_circuit_breaker")
+                and self._http_client._circuit_breaker is not None
+            ):
                 stats = self._http_client._circuit_breaker.get_stats()
                 return dict(stats) if stats else {"state": "unknown", "available": True}
             return {"state": "unknown", "available": True}

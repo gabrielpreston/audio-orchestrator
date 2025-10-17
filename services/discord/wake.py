@@ -78,14 +78,14 @@ class WakeDetector:
         transcript: str | None,
     ) -> WakeDetectionResult | None:
         """Detect a wake phrase from audio first, then fall back to transcripts."""
-        
+
         if not self._config.enabled:
             return WakeDetectionResult(
                 phrase="testing_mode",
                 confidence=1.0,
                 source="transcript",
             )
-        
+
         audio_result = self._detect_audio(segment.pcm, segment.sample_rate)
         if audio_result:
             return audio_result

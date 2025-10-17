@@ -472,24 +472,24 @@ class VoiceBot(discord.Client):
         """Save segment as WAV file for debugging."""
         if not self.config.telemetry.waveform_debug_dir:
             return
-        
+
         try:
             import time
             import wave
-            
+
             debug_dir = self.config.telemetry.waveform_debug_dir
             debug_dir.mkdir(parents=True, exist_ok=True)
-            
+
             timestamp = int(time.time() * 1000)
             filename = f"{prefix}_{segment.correlation_id}_{timestamp}.wav"
             filepath = debug_dir / filename
-            
-            with wave.open(str(filepath), 'wb') as wav_file:
+
+            with wave.open(str(filepath), "wb") as wav_file:
                 wav_file.setnchannels(1)
                 wav_file.setsampwidth(2)
                 wav_file.setframerate(segment.sample_rate)
                 wav_file.writeframes(segment.pcm)
-            
+
             self._logger.debug(
                 "voice.debug_wav_saved",
                 correlation_id=segment.correlation_id,
@@ -574,7 +574,7 @@ class VoiceBot(discord.Client):
                 context = await self._segment_queue.get()
                 try:
                     self._save_debug_wav(context.segment, prefix="captured")
-                    
+
                     # Bind correlation ID to logger for this segment
                     segment_logger = self._logger.bind(
                         correlation_id=context.segment.correlation_id

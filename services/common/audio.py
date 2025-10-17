@@ -356,24 +356,31 @@ class AudioProcessor:
 
             # Calculate current RMS
             current_rms = np.sqrt(np.mean(np.square(array.astype(np.float64))))
-            
+
             if current_rms < 1.0:  # Avoid amplifying silence
-                self._log("debug", "audio.normalize_skipped_silence", current_rms=current_rms)
+                self._log(
+                    "debug", "audio.normalize_skipped_silence", current_rms=current_rms
+                )
                 return pcm_data, float(current_rms)
 
             # Scale to target RMS
             scaling_factor = target_rms / current_rms
             normalized_float = array.astype(np.float64) * scaling_factor
-            normalized_array = np.clip(normalized_float, -max_val + 1, max_val - 1).astype(dtype)
+            normalized_array = np.clip(
+                normalized_float, -max_val + 1, max_val - 1
+            ).astype(dtype)
 
             # Verify new RMS
             new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
-            self._log("debug", "audio.normalized", 
-                      current_rms=float(current_rms),
-                      target_rms=target_rms, 
-                      new_rms=float(new_rms),
-                      scaling_factor=float(scaling_factor))
+            self._log(
+                "debug",
+                "audio.normalized",
+                current_rms=float(current_rms),
+                target_rms=target_rms,
+                new_rms=float(new_rms),
+                scaling_factor=float(scaling_factor),
+            )
 
             return normalized_array.tobytes(), float(new_rms)
         except Exception as exc:

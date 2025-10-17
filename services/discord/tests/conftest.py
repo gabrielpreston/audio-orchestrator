@@ -1,17 +1,20 @@
 """Test fixtures for Discord service tests."""
 
-import io
-import struct
-from pathlib import Path
-from typing import Callable, Generator
+from collections.abc import Callable, Generator
 from unittest.mock import Mock
 
 import numpy as np
 import pytest
 
-from services.discord.audio import AudioSegment
 from services.common.audio import AudioProcessor
-from services.discord.config import BotConfig, AudioConfig, STTConfig, WakeConfig, TelemetryConfig
+from services.discord.audio import AudioSegment
+from services.discord.config import (
+    AudioConfig,
+    BotConfig,
+    STTConfig,
+    TelemetryConfig,
+    WakeConfig,
+)
 
 
 @pytest.fixture
@@ -21,7 +24,7 @@ def sample_pcm_audio() -> bytes:
     sample_rate = 16000
     duration = 1.0
     frequency = 440  # A4 note
-    
+
     t = np.linspace(0, duration, int(sample_rate * duration), False)
     audio_float = np.sin(2 * np.pi * frequency * t) * 0.5  # 50% amplitude
     audio_int16 = (audio_float * 32767).astype(np.int16)
@@ -82,21 +85,27 @@ def temp_debug_dir(tmp_path):
 @pytest.fixture
 def generate_test_audio() -> Callable[[int, float, float], bytes]:
     """Generate test audio data."""
-    def _generate_audio(sample_rate: int = 16000, duration: float = 1.0, frequency: float = 440.0) -> bytes:
+
+    def _generate_audio(
+        sample_rate: int = 16000, duration: float = 1.0, frequency: float = 440.0
+    ) -> bytes:
         t = np.linspace(0, duration, int(sample_rate * duration), False)
         audio_float = np.sin(2 * np.pi * frequency * t) * 0.5
         audio_int16 = (audio_float * 32767).astype(np.int16)
         return audio_int16.tobytes()
+
     return _generate_audio
 
 
 @pytest.fixture
 def assert_audio_properties() -> Callable[[bytes, int, float], None]:
     """Assert audio properties."""
+
     def _assert_audio(pcm_data: bytes, sample_rate: int, duration: float):
         assert len(pcm_data) > 0
         assert len(pcm_data) == sample_rate * duration * 2  # 2 bytes per int16 sample
         assert isinstance(pcm_data, bytes)
+
     return _assert_audio
 
 
@@ -123,32 +132,30 @@ def mock_config(tmp_path):
         vad_aggressiveness=2,
         target_rms=2000.0,
     )
-    
+
     stt_config = STTConfig(
         base_url="http://test-stt:9000",
         timeout_seconds=45,
         max_retries=3,
-        forced_language="en"
+        forced_language="en",
     )
-    
+
     wake_config = WakeConfig(
         wake_phrases=["hey atlas", "ok atlas"],
         model_paths=[],
         activation_threshold=0.5,
         target_sample_rate_hz=16000,
-        enabled=True
+        enabled=True,
     )
-    
-    telemetry_config = TelemetryConfig(
-        waveform_debug_dir=tmp_path / "debug_wavs"
-    )
-    
+
+    telemetry_config = TelemetryConfig(waveform_debug_dir=tmp_path / "debug_wavs")
+
     config = Mock(spec=BotConfig)
     config.audio = audio_config
     config.stt = stt_config
     config.wake = wake_config
     config.telemetry = telemetry_config
-    
+
     return config
 
 
@@ -162,5 +169,5 @@ def sample_audio_segment(sample_pcm_audio):
         start_timestamp=0.0,
         end_timestamp=1.0,
         correlation_id="test-correlation-123",
-        frame_count=16000
+        frame_count=16000,
     )
