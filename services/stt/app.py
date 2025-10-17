@@ -173,13 +173,16 @@ async def _transcribe_request(
     correlation_id: str | None,
     filename: str | None,
 ) -> JSONResponse:
-    # Top-level timing for the request (includes validation, file I/O, model work)
-    req_start = time.time()
+    from services.common.logging import correlation_context
 
-    if not wav_bytes:
-        raise HTTPException(status_code=400, detail="empty request body")
+    with correlation_context(correlation_id) as request_logger:
+        # Top-level timing for the request (includes validation, file I/O, model work)
+        req_start = time.time()
 
-    channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
+        if not wav_bytes:
+            raise HTTPException(status_code=400, detail="empty request body")
+
+        channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
     model = _lazy_load_model()
     device = os.environ.get("FW_DEVICE", "cpu")
@@ -221,16 +224,32 @@ async def _transcribe_request(
         or request.query_params.get("correlation_id")
     )
 
+    # Validate correlation ID if provided
+    if correlation_id:
+        from services.common.correlation import validate_correlation_id
+
+        is_valid, error_msg = validate_correlation_id(correlation_id)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid correlation ID: {error_msg}"
+            )
+
     # Generate STT correlation ID if none provided
     if not correlation_id:
         correlation_id = generate_stt_correlation_id()
+
+    # Bind correlation ID to logger for this request
+    from services.common.logging import bind_correlation_id
+
+    request_logger = bind_correlation_id(logger, correlation_id)
+
     processing_ms: int | None = None
     info: Any = None
     segments_list: list[Any] = []
     text = ""
     segments_out: list[dict[str, Any]] = []
     try:
-        logger.debug(
+        request_logger.debug(
             "stt.request_received",
             correlation_id=correlation_id,
             input_bytes=input_bytes,
@@ -274,7 +293,7 @@ async def _transcribe_request(
                 segments_list = [raw_segments]
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
-        logger.info(
+        request_logger.info(
             "stt.request_processed",
             correlation_id=correlation_id,
             processing_ms=processing_ms,
@@ -363,7 +382,7 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    logger.debug(
+    request_logger.debug(
         "stt.response_ready",
         correlation_id=correlation_id,
         text_length=len(resp.get("text", "")),
@@ -371,7 +390,7 @@ async def _transcribe_request(
         total_ms=resp.get("total_ms"),
     )
     if resp.get("text"):
-        logger.debug(
+        request_logger.debug(
             "stt.transcription_text",
             correlation_id=correlation_id,
             text=resp["text"],

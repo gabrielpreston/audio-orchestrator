@@ -136,6 +136,8 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line("markers", "e2e: End-to-end tests (manual trigger only)")
     config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
+    config.addinivalue_line("markers", "performance: Performance benchmark tests")
+    config.addinivalue_line("markers", "concurrent: Concurrency and threading tests")
     config.addinivalue_line(
         "markers", "external: Tests requiring external services or network access"
     )

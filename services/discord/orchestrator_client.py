@@ -44,8 +44,16 @@ class OrchestratorClient:
                 "correlation_id": correlation_id,
             }
 
+            # Pass correlation ID in headers
+            headers = {}
+            if correlation_id:
+                headers["X-Correlation-ID"] = correlation_id
+
             response = await client.post(
-                f"{self.orchestrator_url}/mcp/transcript", json=payload, timeout=30.0
+                f"{self.orchestrator_url}/mcp/transcript",
+                json=payload,
+                headers=headers,
+                timeout=30.0,
             )
             response.raise_for_status()
 
@@ -68,6 +76,7 @@ class OrchestratorClient:
                 guild_id=guild_id,
                 channel_id=channel_id,
                 user_id=user_id,
+                correlation_id=correlation_id,
             )
             return {"error": str(exc)}
 

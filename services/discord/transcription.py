@@ -84,7 +84,9 @@ class TranscriptionClient:
         params: dict[str, Any] = {}
         if self._config.forced_language:
             params["language"] = self._config.forced_language
-        logger = self._logger.bind(correlation_id=segment.correlation_id)
+        from services.common.logging import bind_correlation_id
+
+        logger = bind_correlation_id(self._logger, segment.correlation_id)
         logger.debug(
             "stt.transcribe_request",
             frames=segment.frame_count,
@@ -111,10 +113,14 @@ class TranscriptionClient:
                 )
                 return None
 
+            # Pass correlation ID in headers
+            headers = {"X-Correlation-ID": segment.correlation_id}
+
             response = await self._http_client.post_with_retry(
                 "/transcribe",
                 files=files,
                 data=data,
+                headers=headers,
                 params=params or None,
                 timeout=request_timeout,
                 max_retries=self._config.max_retries,
@@ -129,7 +135,11 @@ class TranscriptionClient:
             )
             return None
         except Exception as exc:
-            logger.error("stt.transcribe_failed", error=str(exc))
+            logger.error(
+                "stt.transcribe_failed",
+                error=str(exc),
+                correlation_id=segment.correlation_id,
+            )
             return None
         payload = response.json()
         await response.aclose()

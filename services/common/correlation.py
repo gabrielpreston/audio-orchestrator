@@ -5,8 +5,53 @@ This module provides a consistent way to generate correlation IDs across all ser
 in the voice pipeline, ensuring proper hierarchical organization and traceability.
 """
 
+import re
 import time
+import uuid
 from typing import Any
+
+
+def _generate_unique_suffix() -> str:
+    """Generate a short unique suffix to prevent collisions."""
+    return str(uuid.uuid4())[:8]
+
+
+def validate_correlation_id(correlation_id: str | None) -> tuple[bool, str]:
+    """Validate correlation ID format and content.
+
+    Args:
+        correlation_id: The correlation ID to validate
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not correlation_id or not isinstance(correlation_id, str):
+        return False, "Correlation ID is required and must be a string"
+
+    # Check length limits
+    if len(correlation_id) < 10:
+        return False, "Correlation ID too short (minimum 10 characters)"
+
+    if len(correlation_id) > 500:
+        return False, "Correlation ID too long (maximum 500 characters)"
+
+    # Check for valid characters only (alphanumeric, hyphens, underscores)
+    if not re.match(r"^[a-zA-Z0-9\-_]+$", correlation_id):
+        return (
+            False,
+            "Correlation ID contains invalid characters (only alphanumeric, hyphens, and underscores allowed)",
+        )
+
+    # Check for incomplete IDs
+    if correlation_id.endswith("-") or correlation_id.startswith("-"):
+        return False, "Correlation ID cannot start or end with hyphen"
+
+    # Validate known service prefixes
+    parsed = CorrelationIDGenerator.parse_correlation_id(correlation_id)
+    if parsed["service"] == "unknown":
+        return False, "Correlation ID has unknown service prefix"
+
+    return True, ""
 
 
 class CorrelationIDGenerator:
@@ -32,8 +77,9 @@ class CorrelationIDGenerator:
             raise ValueError("user_id cannot be None")
 
         timestamp_ms = int(time.time() * 1000)
+        unique_suffix = _generate_unique_suffix()
         guild_part = f"-{guild_id}" if guild_id else ""
-        return f"discord-{user_id}{guild_part}-{timestamp_ms}"
+        return f"discord-{user_id}{guild_part}-{timestamp_ms}-{unique_suffix}"
 
     @staticmethod
     def generate_stt_correlation_id(source_correlation_id: str | None = None) -> str:
@@ -55,7 +101,8 @@ class CorrelationIDGenerator:
             return f"stt-{source_correlation_id}"
 
         timestamp_ms = int(time.time() * 1000)
-        return f"stt-{timestamp_ms}"
+        unique_suffix = _generate_unique_suffix()
+        return f"stt-{timestamp_ms}-{unique_suffix}"
 
     @staticmethod
     def generate_tts_correlation_id(source_correlation_id: str | None = None) -> str:
@@ -77,7 +124,8 @@ class CorrelationIDGenerator:
             return f"tts-{source_correlation_id}"
 
         timestamp_ms = int(time.time() * 1000)
-        return f"tts-{timestamp_ms}"
+        unique_suffix = _generate_unique_suffix()
+        return f"tts-{timestamp_ms}-{unique_suffix}"
 
     @staticmethod
     def generate_orchestrator_correlation_id(
@@ -102,8 +150,9 @@ class CorrelationIDGenerator:
             return f"orchestrator-{source_correlation_id}"
 
         timestamp_ms = int(time.time() * 1000)
+        unique_suffix = _generate_unique_suffix()
         user_part = f"{user_id}-" if user_id else ""
-        return f"orchestrator-{user_part}{timestamp_ms}"
+        return f"orchestrator-{user_part}{timestamp_ms}-{unique_suffix}"
 
     @staticmethod
     def generate_mcp_correlation_id(
@@ -139,8 +188,9 @@ class CorrelationIDGenerator:
             Standardized correlation ID
         """
         timestamp_ms = int(time.time() * 1000)
+        unique_suffix = _generate_unique_suffix()
         context_part = f"-{context}" if context else ""
-        return f"manual-{service}{context_part}-{timestamp_ms}"
+        return f"manual-{service}{context_part}-{timestamp_ms}-{unique_suffix}"
 
     @staticmethod
     def parse_correlation_id(correlation_id: str) -> dict[str, Any]:
@@ -242,19 +292,8 @@ class CorrelationIDGenerator:
         Returns:
             True if valid, False otherwise
         """
-        if not correlation_id or not isinstance(correlation_id, str):
-            return False
-
-        # Check for minimum length and basic format
-        if len(correlation_id) < 10:  # Minimum reasonable length
-            return False
-
-        # Check for incomplete IDs (ending with dash)
-        if correlation_id.endswith("-"):
-            return False
-
-        parsed = CorrelationIDGenerator.parse_correlation_id(correlation_id)
-        return bool(parsed["service"] != "unknown")
+        valid, _ = validate_correlation_id(correlation_id)
+        return valid
 
 
 # Convenience functions for backward compatibility
@@ -309,3 +348,18 @@ def get_service_from_correlation_id(correlation_id: str) -> str:
 def is_valid_correlation_id(correlation_id: str) -> bool:
     """Check if correlation ID is valid."""
     return CorrelationIDGenerator.is_valid_correlation_id(correlation_id)
+
+
+__all__ = [
+    "CorrelationIDGenerator",
+    "generate_discord_correlation_id",
+    "generate_stt_correlation_id",
+    "generate_tts_correlation_id",
+    "generate_orchestrator_correlation_id",
+    "generate_mcp_correlation_id",
+    "generate_manual_correlation_id",
+    "parse_correlation_id",
+    "get_service_from_correlation_id",
+    "is_valid_correlation_id",
+    "validate_correlation_id",
+]

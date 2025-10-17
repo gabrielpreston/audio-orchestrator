@@ -283,16 +283,21 @@ class AudioPipeline:
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
+
+        # Bind correlation ID to logger for this segment
+        from services.common.logging import bind_correlation_id
+
+        segment_logger = bind_correlation_id(self._logger, segment.correlation_id)
+
         reason = (
             override_reason
             or (decision.reason if decision else None)
             or trigger
             or "unknown"
         )
-        self._logger.info(
+        segment_logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
-            correlation_id=segment.correlation_id,
             frames=segment.frame_count,
             duration=segment.duration,
             pcm_bytes=len(segment.pcm),

@@ -105,7 +105,7 @@ logs: ## Tail logs for compose services (set SERVICE=name to filter)
 logs-dump: ## Capture docker logs to ./docker.logs
 	@echo -e "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@$(DOCKER_COMPOSE) logs > ./docker.logs
+	@$(DOCKER_COMPOSE) logs > ./debug/docker.logs
 
 docker-status: ## Show status of docker-compose services
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi

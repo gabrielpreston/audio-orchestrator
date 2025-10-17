@@ -342,13 +342,18 @@ class Orchestrator:
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
 
+            # Add correlation ID to headers
+            correlation_id = context.get("correlation_id")
+            if correlation_id:
+                headers["X-Correlation-ID"] = correlation_id
+
             # Call TTS service
             response = await self._http_client.post(
                 f"{self.tts_base_url}/synthesize",
                 json={
                     "text": text,
                     "voice": "default",
-                    "correlation_id": context.get("correlation_id"),
+                    "correlation_id": correlation_id,
                 },
                 headers=headers,
                 timeout=30.0,

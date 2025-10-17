@@ -13,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
@@ -124,6 +124,17 @@ class SynthesisRequest(BaseModel):
     noise_scale: float | None = Field(None, ge=0.0, le=2.0)
     noise_w: float | None = Field(None, ge=0.0, le=2.0)
     correlation_id: str | None = None
+
+    @field_validator("correlation_id")  # type: ignore[misc]
+    @classmethod
+    def validate_correlation_id_field(cls, v: str | None) -> str | None:
+        if v is not None:
+            from services.common.correlation import validate_correlation_id
+
+            is_valid, error_msg = validate_correlation_id(v)
+            if not is_valid:
+                raise ValueError(error_msg)
+        return v
 
     @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
@@ -403,65 +414,68 @@ async def synthesize(
     _: None = Depends(_require_auth),
     __: None = Depends(_enforce_rate_limit),
 ) -> dict[str, Any]:
-    start_time = time.perf_counter()
+    from services.common.logging import correlation_context
 
-    text_source = payload.ssml if payload.ssml else payload.text or ""
-    is_ssml = bool(payload.ssml)
-    text_length = len(_strip_ssml(text_source)) if is_ssml else len(text_source)
+    with correlation_context(payload.correlation_id) as request_logger:
+        start_time = time.perf_counter()
 
-    option = _resolve_voice(payload.voice)
-    length_scale = payload.length_scale or _DEFAULT_LENGTH_SCALE
-    noise_scale = payload.noise_scale or _DEFAULT_NOISE_SCALE
-    noise_w = payload.noise_w or _DEFAULT_NOISE_W
+        text_source = payload.ssml if payload.ssml else payload.text or ""
+        is_ssml = bool(payload.ssml)
+        text_length = len(_strip_ssml(text_source)) if is_ssml else len(text_source)
 
-    async with _CONCURRENCY_SEMAPHORE:
-        try:
-            audio_bytes, sample_rate = await asyncio.to_thread(
-                _synthesize_audio,
-                text_source,
-                is_ssml=is_ssml,
-                option=option,
-                length_scale=length_scale,
-                noise_scale=noise_scale,
-                noise_w=noise_w,
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.exception("tts.synthesize_failed", error=str(exc))
-            _SYNTHESIS_COUNTER.labels(status="error").inc()
-            raise HTTPException(
-                status_code=500, detail="unable to synthesize audio"
-            ) from exc
+        option = _resolve_voice(payload.voice)
+        length_scale = payload.length_scale or _DEFAULT_LENGTH_SCALE
+        noise_scale = payload.noise_scale or _DEFAULT_NOISE_SCALE
+        noise_w = payload.noise_w or _DEFAULT_NOISE_W
 
-    size_bytes = len(audio_bytes)
-    duration = time.perf_counter() - start_time
-    _SYNTHESIS_DURATION.observe(duration)
-    _SYNTHESIS_SIZE.observe(size_bytes)
+        async with _CONCURRENCY_SEMAPHORE:
+            try:
+                audio_bytes, sample_rate = await asyncio.to_thread(
+                    _synthesize_audio,
+                    text_source,
+                    is_ssml=is_ssml,
+                    option=option,
+                    length_scale=length_scale,
+                    noise_scale=noise_scale,
+                    noise_w=noise_w,
+                )
+            except HTTPException:
+                raise
+            except Exception as exc:
+                request_logger.exception("tts.synthesize_failed", error=str(exc))
+                _SYNTHESIS_COUNTER.labels(status="error").inc()
+                raise HTTPException(
+                    status_code=500, detail="unable to synthesize audio"
+                ) from exc
 
-    from services.common.correlation import generate_tts_correlation_id
+        size_bytes = len(audio_bytes)
+        duration = time.perf_counter() - start_time
+        _SYNTHESIS_DURATION.observe(duration)
+        _SYNTHESIS_SIZE.observe(size_bytes)
 
-    audio_id = payload.correlation_id or generate_tts_correlation_id()
-    headers = {
-        "X-Audio-Id": audio_id,
-        "X-Audio-Voice": option.key,
-        "X-Audio-Sample-Rate": str(sample_rate),
-        "X-Audio-Size": str(size_bytes),
-    }
-    _SYNTHESIS_COUNTER.labels(status="success").inc()
-    logger.info(
-        "tts.synthesize_stream_success",
-        audio_id=audio_id,
-        voice=option.key,
-        ssml=is_ssml,
-        text_length=text_length,
-        size_bytes=size_bytes,
-        duration_ms=int(duration * 1000),
-    )
+        from services.common.correlation import generate_tts_correlation_id
 
-    return StreamingResponse(  # type: ignore[no-any-return]
-        iter([audio_bytes]), media_type="audio/wav", headers=headers
-    )
+        audio_id = payload.correlation_id or generate_tts_correlation_id()
+        headers = {
+            "X-Audio-Id": audio_id,
+            "X-Audio-Voice": option.key,
+            "X-Audio-Sample-Rate": str(sample_rate),
+            "X-Audio-Size": str(size_bytes),
+        }
+        _SYNTHESIS_COUNTER.labels(status="success").inc()
+        request_logger.info(
+            "tts.synthesize_stream_success",
+            audio_id=audio_id,
+            voice=option.key,
+            ssml=is_ssml,
+            text_length=text_length,
+            size_bytes=size_bytes,
+            duration_ms=int(duration * 1000),
+        )
+
+        return StreamingResponse(  # type: ignore[no-any-return]
+            iter([audio_bytes]), media_type="audio/wav", headers=headers
+        )
 
 
 __all__ = ["app"]

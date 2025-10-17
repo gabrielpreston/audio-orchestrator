@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from typing import Any
 
 import structlog
@@ -100,4 +101,61 @@ def get_logger(
     return logger
 
 
-__all__ = ["configure_logging", "get_logger"]
+def bind_correlation_id(
+    logger: structlog.stdlib.BoundLogger,
+    correlation_id: str | None,
+) -> structlog.stdlib.BoundLogger:
+    """Bind correlation ID to logger if provided.
+
+    Args:
+        logger: Base logger instance
+        correlation_id: Optional correlation ID to bind
+
+    Returns:
+        Logger with correlation ID bound, or original logger if None
+    """
+    if correlation_id:
+        return logger.bind(correlation_id=correlation_id)
+    return logger
+
+
+@contextmanager
+def correlation_context(
+    correlation_id: str | None,
+) -> Generator[structlog.stdlib.BoundLogger, None, None]:
+    """Context manager for correlation ID that ensures cleanup.
+
+    Binds correlation ID to context variables and automatically clears
+    them after the operation completes.
+
+    Args:
+        correlation_id: Optional correlation ID to bind
+
+    Yields:
+        Logger with correlation ID in context
+
+    Example:
+        with correlation_context("my-correlation-id") as logger:
+            logger.info("processing_request")
+            # correlation_id automatically included
+        # correlation_id automatically cleaned up
+    """
+    if correlation_id:
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
+
+    logger = structlog.stdlib.get_logger()
+
+    try:
+        yield logger
+    finally:
+        if correlation_id:
+            structlog.contextvars.clear_contextvars()
+
+
+__all__ = [
+    "configure_logging",
+    "get_logger",
+    "bind_correlation_id",
+    "correlation_context",
+]

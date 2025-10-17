@@ -25,3 +25,4 @@ services/models/
 .coverage
 coverage.xml
 junit.xml
+htmlcov/

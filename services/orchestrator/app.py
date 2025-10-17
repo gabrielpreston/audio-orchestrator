@@ -5,7 +5,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
@@ -93,43 +93,59 @@ class TranscriptRequest(BaseModel):
     transcript: str
     correlation_id: str | None = None
 
+    @field_validator("correlation_id")  # type: ignore[misc]
+    @classmethod
+    def validate_correlation_id_field(cls, v: str | None) -> str | None:
+        if v is not None:
+            from services.common.correlation import validate_correlation_id
+
+            is_valid, error_msg = validate_correlation_id(v)
+            if not is_valid:
+                raise ValueError(error_msg)
+        return v
+
 
 @app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
-    if not _ORCHESTRATOR:
-        return {"error": "Orchestrator not initialized"}
+    from services.common.logging import correlation_context
 
-    try:
-        # Process the transcript through the orchestrator
-        result = await _ORCHESTRATOR.process_transcript(
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            user_id=request.user_id,
-            transcript=request.transcript,
-            correlation_id=request.correlation_id,
-        )
+    with correlation_context(request.correlation_id) as request_logger:
+        if not _ORCHESTRATOR:
+            return {"error": "Orchestrator not initialized"}
 
-        logger.info(
-            "orchestrator.transcript_processed",
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            user_id=request.user_id,
-            transcript=request.transcript,
-            correlation_id=request.correlation_id,
-        )
+        try:
+            # Process the transcript through the orchestrator
+            result = await _ORCHESTRATOR.process_transcript(
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
 
-        return result
+            request_logger.info(
+                "orchestrator.transcript_processed",
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
 
-    except Exception as exc:
-        logger.error(
-            "orchestrator.transcript_processing_failed",
-            error=str(exc),
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            user_id=request.user_id,
-        )
-        return {"error": str(exc)}
+            return result
+
+        except Exception as exc:
+            request_logger.error(
+                "orchestrator.transcript_processing_failed",
+                error=str(exc),
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
+            return {"error": str(exc)}
 
 
 @app.get("/mcp/tools")  # type: ignore[misc]

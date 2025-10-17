@@ -538,9 +538,13 @@ class VoiceBot(discord.Client):
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:
-                    self._logger.debug(
+                    # Bind correlation ID to logger for this segment
+                    segment_logger = self._logger.bind(
+                        correlation_id=context.segment.correlation_id
+                    )
+
+                    segment_logger.debug(
                         "voice.segment_processing_start",
-                        correlation_id=context.segment.correlation_id,
                         guild_id=context.guild_id,
                         channel_id=context.channel_id,
                         frames=context.segment.frame_count,
@@ -549,9 +553,8 @@ class VoiceBot(discord.Client):
 
                     if transcript is None:
                         # STT unavailable - drop segment
-                        self._logger.info(
+                        segment_logger.info(
                             "voice.segment_dropped_stt_unavailable",
-                            correlation_id=context.segment.correlation_id,
                             guild_id=context.guild_id,
                             channel_id=context.channel_id,
                         )
@@ -560,9 +563,8 @@ class VoiceBot(discord.Client):
                         continue
 
                     # Process transcript normally
-                    self._logger.info(
+                    segment_logger.info(
                         "voice.segment_processing_complete",
-                        correlation_id=transcript.correlation_id,
                         guild_id=context.guild_id,
                         channel_id=context.channel_id,
                         text_length=len(transcript.text),
@@ -572,11 +574,10 @@ class VoiceBot(discord.Client):
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    self._logger.error(
+                    segment_logger.error(
                         "voice.segment_processing_failed",
                         guild_id=context.guild_id,
                         channel_id=context.channel_id,
-                        correlation_id=context.segment.correlation_id,
                         error=str(exc),
                     )
                 finally:
@@ -587,11 +588,15 @@ class VoiceBot(discord.Client):
         context: SegmentContext,
         transcript: TranscriptResult,
     ) -> None:
+        # Bind correlation ID to logger for this transcript
+        from services.common.logging import bind_correlation_id
+
+        transcript_logger = bind_correlation_id(self._logger, transcript.correlation_id)
+
         detection = self._wake_detector.detect(context.segment, transcript.text)
         if not detection:
-            self._logger.debug(
+            transcript_logger.debug(
                 "voice.segment_ignored",
-                correlation_id=transcript.correlation_id,
                 reason="wake_not_detected",
                 transcript_preview=_truncate_text(transcript.text),
             )
@@ -616,9 +621,8 @@ class VoiceBot(discord.Client):
         if detection.confidence is not None:
             payload["wake_confidence"] = detection.confidence
         payload["wake_source"] = detection.source
-        self._logger.info(
+        transcript_logger.info(
             "wake.detected",
-            correlation_id=transcript.correlation_id,
             wake_phrase=detection.phrase,
             wake_confidence=detection.confidence,
             wake_source=detection.source,
@@ -637,9 +641,8 @@ class VoiceBot(discord.Client):
                 correlation_id=transcript.correlation_id,
             )
 
-            self._logger.info(
+            transcript_logger.info(
                 "voice.transcript_sent_to_orchestrator",
-                correlation_id=transcript.correlation_id,
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
                 orchestrator_result=orchestrator_result,
@@ -651,9 +654,8 @@ class VoiceBot(discord.Client):
             # For now, just log the result
 
         except Exception as exc:
-            self._logger.error(
+            transcript_logger.error(
                 "voice.orchestrator_communication_failed",
-                correlation_id=transcript.correlation_id,
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
                 error=str(exc),
@@ -661,9 +663,8 @@ class VoiceBot(discord.Client):
 
         # Also publish to the original transcript publisher for compatibility
         await self._publish_transcript(payload)
-        self._logger.info(
+        transcript_logger.info(
             "voice.transcript_published",
-            correlation_id=transcript.correlation_id,
             guild_id=context.guild_id,
             channel_id=context.channel_id,
         )
