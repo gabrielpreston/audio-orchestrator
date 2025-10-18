@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Voice Lab - Test Phrase Recorder</title>
+    <link rel="stylesheet" href="/static/css/test-recorder.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎤 Test Phrase Recorder</h1>
+            <p>Record audio test phrases for Discord Voice Lab automated testing</p>
+        </div>
+
+        <div class="main-content">
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+
+            <!-- Recording Section -->
+            <div class="section">
+                <h2>Record New Phrase</h2>
+                
+                <div class="phrase-input">
+                    <input type="text" id="phraseText" placeholder="Enter test phrase (e.g., 'Hey Atlas, what's the weather?')" maxlength="200">
+                    <select id="phraseCategory">
+                        <option value="wake">Wake Phrases</option>
+                        <option value="core">Core Commands</option>
+                        <option value="edge">Edge Cases</option>
+                        <option value="noise">Noise/Background</option>
+                    </select>
+                    <button class="btn btn-primary" id="addPhraseBtn">Add Phrase</button>
+                </div>
+
+                <div class="recording-controls">
+                    <button class="btn btn-danger" id="recordBtn" disabled>
+                        🎤 Start Recording
+                    </button>
+                    <button class="btn btn-secondary" id="stopBtn" disabled>
+                        ⏹️ Stop Recording
+                    </button>
+                    <button class="btn btn-success" id="playBtn" disabled>
+                        ▶️ Play Last Recording
+                    </button>
+                    <div class="recording-status stopped" id="recordingStatus">
+                        <div class="pulse" style="display: none;"></div>
+                        <span>Ready to record</span>
+                    </div>
+                </div>
+
+                <div class="audio-visualizer" id="audioVisualizer">
+                    <canvas id="visualizerCanvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Phrases List Section -->
+            <div class="section">
+                <h2>Recorded Phrases</h2>
+                <div class="phrases-list" id="phrasesList">
+                    <div class="no-phrases" id="noPhrases">
+                        No phrases recorded yet. Add a phrase above and start recording!
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Section -->
+            <div class="export-section">
+                <h3>📁 Export Test Data</h3>
+                <p>Download your recorded phrases for use in automated testing</p>
+                <div class="export-buttons">
+                    <button class="btn btn-primary" id="exportMetadataBtn" disabled>
+                        📋 Download Metadata (JSON)
+                    </button>
+                    <button class="btn btn-secondary" id="clearAllBtn" disabled>
+                        🗑️ Clear All
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/test-recorder.js"></script>
+</body>
+</html>

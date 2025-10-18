@@ -850,6 +850,49 @@ class OrchestratorConfig(BaseConfig):
         ]
 
 
+class TestRecorderConfig(BaseConfig):
+    """Test recorder configuration."""
+
+    def __init__(
+        self,
+        recordings_dir: str = "/app/recordings",
+        max_file_size_mb: int = 10,
+        default_sample_rate: int = 48000,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.recordings_dir = recordings_dir
+        self.max_file_size_mb = max_file_size_mb
+        self.max_file_size_bytes = max_file_size_mb * 1024 * 1024
+        self.default_sample_rate = default_sample_rate
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="recordings_dir",
+                field_type=str,
+                default="/app/recordings",
+                description="Directory to store test recordings",
+                env_var="TEST_RECORDER_RECORDINGS_DIR",
+            ),
+            create_field_definition(
+                name="max_file_size_mb",
+                field_type=int,
+                default=10,
+                description="Maximum file size in MB",
+                env_var="TEST_RECORDER_MAX_FILE_SIZE_MB",
+            ),
+            create_field_definition(
+                name="default_sample_rate",
+                field_type=int,
+                default=48000,
+                description="Default sample rate for audio conversion",
+                env_var="TEST_RECORDER_DEFAULT_SAMPLE_RATE",
+            ),
+        ]
+
+
 __all__ = [
     "AudioConfig",
     "DiscordConfig",
@@ -857,6 +900,7 @@ __all__ = [
     "LlamaConfig",
     "MCPConfig",
     "OrchestratorConfig",
+    "TestRecorderConfig",
     "HttpConfig",
     "LoggingConfig",
     "STTConfig",
