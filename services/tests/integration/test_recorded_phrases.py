@@ -21,7 +21,7 @@ class TestRecordedPhrases:
         """Load test manifest if available."""
         manifest_file = test_phrases_dir / "test_manifest.json"
         if manifest_file.exists():
-            with open(manifest_file) as f:
+            with open(manifest_file, "r") as f:
                 return json.load(f)
         return {}
 
