@@ -1,23 +1,20 @@
 """Test phrase recorder module for the orchestrator service."""
 
 import json
-import os
-import tempfile
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import ffmpeg
 from pydub import AudioSegment
-from pydub.utils import which
 
 from services.common.logging import get_logger
 
 logger = get_logger(__name__, service_name="orchestrator")
 
 
-class TestRecorderManager:
+class RecorderManager:
     """Manages test phrase recordings and conversions."""
 
     def __init__(
@@ -64,7 +61,7 @@ class TestRecorderManager:
         except Exception as e:
             logger.error("test_recorder.failed_to_save_metadata", error=str(e))
 
-    def add_phrase(self, text: str, category: str) -> Dict[str, Any]:
+    def add_phrase(self, text: str, category: str) -> dict[str, Any]:
         """
         Add a new test phrase.
 
@@ -254,11 +251,11 @@ class TestRecorderManager:
             )
             raise ValueError(f"Audio conversion error: {e}")
 
-    def get_phrase(self, phrase_id: str) -> Optional[Dict[str, Any]]:
+    def get_phrase(self, phrase_id: str) -> dict[str, Any] | None:
         """Get a specific phrase by ID."""
         return self.recordings.get(phrase_id)
 
-    def list_phrases(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
+    def list_phrases(self, category: str | None = None) -> list[dict[str, Any]]:
         """
         List all phrases, optionally filtered by category.
 
@@ -310,7 +307,7 @@ class TestRecorderManager:
         logger.info("test_recorder.phrase_deleted", phrase_id=phrase_id)
         return True
 
-    def get_audio_file(self, phrase_id: str, converted: bool = False) -> Optional[Path]:
+    def get_audio_file(self, phrase_id: str, converted: bool = False) -> Path | None:
         """
         Get the path to an audio file for a phrase.
 
@@ -333,13 +330,13 @@ class TestRecorderManager:
 
         return None
 
-    def export_metadata(self) -> Dict[str, Any]:
+    def export_metadata(self) -> dict[str, Any]:
         """Export all recordings metadata."""
         return {
             "export_date": datetime.utcnow().isoformat(),
             "total_phrases": len(self.recordings),
             "categories": list(
-                set(p.get("category", "unknown") for p in self.recordings.values())
+                {p.get("category", "unknown") for p in self.recordings.values()}
             ),
             "recordings_dir": str(self.recordings_dir),
             "phrases": list(self.recordings.values()),
@@ -376,14 +373,14 @@ class TestRecorderManager:
         logger.info("test_recorder.all_cleared", count=count)
         return count
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get statistics about the recordings."""
         total_size = sum(p.get("audio_size", 0) for p in self.recordings.values())
         total_duration = sum(
             p.get("audio_duration", 0) for p in self.recordings.values()
         )
 
-        categories = {}
+        categories: dict[str, int] = {}
         for phrase in self.recordings.values():
             cat = phrase.get("category", "unknown")
             categories[cat] = categories.get(cat, 0) + 1

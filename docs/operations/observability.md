@@ -2,7 +2,7 @@
 title: Observability Guide
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -44,24 +44,44 @@ Each service exposes two health check endpoints following Kubernetes best practi
 
 ### Circuit Breakers
 
-HTTP clients use per-service circuit breakers to prevent cascading failures:
+Circuit breaker functionality is implemented in `services.common.circuit_breaker` to protect against cascading failures.
 
-- Opens after 5 consecutive failures (configurable)
-- Remains open for 30 seconds with exponential backoff
+**Features**:
+
+- Opens after configurable consecutive failures (default: 5)
+- Remains open for configurable timeout with exponential backoff (default: 30s)
 - Half-opens to test recovery after timeout
-- Closes after 2 consecutive successes
+- Closes after configurable consecutive successes (default: 2)
 
-### Service Resilience Configuration
+**Configuration**:
 
-Add these environment variables to `.env.common` for resilience tuning:
+Circuit breakers are configured programmatically using `CircuitBreakerConfig`:
 
-```bash
-# Service Resilience Configuration
-CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
-CIRCUIT_BREAKER_SUCCESS_THRESHOLD=2
-CIRCUIT_BREAKER_TIMEOUT_SECONDS=30
-SERVICE_STARTUP_TIMEOUT_SECONDS=300
-HEALTH_CHECK_INTERVAL_SECONDS=10
+```python
+from services.common.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+
+config = CircuitBreakerConfig(
+    failure_threshold=5,
+    success_threshold=2,
+    timeout_seconds=30.0,
+    max_timeout_seconds=300.0
+)
+
+breaker = CircuitBreaker("service_name", config)
+```
+
+**Usage**:
+
+Services can use circuit breakers to protect external service calls:
+
+```python
+if breaker.is_available():
+    try:
+        result = await external_service.call()
+        breaker.record_success()
+    except Exception as e:
+        breaker.record_failure()
+        raise
 ```
 
 ## Tracing & Correlation

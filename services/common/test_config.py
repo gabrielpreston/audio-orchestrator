@@ -504,8 +504,8 @@ class TestServiceConfigs(TestCase):
                 "LOG_RATE_LIMIT_PACKET_WARN_S": "10",
                 "LOG_SAMPLE_SEGMENT_READY_RATE": "0.5",
                 "LOG_SAMPLE_SEGMENT_READY_N": "200",
-                "DISCORD_WARMUP_AUDIO": "true",
-                "STT_WARMUP": "false",
+                "DISCORD_WARMUP_ENABLED": "true",
+                "STT_WARMUP_ENABLED": "false",
             },
         ):
             loader = EnvironmentLoader()
@@ -523,7 +523,7 @@ class TestServiceConfigs(TestCase):
     @pytest.mark.unit
     def test_llm_service_config(self):
         """Test LLMServiceConfig env mapping."""
-        with mock.patch.dict(os.environ, {"PORT": "8080", "LLM_AUTH_TOKEN": "abc"}):
+        with mock.patch.dict(os.environ, {"LLM_PORT": "8080", "LLM_AUTH_TOKEN": "abc"}):
             loader = EnvironmentLoader()
             cfg = loader.load_config(LLMServiceConfig)
             self.assertEqual(cfg.port, 8080)
@@ -533,7 +533,7 @@ class TestServiceConfigs(TestCase):
     def test_llm_client_config(self):
         """Test LLMClientConfig env mapping."""
         with mock.patch.dict(
-            os.environ, {"LLM_BASE_URL": "http://llm:8000", "LLM_AUTH_TOKEN": "xyz"}
+            os.environ, {"LLM_URL": "http://llm:8000", "LLM_AUTH_TOKEN": "xyz"}
         ):
             loader = EnvironmentLoader()
             cfg = loader.load_config(LLMClientConfig)
@@ -546,7 +546,7 @@ class TestServiceConfigs(TestCase):
         with mock.patch.dict(
             os.environ,
             {
-                "TTS_BASE_URL": "http://tts:7000",
+                "TTS_URL": "http://tts:7000",
                 "TTS_VOICE": "default",
                 "TTS_TIMEOUT": "45",
                 "TTS_AUTH_TOKEN": "tok",
@@ -564,7 +564,7 @@ class TestServiceConfigs(TestCase):
         """Test OrchestratorClientConfig env mapping."""
         with mock.patch.dict(
             os.environ,
-            {"ORCHESTRATOR_URL": "http://orchestrator:8000", "ORCH_TIMEOUT": "15"},
+            {"ORCH_URL": "http://orchestrator:8000", "ORCH_TIMEOUT": "15"},
         ):
             loader = EnvironmentLoader()
             cfg = loader.load_config(OrchestratorClientConfig)

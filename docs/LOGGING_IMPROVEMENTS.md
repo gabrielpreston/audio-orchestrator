@@ -1,6 +1,6 @@
 ---
 title: Logging Improvements Implementation Summary
-last-updated: 2025-10-17
+last-updated: 2025-10-18
 ---
 
 # Logging Improvements Implementation Summary
@@ -32,7 +32,7 @@ logging.getLogger("discord.voice_client").setLevel(logging.INFO)
 logging.getLogger("discord.client").setLevel(logging.INFO)
 ```
 
-**Impact**: ~70% reduction in log volume, cleaner troubleshooting experience
+**Impact**: Substantial reduction in log volume, cleaner troubleshooting experience
 
 ### Phase 2: Critical Missing Logs ✅
 
@@ -186,7 +186,7 @@ if PROMETHEUS_AVAILABLE:
 ### 1. Noise Reduction
 
 - **Before**: 150+ RTCP packets, 50+ WebSocket frames per minute
-- **After**: ~70% reduction in log volume
+- **After**: Substantial reduction in log volume through sampling
 - **Benefit**: Cleaner logs, easier troubleshooting
 
 ### 2. Complete Pipeline Visibility
@@ -217,7 +217,7 @@ if PROMETHEUS_AVAILABLE:
 
 ### Performance
 
-- **Log Volume**: 70% reduction in noise
+- **Log Volume**: Substantial reduction in noise through sampling
 - **Search Performance**: Faster log analysis
 - **Storage Costs**: Reduced log storage requirements
 
