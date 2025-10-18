@@ -165,10 +165,8 @@ except RequiredFieldError as e:
 
 ```python
 # Save configuration to file
-config.save_to_file("config.json")
-
-# Load configuration from file
-config = ServiceConfig.load_from_file("config.json")
+# Configuration is now managed through environment variables and service-specific configs
+# No file-based persistence is available
 ```
 
 ## Environment Variables

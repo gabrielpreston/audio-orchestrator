@@ -28,14 +28,12 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import os
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum
-from pathlib import Path
 from typing import Any, TypeVar, Union, get_args, get_origin
 
 from services.common.logging import get_logger
@@ -528,27 +526,6 @@ class ServiceConfig:
                 name: config.to_dict() for name, config in self.configs.items()
             },
         }
-
-    def save_to_file(self, file_path: str | Path) -> None:
-        """Save configuration to a JSON file."""
-        file_path = Path(file_path)
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2, default=str)
-
-    @classmethod
-    def load_from_file(cls, file_path: str | Path) -> ServiceConfig:
-        """Load configuration from a JSON file."""
-        file_path = Path(file_path)
-        with open(file_path, encoding="utf-8") as f:
-            data = json.load(f)
-
-        # This is a simplified implementation
-        # In practice, you'd need to reconstruct the config objects
-        return cls(
-            service_name=data["service_name"],
-            environment=Environment(data["environment"]),
-            configs=data["configs"],
-        )
 
     def __getattr__(self, name: str) -> BaseConfig:
         """Allow direct access to configuration sections."""

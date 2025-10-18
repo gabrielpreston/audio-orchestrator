@@ -2,6 +2,7 @@
 
 import os
 import random
+import shutil
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
@@ -64,6 +65,17 @@ def temp_dir() -> Generator[Path, None, None]:
     """Create a temporary directory for test files."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         yield Path(tmp_dir)
+
+
+@pytest.fixture(scope="session")
+def test_artifacts_dir() -> Generator[Path, None, None]:
+    """Centralized test artifacts directory with auto-cleanup."""
+    artifacts_dir = Path(os.getenv("TEST_ARTIFACTS_DIR", "test_artifacts"))
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    yield artifacts_dir
+    # Cleanup after all tests
+    if artifacts_dir.exists():
+        shutil.rmtree(artifacts_dir, ignore_errors=True)
 
 
 @pytest.fixture
@@ -136,6 +148,8 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line("markers", "e2e: End-to-end tests (manual trigger only)")
     config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
+    config.addinivalue_line("markers", "performance: Performance benchmark tests")
+    config.addinivalue_line("markers", "concurrent: Concurrency and threading tests")
     config.addinivalue_line(
         "markers", "external: Tests requiring external services or network access"
     )

@@ -21,6 +21,11 @@ services:
       - orchestrator
       - tts
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   stt:
     build:
@@ -36,8 +41,14 @@ services:
       - ./.env.docker
       - ./services/stt/.env.service
     volumes:
+      - ./services/models/stt:/app/models:ro
       - ./debug:/app/debug
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   llm:
     build:
@@ -56,6 +67,11 @@ services:
       - ./services/models/llm:/app/models:ro
       - ./debug:/app/debug
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   orchestrator:
     build:
@@ -78,6 +94,11 @@ services:
       - llm
       - tts
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   tts:
     build:
@@ -96,3 +117,8 @@ services:
       - ./services/models/tts:/app/models:ro
       - ./debug:/app/debug
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"

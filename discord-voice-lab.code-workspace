@@ -1,0 +1,65 @@
+{
+    "folders": [
+        {
+            "name": "discord-voice-lab (Root)",
+            "path": "."
+        },
+        {
+            "name": "Discord Service",
+            "path": "./services/discord"
+        },
+        {
+            "name": "STT Service", 
+            "path": "./services/stt"
+        },
+        {
+            "name": "LLM Service",
+            "path": "./services/llm"
+        },
+        {
+            "name": "Orchestrator Service",
+            "path": "./services/orchestrator"
+        },
+        {
+            "name": "TTS Service",
+            "path": "./services/tts"
+        },
+        {
+            "name": "Common Library",
+            "path": "./services/common"
+        }
+    ],
+    "settings": {
+        "python.defaultInterpreterPath": "./.venv/bin/python",
+        "python.terminal.activateEnvironment": true,
+        "python.analysis.extraPaths": [
+            "./services",
+            "./services/common"
+        ],
+        "python.analysis.autoImportCompletions": true,
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.ignore": [
+            "**/node_modules",
+            "**/.venv"
+        ],
+        "cursorpyright.analysis.autoImportCompletions": true,
+        "cursorpyright.analysis.extraPaths": [
+            "./services",
+            "./services/common"
+        ],
+        "cursorpyright.analysis.ignore": [
+            "**/node_modules",
+            "**/.venv"
+        ],
+        "cursorpyright.analysis.typeCheckingMode": "basic"
+    },
+    "extensions": {
+        "recommendations": [
+            "ms-python.python",
+            "ms-python.pylint",
+            "ms-python.black-formatter",
+            "ms-python.isort"
+        ]
+    }
+}
+

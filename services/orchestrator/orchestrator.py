@@ -3,17 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import struct
-from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import httpx
 
-from services.common.debug import get_debug_manager
 from services.common.logging import get_logger
+from services.common.service_configs import LLMClientConfig, TTSClientConfig
 
 from .mcp_manager import MCPManager
 
@@ -26,19 +22,19 @@ class Orchestrator:
     def __init__(
         self,
         mcp_manager: MCPManager,
-        llm_base_url: str | None = None,
-        tts_base_url: str | None = None,
+        llm_config: LLMClientConfig,
+        tts_config: TTSClientConfig,
     ):
         self.mcp_manager = mcp_manager
-        self.llm_base_url = llm_base_url
-        self.tts_base_url = tts_base_url
+        self.llm_config = llm_config
+        self.tts_config = tts_config
         self._logger = get_logger(__name__, service_name="orchestrator")
         self._http_client: httpx.AsyncClient | None = None
         self._available_tools: dict[str, list[dict[str, Any]]] = {}
 
     async def initialize(self) -> None:
         """Initialize the orchestrator."""
-        if self.tts_base_url or self.llm_base_url:
+        if self.tts_config.base_url or self.llm_config.base_url:
             self._http_client = httpx.AsyncClient(timeout=60.0)
 
         # Load available tools from all MCP clients
@@ -54,53 +50,6 @@ class Orchestrator:
         if self._http_client:
             await self._http_client.aclose()
         self._logger.info("orchestrator.shutdown")
-
-    def _save_debug_data(
-        self,
-        transcript: str,
-        response: str,
-        audio_data: bytes,
-        metadata: dict[str, Any],
-    ) -> None:
-        """Save debug data to disk for analysis, grouped by correlation_id."""
-        from services.common.debug import get_debug_manager
-
-        try:
-            correlation_id = metadata.get("correlation_id", "unknown")
-            debug_manager = get_debug_manager("orchestrator")
-
-            # Save text response
-            response_content = (
-                f"Original Transcript: {transcript}\n\nLLM Response: {response}"
-            )
-            response_file = debug_manager.save_text_file(
-                correlation_id=correlation_id,
-                content=response_content,
-                filename_prefix="response",
-            )
-
-            # Save manifest with metadata
-            files = {}
-            if response_file:
-                files["response_file"] = str(response_file)
-
-            debug_manager.save_manifest(
-                correlation_id=correlation_id,
-                metadata=metadata,
-                files=files,
-                stats={
-                    "transcript_length": len(transcript),
-                    "response_length": len(response),
-                    "audio_size_bytes": len(audio_data) if audio_data else 0,
-                },
-            )
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.debug_save_failed",
-                error=str(exc),
-                correlation_id=metadata.get("correlation_id", "unknown"),
-            )
 
     def _convert_raw_to_wav(
         self,
@@ -120,7 +69,7 @@ class Orchestrator:
             wav_data = processor.pcm_to_wav(
                 raw_audio_data, sample_rate, num_channels, sample_width
             )
-            return wav_data
+            return bytes(wav_data)
 
         except Exception as exc:
             self._logger.error(
@@ -186,41 +135,6 @@ class Orchestrator:
 
         return riff_chunk + fmt_chunk + struct.pack("<4sI", data_id, data_size)
 
-    def _save_audio_file(self, audio_data: bytes, correlation_id: str) -> str:
-        """Save audio data to a temporary file and return the file path."""
-        from services.common.debug import get_debug_manager
-
-        try:
-            debug_manager = get_debug_manager("orchestrator")
-            file_path = debug_manager.save_audio_file(
-                correlation_id=correlation_id,
-                audio_data=audio_data,
-                filename_prefix="audio",
-                convert_to_wav=True,
-            )
-
-            if file_path:
-                return str(file_path)
-            else:
-                # Fallback to old method if debug saving is disabled
-                correlation_dir = Path("/app/debug") / correlation_id
-                correlation_dir.mkdir(parents=True, exist_ok=True)
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"{timestamp}_audio.wav"
-                file_path = correlation_dir / filename
-                wav_data = self._convert_raw_to_wav(audio_data)
-                with open(file_path, "wb") as f:
-                    f.write(wav_data)
-                return str(file_path)
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.audio_file_save_failed",
-                error=str(exc),
-                correlation_id=correlation_id,
-            )
-            raise
-
     async def process_transcript(
         self,
         guild_id: str,
@@ -230,6 +144,24 @@ class Orchestrator:
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
         """Process a transcript from Discord service."""
+        import time
+
+        from services.common.logging import bind_correlation_id
+
+        # Bind correlation ID to logger
+        logger = bind_correlation_id(self._logger, correlation_id)
+        start_time = time.monotonic()
+
+        # Log orchestrator request
+        logger.info(
+            "orchestrator.processing_started",
+            correlation_id=correlation_id,
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            text_length=len(transcript),
+        )
+
         try:
             from services.common.correlation import generate_orchestrator_correlation_id
 
@@ -245,6 +177,14 @@ class Orchestrator:
 
             # Process the transcript
             await self._process_transcript(transcript_data)
+
+            # Log orchestrator completion
+            latency_ms = int((time.monotonic() - start_time) * 1000)
+            logger.info(
+                "orchestrator.processing_completed",
+                correlation_id=correlation_id,
+                latency_ms=latency_ms,
+            )
 
             return {
                 "status": "processed",
@@ -313,12 +253,12 @@ class Orchestrator:
                 "orchestrator.response_generated",
                 response_length=len(response) if response else 0,
                 response_preview=response[:100] if response else "None",
-                tts_base_url=self.tts_base_url,
+                tts_base_url=self.tts_config.base_url,
                 correlation_id=correlation_id,
             )
 
             # Synthesize and play audio if TTS is available
-            if self.tts_base_url and response:
+            if self.tts_config.base_url and response:
                 self._logger.info(
                     "orchestrator.calling_tts",
                     correlation_id=correlation_id,
@@ -327,7 +267,7 @@ class Orchestrator:
             else:
                 self._logger.warning(
                     "orchestrator.tts_skipped",
-                    tts_base_url=self.tts_base_url,
+                    tts_base_url=self.tts_config.base_url,
                     has_response=bool(response),
                     correlation_id=correlation_id,
                 )
@@ -341,7 +281,7 @@ class Orchestrator:
 
     async def _generate_response(self, transcript: str) -> str:
         """Generate a response using LLM service via HTTP."""
-        if not self.llm_base_url or not self._http_client:
+        if not self.llm_config.base_url or not self._http_client:
             self._logger.warning("orchestrator.llm_unavailable")
             return "I'm sorry, but the language model is currently unavailable."
 
@@ -359,17 +299,20 @@ class Orchestrator:
 
         try:
             # Call LLM service
-            llm_auth_token = os.getenv("LLM_AUTH_TOKEN")
             headers = {}
-            if llm_auth_token:
-                headers["Authorization"] = f"Bearer {llm_auth_token}"
+            if self.llm_config.auth_token:
+                headers["Authorization"] = f"Bearer {self.llm_config.auth_token}"
 
             response = await self._http_client.post(
-                f"{self.llm_base_url}/v1/chat/completions",
+                f"{self.llm_config.base_url}/v1/chat/completions",
                 json={
                     "model": "local-llama",
                     "messages": messages,
-                    "max_tokens": 256,
+                    # Use config parameters for LLM request
+                    "max_tokens": self.llm_config.max_tokens,
+                    "temperature": self.llm_config.temperature,
+                    "top_p": self.llm_config.top_p,
+                    "repeat_penalty": self.llm_config.repeat_penalty,
                 },
                 headers=headers,
                 timeout=60.0,
@@ -418,23 +361,28 @@ class Orchestrator:
 
     async def _synthesize_and_play(self, text: str, context: dict[str, Any]) -> None:
         """Synthesize text to speech and play it in Discord."""
-        if not self._http_client or not self.tts_base_url:
+        if not self._http_client or not self.tts_config.base_url:
             return
 
         try:
-            # Get TTS auth token from environment
-            tts_auth_token = os.getenv("TTS_AUTH_TOKEN")
+            # Get TTS auth token from config
+            tts_auth_token = self.tts_config.auth_token
             headers = {}
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
 
+            # Add correlation ID to headers
+            correlation_id = context.get("correlation_id")
+            if correlation_id:
+                headers["X-Correlation-ID"] = correlation_id
+
             # Call TTS service
             response = await self._http_client.post(
-                f"{self.tts_base_url}/synthesize",
+                f"{self.tts_config.base_url}/synthesize",
                 json={
                     "text": text,
                     "voice": "default",
-                    "correlation_id": context.get("correlation_id"),
+                    "correlation_id": correlation_id,
                 },
                 headers=headers,
                 timeout=30.0,
@@ -451,41 +399,6 @@ class Orchestrator:
                 size_bytes=len(audio_data),
             )
 
-            # Save debug data
-            debug_metadata = {
-                "audio_id": audio_id,
-                "tts_service_url": self.tts_base_url,
-                "voice": "default",
-                "correlation_id": context.get("correlation_id"),
-                "guild_id": context.get("guild_id"),
-                "channel_id": context.get("channel_id"),
-                "user_id": context.get("user_id"),
-            }
-            self._save_debug_data(
-                transcript=context.get("text", ""),
-                response=text,
-                audio_data=audio_data,
-                metadata=debug_metadata,
-            )
-
-            # Save audio file and create HTTP URL
-            audio_file_path = self._save_audio_file(
-                audio_data, context.get("correlation_id", "unknown")
-            )
-            audio_url = (
-                f"http://orchestrator:8000/audio/{os.path.basename(audio_file_path)}"
-            )
-
-            # Play audio in Discord
-            await self.mcp_manager.call_discord_tool(
-                "discord.play_audio",
-                {
-                    "guild_id": context.get("guild_id"),
-                    "channel_id": context.get("channel_id"),
-                    "audio_url": audio_url,
-                },
-            )
-
             self._logger.info(
                 "orchestrator.audio_played",
                 correlation_id=context.get("correlation_id"),
@@ -494,63 +407,6 @@ class Orchestrator:
         except Exception as exc:
             self._logger.error(
                 "orchestrator.audio_playback_failed",
-                error=str(exc),
-            )
-
-    def _save_debug_mcp_tool_call(
-        self,
-        client_name: str,
-        tool_name: str,
-        arguments: dict[str, Any],
-        result: dict[str, Any],
-        success: bool,
-        context: dict[str, Any],
-    ) -> None:
-        """Save debug data for MCP tool calls."""
-        try:
-            from services.common.correlation import generate_mcp_correlation_id
-
-            base_correlation_id = context.get("correlation_id", "unknown")
-            correlation_id = generate_mcp_correlation_id(
-                base_correlation_id, client_name, tool_name
-            )
-            debug_manager = get_debug_manager("orchestrator")
-
-            # Save tool call details
-            tool_call_content = f"""MCP Tool Call:
-Client: {client_name}
-Tool: {tool_name}
-Arguments: {json.dumps(arguments, indent=2)}
-Success: {success}
-Result: {json.dumps(result, indent=2)}
-Context: {json.dumps(context, indent=2)}"""
-
-            debug_manager.save_text_file(
-                correlation_id=correlation_id,
-                content=tool_call_content,
-                filename_prefix=f"mcp_tool_call_{client_name}_{tool_name}",
-            )
-
-            # Save tool call metadata
-            debug_manager.save_json_file(
-                correlation_id=correlation_id,
-                data={
-                    "client_name": client_name,
-                    "tool_name": tool_name,
-                    "arguments": arguments,
-                    "result": result,
-                    "success": success,
-                    "context": context,
-                    "timestamp": datetime.now().isoformat(),
-                },
-                filename_prefix=f"mcp_metadata_{client_name}_{tool_name}",
-            )
-
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.debug_mcp_tool_call_save_failed",
-                client_name=client_name,
-                tool_name=tool_name,
                 error=str(exc),
             )
 

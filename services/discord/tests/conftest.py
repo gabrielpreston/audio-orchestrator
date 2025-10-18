@@ -1,134 +1,172 @@
-"""Test configuration for services.discord module."""
+"""Test fixtures for Discord service tests."""
 
-from collections.abc import Generator
-from typing import Any
-from unittest import mock
+from collections.abc import Callable, Generator
+from unittest.mock import Mock
 
-import discord
+import numpy as np
 import pytest
 
-from services.common.service_configs import DiscordConfig
+from services.common.audio import AudioProcessor
+from services.discord.audio import AudioSegment
+from services.discord.config import (
+    AudioConfig,
+    BotConfig,
+    STTConfig,
+    TelemetryConfig,
+    WakeConfig,
+)
 
 
 @pytest.fixture
-def mock_discord_client() -> Generator[mock.Mock, None, None]:
-    """Mock Discord client for testing."""
-    with mock.patch("discord.Client") as mock_client:
-        # Configure mock client
-        mock_client.return_value.user = mock.Mock(id=123456789)
-        mock_client.return_value.guilds = []
-        mock_client.return_value.voice_clients = []
-        yield mock_client.return_value
+def sample_pcm_audio() -> bytes:
+    """Generate sample PCM audio data."""
+    # Generate 1 second of 16kHz mono audio with sine wave
+    sample_rate = 16000
+    duration = 1.0
+    frequency = 440  # A4 note
+
+    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    audio_float = np.sin(2 * np.pi * frequency * t) * 0.5  # 50% amplitude
+    audio_int16 = (audio_float * 32767).astype(np.int16)
+    return audio_int16.tobytes()
 
 
 @pytest.fixture
-def mock_voice_client() -> Generator[mock.Mock, None, None]:
-    """Mock Discord voice client for testing."""
-    mock_voice = mock.Mock(spec=discord.VoiceClient)
-    mock_voice.channel = mock.Mock(id=987654321)
-    mock_voice.is_connected.return_value = True
-    mock_voice.is_playing.return_value = False
-    mock_voice.play = mock.Mock()
-    mock_voice.stop = mock.Mock()
-    mock_voice.disconnect = mock.Mock()
-    yield mock_voice
+def mock_audio_processor():
+    """Create mock audio processor."""
+    processor = Mock(spec=AudioProcessor)
+    processor.normalize_audio = Mock(return_value=(b"normalized_audio", 2000.0))
+    processor.calculate_rms = Mock(return_value=1000.0)
+    processor.resample_audio = Mock(return_value=b"resampled_audio")
+    return processor
 
 
 @pytest.fixture
-def mock_voice_receiver() -> Generator[mock.Mock, None, None]:
-    """Mock voice receiver for testing."""
-    with mock.patch("discord.ext.voice_recv.VoiceRecvClient") as mock_receiver:
-        mock_receiver.return_value.listen.return_value = mock.AsyncMock()
-        yield mock_receiver.return_value
+def mock_vad():
+    """Create mock VAD."""
+    vad = Mock()
+    vad.is_speech = Mock(return_value=True)
+    return vad
 
 
 @pytest.fixture
-def mock_audio_source() -> Generator[mock.Mock, None, None]:
-    """Mock audio source for testing."""
-    mock_source = mock.Mock()
-    mock_source.read.return_value = b"mock audio data"
-    mock_source.cleanup = mock.Mock()
-    yield mock_source
+def mock_wake_detector():
+    """Create mock wake detector."""
+    detector = Mock()
+    detector.detect = Mock()
+    return detector
 
 
 @pytest.fixture
-def mock_wake_word_detector() -> Generator[mock.Mock, None, None]:
-    """Mock wake word detector for testing."""
-    with mock.patch("openwakeword.Model") as mock_detector:
-        mock_detector.return_value.predict.return_value = {
-            "hey atlas": 0.8,
-            "ok atlas": 0.6,
-        }
-        yield mock_detector.return_value
+def mock_transcription_client():
+    """Create mock transcription client."""
+    client = Mock()
+    client.transcribe = Mock()
+    client.get_circuit_stats = Mock(return_value={"state": "closed", "available": True})
+    return client
 
 
 @pytest.fixture
-def mock_stt_client() -> Generator[mock.Mock, None, None]:
-    """Mock STT client for testing."""
-    with mock.patch("httpx.AsyncClient") as mock_client:
-        mock_response = mock.Mock()
-        mock_response.json.return_value = {
-            "transcript": "hey atlas, what's the weather",
-            "confidence": 0.95,
-            "language": "en",
-        }
-        mock_response.status_code = 200
-        mock_client.return_value.post.return_value = mock_response
-        yield mock_client.return_value
+def mock_orchestrator_client():
+    """Create mock orchestrator client."""
+    client = Mock()
+    client.process_transcript = Mock()
+    return client
 
 
 @pytest.fixture
-def mock_orchestrator_client() -> Generator[mock.Mock, None, None]:
-    """Mock orchestrator client for testing."""
-    with mock.patch("httpx.AsyncClient") as mock_client:
-        mock_response = mock.Mock()
-        mock_response.json.return_value = {
-            "response": "The weather is sunny today",
-            "tts_url": "http://tts:7000/synthesize",
-            "correlation_id": "test-123",
-        }
-        mock_response.status_code = 200
-        mock_client.return_value.post.return_value = mock_response
-        yield mock_client.return_value
+def temp_debug_dir(tmp_path):
+    """Create temporary debug directory."""
+    debug_dir = tmp_path / "debug_wavs"
+    debug_dir.mkdir()
+    return debug_dir
 
 
 @pytest.fixture
-def mock_mcp_client() -> Generator[mock.Mock, None, None]:
-    """Mock MCP client for testing."""
-    with mock.patch("mcp.Client") as mock_client:
-        mock_client.return_value.call_tool.return_value = {
-            "success": True,
-            "result": "Tool executed successfully",
-        }
-        yield mock_client.return_value
+def generate_test_audio() -> Callable[[int, float, float], bytes]:
+    """Generate test audio data."""
+
+    def _generate_audio(
+        sample_rate: int = 16000, duration: float = 1.0, frequency: float = 440.0
+    ) -> bytes:
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        audio_float = np.sin(2 * np.pi * frequency * t) * 0.5
+        audio_int16 = (audio_float * 32767).astype(np.int16)
+        return audio_int16.tobytes()
+
+    return _generate_audio
 
 
 @pytest.fixture
-def test_discord_config() -> DiscordConfig:
-    """Provide test Discord configuration."""
-    return DiscordConfig(
-        token="test-token",  # noqa: S106 - test fixture token
-        guild_id=123456789,
-        voice_channel_id=987654321,
-        intents=["guilds", "voice_states"],
-        auto_join=False,
+def assert_audio_properties() -> Callable[[bytes, int, float], None]:
+    """Assert audio properties."""
+
+    def _assert_audio(pcm_data: bytes, sample_rate: int, duration: float):
+        assert len(pcm_data) > 0
+        assert len(pcm_data) == sample_rate * duration * 2  # 2 bytes per int16 sample
+        assert isinstance(pcm_data, bytes)
+
+    return _assert_audio
+
+
+@pytest.fixture
+def capture_structured_logs() -> Generator[Mock, None, None]:
+    """Capture structured logs for testing."""
+    # This would be implemented with a log capture mechanism
+    # For now, return a mock
+    yield Mock()
+
+
+@pytest.fixture
+def mock_config(tmp_path):
+    """Create mock configuration."""
+    audio_config = AudioConfig(
+        allowlist_user_ids=[],
+        silence_timeout_seconds=0.75,
+        max_segment_duration_seconds=15.0,
+        min_segment_duration_seconds=0.3,
+        aggregation_window_seconds=1.5,
+        input_sample_rate_hz=48000,
+        vad_sample_rate_hz=16000,
+        vad_frame_duration_ms=30,
+        vad_aggressiveness=2,
     )
 
+    stt_config = STTConfig(
+        base_url="http://test-stt:9000",
+        request_timeout_seconds=45,
+        max_retries=3,
+        forced_language="en",
+    )
+
+    wake_config = WakeConfig(
+        wake_phrases=["hey atlas", "ok atlas"],
+        model_paths=[],
+        activation_threshold=0.5,
+        target_sample_rate_hz=16000,
+        enabled=True,
+    )
+
+    telemetry_config = TelemetryConfig(waveform_debug_dir=tmp_path / "debug_wavs")
+
+    config = Mock(spec=BotConfig)
+    config.audio = audio_config
+    config.stt = stt_config
+    config.wake = wake_config
+    config.telemetry = telemetry_config
+
+    return config
+
 
 @pytest.fixture
-def mock_voice_data() -> bytes:
-    """Provide mock voice data for testing."""
-    # Simulate 1 second of 48kHz mono 16-bit PCM audio
-    return b"\x00" * 96000  # 48kHz * 2 bytes per sample * 1 second
-
-
-@pytest.fixture
-def mock_audio_segment() -> dict[str, Any]:
-    """Provide mock audio segment data for testing."""
-    return {
-        "data": b"mock audio data",
-        "sample_rate": 48000,
-        "channels": 1,
-        "duration": 1.0,
-        "timestamp": 1234567890.0,
-    }
+def sample_audio_segment(sample_pcm_audio):
+    """Create sample audio segment."""
+    return AudioSegment(
+        user_id=12345,
+        pcm=sample_pcm_audio,
+        sample_rate=16000,
+        start_timestamp=0.0,
+        end_timestamp=1.0,
+        correlation_id="test-correlation-123",
+        frame_count=16000,
+    )

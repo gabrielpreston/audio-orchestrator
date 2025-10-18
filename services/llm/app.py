@@ -12,13 +12,36 @@ from fastapi.responses import JSONResponse
 from llama_cpp import Llama
 from pydantic import BaseModel
 
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    HttpConfig,
+    LlamaConfig,
+    LLMServiceConfig,
+    LoggingConfig,
+    PortConfig,
+    TelemetryConfig,
+    TTSClientConfig,
+)
 
 app = FastAPI(title="Local LLM Service")
 
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("llm", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("port", PortConfig)
+    .add_config("llama", LlamaConfig)
+    .add_config("service", LLMServiceConfig)
+    .add_config("tts", TTSClientConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
+
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=os.getenv("LOG_JSON", "true").lower() in {"1", "true", "yes", "on"},
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="llm",
 )
 logger = get_logger(__name__, service_name="llm")
@@ -26,20 +49,19 @@ logger = get_logger(__name__, service_name="llm")
 _LLAMA: Llama | None = None
 _LLAMA_INFO: dict[str, Any] = {}
 _TTS_CLIENT: httpx.AsyncClient | None = None
+_TTS_VOICE = _cfg.tts.voice  # type: ignore[attr-defined]
+_TTS_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
+_health_manager = HealthManager("llm")
 
-_TTS_BASE_URL = os.getenv("TTS_BASE_URL")
-_TTS_VOICE = os.getenv("TTS_VOICE")
-_TTS_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
+_TTS_BASE_URL = _cfg.tts.base_url  # type: ignore[attr-defined]
 
-
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+# Deprecated helper retained for backward compat; prefer config values
 
 
 def _tts_timeout() -> float:
     try:
-        return float(os.getenv("TTS_TIMEOUT", "30"))
-    except ValueError:
+        return float(_cfg.tts.timeout)  # type: ignore[attr-defined]
+    except Exception:
         return 30.0
 
 
@@ -48,18 +70,15 @@ def _load_llama() -> Llama | None:
     if _LLAMA is not None:
         return _LLAMA
 
-    model_path = os.getenv("LLAMA_MODEL_PATH", "/app/models/llama2-7b.gguf")
+    model_path = _cfg.llama.model_path  # type: ignore[attr-defined]
     if not os.path.exists(model_path):
         logger.critical("llm.model_missing", model_path=model_path)
         raise RuntimeError(f"LLM model not found at {model_path}")
 
+    ctx = _cfg.llama.context_length  # type: ignore[attr-defined]
     try:
-        ctx = int(os.getenv("LLAMA_CTX", "2048"))
-    except ValueError:
-        ctx = 2048
-    try:
-        threads = int(os.getenv("LLAMA_THREADS", str(max(os.cpu_count() or 1, 1))))
-    except ValueError:
+        threads = _cfg.llama.threads  # type: ignore[attr-defined]
+    except Exception:
         threads = max(os.cpu_count() or 1, 1)
 
     try:
@@ -176,6 +195,10 @@ class ChatRequest(BaseModel):
     model: str | None = None
     messages: list[ChatMessage]
     max_tokens: int | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    top_k: int | None = None
+    repeat_penalty: float | None = None
 
 
 @app.post("/v1/chat/completions")  # type: ignore[misc]
@@ -185,7 +208,7 @@ async def chat_completions(
 ) -> dict[str, Any]:
     req_start = time.time()
 
-    expected = os.getenv("LLM_AUTH_TOKEN")
+    expected = _cfg.service.auth_token  # type: ignore[attr-defined]
     if expected and (
         not authorization
         or not authorization.startswith("Bearer ")
@@ -221,9 +244,15 @@ async def chat_completions(
     if llama is not None:
         try:
             infer_start = time.time()
+
+            # Apply defaults from config if request omits fields
             completion = llama.create_chat_completion(
                 messages=[{"role": m.role, "content": m.content} for m in req.messages],
-                max_tokens=req.max_tokens or 256,
+                max_tokens=req.max_tokens or 128,
+                temperature=req.temperature or 0.7,
+                top_p=req.top_p or 0.9,
+                top_k=req.top_k or 40,
+                repeat_penalty=req.repeat_penalty or 1.1,
             )
             infer_end = time.time()
             processing_ms = int((infer_end - infer_start) * 1000)
@@ -307,17 +336,29 @@ async def chat_completions(
     return JSONResponse(response, headers=headers)  # type: ignore[no-any-return]
 
 
-@app.get("/health")  # type: ignore[misc]
-async def health_check() -> dict[str, Any]:
-    """Health check endpoint."""
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "llm"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _LLAMA is None:
+        raise HTTPException(status_code=503, detail="LLM model not loaded")
+
+    health_status = await _health_manager.get_health_status()
     return {
-        "status": "healthy",
+        "status": "ready",
+        "service": "llm",
         "llm_loaded": _LLAMA is not None,
         "tts_available": _TTS_BASE_URL is not None,
+        "health_details": health_status.details,
     }
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)  # type: ignore[attr-defined]

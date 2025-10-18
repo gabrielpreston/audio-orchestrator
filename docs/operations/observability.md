@@ -27,8 +27,42 @@ This guide documents logging, metrics, and tracing expectations for the voice la
 
 ## Health Checks
 
-- Each service responds to `GET /health` with a readiness indicator.
-- Configure Compose or external orchestrators to restart unhealthy containers automatically.
+Each service exposes two health check endpoints following Kubernetes best practices:
+
+- **GET /health/live**: Liveness probe - returns 200 if process is alive
+- **GET /health/ready**: Readiness probe - returns 200 when service can handle requests
+  - Returns 503 during startup or when critical dependencies unavailable
+  - Includes service-specific readiness details
+
+### Readiness Criteria by Service
+
+- **STT**: Model loaded and initialized
+- **LLM**: Model loaded (if applicable)
+- **TTS**: Voice model loaded
+- **Orchestrator**: MCP clients initialized
+- **Discord**: Bot connected to Discord gateway
+
+### Circuit Breakers
+
+HTTP clients use per-service circuit breakers to prevent cascading failures:
+
+- Opens after 5 consecutive failures (configurable)
+- Remains open for 30 seconds with exponential backoff
+- Half-opens to test recovery after timeout
+- Closes after 2 consecutive successes
+
+### Service Resilience Configuration
+
+Add these environment variables to `.env.common` for resilience tuning:
+
+```bash
+# Service Resilience Configuration
+CIRCUIT_BREAKER_FAILURE_THRESHOLD=5
+CIRCUIT_BREAKER_SUCCESS_THRESHOLD=2
+CIRCUIT_BREAKER_TIMEOUT_SECONDS=30
+SERVICE_STARTUP_TIMEOUT_SECONDS=300
+HEALTH_CHECK_INTERVAL_SECONDS=10
+```
 
 ## Tracing & Correlation
 
@@ -37,33 +71,3 @@ This guide documents logging, metrics, and tracing expectations for the voice la
 - Use `make logs SERVICE=<name>` to follow specific correlation IDs across services.
 - Include MCP tool names and request IDs in logs to track automation paths end-to-end.
 - Capture incident-specific traces in the [reports](../reports/README.md) section for retrospective analysis.
-
-## Debug Management
-
-The system includes comprehensive debug capabilities for troubleshooting and analysis:
-
-- **Debug Data Collection**: Enable with service-specific `*_DEBUG_SAVE=true` environment variables.
-- **Hierarchical Storage**: Debug files organized by date (`debug/YYYY/MM/DD/correlation_id/`).
-- **Consolidated Logs**: Single `debug_log.json` per correlation ID for complete pipeline visibility.
-- **Audio Preservation**: Separate WAV files for playback and analysis.
-- **Maintenance Tools**: Use `scripts/debug_manager.py` for storage management and cleanup.
-
-### Debug Service Variables
-
-- `DISCORD_DEBUG_SAVE=true` — Save voice segments, wake detection, and MCP calls
-- `STT_DEBUG_SAVE=true` — Save input audio, transcription results, and metadata
-- `TTS_DEBUG_SAVE=true` — Save synthesis requests, generated audio, and parameters
-- `ORCHESTRATOR_DEBUG_SAVE=true` — Save LLM responses, MCP tool calls, and TTS integration
-
-### Debug Management Commands
-
-```bash
-# Show debug statistics
-python3 scripts/debug_manager.py --stats
-
-# Archive data older than 30 days
-python3 scripts/debug_manager.py --archive 30
-
-# Remove empty directories
-python3 scripts/debug_manager.py --cleanup
-```

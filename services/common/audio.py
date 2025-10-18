@@ -311,6 +311,10 @@ class AudioProcessor:
             elif sample_width == 4:
                 resampled_float = resampled_float * 2147483648.0
                 resampled_array = resampled_float.astype(np.int32)
+            else:
+                # Fallback to int16 for unsupported sample widths
+                resampled_float = resampled_float * 32768.0
+                resampled_array = resampled_float.astype(np.int16)
 
             resampled_data = resampled_array.tobytes()
 
@@ -329,28 +333,26 @@ class AudioProcessor:
             raise
 
     def normalize_audio(
-        self, pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
+        self,
+        pcm_data: bytes,
+        target_rms: float = 2000.0,
+        sample_width: int = 2,
+        log_sample_rate: float = 0.01,
+        user_id: int | None = None,
+        telemetry_config: Any = None,
     ) -> tuple[bytes, float]:
-        """
-        Normalize audio to target RMS level using librosa.
-
-        Args:
-            pcm_data: Raw PCM audio data
-            target_rms: Target RMS level
-            sample_width: Bytes per sample
-
-        Returns:
-            Tuple of (normalized PCM data, new RMS value)
-        """
+        """Normalize audio to target RMS level with proper scaling."""
         try:
             if not pcm_data:
                 return pcm_data, 0.0
 
-            # Convert to numpy array for processing
+            # Convert to numpy array
             if sample_width == 2:
                 dtype = np.int16
+                max_val = 32768.0
             elif sample_width == 4:
                 dtype = np.int32
+                max_val = 2147483648.0
             else:
                 raise ValueError(f"Unsupported sample width: {sample_width}")
 
@@ -358,39 +360,96 @@ class AudioProcessor:
             if array.size == 0:
                 return pcm_data, 0.0
 
-            # Convert to float32 for librosa processing
-            audio_float = array.astype(np.float32)
-            if sample_width == 2:
-                audio_float = audio_float / 32768.0
-            elif sample_width == 4:
-                audio_float = audio_float / 2147483648.0
+            # Calculate current RMS
+            current_rms = np.sqrt(np.mean(np.square(array.astype(np.float64))))
 
-            # Use librosa's robust normalization
-            normalized_float = librosa.util.normalize(audio_float, norm=target_rms)
+            if current_rms < 1.0:  # Avoid amplifying silence
+                # Only log silence skipping occasionally to reduce verbosity
+                # Sample rate can be tuned via telemetry config
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                    self._log(
+                        "debug",
+                        "audio.normalize_skipped_silence",
+                        current_rms=current_rms,
+                    )
+                return pcm_data, float(current_rms)
 
-            # Convert back to original format
-            if sample_width == 2:
-                normalized_float = normalized_float * 32768.0
-                normalized_array = np.clip(normalized_float, -32768.0, 32767.0).astype(
-                    np.int16
-                )
-            elif sample_width == 4:
-                normalized_float = normalized_float * 2147483648.0
-                normalized_array = np.clip(
-                    normalized_float, -2147483648.0, 2147483647.0
-                ).astype(np.int32)
+            # Scale to target RMS
+            scaling_factor = target_rms / current_rms
+            # Safety rails to avoid annihilating or blasting audio
+            min_shrink = 1e-3  # do not shrink below this factor
+            max_boost = 50.0  # do not boost above this factor
+            if scaling_factor < min_shrink:
+                # Sample logging via LOG_SAMPLE_AUDIO_RATE
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                    self._log(
+                        "debug",
+                        "audio.normalize_scaling_capped",
+                        scaling_factor=float(scaling_factor),
+                        reason="too_small",
+                    )
+                scaling_factor = min_shrink
+            elif scaling_factor > max_boost:
+                # Sample logging via LOG_SAMPLE_AUDIO_RATE
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                    self._log(
+                        "debug",
+                        "audio.normalize_scaling_capped",
+                        scaling_factor=float(scaling_factor),
+                        reason="too_large",
+                    )
+                scaling_factor = max_boost
+            normalized_float = array.astype(np.float64) * scaling_factor
+            normalized_array = np.clip(
+                normalized_float, -max_val + 1, max_val - 1
+            ).astype(dtype)
 
-            # Calculate new RMS
-            new_rms = float(np.sqrt(np.mean(np.square(normalized_float))))
+            # Verify new RMS
+            new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
-            self._log(
-                "debug", "audio.normalized", target_rms=target_rms, new_rms=new_rms
-            )
+            # Only log normalization occasionally to reduce verbosity
+            # Sample rate can be tuned via telemetry config
+            if telemetry_config and telemetry_config.log_sample_audio_rate is not None:
+                configured_rate = telemetry_config.log_sample_audio_rate
+            else:
+                configured_rate = log_sample_rate
+            if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                log_data = {
+                    "current_rms": float(current_rms),
+                    "target_rms": target_rms,
+                    "new_rms": float(new_rms),
+                    "scaling_factor": float(scaling_factor),
+                }
+                if user_id is not None:
+                    log_data["user_id"] = user_id
 
-            return normalized_array.tobytes(), new_rms
+                self._log("debug", "audio.normalized", **log_data)
+
+            return normalized_array.tobytes(), float(new_rms)
         except Exception as exc:
             self._log("error", "audio.normalize_failed", error=str(exc))
-            return pcm_data, 0.0
+            return pcm_data, self.calculate_rms(pcm_data, sample_width)
 
     def convert_audio_format(
         self,
@@ -572,7 +631,7 @@ class AudioProcessor:
 
             # Use librosa's RMS calculation
             rms = librosa.feature.rms(y=audio_float)[0]
-            return float(np.mean(rms))
+            return float(np.mean(rms).item())
         except Exception:
             return 0.0
 
@@ -655,11 +714,16 @@ def resample_audio(
 
 
 def normalize_audio(
-    pcm_data: bytes, target_rms: float = 2000.0, sample_width: int = 2
+    pcm_data: bytes,
+    target_rms: float = 2000.0,
+    sample_width: int = 2,
+    user_id: int | None = None,
 ) -> tuple[bytes, float]:
     """Normalize audio to target RMS."""
     processor = AudioProcessor()
-    return processor.normalize_audio(pcm_data, target_rms, sample_width)
+    return processor.normalize_audio(
+        pcm_data, target_rms, sample_width, user_id=user_id
+    )
 
 
 def calculate_rms(pcm_data: bytes, sample_width: int = 2) -> float:

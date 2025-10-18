@@ -9,6 +9,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from .config import HttpConfig  # canonical from common.config
+from .config import LoggingConfig  # canonical from common.config
 from .config import (
     BaseConfig,
     FieldDefinition,
@@ -294,6 +296,7 @@ class WakeConfig(BaseConfig):
 
     def __init__(
         self,
+        enabled: bool = True,
         wake_phrases: list[str] | None = None,
         model_paths: list[Path] | None = None,
         activation_threshold: float = 0.5,
@@ -301,6 +304,7 @@ class WakeConfig(BaseConfig):
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
+        self.enabled = enabled
         self.wake_phrases = wake_phrases or ["hey atlas", "ok atlas"]
         self.model_paths = model_paths or []
         self.activation_threshold = activation_threshold
@@ -309,6 +313,13 @@ class WakeConfig(BaseConfig):
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
         return [
+            create_field_definition(
+                name="enabled",
+                field_type=bool,
+                default=True,
+                description="Whether wake phrase detection is enabled",
+                env_var="WAKE_DETECTION_ENABLED",
+            ),
             create_field_definition(
                 name="wake_phrases",
                 field_type=list,
@@ -413,6 +424,16 @@ class TelemetryConfig(BaseConfig):
         log_json: bool = True,
         metrics_port: int | None = None,
         waveform_debug_dir: Path | None = None,
+        # Sampling and warmup controls
+        log_sample_vad_n: int | None = None,
+        log_sample_unknown_user_n: int | None = None,
+        log_rate_limit_packet_warn_s: float | None = None,
+        log_sample_stt_request_n: int | None = None,
+        log_sample_audio_rate: float | None = None,
+        log_sample_segment_ready_rate: float | None = None,
+        log_sample_segment_ready_n: int | None = None,
+        discord_warmup_audio: bool | None = None,
+        stt_warmup: bool | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -420,6 +441,15 @@ class TelemetryConfig(BaseConfig):
         self.log_json = log_json
         self.metrics_port = metrics_port
         self.waveform_debug_dir = waveform_debug_dir
+        self.log_sample_vad_n = log_sample_vad_n
+        self.log_sample_unknown_user_n = log_sample_unknown_user_n
+        self.log_rate_limit_packet_warn_s = log_rate_limit_packet_warn_s
+        self.log_sample_stt_request_n = log_sample_stt_request_n
+        self.log_sample_audio_rate = log_sample_audio_rate
+        self.log_sample_segment_ready_rate = log_sample_segment_ready_rate
+        self.log_sample_segment_ready_n = log_sample_segment_ready_n
+        self.discord_warmup_audio = discord_warmup_audio
+        self.stt_warmup = stt_warmup
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -452,6 +482,62 @@ class TelemetryConfig(BaseConfig):
                 description="Directory for waveform debug files",
                 env_var="WAVEFORM_DEBUG_DIR",
             ),
+            # Optional sampling knobs
+            create_field_definition(
+                name="log_sample_vad_n",
+                field_type=int,
+                description="Sample rate divisor for VAD logs",
+                env_var="LOG_SAMPLE_VAD_N",
+            ),
+            create_field_definition(
+                name="log_sample_unknown_user_n",
+                field_type=int,
+                description="Sample rate divisor for unknown-user logs",
+                env_var="LOG_SAMPLE_UNKNOWN_USER_N",
+            ),
+            create_field_definition(
+                name="log_rate_limit_packet_warn_s",
+                field_type=float,
+                description="Rate limit (seconds) for packet warning logs",
+                env_var="LOG_RATE_LIMIT_PACKET_WARN_S",
+            ),
+            create_field_definition(
+                name="log_sample_stt_request_n",
+                field_type=int,
+                description="Sample rate divisor for STT request logs",
+                env_var="LOG_SAMPLE_STT_REQUEST_N",
+            ),
+            create_field_definition(
+                name="log_sample_audio_rate",
+                field_type=float,
+                description="Probability [0,1] to sample audio logs",
+                env_var="LOG_SAMPLE_AUDIO_RATE",
+            ),
+            create_field_definition(
+                name="log_sample_segment_ready_rate",
+                field_type=float,
+                description="Probability [0,1] to sample segment_ready logs",
+                env_var="LOG_SAMPLE_SEGMENT_READY_RATE",
+            ),
+            create_field_definition(
+                name="log_sample_segment_ready_n",
+                field_type=int,
+                description="Sample rate divisor for segment_ready logs",
+                env_var="LOG_SAMPLE_SEGMENT_READY_N",
+            ),
+            # Warmup toggles
+            create_field_definition(
+                name="discord_warmup_audio",
+                field_type=bool,
+                description="Enable Discord audio warmup on startup",
+                env_var="DISCORD_WARMUP_AUDIO",
+            ),
+            create_field_definition(
+                name="stt_warmup",
+                field_type=bool,
+                description="Enable STT warmup on startup",
+                env_var="STT_WARMUP",
+            ),
         ]
 
 
@@ -463,12 +549,14 @@ class FasterWhisperConfig(BaseConfig):
         model: str = "small",
         device: str = "cpu",
         compute_type: str | None = None,
+        model_path: str | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.model = model
         self.device = device
         self.compute_type = compute_type
+        self.model_path = model_path
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -504,6 +592,12 @@ class FasterWhisperConfig(BaseConfig):
                 description="Compute type for the model",
                 choices=["int8", "int8_float16", "int16", "float16", "float32"],
                 env_var="FW_COMPUTE_TYPE",
+            ),
+            create_field_definition(
+                name="model_path",
+                field_type=str,
+                description="Path to the model directory",
+                env_var="FW_MODEL_PATH",
             ),
         ]
 
@@ -756,116 +850,279 @@ class OrchestratorConfig(BaseConfig):
         ]
 
 
-class HttpConfig(BaseConfig):
-    """HTTP client configuration."""
-
-    def __init__(
-        self,
-        timeout: float = 30.0,
-        max_retries: int = 3,
-        retry_delay: float = 1.0,
-        user_agent: str = "discord-voice-lab/1.0",
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.timeout = timeout
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-        self.user_agent = user_agent
-
-    @classmethod
-    def get_field_definitions(cls) -> list[FieldDefinition]:
-        return [
-            create_field_definition(
-                name="timeout",
-                field_type=float,
-                default=30.0,
-                description="HTTP request timeout in seconds",
-                min_value=0.1,
-                max_value=300.0,
-                env_var="HTTP_TIMEOUT",
-            ),
-            create_field_definition(
-                name="max_retries",
-                field_type=int,
-                default=3,
-                description="Maximum number of retries for failed requests",
-                min_value=0,
-                max_value=10,
-                env_var="HTTP_MAX_RETRIES",
-            ),
-            create_field_definition(
-                name="retry_delay",
-                field_type=float,
-                default=1.0,
-                description="Delay between retries in seconds",
-                min_value=0.1,
-                max_value=60.0,
-                env_var="HTTP_RETRY_DELAY",
-            ),
-            create_field_definition(
-                name="user_agent",
-                field_type=str,
-                default="discord-voice-lab/1.0",
-                description="User agent string for HTTP requests",
-                env_var="HTTP_USER_AGENT",
-            ),
-        ]
-
-
-class LoggingConfig(BaseConfig):
-    """Logging configuration."""
-
-    def __init__(
-        self,
-        level: str = "INFO",
-        json_logs: bool = True,
-        service_name: str | None = None,
-        **kwargs: Any,
-    ) -> None:
-        super().__init__(**kwargs)
-        self.level = level
-        self.json_logs = json_logs
-        self.service_name = service_name
-
-    @classmethod
-    def get_field_definitions(cls) -> list[FieldDefinition]:
-        return [
-            create_field_definition(
-                name="level",
-                field_type=str,
-                default="INFO",
-                description="Logging level",
-                choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                env_var="LOG_LEVEL",
-            ),
-            create_field_definition(
-                name="json_logs",
-                field_type=bool,
-                default=True,
-                description="Whether to use JSON logging format",
-                env_var="LOG_JSON",
-            ),
-            create_field_definition(
-                name="service_name",
-                field_type=str,
-                description="Name of the service for logging context",
-                env_var="SERVICE_NAME",
-            ),
-        ]
-
-
 __all__ = [
     "AudioConfig",
     "DiscordConfig",
     "FasterWhisperConfig",
-    "HttpConfig",
     "LlamaConfig",
-    "LoggingConfig",
     "MCPConfig",
     "OrchestratorConfig",
+    "HttpConfig",
+    "LoggingConfig",
     "STTConfig",
     "TTSConfig",
     "TelemetryConfig",
     "WakeConfig",
+    # Newly added service/client configs
+    "LLMServiceConfig",
+    "LLMClientConfig",
+    "TTSClientConfig",
+    "OrchestratorClientConfig",
+    "DiscordRuntimeConfig",
+    "PortConfig",
 ]
+
+# New client/service config classes
+
+
+class LLMServiceConfig(BaseConfig):
+    """LLM service runtime configuration."""
+
+    def __init__(
+        self,
+        port: int = 8000,
+        auth_token: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.port = port
+        self.auth_token = auth_token
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="port",
+                field_type=int,
+                default=8000,
+                description="Port for LLM service",
+                validator=validate_port,
+                env_var="PORT",
+            ),
+            create_field_definition(
+                name="auth_token",
+                field_type=str,
+                description="Authentication token for LLM service",
+                env_var="LLM_AUTH_TOKEN",
+            ),
+        ]
+
+
+class LLMClientConfig(BaseConfig):
+    """Client configuration for connecting to the LLM service."""
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        auth_token: str | None = None,
+        max_tokens: int = 128,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        repeat_penalty: float = 1.1,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.base_url = base_url
+        self.auth_token = auth_token
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.top_p = top_p
+        self.repeat_penalty = repeat_penalty
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="base_url",
+                field_type=str,
+                description="Base URL for LLM service",
+                env_var="LLM_BASE_URL",
+            ),
+            create_field_definition(
+                name="auth_token",
+                field_type=str,
+                description="Auth token for LLM service",
+                env_var="LLM_AUTH_TOKEN",
+            ),
+            create_field_definition(
+                name="max_tokens",
+                field_type=int,
+                default=128,
+                description="Maximum tokens for LLM completion",
+                env_var="LLM_MAX_TOKENS",
+            ),
+            create_field_definition(
+                name="temperature",
+                field_type=float,
+                default=0.7,
+                description="Temperature for LLM sampling",
+                env_var="LLM_TEMPERATURE",
+            ),
+            create_field_definition(
+                name="top_p",
+                field_type=float,
+                default=0.9,
+                description="Top-p for LLM sampling",
+                env_var="LLM_TOP_P",
+            ),
+            create_field_definition(
+                name="repeat_penalty",
+                field_type=float,
+                default=1.1,
+                description="Repeat penalty for LLM generation",
+                env_var="LLM_REPEAT_PENALTY",
+            ),
+        ]
+
+
+class TTSClientConfig(BaseConfig):
+    """Client configuration for connecting to the TTS service."""
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        voice: str | None = None,
+        timeout: float = 30.0,
+        auth_token: str | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.base_url = base_url
+        self.voice = voice
+        self.timeout = timeout
+        self.auth_token = auth_token
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="base_url",
+                field_type=str,
+                description="Base URL for TTS service",
+                validator=validate_url,
+                env_var="TTS_BASE_URL",
+            ),
+            create_field_definition(
+                name="voice",
+                field_type=str,
+                description="Default voice for TTS",
+                env_var="TTS_VOICE",
+            ),
+            create_field_definition(
+                name="timeout",
+                field_type=float,
+                default=30.0,
+                description="Timeout for TTS requests",
+                min_value=1.0,
+                max_value=300.0,
+                env_var="TTS_TIMEOUT",
+            ),
+            create_field_definition(
+                name="auth_token",
+                field_type=str,
+                description="Authentication token for TTS service",
+                env_var="TTS_AUTH_TOKEN",
+            ),
+        ]
+
+
+class OrchestratorClientConfig(BaseConfig):
+    """Client configuration for connecting to the orchestrator service."""
+
+    def __init__(
+        self,
+        base_url: str | None = None,
+        timeout: float = 30.0,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.base_url = base_url
+        self.timeout = timeout
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="base_url",
+                field_type=str,
+                description="Base URL for orchestrator",
+                validator=validate_url,
+                env_var="ORCHESTRATOR_URL",
+            ),
+            create_field_definition(
+                name="timeout",
+                field_type=float,
+                default=30.0,
+                description="Timeout for orchestrator client requests",
+                min_value=1.0,
+                max_value=300.0,
+                env_var="ORCH_TIMEOUT",
+            ),
+        ]
+
+
+class DiscordRuntimeConfig(BaseConfig):
+    """Discord runtime mode toggles."""
+
+    def __init__(
+        self,
+        full_bot: bool = False,
+        http_mode: bool = False,
+        mcp_mode: bool = False,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.full_bot = full_bot
+        self.http_mode = http_mode
+        self.mcp_mode = mcp_mode
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="full_bot",
+                field_type=bool,
+                default=False,
+                description="Run full Discord bot",
+                env_var="DISCORD_FULL_BOT",
+            ),
+            create_field_definition(
+                name="http_mode",
+                field_type=bool,
+                default=False,
+                description="Run HTTP API mode",
+                env_var="DISCORD_HTTP_MODE",
+            ),
+            create_field_definition(
+                name="mcp_mode",
+                field_type=bool,
+                default=False,
+                description="Run MCP mode",
+                env_var="DISCORD_MCP_MODE",
+            ),
+        ]
+
+
+class PortConfig(BaseConfig):
+    """Port configuration for service binding."""
+
+    def __init__(
+        self,
+        port: int = 8000,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(**kwargs)
+        self.port = port
+
+    @classmethod
+    def get_field_definitions(cls) -> list[FieldDefinition]:
+        return [
+            create_field_definition(
+                name="port",
+                field_type=int,
+                default=8000,
+                description="Port number for service binding",
+                validator=validate_port,
+                env_var="PORT",
+            ),
+        ]

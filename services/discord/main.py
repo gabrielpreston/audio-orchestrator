@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import os
 
 from services.common.logging import configure_logging
 
@@ -13,15 +12,15 @@ from .config import load_config
 def main() -> None:
     config = load_config()
     configure_logging(
-        config.telemetry.log_level,
-        json_logs=config.telemetry.log_json,
+        config.telemetry.log_level,  # type: ignore[attr-defined]
+        json_logs=config.telemetry.log_json,  # type: ignore[attr-defined]
         service_name="discord",
     )
 
     # Check running mode
-    mcp_mode = os.getenv("DISCORD_MCP_MODE", "false").lower() == "true"
-    http_mode = os.getenv("DISCORD_HTTP_MODE", "false").lower() == "true"
-    full_bot_mode = os.getenv("DISCORD_FULL_BOT", "false").lower() == "true"
+    mcp_mode = config.runtime.mcp_mode  # type: ignore[attr-defined]
+    http_mode = config.runtime.http_mode  # type: ignore[attr-defined]
+    full_bot_mode = config.runtime.full_bot  # type: ignore[attr-defined]
 
     if mcp_mode:
         # Run as MCP server subprocess

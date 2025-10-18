@@ -13,63 +13,49 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from services.common.debug import get_debug_manager
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    HttpConfig,
+    LoggingConfig,
+    TelemetryConfig,
+    TTSConfig,
+)
+
+# Deprecated helpers retained for backward compat in tests; prefer config values
 
 
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
-    raw = os.getenv(name)
-    value = default
-    if raw is not None:
-        from contextlib import suppress
-
-        with suppress(ValueError):
-            value = int(raw)
-    value = max(value, minimum)
-    value = min(value, maximum)
-    return value
-
-
-def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> float:
-    raw = os.getenv(name)
-    value = default
-    if raw is not None:
-        from contextlib import suppress
-
-        with suppress(ValueError):
-            value = float(raw)
-    value = max(value, minimum)
-    value = min(value, maximum)
-    return value
-
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("tts", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("tts", TTSConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
 
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=_env_bool("LOG_JSON", "true"),
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="tts",
 )
 logger = get_logger(__name__, service_name="tts")
 
 app = FastAPI(title="Piper Text-to-Speech Service")
 
-_MODEL_PATH = os.getenv("TTS_MODEL_PATH")
-_MODEL_CONFIG_PATH = os.getenv("TTS_MODEL_CONFIG_PATH")
-_DEFAULT_VOICE = os.getenv("TTS_DEFAULT_VOICE")
-_MAX_TEXT_LENGTH = _env_int("TTS_MAX_TEXT_LENGTH", 1000, minimum=32, maximum=10000)
-_MAX_CONCURRENCY = _env_int("TTS_MAX_CONCURRENCY", 4, minimum=1, maximum=64)
-_RATE_LIMIT_PER_MINUTE = _env_int(
-    "TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000
-)
-_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
-_DEFAULT_LENGTH_SCALE = _env_float("TTS_LENGTH_SCALE", 1.0, minimum=0.1, maximum=3.0)
-_DEFAULT_NOISE_SCALE = _env_float("TTS_NOISE_SCALE", 0.667, minimum=0.0, maximum=2.0)
-_DEFAULT_NOISE_W = _env_float("TTS_NOISE_W", 0.8, minimum=0.0, maximum=2.0)
+_MODEL_PATH = _cfg.tts.model_path  # type: ignore[attr-defined]
+_MODEL_CONFIG_PATH = _cfg.tts.model_config_path  # type: ignore[attr-defined]
+_DEFAULT_VOICE = _cfg.tts.default_voice  # type: ignore[attr-defined]
+_MAX_TEXT_LENGTH = _cfg.tts.max_text_length  # type: ignore[attr-defined]
+_MAX_CONCURRENCY = _cfg.tts.max_concurrency  # type: ignore[attr-defined]
+_RATE_LIMIT_PER_MINUTE = _cfg.tts.rate_limit_per_minute  # type: ignore[attr-defined]
+_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
+_DEFAULT_LENGTH_SCALE = _cfg.tts.length_scale  # type: ignore[attr-defined]
+_DEFAULT_NOISE_SCALE = _cfg.tts.noise_scale  # type: ignore[attr-defined]
+_DEFAULT_NOISE_W = _cfg.tts.noise_w  # type: ignore[attr-defined]
 
 _CONCURRENCY_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
 _RATE_LIMIT_LOCK = asyncio.Lock()
@@ -78,9 +64,9 @@ _VOICE: PiperVoice | None = None
 _VOICE_SAMPLE_RATE: int = 0
 _VOICE_OPTIONS: list[VoiceOption] = []
 _VOICE_LOOKUP: dict[str, VoiceOption] = {}
+_health_manager = HealthManager("tts")
 
 # Debug manager for saving debug files
-_debug_manager = get_debug_manager("tts")
 
 _SYNTHESIS_COUNTER = Counter(
     "tts_requests_total",
@@ -124,6 +110,17 @@ class SynthesisRequest(BaseModel):
     noise_scale: float | None = Field(None, ge=0.0, le=2.0)
     noise_w: float | None = Field(None, ge=0.0, le=2.0)
     correlation_id: str | None = None
+
+    @field_validator("correlation_id")  # type: ignore[misc]
+    @classmethod
+    def validate_correlation_id_field(cls, v: str | None) -> str | None:
+        if v is not None:
+            from services.common.correlation import validate_correlation_id
+
+            is_valid, error_msg = validate_correlation_id(v)
+            if not is_valid:
+                raise ValueError(error_msg)
+        return v
 
     @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
@@ -289,7 +286,7 @@ def _generate_silence_audio(sample_rate: int, duration: float = 1.0) -> bytes:
 
         # Use standardized audio processing to create WAV
         wav_data = processor.pcm_to_wav(silence_data, sample_rate, 1, 2)
-        return wav_data
+        return bytes(wav_data)
 
     except Exception:
         # Fallback to original implementation
@@ -359,14 +356,26 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health", response_model=HealthResponse)  # type: ignore[misc]
-async def health() -> HealthResponse:
-    status = "ok" if _VOICE is not None else "degraded"
-    return HealthResponse(
-        status=status,
-        sample_rate=_VOICE_SAMPLE_RATE,
-        max_concurrency=_MAX_CONCURRENCY,
-    )
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "tts"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _VOICE is None:
+        raise HTTPException(status_code=503, detail="Voice model not loaded")
+
+    health_status = await _health_manager.get_health_status()
+    return {
+        "status": "ready",
+        "service": "tts",
+        "sample_rate": _VOICE_SAMPLE_RATE,
+        "max_concurrency": _MAX_CONCURRENCY,
+        "health_details": health_status.details,
+    }
 
 
 @app.get("/metrics")  # type: ignore[misc]
@@ -391,172 +400,67 @@ async def synthesize(
     _: None = Depends(_require_auth),
     __: None = Depends(_enforce_rate_limit),
 ) -> dict[str, Any]:
-    start_time = time.perf_counter()
+    from services.common.logging import correlation_context
 
-    text_source = payload.ssml if payload.ssml else payload.text or ""
-    is_ssml = bool(payload.ssml)
-    text_length = len(_strip_ssml(text_source)) if is_ssml else len(text_source)
+    with correlation_context(payload.correlation_id) as request_logger:
+        start_time = time.perf_counter()
 
-    option = _resolve_voice(payload.voice)
-    length_scale = payload.length_scale or _DEFAULT_LENGTH_SCALE
-    noise_scale = payload.noise_scale or _DEFAULT_NOISE_SCALE
-    noise_w = payload.noise_w or _DEFAULT_NOISE_W
+        text_source = payload.ssml if payload.ssml else payload.text or ""
+        is_ssml = bool(payload.ssml)
+        text_length = len(_strip_ssml(text_source)) if is_ssml else len(text_source)
 
-    async with _CONCURRENCY_SEMAPHORE:
-        try:
-            audio_bytes, sample_rate = await asyncio.to_thread(
-                _synthesize_audio,
-                text_source,
-                is_ssml=is_ssml,
-                option=option,
-                length_scale=length_scale,
-                noise_scale=noise_scale,
-                noise_w=noise_w,
-            )
-        except HTTPException:
-            raise
-        except Exception as exc:
-            logger.exception("tts.synthesize_failed", error=str(exc))
-            _SYNTHESIS_COUNTER.labels(status="error").inc()
-            raise HTTPException(
-                status_code=500, detail="unable to synthesize audio"
-            ) from exc
+        option = _resolve_voice(payload.voice)
+        length_scale = payload.length_scale or _DEFAULT_LENGTH_SCALE
+        noise_scale = payload.noise_scale or _DEFAULT_NOISE_SCALE
+        noise_w = payload.noise_w or _DEFAULT_NOISE_W
 
-    size_bytes = len(audio_bytes)
-    duration = time.perf_counter() - start_time
-    _SYNTHESIS_DURATION.observe(duration)
-    _SYNTHESIS_SIZE.observe(size_bytes)
+        async with _CONCURRENCY_SEMAPHORE:
+            try:
+                audio_bytes, sample_rate = await asyncio.to_thread(
+                    _synthesize_audio,
+                    text_source,
+                    is_ssml=is_ssml,
+                    option=option,
+                    length_scale=length_scale,
+                    noise_scale=noise_scale,
+                    noise_w=noise_w,
+                )
+            except HTTPException:
+                raise
+            except Exception as exc:
+                request_logger.exception("tts.synthesize_failed", error=str(exc))
+                _SYNTHESIS_COUNTER.labels(status="error").inc()
+                raise HTTPException(
+                    status_code=500, detail="unable to synthesize audio"
+                ) from exc
 
-    from services.common.correlation import generate_tts_correlation_id
+        size_bytes = len(audio_bytes)
+        duration = time.perf_counter() - start_time
+        _SYNTHESIS_DURATION.observe(duration)
+        _SYNTHESIS_SIZE.observe(size_bytes)
 
-    audio_id = payload.correlation_id or generate_tts_correlation_id()
-    headers = {
-        "X-Audio-Id": audio_id,
-        "X-Audio-Voice": option.key,
-        "X-Audio-Sample-Rate": str(sample_rate),
-        "X-Audio-Size": str(size_bytes),
-    }
-    _SYNTHESIS_COUNTER.labels(status="success").inc()
-    logger.info(
-        "tts.synthesize_stream_success",
-        audio_id=audio_id,
-        voice=option.key,
-        ssml=is_ssml,
-        text_length=text_length,
-        size_bytes=size_bytes,
-        duration_ms=int(duration * 1000),
-    )
+        from services.common.correlation import generate_tts_correlation_id
 
-    # Save debug data for TTS synthesis
-    _save_debug_synthesis(
-        audio_id=audio_id,
-        text_source=text_source,
-        is_ssml=is_ssml,
-        text_length=text_length,
-        option=option,
-        length_scale=length_scale,
-        noise_scale=noise_scale,
-        noise_w=noise_w,
-        audio_bytes=audio_bytes,
-        sample_rate=sample_rate,
-        size_bytes=size_bytes,
-        duration=duration,
-    )
-
-    return StreamingResponse(  # type: ignore[no-any-return]
-        iter([audio_bytes]), media_type="audio/wav", headers=headers
-    )
-
-
-def _save_debug_synthesis(
-    audio_id: str,
-    text_source: str,
-    is_ssml: bool,
-    text_length: int,
-    option: VoiceOption,
-    length_scale: float,
-    noise_scale: float,
-    noise_w: float,
-    audio_bytes: bytes,
-    sample_rate: int,
-    size_bytes: int,
-    duration: float,
-) -> None:
-    """Save debug data for TTS synthesis requests."""
-    try:
-        # Use audio_id as correlation_id for TTS debug files
-        correlation_id = audio_id
-
-        # Save input text/SSML
-        _debug_manager.save_text_file(
-            correlation_id=correlation_id,
-            content=f"TTS Input ({'SSML' if is_ssml else 'Text'}):\n{text_source}",
-            filename_prefix="tts_input",
-        )
-
-        # Save generated audio
-        _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=audio_bytes,
-            filename_prefix="tts_output",
-        )
-
-        # Save synthesis parameters
-        _debug_manager.save_json_file(
-            correlation_id=correlation_id,
-            data={
-                "audio_id": audio_id,
-                "text_source": text_source,
-                "is_ssml": is_ssml,
-                "text_length": text_length,
-                "voice_key": option.key,
-                "voice_speaker_id": option.speaker_id,
-                "voice_language": option.language,
-                "length_scale": length_scale,
-                "noise_scale": noise_scale,
-                "noise_w": noise_w,
-                "sample_rate": sample_rate,
-                "size_bytes": size_bytes,
-                "duration_seconds": duration,
-                "model_path": _MODEL_PATH,
-                "model_config_path": _MODEL_CONFIG_PATH,
-            },
-            filename_prefix="tts_parameters",
-        )
-
-        # Save manifest
-        files = {}
-        audio_file = _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=audio_bytes,
-            filename_prefix="tts_output",
-        )
-        if audio_file:
-            files["tts_output"] = str(audio_file)
-
-        _debug_manager.save_manifest(
-            correlation_id=correlation_id,
-            metadata={
-                "service": "tts",
-                "event": "synthesis_complete",
-                "audio_id": audio_id,
-                "voice": option.key,
-                "is_ssml": is_ssml,
-            },
-            files=files,
-            stats={
-                "text_length": text_length,
-                "size_bytes": size_bytes,
-                "duration_seconds": duration,
-                "sample_rate": sample_rate,
-            },
-        )
-
-    except Exception as exc:
-        logger.error(
-            "tts.debug_synthesis_save_failed",
+        audio_id = payload.correlation_id or generate_tts_correlation_id()
+        headers = {
+            "X-Audio-Id": audio_id,
+            "X-Audio-Voice": option.key,
+            "X-Audio-Sample-Rate": str(sample_rate),
+            "X-Audio-Size": str(size_bytes),
+        }
+        _SYNTHESIS_COUNTER.labels(status="success").inc()
+        request_logger.info(
+            "tts.synthesize_stream_success",
             audio_id=audio_id,
-            error=str(exc),
+            voice=option.key,
+            ssml=is_ssml,
+            text_length=text_length,
+            size_bytes=size_bytes,
+            duration_ms=int(duration * 1000),
+        )
+
+        return StreamingResponse(  # type: ignore[no-any-return]
+            iter([audio_bytes]), media_type="audio/wav", headers=headers
         )
 
 

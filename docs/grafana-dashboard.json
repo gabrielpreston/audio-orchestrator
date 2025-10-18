@@ -1,0 +1,164 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Discord Voice Lab - System Overview",
+    "tags": ["discord", "voice", "ai"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Service Health",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=~\"discord|stt|orchestrator|tts|llm\"}",
+            "legendFormat": "{{job}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "green", "value": 1}
+              ]
+            }
+          }
+        },
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+      },
+      {
+        "id": 2,
+        "title": "STT Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(stt_requests_total[5m])",
+            "legendFormat": "{{service}} - {{status}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "requests/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "STT Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(stt_latency_seconds_bucket[5m]))",
+            "legendFormat": "50th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(stt_latency_seconds_bucket[5m]))",
+            "legendFormat": "95th percentile"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(stt_latency_seconds_bucket[5m]))",
+            "legendFormat": "99th percentile"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "seconds",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Error Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(stt_requests_total{status=\"failure\"}[5m]) / rate(stt_requests_total[5m]) * 100",
+            "legendFormat": "STT Error Rate %"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "error %",
+            "min": 0,
+            "max": 100
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 5,
+        "title": "Audio Pipeline Metrics",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "voice_pipeline_speech_ratio",
+            "legendFormat": "Speech Ratio"
+          },
+          {
+            "expr": "voice_pipeline_total_frames",
+            "legendFormat": "Total Frames"
+          },
+          {
+            "expr": "voice_pipeline_segments_flushed",
+            "legendFormat": "Segments Flushed"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 6,
+        "title": "Log Volume by Service",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(log_entries_total{service=\"discord\"}[5m])",
+            "legendFormat": "Discord"
+          },
+          {
+            "expr": "rate(log_entries_total{service=\"stt\"}[5m])",
+            "legendFormat": "STT"
+          },
+          {
+            "expr": "rate(log_entries_total{service=\"orchestrator\"}[5m])",
+            "legendFormat": "Orchestrator"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "logs/sec",
+            "min": 0
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 7,
+        "title": "Active Voice Connections",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "discord_voice_connections_active",
+            "legendFormat": "Active Connections"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24}
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1
+  }
+}

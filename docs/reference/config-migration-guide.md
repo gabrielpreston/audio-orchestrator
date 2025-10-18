@@ -2,7 +2,7 @@
 title: Configuration Migration Guide
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -247,15 +247,18 @@ def _load_llama() -> Optional[Llama]:
 ```python
 # services/llm/app.py
 from services.common.config import ConfigBuilder, Environment
-from services.common.service_configs import LlamaConfig, OrchestratorConfig, LoggingConfig, HttpConfig
+from services.common.service_configs import (
+    LlamaConfig, LoggingConfig, HttpConfig, LLMServiceConfig, TTSClientConfig
+)
 
 def load_config():
     return (
-        ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
+        ConfigBuilder.for_service("llm", Environment.DOCKER)
         .add_config("logging", LoggingConfig)
         .add_config("http", HttpConfig)
         .add_config("llama", LlamaConfig)
-        .add_config("orchestrator", OrchestratorConfig)
+        .add_config("service", LLMServiceConfig)
+        .add_config("tts", TTSClientConfig)
         .load()
     )
 

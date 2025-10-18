@@ -10,7 +10,8 @@ from typing import Any, Literal
 
 import webrtcvad
 
-from services.common.logging import get_logger
+from services.common.logging import get_logger, should_sample
+from services.common.service_configs import TelemetryConfig
 
 from .config import AudioConfig
 
@@ -128,8 +129,9 @@ class Accumulator:
 class AudioPipeline:
     """Manages audio accumulation per Discord speaker."""
 
-    def __init__(self, config: AudioConfig) -> None:
+    def __init__(self, config: AudioConfig, telemetry_config: TelemetryConfig) -> None:
         self._config = config
+        self._telemetry_config = telemetry_config
         self._accumulators: dict[int, Accumulator] = {}
         self._logger = get_logger(__name__, service_name="discord")
         frame_ms = config.vad_frame_duration_ms
@@ -154,6 +156,23 @@ class AudioPipeline:
         self._target_sample_rate = config.vad_sample_rate_hz
         self._vad: Any = webrtcvad.Vad(aggressiveness)
         self._vad_frame_bytes = int(self._target_sample_rate * frame_ms / 1000) * 2
+
+        self._logger.info(
+            "voice.vad_configured",
+            aggressiveness=aggressiveness,
+            frame_duration_ms=frame_ms,
+            target_sample_rate=self._target_sample_rate,
+            frame_bytes=self._vad_frame_bytes,
+            min_segment_duration=self._config.min_segment_duration_seconds,
+            max_segment_duration=self._config.max_segment_duration_seconds,
+            silence_timeout=self._config.silence_timeout_seconds,
+            aggregation_window=self._config.aggregation_window_seconds,
+        )
+
+        # Initialize metrics reporter
+        from services.common.audio_metrics import create_audio_metrics_reporter
+
+        self._metrics_reporter = create_audio_metrics_reporter("discord")
 
     def _allowed(self, user_id: int) -> bool:
         if not self._config.allowlist_user_ids:
@@ -182,7 +201,9 @@ class AudioPipeline:
             Accumulator(user_id=user_id, config=self._config),
         )
         accumulator.sequence += 1
-        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, target_rms=rms)
+        normalized_pcm, adjusted_rms = self._normalize_pcm(
+            pcm, target_rms=rms, user_id=user_id
+        )
         frame = PCMFrame(
             pcm=normalized_pcm,
             timestamp=timestamp,
@@ -193,6 +214,28 @@ class AudioPipeline:
         )
 
         is_speech = self._is_speech(frame.pcm, frame.sample_rate)
+
+        # Sample VAD decisions to reduce log verbosity
+        sample_n = self._telemetry_config.log_sample_vad_n or 50
+
+        if should_sample(
+            "discord.vad_decision", sample_n
+        ) or self._should_log_vad_decision(accumulator.sequence):
+            self._logger.debug(
+                "voice.vad_decision",
+                user_id=user_id,
+                sequence=accumulator.sequence,
+                is_speech=is_speech,
+                rms=adjusted_rms,
+                frame_bytes=len(normalized_pcm),
+                sample_rate=sample_rate,
+                raw_pcm_bytes=len(pcm),  # NEW: Show original PCM size
+                pcm_is_empty=len(pcm) == 0,  # NEW: Check if PCM is empty
+            )
+
+        # Record metrics for monitoring
+        self._metrics_reporter.record_frame(is_speech, adjusted_rms)
+
         if not is_speech:
             accumulator.mark_silence(timestamp)
             decision = accumulator.should_flush(timestamp)
@@ -206,14 +249,25 @@ class AudioPipeline:
             return None
 
         accumulator.append(frame)
-        self._logger.debug(
-            "voice.frame_buffered",
-            user_id=user_id,
-            sequence=frame.sequence,
-            rms=frame.rms,
-            duration=duration,
-            sample_rate=sample_rate,
-        )
+        # Sample frame buffered logs to reduce volume
+        try:
+            import os
+
+            frame_sample_n = int(os.getenv("LOG_SAMPLE_VAD_N", "50"))
+        except Exception:
+            frame_sample_n = 50
+
+        if frame.sequence <= 10 or should_sample(
+            "discord.frame_buffered", frame_sample_n
+        ):
+            self._logger.debug(
+                "voice.frame_buffered",
+                user_id=user_id,
+                sequence=frame.sequence,
+                rms=frame.rms,
+                duration=duration,
+                sample_rate=sample_rate,
+            )
         decision = accumulator.should_flush(timestamp)
         if decision and decision.action == "flush":
             return self._flush_accumulator(
@@ -279,29 +333,47 @@ class AudioPipeline:
     ) -> AudioSegment | None:
         from services.common.correlation import generate_discord_correlation_id
 
+        # Capture current frames before popping so diagnostics reflect actual content
+        # at flush time (pop_segment clears frames)
+        frames_snapshot = list(accumulator.frames)
+        speech_frames = sum(1 for frame in frames_snapshot if frame.rms > 100)
+        silence_frames = len(frames_snapshot) - speech_frames
+
         correlation_id = generate_discord_correlation_id(accumulator.user_id)
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
+
+        # Bind correlation id (tests may inject a mock; binder handles mocks)
+        from services.common.logging import bind_correlation_id
+
+        segment_logger = bind_correlation_id(self._logger, segment.correlation_id)
+
         reason = (
             override_reason
             or (decision.reason if decision else None)
             or trigger
             or "unknown"
         )
-        self._logger.info(
+        # Always log segment readiness once for determinism in tests and clarity
+        segment_logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
-            correlation_id=segment.correlation_id,
             frames=segment.frame_count,
             duration=segment.duration,
             pcm_bytes=len(segment.pcm),
             sample_rate=segment.sample_rate,
             flush_reason=reason,
             silence_age=decision.silence_age if decision else None,
-            total_duration=decision.total_duration if decision else segment.duration,
+            total_duration=(decision.total_duration if decision else segment.duration),
             flush_trigger=trigger,
+            correlation_id=segment.correlation_id,
+            speech_frames=speech_frames,
+            silence_frames=silence_frames,
         )
+
+        # Record segment flush in metrics
+        self._metrics_reporter.record_segment_flush(reason, segment.duration)
         return segment
 
     def _prepare_vad_frame(self, pcm: bytes, sample_rate: int) -> bytes:
@@ -341,6 +413,7 @@ class AudioPipeline:
         pcm: bytes,
         *,
         target_rms: float = 2000.0,
+        user_id: int | None = None,
     ) -> tuple[bytes, float]:
         """Bring audio closer to a target RMS to reduce overly quiet or loud frames using standardized audio processing."""
         from services.common.audio import AudioProcessor
@@ -348,10 +421,21 @@ class AudioPipeline:
         processor = AudioProcessor("discord")
         processor.set_logger(self._logger)
 
-        # Use standardized normalization
-        normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2)
+        # Use standardized normalization with user_id for logging
+        # If the provided target_rms is unit-scale (0..1), convert to int16 domain
+        if target_rms <= 1.0:
+            target_rms = max(1.0, target_rms * 32768.0)
+
+        normalized_pcm, new_rms = processor.normalize_audio(
+            pcm, target_rms, 2, user_id=user_id
+        )
 
         return normalized_pcm, new_rms
+
+    def _should_log_vad_decision(self, sequence: int) -> bool:
+        """Determine if VAD decision should be logged to reduce verbosity."""
+        # Log first 10 decisions, then 1% sampling
+        return sequence <= 10 or sequence % 100 == 0
 
 
 def rms_from_pcm(pcm: bytes) -> float:
@@ -359,7 +443,7 @@ def rms_from_pcm(pcm: bytes) -> float:
     from services.common.audio import AudioProcessor
 
     processor = AudioProcessor("discord")
-    return processor.calculate_rms(pcm, 2)
+    return float(processor.calculate_rms(pcm, 2))
 
 
 __all__ = ["Accumulator", "AudioPipeline", "AudioSegment", "PCMFrame", "rms_from_pcm"]

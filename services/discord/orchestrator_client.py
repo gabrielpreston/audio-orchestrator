@@ -2,12 +2,14 @@
 Orchestrator client for Discord service to communicate with the LLM orchestrator.
 """
 
+from types import TracebackType
 from typing import Any
 
 import httpx
-import structlog
 
-logger = structlog.get_logger()
+from services.common.logging import get_logger
+
+logger = get_logger(__name__, service_name="discord")
 
 
 class OrchestratorClient:
@@ -22,6 +24,21 @@ class OrchestratorClient:
         if self._http_client is None:
             self._http_client = httpx.AsyncClient(timeout=30.0)
         return self._http_client
+
+    async def __aenter__(self) -> "OrchestratorClient":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Async context manager exit."""
+        if self._http_client:
+            await self._http_client.aclose()
+            self._http_client = None
 
     async def process_transcript(
         self,
@@ -43,8 +60,16 @@ class OrchestratorClient:
                 "correlation_id": correlation_id,
             }
 
+            # Pass correlation ID in headers
+            headers = {}
+            if correlation_id:
+                headers["X-Correlation-ID"] = correlation_id
+
             response = await client.post(
-                f"{self.orchestrator_url}/mcp/transcript", json=payload, timeout=30.0
+                f"{self.orchestrator_url}/mcp/transcript",
+                json=payload,
+                headers=headers,
+                timeout=30.0,
             )
             response.raise_for_status()
 
@@ -67,43 +92,7 @@ class OrchestratorClient:
                 guild_id=guild_id,
                 channel_id=channel_id,
                 user_id=user_id,
-            )
-            return {"error": str(exc)}
-
-    async def play_audio(
-        self, guild_id: str, channel_id: str, audio_url: str
-    ) -> dict[str, Any]:
-        """Request audio playback via orchestrator."""
-        try:
-            client = await self._get_http_client()
-
-            payload = {
-                "guild_id": guild_id,
-                "channel_id": channel_id,
-                "audio_url": audio_url,
-            }
-
-            response = await client.post(
-                f"{self.orchestrator_url}/mcp/play_audio", json=payload, timeout=30.0
-            )
-            response.raise_for_status()
-
-            result: dict[str, Any] = response.json()
-            logger.info(
-                "discord.audio_playback_requested",
-                guild_id=guild_id,
-                channel_id=channel_id,
-                audio_url=audio_url,
-            )
-
-            return result
-
-        except Exception as exc:
-            logger.error(
-                "discord.audio_playback_failed",
-                error=str(exc),
-                guild_id=guild_id,
-                channel_id=channel_id,
+                correlation_id=correlation_id,
             )
             return {"error": str(exc)}
 

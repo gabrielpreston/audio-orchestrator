@@ -10,25 +10,39 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
-from services.common.debug import get_debug_manager
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    FasterWhisperConfig,
+    HttpConfig,
+    LoggingConfig,
+    TelemetryConfig,
+)
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
-MODEL_NAME = os.environ.get("FW_MODEL", "small")
+# Centralized configuration
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("stt", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("faster_whisper", FasterWhisperConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
+
+MODEL_NAME = _cfg.faster_whisper.model  # type: ignore[attr-defined]
+MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[attr-defined]
 # Module-level cached model to avoid repeated loads
 _model: Any = None
-# Debug manager for saving debug files
-_debug_manager = get_debug_manager("stt")
-
-
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+# Health manager for service resilience
+_health_manager = HealthManager("stt")
 
 
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=_env_bool("LOG_JSON", "true"),
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="stt",
 )
 logger = get_logger(__name__, service_name="stt")
@@ -41,6 +55,41 @@ async def _warm_model() -> None:
     try:
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
+        _health_manager.mark_startup_complete()  # Mark as ready
+        # Optional warm-up inference to avoid first-request latency
+        warmup = _cfg.telemetry.stt_warmup  # type: ignore[attr-defined]
+        if warmup:
+            import tempfile
+            import time as _time
+
+            import numpy as np
+
+            # Generate ~300ms silence at 16kHz mono int16
+            samples = int(16000 * 0.3)
+            pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
+
+            # Encode to WAV using AudioProcessor to match runtime path
+            from services.common.audio import AudioProcessor
+
+            processor = AudioProcessor("stt")
+            wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
+            warm_start = _time.perf_counter()
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(wav_data)
+                tmp_path = tmp.name
+            try:
+                model = _lazy_load_model()
+                _ = model.transcribe(tmp_path, beam_size=6)
+            except Exception as _exc:  # best-effort
+                logger.debug("stt.warmup_skipped", reason=str(_exc))
+            finally:
+                import os as _os
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    _os.unlink(tmp_path)
+            warm_ms = int((_time.perf_counter() - warm_start) * 1000)
+            logger.info("stt.warmup_ms", value=warm_ms)
     except HTTPException:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
@@ -49,6 +98,28 @@ async def _warm_model() -> None:
             "stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc)
         )
         raise
+
+
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "stt"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _model is None:
+        raise HTTPException(status_code=503, detail="Model not loaded")
+
+    health_status = await _health_manager.get_health_status()
+    return {
+        "status": "ready",
+        "service": "stt",
+        "model": MODEL_NAME,
+        "startup_complete": _health_manager._startup_complete,
+        "health_details": health_status.details,
+    }
 
 
 def _parse_bool(value: str | None) -> bool:
@@ -71,16 +142,26 @@ def _lazy_load_model() -> Any:
         logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
         return _model
 
-    device = os.environ.get("FW_DEVICE", "cpu")
-    compute_type = os.environ.get("FW_COMPUTE_TYPE")
+    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+    compute_type = _cfg.faster_whisper.compute_type  # type: ignore[attr-defined]
+    # Check if we have a local model directory
+    local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
+    model_path_or_name = (
+        local_model_path if os.path.exists(local_model_path) else MODEL_NAME
+    )
+
     try:
         if compute_type:
-            _model = WhisperModel(MODEL_NAME, device=device, compute_type=compute_type)
+            _model = WhisperModel(
+                model_path_or_name, device=device, compute_type=compute_type
+            )
         else:
-            _model = WhisperModel(MODEL_NAME, device=device)
+            _model = WhisperModel(model_path_or_name, device=device)
         logger.info(
             "stt.model_loaded",
             model_name=MODEL_NAME,
+            model_path=model_path_or_name,
+            is_local=os.path.exists(local_model_path),
             device=device,
             compute_type=compute_type or "default",
         )
@@ -138,17 +219,19 @@ async def _transcribe_request(
     correlation_id: str | None,
     filename: str | None,
 ) -> JSONResponse:
-    # Top-level timing for the request (includes validation, file I/O, model work)
-    req_start = time.time()
+    from services.common.logging import correlation_context
 
-    if not wav_bytes:
-        raise HTTPException(status_code=400, detail="empty request body")
+    with correlation_context(correlation_id) as request_logger:
+        # Top-level timing for the request (includes validation, file I/O, model work)
+        req_start = time.time()
 
-    channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
+        if not wav_bytes:
+            raise HTTPException(status_code=400, detail="empty request body")
+
+        channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
     model = _lazy_load_model()
-    device = os.environ.get("FW_DEVICE", "cpu")
-
+    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
 
@@ -159,6 +242,8 @@ async def _transcribe_request(
     beam_size_q = request.query_params.get("beam_size")
     lang_q = request.query_params.get("language")
     word_ts_q = request.query_params.get("word_timestamps")
+    vad_filter_q = request.query_params.get("vad_filter")
+    initial_prompt = request.query_params.get("initial_prompt")
     language = lang_q
     include_word_ts = _parse_bool(word_ts_q)
     # default beam size (if not provided) — keep it modest to balance quality/latency
@@ -186,16 +271,32 @@ async def _transcribe_request(
         or request.query_params.get("correlation_id")
     )
 
+    # Validate correlation ID if provided
+    if correlation_id:
+        from services.common.correlation import validate_correlation_id
+
+        is_valid, error_msg = validate_correlation_id(correlation_id)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid correlation ID: {error_msg}"
+            )
+
     # Generate STT correlation ID if none provided
     if not correlation_id:
         correlation_id = generate_stt_correlation_id()
+
+    # Bind correlation ID to logger for this request
+    from services.common.logging import bind_correlation_id
+
+    request_logger = bind_correlation_id(logger, correlation_id)
+
     processing_ms: int | None = None
     info: Any = None
     segments_list: list[Any] = []
     text = ""
     segments_out: list[dict[str, Any]] = []
     try:
-        logger.debug(
+        request_logger.debug(
             "stt.request_received",
             correlation_id=correlation_id,
             input_bytes=input_bytes,
@@ -219,6 +320,15 @@ async def _transcribe_request(
         # implementations accept a word_timestamps=True parameter).
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
+        request_logger.info(
+            "stt.processing_started",
+            correlation_id=correlation_id,
+            model=MODEL_NAME,
+            device=device,
+            input_bytes=input_bytes,
+            beam_size=beam_size,
+            language=language,
+        )
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
             transcribe_kwargs.update({"task": "translate", "language": language})
@@ -226,6 +336,10 @@ async def _transcribe_request(
             transcribe_kwargs["language"] = language
         if include_word_ts:
             transcribe_kwargs["word_timestamps"] = True
+        if vad_filter_q and _parse_bool(vad_filter_q):
+            transcribe_kwargs["vad_filter"] = True
+        if initial_prompt:
+            transcribe_kwargs["initial_prompt"] = initial_prompt
         raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
@@ -239,7 +353,7 @@ async def _transcribe_request(
                 segments_list = [raw_segments]
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
-        logger.info(
+        request_logger.info(
             "stt.request_processed",
             correlation_id=correlation_id,
             processing_ms=processing_ms,
@@ -295,24 +409,6 @@ async def _transcribe_request(
     req_end = time.time()
     total_ms = int((req_end - req_start) * 1000)
 
-    # Save debug data for transcription
-    _save_debug_transcription(
-        correlation_id=correlation_id,
-        wav_bytes=wav_bytes,
-        text=text,
-        segments=segments_out,
-        processing_ms=processing_ms,
-        total_ms=total_ms,
-        input_bytes=input_bytes,
-        channels=channels,
-        framerate=framerate,
-        language=getattr(info, "language", None),
-        confidence=getattr(info, "language_probability", None),
-        task=task,
-        beam_size=beam_size,
-        filename=filename,
-    )
-
     resp: dict[str, Any] = {
         "text": text,
         "duration": getattr(info, "duration", None),
@@ -346,7 +442,7 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    logger.debug(
+    request_logger.info(
         "stt.response_ready",
         correlation_id=correlation_id,
         text_length=len(resp.get("text", "")),
@@ -354,7 +450,7 @@ async def _transcribe_request(
         total_ms=resp.get("total_ms"),
     )
     if resp.get("text"):
-        logger.debug(
+        request_logger.debug(
             "stt.transcription_text",
             correlation_id=correlation_id,
             text=resp["text"],
@@ -419,12 +515,20 @@ async def transcribe(request: Request) -> dict[str, Any]:
         )
         raise HTTPException(status_code=400, detail="unsupported file payload")
 
-    logger.info(
-        "stt.transcribe_request",
-        filename=filename,
-        input_bytes=len(wav_bytes),
-        correlation_id=metadata_value,
-    )
+    # Sample noisy request logs to reduce verbosity in production
+    try:
+        sample_n = _cfg.telemetry.log_sample_stt_request_n or 25  # type: ignore[attr-defined]
+    except Exception:
+        sample_n = 25
+    from services.common.logging import should_sample
+
+    if should_sample("stt.transcribe_request", sample_n):
+        logger.info(
+            "stt.transcribe_request",
+            filename=filename,
+            input_bytes=len(wav_bytes),
+            correlation_id=metadata_value,
+        )
 
     return await _transcribe_request(  # type: ignore[no-any-return]
         request,
@@ -432,115 +536,3 @@ async def transcribe(request: Request) -> dict[str, Any]:
         correlation_id=metadata_value,
         filename=filename,
     )
-
-
-def _save_debug_transcription(
-    correlation_id: str | None,
-    wav_bytes: bytes,
-    text: str,
-    segments: list[dict[str, Any]],
-    processing_ms: int | None,
-    total_ms: int,
-    input_bytes: int,
-    channels: int,
-    framerate: int,
-    language: str | None,
-    confidence: float | None,
-    task: str | None,
-    beam_size: int,
-    filename: str | None,
-) -> None:
-    """Save debug data for transcription requests."""
-    if not correlation_id:
-        return
-
-    try:
-        # Save incoming audio
-        _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=wav_bytes,
-            filename_prefix="input_audio",
-            sample_rate=framerate,
-        )
-
-        # Save transcription result
-        _debug_manager.save_text_file(
-            correlation_id=correlation_id,
-            content=f"Transcription Result:\n{text}\n\nLanguage: {language}\nConfidence: {confidence}",
-            filename_prefix="transcription_result",
-        )
-
-        # Save detailed segments if available
-        if segments:
-            segments_content = "Transcription Segments:\n"
-            for i, segment in enumerate(segments):
-                segments_content += f"\nSegment {i+1}:\n"
-                segments_content += f"  Start: {segment.get('start', 'N/A')}\n"
-                segments_content += f"  End: {segment.get('end', 'N/A')}\n"
-                segments_content += f"  Text: {segment.get('text', '')}\n"
-                if "words" in segment:
-                    segments_content += f"  Words: {segment['words']}\n"
-
-            _debug_manager.save_text_file(
-                correlation_id=correlation_id,
-                content=segments_content,
-                filename_prefix="transcription_segments",
-            )
-
-        # Save processing metadata
-        _debug_manager.save_json_file(
-            correlation_id=correlation_id,
-            data={
-                "filename": filename,
-                "input_bytes": input_bytes,
-                "channels": channels,
-                "sample_rate": framerate,
-                "language": language,
-                "confidence": confidence,
-                "task": task,
-                "beam_size": beam_size,
-                "processing_ms": processing_ms,
-                "total_ms": total_ms,
-                "text_length": len(text),
-                "segments_count": len(segments),
-                "model_name": MODEL_NAME,
-                "device": os.environ.get("FW_DEVICE", "cpu"),
-            },
-            filename_prefix="transcription_metadata",
-        )
-
-        # Save manifest
-        files = {}
-        audio_file = _debug_manager.save_audio_file(
-            correlation_id=correlation_id,
-            audio_data=wav_bytes,
-            filename_prefix="input_audio",
-            sample_rate=framerate,
-        )
-        if audio_file:
-            files["input_audio"] = str(audio_file)
-
-        _debug_manager.save_manifest(
-            correlation_id=correlation_id,
-            metadata={
-                "service": "stt",
-                "event": "transcription_complete",
-                "filename": filename,
-                "language": language,
-            },
-            files=files,
-            stats={
-                "input_bytes": input_bytes,
-                "processing_ms": processing_ms or 0,
-                "total_ms": total_ms,
-                "text_length": len(text),
-                "segments_count": len(segments),
-            },
-        )
-
-    except Exception as exc:
-        logger.error(
-            "stt.debug_transcription_save_failed",
-            correlation_id=correlation_id,
-            error=str(exc),
-        )

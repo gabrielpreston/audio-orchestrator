@@ -35,7 +35,7 @@ class WakeDetectionResult:
 class WakeDetector:
     """Detect wake phrases from transcripts and raw audio."""
 
-    _TRANSCRIPT_SCORE_CUTOFF = 85.0  # RapidFuzz scores range from 0 to 100.
+    _TRANSCRIPT_SCORE_CUTOFF = 90.0  # RapidFuzz scores range from 0 to 100.
 
     def __init__(self, config: WakeConfig) -> None:
         self._config = config
@@ -78,11 +78,74 @@ class WakeDetector:
         transcript: str | None,
     ) -> WakeDetectionResult | None:
         """Detect a wake phrase from audio first, then fall back to transcripts."""
+        from services.common.logging import bind_correlation_id
+
+        logger = bind_correlation_id(self._logger, segment.correlation_id)
+
+        # Log wake detection attempt
+        logger.debug(
+            "wake.detection_attempt",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            transcript_preview=transcript[:120] if transcript else None,
+            wake_phrases=self._phrases,
+            enabled=self._config.enabled,
+        )
+
+        if not self._config.enabled:
+            result = WakeDetectionResult(
+                phrase="testing_mode",
+                confidence=1.0,
+                source="transcript",
+            )
+            logger.info(
+                "wake.detection_result",
+                correlation_id=segment.correlation_id,
+                user_id=segment.user_id,
+                detected=True,
+                phrase=result.phrase,
+                confidence=result.confidence,
+                source=result.source,
+            )
+            return result
 
         audio_result = self._detect_audio(segment.pcm, segment.sample_rate)
         if audio_result:
+            logger.info(
+                "wake.detection_result",
+                correlation_id=segment.correlation_id,
+                user_id=segment.user_id,
+                detected=True,
+                phrase=audio_result.phrase,
+                confidence=audio_result.confidence,
+                source=audio_result.source,
+            )
             return audio_result
-        return self._detect_transcript(transcript)
+
+        transcript_result = self._detect_transcript(transcript)
+        if transcript_result:
+            logger.info(
+                "wake.detection_result",
+                correlation_id=segment.correlation_id,
+                user_id=segment.user_id,
+                detected=True,
+                phrase=transcript_result.phrase,
+                confidence=transcript_result.confidence,
+                source=transcript_result.source,
+            )
+            return transcript_result
+
+        # Log no detection
+        logger.info(
+            "wake.detection_result",
+            correlation_id=segment.correlation_id,
+            user_id=segment.user_id,
+            detected=False,
+            phrase=None,
+            confidence=None,
+            source=None,
+        )
+        return None
 
     def _detect_audio(self, pcm: bytes, sample_rate: int) -> WakeDetectionResult | None:
         if not pcm or self._model is None:

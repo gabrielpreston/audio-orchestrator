@@ -1,23 +1,52 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from fastapi import FastAPI
+from pydantic import BaseModel, field_validator
 
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    HttpConfig,
+    LLMClientConfig,
+    LoggingConfig,
+    OrchestratorConfig,
+    PortConfig,
+    TelemetryConfig,
+    TTSClientConfig,
+)
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
 
+# Prometheus metrics
+try:
+    from prometheus_client import make_asgi_app
+
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+
 app = FastAPI(title="Voice Assistant Orchestrator")
 
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("port", PortConfig)
+    .add_config("llm_client", LLMClientConfig)
+    .add_config("tts_client", TTSClientConfig)
+    .add_config("orchestrator", OrchestratorConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
+
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=os.getenv("LOG_JSON", "true").lower() in {"1", "true", "yes", "on"},
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="orchestrator",
 )
 logger = get_logger(__name__, service_name="orchestrator")
@@ -25,16 +54,15 @@ logger = get_logger(__name__, service_name="orchestrator")
 _ORCHESTRATOR: Orchestrator | None = None
 _MCP_MANAGER: MCPManager | None = None
 _LLM_CLIENT: httpx.AsyncClient | None = None
+_health_manager = HealthManager("orchestrator")
 
-_LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm:8000")
-_LLM_AUTH_TOKEN = os.getenv("LLM_AUTH_TOKEN")
-_TTS_BASE_URL = os.getenv("TTS_BASE_URL")
-_TTS_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
-_MCP_CONFIG_PATH = os.getenv("MCP_CONFIG_PATH", "./mcp.json")
+_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm:8000"  # type: ignore[attr-defined]
+_LLM_AUTH_TOKEN = _cfg.llm_client.auth_token  # type: ignore[attr-defined]
+_TTS_BASE_URL = _cfg.tts_client.base_url  # type: ignore[attr-defined]
+_TTS_AUTH_TOKEN = _cfg.tts_client.auth_token  # type: ignore[attr-defined]
+_MCP_CONFIG_PATH = _cfg.orchestrator.mcp_config_path  # type: ignore[attr-defined]
 
-
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+# Deprecated helper retained for backward compat; prefer config values
 
 
 async def _ensure_llm_client() -> httpx.AsyncClient | None:
@@ -58,7 +86,7 @@ async def _startup_event() -> None:
         await _MCP_MANAGER.initialize()
 
         # Initialize orchestrator
-        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _LLM_BASE_URL, _TTS_BASE_URL)
+        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.llm_client, _cfg.tts_client)  # type: ignore[arg-type]
         await _ORCHESTRATOR.initialize()
         logger.info("orchestrator.initialized")
 
@@ -92,43 +120,67 @@ class TranscriptRequest(BaseModel):
     transcript: str
     correlation_id: str | None = None
 
+    @field_validator("correlation_id")  # type: ignore[misc]
+    @classmethod
+    def validate_correlation_id_field(cls, v: str | None) -> str | None:
+        if v is not None:
+            from services.common.correlation import validate_correlation_id
+
+            is_valid, error_msg = validate_correlation_id(v)
+            if not is_valid:
+                raise ValueError(error_msg)
+        return v
+
 
 @app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
-    if not _ORCHESTRATOR:
-        return {"error": "Orchestrator not initialized"}
+    from services.common.logging import correlation_context
 
-    try:
-        # Process the transcript through the orchestrator
-        result = await _ORCHESTRATOR.process_transcript(
+    with correlation_context(request.correlation_id) as request_logger:
+        request_logger.info(
+            "orchestrator.transcript_received",
             guild_id=request.guild_id,
             channel_id=request.channel_id,
             user_id=request.user_id,
-            transcript=request.transcript,
             correlation_id=request.correlation_id,
+            text_length=len(request.transcript or ""),
         )
+        if not _ORCHESTRATOR:
+            return {"error": "Orchestrator not initialized"}
 
-        logger.info(
-            "orchestrator.transcript_processed",
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            user_id=request.user_id,
-            transcript=request.transcript,
-            correlation_id=request.correlation_id,
-        )
+        try:
+            # Process the transcript through the orchestrator
+            result = await _ORCHESTRATOR.process_transcript(
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
 
-        return result
+            request_logger.info(
+                "orchestrator.transcript_processed",
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
 
-    except Exception as exc:
-        logger.error(
-            "orchestrator.transcript_processing_failed",
-            error=str(exc),
-            guild_id=request.guild_id,
-            channel_id=request.channel_id,
-            user_id=request.user_id,
-        )
-        return {"error": str(exc)}
+            return result
+
+        except Exception as exc:
+            request_logger.error(
+                "orchestrator.transcript_processing_failed",
+                error=str(exc),
+                guild_id=request.guild_id,
+                channel_id=request.channel_id,
+                user_id=request.user_id,
+                transcript=request.transcript,
+                correlation_id=request.correlation_id,
+            )
+            return {"error": str(exc)}
 
 
 @app.get("/mcp/tools")  # type: ignore[misc]
@@ -153,51 +205,43 @@ async def list_mcp_connections() -> dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health")  # type: ignore[misc]
-async def health_check() -> dict[str, Any]:
-    """Health check endpoint with MCP status."""
+@app.get("/health/live")  # type: ignore[misc]
+async def health_live() -> dict[str, str]:
+    """Liveness check - is process running."""
+    return {"status": "alive", "service": "orchestrator"}
+
+
+@app.get("/health/ready")  # type: ignore[misc]
+async def health_ready() -> dict[str, Any]:
+    """Readiness check - can serve requests."""
+    if _ORCHESTRATOR is None:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
+
     mcp_status = {}
     if _MCP_MANAGER:
         mcp_status = _MCP_MANAGER.get_client_status()
 
+    health_status = await _health_manager.get_health_status()
     return {
-        "status": "healthy",
+        "status": "ready",
+        "service": "orchestrator",
         "llm_available": _LLM_BASE_URL is not None,
         "tts_available": _TTS_BASE_URL is not None,
         "mcp_clients": mcp_status,
         "orchestrator_active": _ORCHESTRATOR is not None,
+        "health_details": health_status.details,
     }
 
 
-@app.get("/audio/{filename}")  # type: ignore[misc]
-async def serve_audio(filename: str) -> FileResponse:
-    """Serve audio files for Discord playback."""
-    try:
-        import glob
-        from pathlib import Path
-
-        # Search for audio file in flattened correlation-based directory structure
-        debug_dir = Path("/app/debug")
-        audio_pattern = str(debug_dir / "*" / filename)
-        matching_files = glob.glob(audio_pattern)
-
-        if not matching_files:
-            raise HTTPException(status_code=404, detail="Audio file not found")
-
-        # Use the first matching file
-        file_path = Path(matching_files[0])
-
-        return FileResponse(
-            path=str(file_path), media_type="audio/wav", filename=filename
-        )
-    except Exception as exc:
-        logger.error(
-            "orchestrator.audio_serve_failed", error=str(exc), filename=filename
-        )
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+# Add Prometheus metrics endpoint if available
+if PROMETHEUS_AVAILABLE:
+    metrics_app = make_asgi_app()
+    app.mount("/metrics", metrics_app)
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)  # type: ignore[attr-defined]

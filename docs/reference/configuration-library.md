@@ -2,7 +2,7 @@
 title: Configuration Library Reference
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -123,11 +123,7 @@ config.validate()
 # Convert to dictionary
 config_dict = config.to_dict()
 
-# Save to file
-config.save_to_file("config.json")
-
-# Load from file
-config = ServiceConfig.load_from_file("config.json")
+# Note: The configuration library is environment-driven. File persistence APIs are not provided.
 ```
 
 ## Service-Specific Configurations
@@ -137,7 +133,10 @@ The library includes pre-built configuration classes for all services:
 ### Discord Service
 
 ```python
-from services.common.service_configs import DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig, TelemetryConfig
+from services.common.service_configs import (
+    DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig,
+    TelemetryConfig, OrchestratorClientConfig, DiscordRuntimeConfig,
+)
 
 config = (
     ConfigBuilder.for_service("discord", Environment.DOCKER)
@@ -147,6 +146,8 @@ config = (
     .add_config("wake", WakeConfig)
     .add_config("mcp", MCPConfig)
     .add_config("telemetry", TelemetryConfig)
+    .add_config("orchestrator", OrchestratorClientConfig)
+    .add_config("runtime", DiscordRuntimeConfig)
     .load()
 )
 ```
@@ -154,13 +155,14 @@ config = (
 ### STT Service
 
 ```python
-from services.common.service_configs import FasterWhisperConfig
+from services.common.service_configs import FasterWhisperConfig, TelemetryConfig
 
 config = (
     ConfigBuilder.for_service("stt", Environment.DOCKER)
     .add_config("logging", LoggingConfig)
     .add_config("http", HttpConfig)
     .add_config("faster_whisper", FasterWhisperConfig)
+    .add_config("telemetry", TelemetryConfig)
     .load()
 )
 ```
@@ -168,28 +170,33 @@ config = (
 ### TTS Service
 
 ```python
-from services.common.service_configs import TTSConfig
+from services.common.service_configs import TTSConfig, TelemetryConfig
 
 config = (
     ConfigBuilder.for_service("tts", Environment.DOCKER)
     .add_config("logging", LoggingConfig)
     .add_config("http", HttpConfig)
     .add_config("tts", TTSConfig)
+    .add_config("telemetry", TelemetryConfig)
     .load()
 )
 ```
 
-### Orchestrator Service
+### LLM Service
 
 ```python
-from services.common.service_configs import LlamaConfig, OrchestratorConfig
+from services.common.service_configs import (
+    LlamaConfig, LLMServiceConfig, TTSClientConfig, LoggingConfig, HttpConfig, TelemetryConfig
+)
 
 config = (
-    ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
+    ConfigBuilder.for_service("llm", Environment.DOCKER)
     .add_config("logging", LoggingConfig)
     .add_config("http", HttpConfig)
     .add_config("llama", LlamaConfig)
-    .add_config("orchestrator", OrchestratorConfig)
+    .add_config("service", LLMServiceConfig)
+    .add_config("tts", TTSClientConfig)
+    .add_config("telemetry", TelemetryConfig)
     .load()
 )
 ```
@@ -285,37 +292,7 @@ Automatic type conversion from environment variables:
 
 ## Configuration Persistence
 
-### Save to File
-
-```python
-config.save_to_file("config.json")
-```
-
-### Load from File
-
-```python
-config = ServiceConfig.load_from_file("config.json")
-```
-
-### File Format
-
-```json
-{
-  "service_name": "discord",
-  "environment": "docker",
-  "configs": {
-    "discord": {
-      "token": "bot_token",
-      "guild_id": 123456789,
-      "voice_channel_id": 987654321
-    },
-    "audio": {
-      "sample_rate": 48000,
-      "silence_timeout": 1.0
-    }
-  }
-}
-```
+Configuration is managed via environment variables. File-based persistence is not supported.
 
 ## Error Handling
 

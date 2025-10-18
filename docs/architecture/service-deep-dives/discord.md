@@ -2,7 +2,7 @@
 title: Discord Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-17
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -44,6 +44,15 @@ stack.
 - Structured JSON logs emit transcript previews, wake matches, and MCP tool execution metadata.
 - Optional Prometheus metrics can bind to `METRICS_PORT` if configured.
 - Use `make logs SERVICE=discord` for live troubleshooting and correlation with STT/LLM logs.
+
+## Observability Notes
+
+- High-volume events like `voice.vad_decision`, `voice.frame_buffered`, and unknown user/SSRC messages are sampled to reduce noise in production.
+- Configure sampling via env:
+  - `LOG_SAMPLE_VAD_N` (default 50)
+  - `LOG_SAMPLE_UNKNOWN_USER_N` (default 100)
+  - `LOG_RATE_LIMIT_PACKET_WARN_S` (default 10s)
+- Correlation IDs propagate across services (`X-Correlation-ID`) to trace a segment from Discord → STT → Orchestrator → LLM.
 
 ## Dependencies
 
