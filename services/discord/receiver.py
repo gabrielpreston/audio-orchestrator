@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import os
 import time
 from collections import deque
 from collections.abc import Callable, Coroutine
@@ -12,7 +13,7 @@ from typing import Any
 
 from structlog.stdlib import BoundLogger
 
-from services.common.logging import get_logger
+from services.common.logging import get_logger, should_rate_limit, should_sample
 
 voice_recv: Any | None
 try:
@@ -124,7 +125,13 @@ class BufferedVoiceSink:
                 self._ssrc_first_seen[ssrc] = current_time
                 # Log only first occurrence per SSRC to reduce spam
                 if ssrc not in self._logged_unknown_ssrcs:
-                    self._logger.debug("voice.first_packet_unknown_ssrc", ssrc=ssrc)
+                    # Rate-limit first-unknown-ssrc logs
+                    try:
+                        rate_s = float(os.getenv("LOG_RATE_LIMIT_PACKET_WARN_S", "10"))
+                    except Exception:
+                        rate_s = 10.0
+                    if should_rate_limit("discord.first_unknown_ssrc", rate_s):
+                        self._logger.debug("voice.first_packet_unknown_ssrc", ssrc=ssrc)
                     self._logged_unknown_ssrcs.add(ssrc)
 
             # Clean up expired buffers periodically
@@ -141,7 +148,12 @@ class BufferedVoiceSink:
                 buffer.popleft()
 
             # Log buffer status occasionally
-            if len(buffer) % 50 == 0:  # Every 50 packets
+            # Sample buffer status logs
+            try:
+                buffer_sample_n = int(os.getenv("LOG_SAMPLE_UNKNOWN_USER_N", "100"))
+            except Exception:
+                buffer_sample_n = 100
+            if should_sample("discord.buffer_status", buffer_sample_n):
                 self._logger.debug(
                     "voice.buffer_status",
                     ssrc=ssrc,
@@ -150,7 +162,12 @@ class BufferedVoiceSink:
                 )
         else:
             # No SSRC info - just log and drop
-            self._logger.debug("voice.receiver_unknown_user")
+            try:
+                sample_n = int(os.getenv("LOG_SAMPLE_UNKNOWN_USER_N", "100"))
+            except Exception:
+                sample_n = 100
+            if should_sample("discord.receiver_unknown_user", sample_n):
+                self._logger.debug("voice.receiver_unknown_user")
 
     def _process_packet(self, user: object | None, data: Any) -> None:
         """Process a single packet through the audio pipeline."""
@@ -160,7 +177,12 @@ class BufferedVoiceSink:
 
         user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
         if user_id is None:
-            self._logger.debug("voice.receiver_unknown_user")
+            try:
+                sample_n = int(os.getenv("LOG_SAMPLE_UNKNOWN_USER_N", "100"))
+            except Exception:
+                sample_n = 100
+            if should_sample("discord.receiver_unknown_user", sample_n):
+                self._logger.debug("voice.receiver_unknown_user")
             return
 
         sample_rate = (

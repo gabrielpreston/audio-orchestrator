@@ -43,6 +43,39 @@ async def _warm_model() -> None:
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
         _health_manager.mark_startup_complete()  # Mark as ready
+        # Optional warm-up inference to avoid first-request latency
+        if _env_bool("STT_WARMUP", "true"):
+            import tempfile
+            import time as _time
+
+            import numpy as np
+
+            # Generate ~300ms silence at 16kHz mono int16
+            samples = int(16000 * 0.3)
+            pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
+
+            # Encode to WAV using AudioProcessor to match runtime path
+            from services.common.audio import AudioProcessor
+
+            processor = AudioProcessor("stt")
+            wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
+            warm_start = _time.perf_counter()
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(wav_data)
+                tmp_path = tmp.name
+            try:
+                model = _lazy_load_model()
+                _ = model.transcribe(tmp_path, beam_size=6)
+            except Exception as _exc:  # best-effort
+                logger.debug("stt.warmup_skipped", reason=str(_exc))
+            finally:
+                import os as _os
+                from contextlib import suppress
+
+                with suppress(Exception):
+                    _os.unlink(tmp_path)
+            warm_ms = int((_time.perf_counter() - warm_start) * 1000)
+            logger.info("stt.warmup_ms", value=warm_ms)
     except HTTPException:
         # _lazy_load_model already logged and raised; propagate to fail fast.
         raise
@@ -197,6 +230,8 @@ async def _transcribe_request(
     beam_size_q = request.query_params.get("beam_size")
     lang_q = request.query_params.get("language")
     word_ts_q = request.query_params.get("word_timestamps")
+    vad_filter_q = request.query_params.get("vad_filter")
+    initial_prompt = request.query_params.get("initial_prompt")
     language = lang_q
     include_word_ts = _parse_bool(word_ts_q)
     # default beam size (if not provided) — keep it modest to balance quality/latency
@@ -273,6 +308,15 @@ async def _transcribe_request(
         # implementations accept a word_timestamps=True parameter).
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
+        request_logger.info(
+            "stt.processing_started",
+            correlation_id=correlation_id,
+            model=MODEL_NAME,
+            device=device,
+            input_bytes=input_bytes,
+            beam_size=beam_size,
+            language=language,
+        )
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
             transcribe_kwargs.update({"task": "translate", "language": language})
@@ -280,6 +324,10 @@ async def _transcribe_request(
             transcribe_kwargs["language"] = language
         if include_word_ts:
             transcribe_kwargs["word_timestamps"] = True
+        if vad_filter_q and _parse_bool(vad_filter_q):
+            transcribe_kwargs["vad_filter"] = True
+        if initial_prompt:
+            transcribe_kwargs["initial_prompt"] = initial_prompt
         raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
@@ -382,7 +430,7 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    request_logger.debug(
+    request_logger.info(
         "stt.response_ready",
         correlation_id=correlation_id,
         text_length=len(resp.get("text", "")),
@@ -455,12 +503,20 @@ async def transcribe(request: Request) -> dict[str, Any]:
         )
         raise HTTPException(status_code=400, detail="unsupported file payload")
 
-    logger.info(
-        "stt.transcribe_request",
-        filename=filename,
-        input_bytes=len(wav_bytes),
-        correlation_id=metadata_value,
-    )
+    # Sample noisy request logs to reduce verbosity in production
+    try:
+        sample_n = int(os.getenv("LOG_SAMPLE_STT_REQUEST_N", "25"))
+    except Exception:
+        sample_n = 25
+    from services.common.logging import should_sample
+
+    if should_sample("stt.transcribe_request", sample_n):
+        logger.info(
+            "stt.transcribe_request",
+            filename=filename,
+            input_bytes=len(wav_bytes),
+            correlation_id=metadata_value,
+        )
 
     return await _transcribe_request(  # type: ignore[no-any-return]
         request,

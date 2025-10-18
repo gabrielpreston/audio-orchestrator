@@ -128,7 +128,7 @@ if sequence <= 10 or sequence % 100 == 0:
 ### Examples of Sampled Events
 
 - VAD decisions (1% after first 10)
-- Audio normalization (1% sampling)
+- Audio normalization (configurable sampling via `LOG_SAMPLE_AUDIO_RATE`, default 0.005)
 - RTCP packets (1% or aggregate)
 
 ### Audio Frame Logging (REMOVED)
@@ -194,6 +194,27 @@ All logs use structured JSON format via structlog:
 - Use sampling for high-frequency events
 - Aggregate similar events when possible
 - Remove or downgrade routine debug events
+- Suppress overly verbose third-party libraries (e.g., python-multipart)
+- Optional sampling for `voice.segment_ready` via `LOG_SAMPLE_SEGMENT_READY_RATE` (0..1) or `LOG_SAMPLE_SEGMENT_READY_N` (every N)
+
+### Stage timing fields
+
+Discord emits per-segment timing fields to aid diagnosis:
+
+```json
+{
+  "event": "voice.segment_processing_complete",
+  "pre_stt_ms": 3,
+  "stt_ms": 2190,
+  "orchestrator_ms": 12993,
+  "tts_ms": 388
+}
+```
+
+Warm-ups:
+
+- `audio.encode_warmup_ms` on Discord startup (PCM→WAV preheating)
+- `stt.warmup_ms` on STT startup (dummy transcribe)
 
 ### Memory Usage
 
@@ -327,3 +348,37 @@ jq 'select(.correlation_id == "abc123-def456")' logs.json
 - Implement log rotation and retention
 - Monitor log volume and costs
 - Set up alerting on error patterns
+
+## Sampling and Rate Limiting
+
+High-frequency events are sampled to reduce log volume in production. Configure via environment variables:
+
+```env
+LOG_SAMPLE_VAD_N=50                # VAD/frame logs: log every Nth event
+LOG_SAMPLE_UNKNOWN_USER_N=100      # Unknown user/SSRC logs: every Nth event
+LOG_RATE_LIMIT_PACKET_WARN_S=10    # Minimum seconds between packet warning logs
+LOG_SAMPLE_AUDIO_RATE=0.005        # Probability for audio normalization debug logs
+```
+
+These are consumed by the Discord service (`services/discord/audio.py`, `services/discord/receiver.py`) and implemented via helpers in `services/common/logging.py` (`should_sample`, `should_rate_limit`).
+
+### Recommended defaults
+
+- VAD/frame: 50
+- Unknown user/SSRC: 100
+- Packet warnings: 10s
+- Audio normalization sampling: 0.005
+
+## Docker Log Rotation
+
+Enable JSON-file log rotation to prevent disk growth. Already configured in `docker-compose.yml` for all services:
+
+```yaml
+logging:
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+```
+
+This keeps per-service logs manageable while retaining recent history for troubleshooting.

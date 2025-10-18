@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+
 # audioop is deprecated, using alternative approach
 import io
+import time
 import wave
 from dataclasses import dataclass
 from types import TracebackType
@@ -25,7 +28,31 @@ try:
         "stt_requests_total", "Total STT requests", ["service", "status"]
     )
 
-    stt_latency = Histogram("stt_latency_seconds", "STT request latency", ["service"])
+    stt_latency = Histogram(
+        "stt_latency_seconds",
+        "STT request latency",
+        ["service"],
+        buckets=(0.25, 0.5, 1, 2, 4, 8, 16, float("inf")),
+    )
+    pre_stt_encode = Histogram(
+        "pre_stt_encode_seconds",
+        "PCM to WAV encode latency prior to STT submission",
+        ["service"],
+        buckets=(
+            0.001,
+            0.005,
+            0.01,
+            0.025,
+            0.05,
+            0.1,
+            0.25,
+            0.5,
+            1,
+            2,
+            4,
+            float("inf"),
+        ),
+    )
 except ImportError:
     PROMETHEUS_AVAILABLE = False
     stt_requests = None
@@ -46,6 +73,9 @@ class TranscriptResult:
     confidence: float | None
     correlation_id: str
     raw_response: dict[str, Any]
+    # Optional timing fields for downstream aggregation
+    stt_latency_ms: int | None = None
+    pre_stt_encode_ms: int | None = None
 
 
 class TranscriptionClient:
@@ -84,7 +114,7 @@ class TranscriptionClient:
 
     async def check_health(self) -> bool:
         """Check if the STT service is healthy."""
-        return await self._http_client.check_health()
+        return bool(await self._http_client.check_health())
 
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult | None:
         if not self._session:
@@ -92,22 +122,35 @@ class TranscriptionClient:
                 "TranscriptionClient must be used as an async context manager"
             )
 
-        import time
-
         from services.common.logging import bind_correlation_id
 
         logger = bind_correlation_id(self._logger, segment.correlation_id)
 
-        # Log STT request initiation
+        # Pre-STT preprocessing: convert PCM -> WAV exactly once off the event loop thread
+        pre_start = time.monotonic()
+        encode_start = pre_start
+        wav_bytes = await asyncio.to_thread(
+            _pcm_to_wav, segment.pcm, sample_rate=segment.sample_rate
+        )
+        encode_ms = int((time.monotonic() - encode_start) * 1000)
+        if PROMETHEUS_AVAILABLE and pre_stt_encode:
+            from contextlib import suppress
+
+            with suppress(Exception):
+                pre_stt_encode.labels(service="discord").observe(encode_ms / 1000.0)
+
+        # Log STT request initiation after conversion so audio_bytes is accurate
         logger.info(
             "stt.request_initiated",
             correlation_id=segment.correlation_id,
             user_id=segment.user_id,
-            audio_bytes=len(_pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)),
+            audio_bytes=len(wav_bytes),
             duration=segment.duration,
             sample_rate=segment.sample_rate,
             frames=segment.frame_count,
             language=self._config.forced_language,
+            pre_stt_encode_ms=encode_ms,
+            pre_stt_total_ms=encode_ms,  # currently dominated by encode step
         )
 
         start_time = time.monotonic()
@@ -115,9 +158,13 @@ class TranscriptionClient:
         # Record metrics if Prometheus is available
         if PROMETHEUS_AVAILABLE and stt_latency:
             with stt_latency.labels(service="discord").time():
-                result = await self._do_transcribe(segment, logger, start_time)
+                result = await self._do_transcribe(
+                    segment, logger, start_time, wav_bytes, encode_ms
+                )
         else:
-            result = await self._do_transcribe(segment, logger, start_time)
+            result = await self._do_transcribe(
+                segment, logger, start_time, wav_bytes, encode_ms
+            )
 
         # Record request metrics
         if PROMETHEUS_AVAILABLE and stt_requests:
@@ -127,10 +174,14 @@ class TranscriptionClient:
         return result
 
     async def _do_transcribe(
-        self, segment: AudioSegment, logger: Any, start_time: float
+        self,
+        segment: AudioSegment,
+        logger: Any,
+        start_time: float,
+        wav_bytes: bytes,
+        encode_ms: int,
     ) -> TranscriptResult | None:
-        """Internal transcription logic."""
-        wav_bytes = _pcm_to_wav(segment.pcm, sample_rate=segment.sample_rate)
+        """Internal transcription logic. Expects prebuilt WAV bytes."""
         files = {
             "file": (
                 f"segment-{segment.correlation_id}.wav",
@@ -142,6 +193,10 @@ class TranscriptionClient:
         params: dict[str, Any] = {}
         if self._config.forced_language:
             params["language"] = self._config.forced_language
+        if getattr(self._config, "beam_size", None):
+            params["beam_size"] = str(self._config.beam_size)
+        if getattr(self._config, "word_timestamps", False):
+            params["word_timestamps"] = "true"
 
         processing_timeout = max(
             self._config.request_timeout_seconds,
@@ -193,7 +248,7 @@ class TranscriptionClient:
             return None
         except Exception as exc:
             logger.error(
-                "stt.transcribe_failed",
+                "stt.request_failed",
                 error=str(exc),
                 correlation_id=segment.correlation_id,
             )
@@ -203,7 +258,6 @@ class TranscriptionClient:
         text = payload.get("text", "")
 
         # Log STT response with latency
-        import time
 
         latency_ms = int((time.monotonic() - start_time) * 1000)
         logger.info(
@@ -226,6 +280,8 @@ class TranscriptionClient:
             confidence=payload.get("confidence"),
             correlation_id=segment.correlation_id,
             raw_response=payload,
+            stt_latency_ms=latency_ms,
+            pre_stt_encode_ms=encode_ms,
         )
 
     def get_circuit_stats(self) -> dict[str, Any]:

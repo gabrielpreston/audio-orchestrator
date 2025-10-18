@@ -364,7 +364,17 @@ class AudioProcessor:
 
             if current_rms < 1.0:  # Avoid amplifying silence
                 # Only log silence skipping occasionally to reduce verbosity
-                if np.random.random() < log_sample_rate:
+                # Sample rate can be tuned via LOG_SAMPLE_AUDIO_RATE (0.0 - 1.0)
+                try:
+                    import os
+
+                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
+                    configured_rate = (
+                        float(env_rate) if env_rate is not None else log_sample_rate
+                    )
+                except Exception:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
                     self._log(
                         "debug",
                         "audio.normalize_skipped_silence",
@@ -378,20 +388,42 @@ class AudioProcessor:
             min_shrink = 1e-3  # do not shrink below this factor
             max_boost = 50.0  # do not boost above this factor
             if scaling_factor < min_shrink:
-                self._log(
-                    "debug",
-                    "audio.normalize_scaling_capped",
-                    scaling_factor=float(scaling_factor),
-                    reason="too_small",
-                )
+                # Sample logging via LOG_SAMPLE_AUDIO_RATE
+                try:
+                    import os
+
+                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
+                    configured_rate = (
+                        float(env_rate) if env_rate is not None else log_sample_rate
+                    )
+                except Exception:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                    self._log(
+                        "debug",
+                        "audio.normalize_scaling_capped",
+                        scaling_factor=float(scaling_factor),
+                        reason="too_small",
+                    )
                 scaling_factor = min_shrink
             elif scaling_factor > max_boost:
-                self._log(
-                    "debug",
-                    "audio.normalize_scaling_capped",
-                    scaling_factor=float(scaling_factor),
-                    reason="too_large",
-                )
+                # Sample logging via LOG_SAMPLE_AUDIO_RATE
+                try:
+                    import os
+
+                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
+                    configured_rate = (
+                        float(env_rate) if env_rate is not None else log_sample_rate
+                    )
+                except Exception:
+                    configured_rate = log_sample_rate
+                if np.random.random() < max(0.0, min(1.0, configured_rate)):
+                    self._log(
+                        "debug",
+                        "audio.normalize_scaling_capped",
+                        scaling_factor=float(scaling_factor),
+                        reason="too_large",
+                    )
                 scaling_factor = max_boost
             normalized_float = array.astype(np.float64) * scaling_factor
             normalized_array = np.clip(
@@ -402,7 +434,17 @@ class AudioProcessor:
             new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
             # Only log normalization occasionally to reduce verbosity
-            if np.random.random() < log_sample_rate:
+            # Sample rate can be tuned via LOG_SAMPLE_AUDIO_RATE (0.0 - 1.0)
+            try:
+                import os
+
+                env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
+                configured_rate = (
+                    float(env_rate) if env_rate is not None else log_sample_rate
+                )
+            except Exception:
+                configured_rate = log_sample_rate
+            if np.random.random() < max(0.0, min(1.0, configured_rate)):
                 log_data = {
                     "current_rms": float(current_rms),
                     "target_rms": target_rms,

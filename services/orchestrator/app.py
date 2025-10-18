@@ -119,6 +119,14 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     from services.common.logging import correlation_context
 
     with correlation_context(request.correlation_id) as request_logger:
+        request_logger.info(
+            "orchestrator.transcript_received",
+            guild_id=request.guild_id,
+            channel_id=request.channel_id,
+            user_id=request.user_id,
+            correlation_id=request.correlation_id,
+            text_length=len(request.transcript or ""),
+        )
         if not _ORCHESTRATOR:
             return {"error": "Orchestrator not initialized"}
 

@@ -178,6 +178,10 @@ class ChatRequest(BaseModel):
     model: str | None = None
     messages: list[ChatMessage]
     max_tokens: int | None = None
+    temperature: float | None = None
+    top_p: float | None = None
+    top_k: int | None = None
+    repeat_penalty: float | None = None
 
 
 @app.post("/v1/chat/completions")  # type: ignore[misc]
@@ -223,9 +227,37 @@ async def chat_completions(
     if llama is not None:
         try:
             infer_start = time.time()
+
+            # Apply defaults via env if request omits fields
+            def _env_float(name: str, default: float) -> float:
+                try:
+                    return float(os.getenv(name, str(default)))
+                except ValueError:
+                    return default
+
+            def _env_int(name: str, default: int) -> int:
+                try:
+                    return int(os.getenv(name, str(default)))
+                except ValueError:
+                    return default
+
             completion = llama.create_chat_completion(
                 messages=[{"role": m.role, "content": m.content} for m in req.messages],
-                max_tokens=req.max_tokens or 256,
+                max_tokens=req.max_tokens or _env_int("LLM_MAX_TOKENS", 128),
+                temperature=(
+                    req.temperature
+                    if req.temperature is not None
+                    else _env_float("LLM_TEMPERATURE", 0.7)
+                ),
+                top_p=(
+                    req.top_p if req.top_p is not None else _env_float("LLM_TOP_P", 0.9)
+                ),
+                top_k=req.top_k if req.top_k is not None else _env_int("LLM_TOP_K", 40),
+                repeat_penalty=(
+                    req.repeat_penalty
+                    if req.repeat_penalty is not None
+                    else _env_float("LLM_REPEAT_PENALTY", 1.1)
+                ),
             )
             infer_end = time.time()
             processing_ms = int((infer_end - infer_start) * 1000)

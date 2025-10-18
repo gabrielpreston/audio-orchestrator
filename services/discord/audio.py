@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 import webrtcvad
 
-from services.common.logging import get_logger
+from services.common.logging import get_logger, should_sample
 
 from .config import AudioConfig
 
@@ -214,7 +214,16 @@ class AudioPipeline:
         is_speech = self._is_speech(frame.pcm, frame.sample_rate)
 
         # Sample VAD decisions to reduce log verbosity
-        if self._should_log_vad_decision(accumulator.sequence):
+        try:
+            import os
+
+            sample_n = int(os.getenv("LOG_SAMPLE_VAD_N", "50"))
+        except Exception:
+            sample_n = 50
+
+        if should_sample(
+            "discord.vad_decision", sample_n
+        ) or self._should_log_vad_decision(accumulator.sequence):
             self._logger.debug(
                 "voice.vad_decision",
                 user_id=user_id,
@@ -243,14 +252,25 @@ class AudioPipeline:
             return None
 
         accumulator.append(frame)
-        self._logger.debug(
-            "voice.frame_buffered",
-            user_id=user_id,
-            sequence=frame.sequence,
-            rms=frame.rms,
-            duration=duration,
-            sample_rate=sample_rate,
-        )
+        # Sample frame buffered logs to reduce volume
+        try:
+            import os
+
+            frame_sample_n = int(os.getenv("LOG_SAMPLE_VAD_N", "50"))
+        except Exception:
+            frame_sample_n = 50
+
+        if frame.sequence <= 10 or should_sample(
+            "discord.frame_buffered", frame_sample_n
+        ):
+            self._logger.debug(
+                "voice.frame_buffered",
+                user_id=user_id,
+                sequence=frame.sequence,
+                rms=frame.rms,
+                duration=duration,
+                sample_rate=sample_rate,
+            )
         decision = accumulator.should_flush(timestamp)
         if decision and decision.action == "flush":
             return self._flush_accumulator(
@@ -316,12 +336,18 @@ class AudioPipeline:
     ) -> AudioSegment | None:
         from services.common.correlation import generate_discord_correlation_id
 
+        # Capture current frames before popping so diagnostics reflect actual content
+        # at flush time (pop_segment clears frames)
+        frames_snapshot = list(accumulator.frames)
+        speech_frames = sum(1 for frame in frames_snapshot if frame.rms > 100)
+        silence_frames = len(frames_snapshot) - speech_frames
+
         correlation_id = generate_discord_correlation_id(accumulator.user_id)
         segment = accumulator.pop_segment(correlation_id)
         if not segment:
             return None
 
-        # Bind correlation ID to logger for this segment
+        # Bind correlation id (tests may inject a mock; binder handles mocks)
         from services.common.logging import bind_correlation_id
 
         segment_logger = bind_correlation_id(self._logger, segment.correlation_id)
@@ -332,10 +358,7 @@ class AudioPipeline:
             or trigger
             or "unknown"
         )
-        # Count speech vs silence frames for diagnostics
-        speech_frames = sum(1 for frame in accumulator.frames if frame.rms > 100)
-        silence_frames = len(accumulator.frames) - speech_frames
-
+        # Always log segment readiness once for determinism in tests and clarity
         segment_logger.info(
             "voice.segment_ready",
             user_id=segment.user_id,
@@ -345,11 +368,11 @@ class AudioPipeline:
             sample_rate=segment.sample_rate,
             flush_reason=reason,
             silence_age=decision.silence_age if decision else None,
-            total_duration=decision.total_duration if decision else segment.duration,
+            total_duration=(decision.total_duration if decision else segment.duration),
             flush_trigger=trigger,
             correlation_id=segment.correlation_id,
-            speech_frames=speech_frames,  # NEW: Count of speech frames
-            silence_frames=silence_frames,  # NEW: Count of silence frames
+            speech_frames=speech_frames,
+            silence_frames=silence_frames,
         )
 
         # Record segment flush in metrics

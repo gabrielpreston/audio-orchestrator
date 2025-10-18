@@ -342,3 +342,48 @@ class TestVADPipeline:
         assert kwargs["duration"] == duration
         # RMS may be normalized, so check it's close to expected value
         assert abs(kwargs["rms"] - rms) < 10.0  # Allow some tolerance for normalization
+
+    @pytest.mark.component
+    def test_segment_ready_counts_frames(
+        self, audio_pipeline, sample_pcm_frame, mock_logger
+    ):
+        """Ensure speech/silence frame counts are computed before clearing frames."""
+        user_id = 12345
+        rms = 1000.0
+        duration = 0.030
+        sample_rate = 16000
+
+        # Use mock logger
+        audio_pipeline._logger = mock_logger
+
+        # Force VAD to treat frames as speech so they are buffered then flushed by timeout/min rules
+        with patch.object(audio_pipeline, "_is_speech", return_value=True):
+            # Push a few frames to create a segment
+            for _ in range(5):
+                audio_pipeline.register_frame(
+                    user_id=user_id,
+                    pcm=sample_pcm_frame,
+                    rms=rms,
+                    duration=duration,
+                    sample_rate=sample_rate,
+                )
+
+        # Force a flush to emit segment_ready
+        audio_pipeline.force_flush()
+
+        # Find the segment_ready log call
+        segment_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if call[0][0] == "voice.segment_ready"
+        ]
+        assert len(segment_calls) >= 1
+        seg_kwargs = segment_calls[-1][1]
+
+        assert seg_kwargs["frames"] > 0
+        # At least one speech frame expected, and counts should be consistent
+        assert (
+            seg_kwargs["speech_frames"] + seg_kwargs["silence_frames"]
+            == seg_kwargs["frames"]
+        )
+        assert seg_kwargs["speech_frames"] > 0

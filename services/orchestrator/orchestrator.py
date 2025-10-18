@@ -309,7 +309,12 @@ class Orchestrator:
                 json={
                     "model": "local-llama",
                     "messages": messages,
-                    "max_tokens": 256,
+                    # Reduce completion size to improve latency; overridable by LLM service
+                    "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "128")),
+                    # Provide basic sampling knobs when supported by the LLM service
+                    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.7")),
+                    "top_p": float(os.getenv("LLM_TOP_P", "0.9")),
+                    "repeat_penalty": float(os.getenv("LLM_REPEAT_PENALTY", "1.1")),
                 },
                 headers=headers,
                 timeout=60.0,

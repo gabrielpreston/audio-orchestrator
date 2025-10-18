@@ -35,7 +35,7 @@ class WakeDetectionResult:
 class WakeDetector:
     """Detect wake phrases from transcripts and raw audio."""
 
-    _TRANSCRIPT_SCORE_CUTOFF = 85.0  # RapidFuzz scores range from 0 to 100.
+    _TRANSCRIPT_SCORE_CUTOFF = 90.0  # RapidFuzz scores range from 0 to 100.
 
     def __init__(self, config: WakeConfig) -> None:
         self._config = config

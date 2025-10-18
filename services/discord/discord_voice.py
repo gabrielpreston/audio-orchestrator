@@ -112,6 +112,39 @@ class VoiceBot(discord.Client):
         if self._http_session is None:
             timeout = httpx.Timeout(30.0, connect=10.0)
             self._http_session = httpx.AsyncClient(timeout=timeout)
+        # Optional audio warm-up to avoid first-interaction latency spikes
+        import os
+
+        if os.getenv("DISCORD_WARMUP_AUDIO", "true").lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+
+            async def _do_warmup() -> None:
+                import time
+
+                import numpy as np
+
+                from .transcription import _pcm_to_wav
+
+                try:
+                    # 200ms of silence at 48kHz mono int16
+                    sample_rate = 48000
+                    duration_s = 0.2
+                    samples = int(sample_rate * duration_s)
+                    pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
+                    start = time.perf_counter()
+                    # Offload encode to thread pool
+                    await asyncio.to_thread(_pcm_to_wav, pcm, sample_rate=sample_rate)
+                    elapsed_ms = int((time.perf_counter() - start) * 1000)
+                    self._logger.info("audio.encode_warmup_ms", value=elapsed_ms)
+                except Exception as exc:
+                    self._logger.debug("audio.encode_warmup_failed", error=str(exc))
+
+            # Fire and forget; do not block setup
+            asyncio.create_task(_do_warmup())
         self._segment_task = asyncio.create_task(self._segment_consumer())
         self._idle_flush_task = asyncio.create_task(self._idle_flush_loop())
 
@@ -597,6 +630,7 @@ class VoiceBot(discord.Client):
                         stt_circuit_available=circuit_stats.get("available", True),
                         stt_circuit_failure_count=circuit_stats.get("failure_count", 0),
                         stt_circuit_success_count=circuit_stats.get("success_count", 0),
+                        queue_depth_at_start=self._segment_queue.qsize(),
                     )
                     transcript = await stt_client.transcribe(context.segment)
 
@@ -618,6 +652,8 @@ class VoiceBot(discord.Client):
                         channel_id=context.channel_id,
                         text_length=len(transcript.text),
                         confidence=transcript.confidence,
+                        pre_stt_ms=transcript.pre_stt_encode_ms,
+                        stt_ms=transcript.stt_latency_ms,
                     )
                     await self._handle_transcript(context, transcript)
                 except asyncio.CancelledError:

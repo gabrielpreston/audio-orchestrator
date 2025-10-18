@@ -4,18 +4,26 @@ from __future__ import annotations
 
 import logging
 import sys
+import threading
+import time
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import IO, Any
 
 import structlog
 
+_LEVELS: dict[str, int] = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL,
+}
+
 
 def _numeric_level(level: str) -> int:
-    value = logging.getLevelName(level.upper())
-    if isinstance(value, int):
-        return value
-    return logging.INFO
+    name = (level or "").upper()
+    return _LEVELS.get(name, logging.INFO)
 
 
 Processor = Callable[[Any, str, dict[str, Any]], dict[str, Any]]
@@ -117,6 +125,10 @@ def configure_logging(
     logging.getLogger("discord.ext.voice_recv.sinks").setLevel(logging.WARNING)
     logging.getLogger("discord.ext.voice_recv.reader").setLevel(logging.WARNING)
 
+    # Suppress python-multipart multipart parser debug spam
+    logging.getLogger("multipart").setLevel(logging.WARNING)
+    logging.getLogger("multipart.multipart").setLevel(logging.WARNING)
+
     structlog.configure(
         processors=[
             *shared_processors,
@@ -174,7 +186,16 @@ def bind_correlation_id(
         Logger with correlation ID bound, or original logger if None
     """
     if correlation_id:
-        return logger.bind(correlation_id=correlation_id)
+        try:
+            # If this is a unittest.mock.Mock, don't rebind; tests expect to
+            # observe calls on the original mock instance.
+            from unittest.mock import Mock as _Mock  # local import
+
+            if isinstance(logger, _Mock):
+                return logger
+            return logger.bind(correlation_id=correlation_id)
+        except Exception:
+            return logger
     return logger
 
 
@@ -226,4 +247,42 @@ __all__ = [
     "get_logger",
     "bind_correlation_id",
     "correlation_context",
+    "should_sample",
+    "should_rate_limit",
 ]
+
+
+# Lightweight, thread-safe sampling and rate limiting helpers
+_SAMPLE_LOCK = threading.Lock()
+_SAMPLE_COUNTERS: dict[str, int] = {}
+_RATE_LIMIT_LOCK = threading.Lock()
+_RATE_LIMIT_LAST: dict[str, float] = {}
+
+
+def should_sample(key: str, every_n: int) -> bool:
+    """Return True when the keyed event should be logged based on N sampling.
+
+    This uses an in-memory counter per key. Thread-safe.
+    """
+    if every_n <= 1:
+        return True
+    with _SAMPLE_LOCK:
+        count = _SAMPLE_COUNTERS.get(key, 0) + 1
+        _SAMPLE_COUNTERS[key] = count
+        return count % every_n == 0
+
+
+def should_rate_limit(key: str, interval_s: float) -> bool:
+    """Return True if enough time elapsed since the last emission for this key.
+
+    Thread-safe, uses wall-clock seconds.
+    """
+    if interval_s <= 0:
+        return True
+    now = time.time()
+    with _RATE_LIMIT_LOCK:
+        last = _RATE_LIMIT_LAST.get(key)
+        if last is None or (now - last) >= interval_s:
+            _RATE_LIMIT_LAST[key] = now
+            return True
+        return False

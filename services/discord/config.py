@@ -47,6 +47,8 @@ class STTConfig:
     request_timeout_seconds: float = 45.0
     max_retries: int = 3
     forced_language: str | None = "en"
+    beam_size: int = 8
+    word_timestamps: bool = False
 
 
 @dataclass(slots=True)
@@ -175,6 +177,8 @@ def load_config() -> BotConfig:
         request_timeout_seconds=float(os.getenv("STT_TIMEOUT", "45")),
         max_retries=int(os.getenv("STT_MAX_RETRIES", "3")),
         forced_language=stt_forced_language if stt_forced_language else None,
+        beam_size=int(os.getenv("STT_BEAM_SIZE", "8")),
+        word_timestamps=os.getenv("STT_WORD_TIMESTAMPS", "false").lower() == "true",
     )
 
     wake_model_paths = [

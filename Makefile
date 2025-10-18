@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # =============================================================================
 # PHONY TARGETS
 # =============================================================================
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-unit-local test-unit-container test-component test-component-local test-component-container test-integration test-integration-local test-integration-container test-e2e test-e2e-local test-e2e-container test-coverage test-coverage-local test-coverage-container test-watch test-watch-local test-watch-container test-debug test-debug-local test-debug-container test-specific test-specific-local test-specific-container typecheck security docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-unit-local test-unit-container test-component test-component-local test-component-container test-integration test-integration-local test-integration-container test-e2e test-e2e-local test-e2e-container test-coverage test-coverage-local test-coverage-container test-watch test-watch-local test-watch-container test-debug test-debug-local test-debug-container test-specific test-specific-local test-specific-container typecheck security docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup eval-stt eval-wake eval-stt-all clean-eval
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -661,3 +661,30 @@ models-clean: ## Remove downloaded models from ./services/models/
 	else \
 		echo "No models directory found."; \
 	fi
+
+# =============================================================================
+# EVALUATION
+# =============================================================================
+
+.PHONY: eval-stt eval-stt-all clean-eval
+
+eval-stt: ## Evaluate a single provider on specified phrase files (PROVIDER=stt PHRASES=path1 path2)
+	@echo -e "$(COLOR_CYAN)→ Evaluating STT provider $(PROVIDER) on $(PHRASES)$(COLOR_OFF)"; \
+	PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
+	python3 scripts/eval_stt.py --provider "$${PROVIDER:-stt}" --phrases $(PHRASES)
+
+eval-wake: ## Evaluate wake phrases with default provider
+	@$(MAKE) eval-stt PROVIDER=$${PROVIDER:-stt} PHRASES="tests/fixtures/phrases/en/wake.txt"
+
+eval-stt-all: ## Evaluate across all configured providers
+	@set -e; \
+	providers="stt"; \
+	for p in $$providers; do \
+		echo -e "$(COLOR_CYAN)→ Provider: $$p$(COLOR_OFF)"; \
+		$(MAKE) eval-stt PROVIDER=$$p PHRASES="tests/fixtures/phrases/en/wake.txt tests/fixtures/phrases/en/core.txt" || echo "Skipped $$p"; \
+	done
+
+clean-eval: ## Remove eval outputs and generated audio
+	@echo -e "$(COLOR_BLUE)→ Cleaning evaluation artifacts$(COLOR_OFF)"; \
+	rm -rf .artifacts/eval_wavs || true; \
+	rm -rf debug/eval || true
