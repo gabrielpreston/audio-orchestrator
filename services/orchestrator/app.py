@@ -102,7 +102,7 @@ async def _startup_event() -> None:
         # Initialize test recorder
         _TEST_RECORDER = TestRecorderManager(
             recordings_dir=_cfg.test_recorder.recordings_dir,  # type: ignore[attr-defined]
-            max_file_size=_cfg.test_recorder.max_file_size_bytes  # type: ignore[attr-defined]
+            max_file_size=_cfg.test_recorder.max_file_size_bytes,  # type: ignore[attr-defined]
         )
         logger.info("test_recorder.initialized")
 
@@ -264,6 +264,7 @@ async def test_recorder_ui():
 # TEST RECORDER ENDPOINTS
 # =============================================================================
 
+
 class PhraseRequest(BaseModel):
     text: str
     category: str
@@ -288,7 +289,7 @@ async def add_phrase(request: PhraseRequest) -> dict[str, Any]:
     """Add a new test phrase."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         phrase = _TEST_RECORDER.add_phrase(request.text, request.category)
         return {"success": True, "phrase": phrase}
@@ -302,7 +303,7 @@ async def list_phrases(category: str | None = None) -> dict[str, Any]:
     """List all test phrases, optionally filtered by category."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         phrases = _TEST_RECORDER.list_phrases(category)
         return {"success": True, "phrases": phrases}
@@ -316,14 +317,16 @@ async def get_phrase(phrase_id: str) -> dict[str, Any]:
     """Get a specific test phrase by ID."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         phrase = _TEST_RECORDER.get_phrase(phrase_id)
         if not phrase:
             return {"error": "Phrase not found"}
         return {"success": True, "phrase": phrase}
     except Exception as exc:
-        logger.error("test_recorder.get_phrase_failed", phrase_id=phrase_id, error=str(exc))
+        logger.error(
+            "test_recorder.get_phrase_failed", phrase_id=phrase_id, error=str(exc)
+        )
         return {"error": str(exc)}
 
 
@@ -332,14 +335,17 @@ async def upload_audio(phrase_id: str, request: AudioUploadRequest) -> dict[str,
     """Upload audio data for a test phrase."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         import base64
+
         audio_data = base64.b64decode(request.audio_data)
         result = _TEST_RECORDER.save_audio(phrase_id, audio_data, request.audio_format)
         return {"success": True, "result": result}
     except Exception as exc:
-        logger.error("test_recorder.upload_audio_failed", phrase_id=phrase_id, error=str(exc))
+        logger.error(
+            "test_recorder.upload_audio_failed", phrase_id=phrase_id, error=str(exc)
+        )
         return {"error": str(exc)}
 
 
@@ -348,12 +354,14 @@ async def convert_audio(phrase_id: str, sample_rate: int = 48000) -> dict[str, A
     """Convert phrase audio to WAV format."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         result = _TEST_RECORDER.convert_to_wav(phrase_id, sample_rate)
         return {"success": True, "result": result}
     except Exception as exc:
-        logger.error("test_recorder.convert_audio_failed", phrase_id=phrase_id, error=str(exc))
+        logger.error(
+            "test_recorder.convert_audio_failed", phrase_id=phrase_id, error=str(exc)
+        )
         return {"error": str(exc)}
 
 
@@ -362,21 +370,23 @@ async def get_audio_file(phrase_id: str, converted: bool = False):
     """Get audio file for a test phrase."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         from fastapi.responses import FileResponse
-        
+
         audio_file = _TEST_RECORDER.get_audio_file(phrase_id, converted)
         if not audio_file:
             return {"error": "Audio file not found"}
-        
+
         return FileResponse(
             path=str(audio_file),
             media_type="audio/wav" if converted else "audio/webm",
-            filename=audio_file.name
+            filename=audio_file.name,
         )
     except Exception as exc:
-        logger.error("test_recorder.get_audio_failed", phrase_id=phrase_id, error=str(exc))
+        logger.error(
+            "test_recorder.get_audio_failed", phrase_id=phrase_id, error=str(exc)
+        )
         return {"error": str(exc)}
 
 
@@ -385,14 +395,16 @@ async def delete_phrase(phrase_id: str) -> dict[str, Any]:
     """Delete a test phrase and its audio files."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         success = _TEST_RECORDER.delete_phrase(phrase_id)
         if not success:
             return {"error": "Phrase not found"}
         return {"success": True}
     except Exception as exc:
-        logger.error("test_recorder.delete_phrase_failed", phrase_id=phrase_id, error=str(exc))
+        logger.error(
+            "test_recorder.delete_phrase_failed", phrase_id=phrase_id, error=str(exc)
+        )
         return {"error": str(exc)}
 
 
@@ -401,7 +413,7 @@ async def export_metadata() -> dict[str, Any]:
     """Export all recordings metadata."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         metadata = _TEST_RECORDER.export_metadata()
         return {"success": True, "metadata": metadata}
@@ -415,7 +427,7 @@ async def get_stats() -> dict[str, Any]:
     """Get statistics about the recordings."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         stats = _TEST_RECORDER.get_stats()
         return {"success": True, "stats": stats}
@@ -429,7 +441,7 @@ async def clear_all_phrases() -> dict[str, Any]:
     """Clear all test phrases and their audio files."""
     if not _TEST_RECORDER:
         return {"error": "Test recorder not initialized"}
-    
+
     try:
         count = _TEST_RECORDER.clear_all()
         return {"success": True, "cleared_count": count}
