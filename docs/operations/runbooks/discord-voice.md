@@ -2,7 +2,7 @@
 title: Discord Voice Runbook
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -15,7 +15,7 @@ Use this runbook when operating the Discord bot and companion services in stagin
 ## Daily Checks
 
 1. Run `make logs SERVICE=discord` to verify the bot connected to the configured guild and voice channel.
-2. Confirm STT and TTS containers report healthy status via `/health`.
+2. Confirm STT, Orchestrator, LLM, and TTS containers report healthy status via `/health`.
 3. Spot-check latency by issuing a wake phrase and validating end-to-end response time (<2s target).
 4. Review MCP tool manifests for required credentials or endpoint changes.
 
@@ -26,6 +26,7 @@ Use this runbook when operating the Discord bot and companion services in stagin
 | Bot disconnected from voice | Execute `make docker-restart` and confirm Discord permissions; review reconnect logs. |
 | STT latency spike | Inspect STT logs for model throttling; scale CPU resources or adjust `FW_COMPUTE_TYPE`. |
 | TTS audio gaps | Check `TTS_MAX_CONCURRENCY` utilization and rate limits; adjust or add replicas. |
+| Orchestrator failures | Check orchestrator logs for LLM/TTS connectivity issues; verify auth tokens. |
 | MCP call failures | Validate downstream service credentials; re-run with increased logging level (`LOG_LEVEL=debug`). |
 
 ## Escalation

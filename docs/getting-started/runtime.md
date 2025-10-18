@@ -2,7 +2,7 @@
 title: Runtime Quickstart
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -18,7 +18,7 @@ Launch the full Discord Voice Lab stack via Docker Compose.
 make run
 ```
 
-- Builds service images (Discord, STT, LLM, TTS) if they are not cached.
+- Builds service images (Discord, STT, Orchestrator, LLM, TTS) if they are not cached.
 - Starts containers with environment files from `.env.common`, `.env.docker`, and `services/**/.env.service`.
 - Streams logs to stdout; use `Ctrl+C` to exit or `make stop` from a separate shell.
 

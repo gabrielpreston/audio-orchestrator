@@ -1,6 +1,6 @@
 ---
 title: Logging Standards and Guidelines
-last-updated: 2025-10-17
+last-updated: 2025-10-18
 ---
 
 # Logging Standards and Guidelines
@@ -133,11 +133,11 @@ if sequence <= 10 or sequence % 100 == 0:
 
 ### Audio Frame Logging (REMOVED)
 
-**Important**: PCM frame logging has been removed from `services/discord/receiver.py` as it was creating 97% of log volume with no actionable troubleshooting value. Audio processing metrics are still tracked through VAD decisions with proper sampling.
+**Important**: PCM frame logging has been removed from `services/discord/receiver.py` as it was creating the majority of log volume with no actionable troubleshooting value. Audio processing metrics are still tracked through VAD decisions with proper sampling.
 
-**Before**: Every RTP packet logged twice (`voice.pcm_received`, `voice.decoder_output`)
-**After**: Only VAD decisions sampled at 1% after first 10 frames
-**Impact**: 95% reduction in log volume while maintaining observability
+**Before**: Excessive RTP packet logging
+**After**: VAD decisions sampled at 1% after first 10 frames for noise reduction
+**Impact**: Significant reduction in log volume while maintaining observability
 
 ## Correlation ID Usage
 
@@ -205,9 +205,7 @@ Discord emits per-segment timing fields to aid diagnosis:
 {
   "event": "voice.segment_processing_complete",
   "pre_stt_ms": 3,
-  "stt_ms": 2190,
-  "orchestrator_ms": 12993,
-  "tts_ms": 388
+  "stt_ms": 2190
 }
 ```
 
@@ -263,14 +261,14 @@ Warm-ups:
 
 **Normal Operation (per minute):**
 
-- **Total logs**: ~50-100 events (down from 1,200+)
+- **Total logs**: Significantly reduced from previous high-volume logging
 - **INFO logs**: 60-80% (service events, segment processing)
 - **DEBUG logs**: 20-40% (VAD decisions, internal state)
 - **WARNING/ERROR**: <5% (issues requiring attention)
 
 **During Active Voice:**
 
-- **Segment processing**: 1-5 `voice.segment_flushing` events per minute
+- **Segment processing**: 1-5 `voice.segment_processing_complete` events per minute
 - **STT requests**: 1-5 `stt.request_initiated`/`stt.response_received` pairs
 - **Wake detection**: 0-2 `wake.detection_result` events
 - **VAD decisions**: ~10-20 sampled `voice.vad_decision` events
