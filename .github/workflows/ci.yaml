@@ -63,6 +63,7 @@ jobs:
               - '.github/workflows/ci.yaml'
             security:
               - 'pyproject.toml'
+              - 'requirements-*.txt'
               - 'services/**/requirements.txt'
 
   lint:
