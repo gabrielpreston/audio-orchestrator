@@ -1,7 +1,7 @@
 ---
 title: Test Phrase Recorder
 description: Web interface for recording test phrases for automated testing
-last-updated: 2025-01-27
+last-updated: 2025-10-18
 ---
 
 # Test Phrase Recorder
@@ -11,6 +11,7 @@ The Test Phrase Recorder is a web-based interface for recording audio test phras
 ## Overview
 
 The recorder provides a simple, user-friendly interface for:
+
 - Recording test phrases with different categories
 - Managing recorded phrases
 - Exporting audio files and metadata
@@ -21,6 +22,7 @@ The recorder provides a simple, user-friendly interface for:
 ### 1. Open the Recorder
 
 Open `test-recorder.html` in a modern web browser that supports:
+
 - Web Audio API
 - MediaRecorder API
 - File API
@@ -54,11 +56,13 @@ Open `test-recorder.html` in a modern web browser that supports:
 ## Audio Format
 
 The recorder captures audio in WebM format with:
+
 - Sample rate: 48kHz (Discord standard)
 - Channels: Mono
 - Codec: Opus
 
 For testing, these files are converted to WAV format with:
+
 - Sample rate: 48kHz or 16kHz (configurable)
 - Channels: Mono
 - Bit depth: 16-bit PCM
@@ -202,7 +206,7 @@ ffprobe converted/test_phrase.wav
 
 ## File Structure
 
-```
+```text
 test-recorder.html              # Main web interface
 scripts/
   convert_test_recordings.py    # Conversion script

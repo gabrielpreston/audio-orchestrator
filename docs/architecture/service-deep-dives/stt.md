@@ -2,7 +2,7 @@
 title: STT Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -21,9 +21,10 @@ The STT service exposes an HTTP transcription API optimized for low-latency stre
 
 ## API Surface
 
-- `POST /transcribe` — Main transcription route used by the Discord service.
-- `GET /health` — Container health check used by Docker Compose and external monitors.
-- `GET /metrics` — Optional Prometheus metrics export.
+- `POST /asr` — Main transcription route used by the Discord service.
+- `POST /transcribe` — Alternative transcription endpoint.
+- `GET /health/live` — Liveness check used by Docker Compose and external monitors.
+- `GET /health/ready` — Readiness check for service availability.
 
 ## Configuration Highlights
 
@@ -40,5 +41,5 @@ The STT service exposes an HTTP transcription API optimized for low-latency stre
 
 ## Dependencies
 
-- Receives audio from `services/discord` and returns transcripts to `services/llm` via the bot.
+- Receives audio from `services/discord` and returns transcripts to `services/orchestrator` via the bot.
 - Requires the faster-whisper model files bundled in the Docker image or mounted volume.

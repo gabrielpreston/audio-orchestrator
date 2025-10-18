@@ -6,110 +6,100 @@ last-updated: 2025-10-17
 
 # Development Environment Setup
 
-This document describes the multi-virtual environment setup for the `discord-voice-lab` project, designed to provide optimal development experience with Cursor/VS Code.
+This document describes the development setup for the `discord-voice-lab` project.
 
 ## 🏗️ Architecture Overview
 
-The project uses a **hybrid virtual environment approach**:
+The project uses a **Docker-based development approach**:
 
-- **Global `.venv`**: Contains shared dependencies and `services.common` library
-- **Service-specific `.venv`**: Each service has its own environment for unique dependencies
-- **Multi-root workspace**: Cursor/VS Code configuration for seamless development
+- **Docker Compose**: All services run in containers for consistency
+- **Shared utilities**: `services.common` library provides shared functionality
+- **Service isolation**: Each service runs in its own container with specific dependencies
 
 ## 📁 Directory Structure
 
 ```text
 discord-voice-lab/
-├── .venv/                           # Global environment (shared deps + services.common)
 ├── .vscode/settings.json           # Root workspace settings
 ├── discord-voice-lab.code-workspace # Multi-root workspace file
+├── docker-compose.yml              # Service orchestration
 ├── services/
-│   ├── common/                     # Shared library (no .venv needed)
-│   ├── discord/
-│   │   ├── .venv/                  # Discord-specific environment
-│   │   └── .vscode/settings.json   # Service-specific settings
-│   ├── stt/
-│   │   ├── .venv/                  # STT-specific environment
-│   │   └── .vscode/settings.json   # Service-specific settings
-│   ├── llm/
-│   │   ├── .venv/                  # LLM-specific environment
-│   │   └── .vscode/settings.json   # Service-specific settings
-│   ├── orchestrator/
-│   │   ├── .venv/                  # Orchestrator-specific environment
-│   │   └── .vscode/settings.json   # Service-specific settings
-│   └── tts/
-│       ├── .venv/                  # TTS-specific environment
-│       └── .vscode/settings.json   # Service-specific settings
+│   ├── common/                     # Shared library
+│   ├── discord/                    # Discord service
+│   ├── stt/                        # Speech-to-text service
+│   ├── llm/                        # Language model service
+│   ├── orchestrator/               # Orchestrator service
+│   └── tts/                        # Text-to-speech service
 ```
 
 ## 🚀 Getting Started
 
-### 1. Open the Multi-Root Workspace
+### 1. Open the Workspace
 
 ```bash
 # Open the workspace file in Cursor/VS Code
 cursor discord-voice-lab.code-workspace
 ```
 
-This will open all services as separate workspace folders with their own Python interpreters.
+This will open the project with proper Python path configuration for the monorepo structure.
 
-### 2. Service-Specific Development
+### 2. Start the Development Environment
 
-When working on a specific service:
+```bash
+# Start all services with Docker Compose
+make run
 
-1. **Navigate to the service directory** (e.g., `services/discord/`)
-2. **Cursor will automatically use the service's virtual environment**
-3. **Imports will work correctly** for both service-specific and shared dependencies
+# View logs
+make logs
 
-### 3. Global Development
+# Stop services
+make stop
+```
 
-When working on shared code or running the full stack:
+### 3. Development Workflow
 
-1. **Use the root workspace** (`.vscode/settings.json`)
-2. **Global `.venv` contains all dependencies**
-3. **All services can be imported and tested**
+When working on the project:
+
+1. **Use Docker Compose** for running services
+2. **Edit code locally** - changes are reflected in containers
+3. **Use make targets** for common operations (test, lint, etc.)
 
 ## 🔧 Environment Details
 
-### Global Environment (`.venv/`)
+### Docker-Based Development
 
-**Purpose**: Shared dependencies and `services.common` library
+**Purpose**: Consistent development environment across all services
 
 **Contains**:
 
-- Base requirements (`requirements-base.txt`)
+- Service-specific Dockerfiles with dependencies
+- Shared base requirements (`requirements-base.txt`)
 - Development tools (`requirements-dev.txt`)
-- All service dependencies (for full-stack development)
 
-**Usage**: Root workspace, full-stack testing, shared library development
+**Usage**: All services run in containers for consistency
 
-### Service-Specific Environments
+### Service Dependencies
 
-Each service has its own `.venv/` with:
+Each service has its own `requirements.txt` with:
 
-**Discord Service** (`services/discord/.venv/`):
+**Discord Service**:
 
-- Base requirements + Discord-specific deps
 - `discord.py[voice]`, `discord-ext-voice_recv`, `PyNaCl`, `rapidfuzz`, `webrtcvad`
 
-**STT Service** (`services/stt/.venv/`):
+**STT Service**:
 
-- Base requirements + STT-specific deps
 - `faster-whisper`, `python-multipart`
 
-**LLM Service** (`services/llm/.venv/`):
+**LLM Service**:
 
-- Base requirements + LLM-specific deps
 - `llama-cpp-python`
 
-**Orchestrator Service** (`services/orchestrator/.venv/`):
+**Orchestrator Service**:
 
-- Base requirements + Orchestrator-specific deps
 - `mcp`, `instructor`
 
-**TTS Service** (`services/tts/.venv/`):
+**TTS Service**:
 
-- Base requirements + TTS-specific deps
 - `piper-tts`, `prometheus_client`
 
 ## 🎯 Development Workflows
@@ -117,67 +107,59 @@ Each service has its own `.venv/` with:
 ### Working on a Single Service
 
 ```bash
-# Navigate to service directory
-cd services/discord/
+# Start all services
+make run
 
-# Activate service environment
-source .venv/bin/activate
+# View logs for specific service
+make logs SERVICE=discord
 
-# Run service-specific tests
-python -m pytest
-
-# Run service
-python app.py
+# Run tests for specific service
+make test SERVICE=discord
 ```
 
 ### Working on Shared Library
 
 ```bash
-# Use global environment
-cd /path/to/discord-voice-lab
-source .venv/bin/activate
-
 # Edit services/common/ files
-# Cursor will provide full IntelliSense
+# Changes are reflected in running containers
+# Use make targets for testing
 ```
 
 ### Full-Stack Development
 
 ```bash
-# Use global environment
-cd /path/to/discord-voice-lab
-source .venv/bin/activate
-
-# Run all services
+# Start all services
 make run
 
-# Run tests
+# Run all tests
 make test
+
+# Run linting
+make lint
+
+# Stop services
+make stop
 ```
 
 ## 🔍 Cursor/VS Code Configuration
 
-### Multi-Root Workspace
+### Workspace Configuration
 
 The `discord-voice-lab.code-workspace` file provides:
 
-- **Separate workspace folders** for each service
-- **Service-specific Python interpreters**
-- **Proper import resolution** for each service
-- **Unified settings** across all services
+- **Proper Python path configuration** for the monorepo structure
+- **Shared settings** across all services
+- **Import resolution** for `services.common` library
 
-### Service-Specific Settings
+### Root Settings
 
-Each service has its own `.vscode/settings.json`:
+The `.vscode/settings.json` file provides:
 
 ```json
 {
-    "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.terminal.activateEnvironment": true,
     "python.analysis.extraPaths": [
-        "../common",
-        "../../services/common",
-        "../../"
+        "services/common",
+        "."
     ],
     "python.analysis.autoImportCompletions": true,
     "python.analysis.typeCheckingMode": "basic"
@@ -186,65 +168,67 @@ Each service has its own `.vscode/settings.json`:
 
 ## 🧪 Testing the Setup
 
-### Test Service Imports
+### Test Service Health
 
 ```bash
-# Test Discord service
-cd services/discord/
-source .venv/bin/activate
-PYTHONPATH="../../" python -c "import services.common.logging; import discord; print('Discord service imports working!')"
+# Start all services
+make run
 
-# Test STT service
-cd services/stt/
-source .venv/bin/activate
-PYTHONPATH="../../" python -c "import services.common.logging; import faster_whisper; print('STT service imports working!')"
+# Test service health
+curl http://localhost:8000/health/ready  # Orchestrator
+curl http://localhost:9000/health/ready  # STT
+curl http://localhost:7000/health/ready  # TTS
 ```
 
-### Test Global Environment
+### Test Development Environment
 
 ```bash
-# Test global environment
-cd /path/to/discord-voice-lab
-source .venv/bin/activate
-python -c "import services.common.logging; import fastapi; import discord; print('Global environment working!')"
+# Run tests
+make test
+
+# Run linting
+make lint
+
+# Check service logs
+make logs
 ```
 
 ## 🛠️ Troubleshooting
+
+### Service Issues
+
+If services aren't starting:
+
+1. **Check Docker**: Ensure Docker is running
+2. **Check logs**: `make logs` to see service logs
+3. **Restart services**: `make stop && make run`
 
 ### Import Errors
 
 If you get `ModuleNotFoundError: No module named 'services'`:
 
-1. **Check PYTHONPATH**: Ensure the project root is in PYTHONPATH
-2. **Verify virtual environment**: Make sure you're using the correct `.venv`
-3. **Check Cursor settings**: Ensure the Python interpreter is set correctly
-
-### Service-Specific Issues
-
-If a service can't import its dependencies:
-
-1. **Check service environment**: `source .venv/bin/activate`
-2. **Verify dependencies**: `pip list` to see installed packages
-3. **Reinstall if needed**: `pip install -r requirements.txt`
+1. **Check Python path**: Ensure the project root is in PYTHONPATH
+2. **Check workspace**: Ensure you're in the correct workspace folder
+3. **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
 
 ### Cursor/VS Code Issues
 
 If IntelliSense isn't working:
 
 1. **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
-2. **Select Python interpreter**: `Ctrl+Shift+P` → "Python: Select Interpreter"
-3. **Check workspace**: Ensure you're in the correct workspace folder
+2. **Check workspace**: Ensure you're in the correct workspace folder
+3. **Check Python path**: Verify Python path configuration
 
 ## 📋 Benefits
 
 ### ✅ Advantages
 
-- **Complete isolation** between services
-- **Service-specific dependencies** without conflicts
-- **Full IntelliSense** for each service
-- **Independent development** of services
-- **Shared library access** via `services.common`
-- **Docker compatibility** maintained
+- **Consistent environment**: All services run in Docker containers
+- **Service isolation**: Each service runs in its own container
+- **Shared utilities**: `services.common` available everywhere
+- **Easy debugging**: Service-specific containers prevent conflicts
+- **Scalable**: Easy to add new services
+- **Production parity**: Development environment matches production
 
 ### 🎯 Use Cases
 
@@ -261,19 +245,21 @@ If IntelliSense isn't working:
 **For a specific service**:
 
 ```bash
-cd services/[service-name]/
-source .venv/bin/activate
-pip install [new-package]
-pip freeze > requirements.txt
+# Add to service requirements.txt
+echo "new-package==1.0.0" >> services/[service-name]/requirements.txt
+
+# Rebuild service container
+make docker-build SERVICE=[service-name]
 ```
 
 **For shared dependencies**:
 
 ```bash
-cd /path/to/discord-voice-lab
-source .venv/bin/activate
-pip install [new-package]
-# Update requirements-base.txt
+# Add to requirements-base.txt
+echo "new-package==1.0.0" >> requirements-base.txt
+
+# Rebuild all containers
+make docker-build
 ```
 
 ### Updating Dependencies
@@ -281,17 +267,17 @@ pip install [new-package]
 **Service-specific**:
 
 ```bash
-cd services/[service-name]/
-source .venv/bin/activate
-pip install --upgrade [package]
+# Update service requirements.txt
+# Rebuild service container
+make docker-build SERVICE=[service-name]
 ```
 
 **Global**:
 
 ```bash
-cd /path/to/discord-voice-lab
-source .venv/bin/activate
-pip install --upgrade [package]
+# Update requirements-base.txt
+# Rebuild all containers
+make docker-build
 ```
 
-This setup provides the best of both worlds: complete service isolation with shared library access, optimized for the `discord-voice-lab` project architecture.
+This setup provides the best of both worlds: complete service isolation with shared library access, optimized for the `discord-voice-lab` project architecture using Docker containers.

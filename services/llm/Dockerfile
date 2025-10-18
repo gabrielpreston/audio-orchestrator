@@ -48,8 +48,8 @@ COPY services/llm /app/services/llm
 RUN mkdir -p /app/models
 
 ENV PORT=8000
-ENV LLAMA_MODEL_PATH=/app/models/llama-2-7b.Q4_K_M.gguf
-ENV LLAMA_CTX=2048
-ENV LLAMA_THREADS=4
+ENV LLM_MODEL_PATH=/app/models/llama-2-7b.Q4_K_M.gguf
+ENV LLM_CTX=2048
+ENV LLM_THREADS=4
 
 CMD ["uvicorn", "services.llm.app:app", "--host", "0.0.0.0", "--port", "8000"]

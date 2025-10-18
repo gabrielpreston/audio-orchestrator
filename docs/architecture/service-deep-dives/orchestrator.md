@@ -2,7 +2,7 @@
 title: Orchestrator Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -23,8 +23,10 @@ The orchestrator coordinates transcript processing, MCP tool calls, and response
 ## API Surface
 
 - `POST /mcp/transcript` — Handle transcript processing from Discord service.
-- `GET /health` — Container health check.
-- `GET /metrics` — Prometheus metrics when enabled.
+- `GET /mcp/tools` — List available MCP tools.
+- `GET /mcp/connections` — List active MCP connections.
+- `GET /health/live` — Liveness check for container health.
+- `GET /health/ready` — Readiness check for service availability.
 
 ## Configuration Highlights
 

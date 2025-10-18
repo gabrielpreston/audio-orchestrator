@@ -697,15 +697,20 @@ convert-recordings: ## Convert WebM test recordings to WAV format (INPUT_DIR=pat
 	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
 	python3 scripts/convert_test_recordings.py "$(INPUT_DIR)" "$(OUTPUT_DIR)" --manifest
 
+test-recorder-integration: ## Test the integrated test recorder functionality
+	@echo -e "$(COLOR_CYAN)→ Testing test recorder integration$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
+	python3 scripts/test_recorder_integration.py --base-url http://localhost:8000
+
 test-recorder: ## Open the test phrase recorder web interface
 	@echo -e "$(COLOR_CYAN)→ Opening test phrase recorder$(COLOR_OFF)"
-	@echo -e "$(COLOR_YELLOW)→ Open test-recorder.html in your web browser$(COLOR_OFF)"
+	@echo -e "$(COLOR_YELLOW)→ Opening http://localhost:8000/test-recorder in your web browser$(COLOR_OFF)"
 	@if command -v xdg-open >/dev/null 2>&1; then \
-		xdg-open test-recorder.html; \
+		xdg-open http://localhost:8000/test-recorder; \
 	elif command -v open >/dev/null 2>&1; then \
-		open test-recorder.html; \
+		open http://localhost:8000/test-recorder; \
 	else \
-		echo "Please open test-recorder.html in your web browser"; \
+		echo "Please open http://localhost:8000/test-recorder in your web browser"; \
 	fi
 
 # =============================================================================

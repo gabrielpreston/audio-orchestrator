@@ -66,7 +66,7 @@ Consult the user only when:
 
 ## 3. Project purpose & architecture
 
-`discord-voice-lab` delivers a voice-first Discord assistant composed of three Python services
+`discord-voice-lab` delivers a voice-first Discord assistant composed of five core services
 plus shared helpers:
 
 - `services/discord` (Python; `discord.py`, MCP) — Captures voice from Discord,
@@ -74,8 +74,12 @@ plus shared helpers:
   and plays orchestrator/TTS audio responses.
 - `services/stt` (Python; FastAPI, faster-whisper) — Provides HTTP transcription
   with streaming-friendly latencies for the Discord bot and other clients.
+- `services/orchestrator` (Python; FastAPI, MCP) — Coordinates transcript processing,
+  MCP tool calls, and response planning. Routes reasoning requests to LLM service.
 - `services/llm` (Python; FastAPI) — Presents an OpenAI-compatible endpoint that
-  can broker MCP tool invocations and return reasoning output to the bot.
+  can broker MCP tool invocations and return reasoning output to the orchestrator.
+- `services/tts` (Python; FastAPI, Piper) — Streams Piper-generated audio for
+  orchestrator responses with authentication and rate limits.
 - `services/common` (Python package) — Houses shared logging and HTTP utilities
   to keep service behavior consistent.
 
@@ -84,7 +88,7 @@ manifests; document and test them when introduced.
 
 ## 4. Repository layout essentials
 
-- `docker-compose.yml` orchestrates the three core services with shared environment files.
+- `docker-compose.yml` orchestrates the five core services with shared environment files.
 - `.env.sample` is the canonical source for new configuration keys; copy the relevant blocks
   into:
   - `.env.common`
@@ -150,12 +154,26 @@ manifests; document and test them when introduced.
   aligned with `.env.sample`.
 - Aim for responsive startup and streaming latencies; capture notable tuning in the docs.
 
-### Orchestrator (`services/llm`)
+### Orchestrator service (`services/orchestrator`)
+
+- Coordinate transcript processing, MCP tool calls, and response planning.
+- Route reasoning requests to the LLM service for natural language processing.
+- Manage conversation flow and response planning.
+- Coordinate with TTS service for spoken responses.
+- Provide bearer-authenticated APIs for downstream callers.
+
+### LLM service (`services/llm`)
 
 - Maintain compatibility with the OpenAI-style routes already implemented in `app.py` and document
   any schema extensions.
 - Surface MCP-driven actions carefully: validate inputs, guard credentials, and return structured
   JSON so downstream clients remain deterministic.
+
+### TTS service (`services/tts`)
+
+- Stream Piper-generated audio for orchestrator responses with authentication and rate limits.
+- Manage Piper model loading, concurrency limits, and SSML parameterization.
+- Enforce bearer authentication and per-minute rate limits to protect resources.
 
 ### Shared utilities (`services/common`)
 

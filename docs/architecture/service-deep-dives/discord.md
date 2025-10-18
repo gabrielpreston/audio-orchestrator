@@ -2,7 +2,7 @@
 title: Discord Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-17
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -53,6 +53,14 @@ stack.
   - `LOG_SAMPLE_UNKNOWN_USER_N` (default 100)
   - `LOG_RATE_LIMIT_PACKET_WARN_S` (default 10s)
 - Correlation IDs propagate across services (`X-Correlation-ID`) to trace a segment from Discord → STT → Orchestrator → LLM.
+
+## API Surface
+
+- `POST /mcp/send_message` — Send text message to Discord channel via MCP.
+- `POST /mcp/transcript` — Handle transcript notification from orchestrator.
+- `GET /mcp/tools` — List available MCP tools.
+- `GET /health/live` — Liveness check for container health.
+- `GET /health/ready` — Readiness check for service availability.
 
 ## Dependencies
 
