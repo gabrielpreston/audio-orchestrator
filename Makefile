@@ -71,17 +71,41 @@ PYTEST_ARGS ?=
 RUN_SCRIPT := scripts/run-compose.sh
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+# Helper function for tool detection with better error messages
+define check_tool
+@command -v $(1) >/dev/null 2>&1 || { \
+	echo "Error: $(1) not found" >&2; \
+	echo "  $(2)" >&2; \
+	exit 1; \
+}
+endef
+
+# Helper function for running tests with consistent pattern
+define run_tests
+$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
+@echo "→ Running $(1) tests (local)"
+@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m $(2) $(PYTEST_ARGS)
+endef
+
+# Dynamic service discovery
+SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
+VALID_SERVICES := $(shell echo "$(SERVICES)" | tr '\n' ' ')
+
+# =============================================================================
 # DEFAULT TARGETS
 # =============================================================================
 
 all: help ## Default aggregate target
 
 help: ## Show this help (default)
-	@echo -e "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)\n"
 	@echo
 	@echo "Usage: make <target>"
 	@echo
-	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST) 2>/dev/null || true
 
 .DEFAULT_GOAL := help
 
@@ -127,7 +151,14 @@ docker-build-nocache: ## Force rebuild all images without using cache
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|llm|orchestrator|tts)"; exit 1; fi
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "Set SERVICE=<service-name> ($(VALID_SERVICES))"; \
+		exit 1; \
+	fi
+	@if ! echo "$(VALID_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(VALID_SERVICES)"; \
+		exit 1; \
+	fi
 	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
@@ -142,7 +173,14 @@ docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 
 docker-shell: ## Open an interactive shell inside a running service (SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@if [ -z "$(SERVICE)" ]; then echo "Set SERVICE=<service-name> (discord|stt|llm|orchestrator)"; exit 1; fi
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "Set SERVICE=<service-name> ($(VALID_SERVICES))"; \
+		exit 1; \
+	fi
+	@if ! echo "$(VALID_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(VALID_SERVICES)"; \
+		exit 1; \
+	fi
 	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
 
 docker-config: ## Render the effective docker-compose configuration
@@ -192,29 +230,14 @@ test-image: ## Build the test toolchain container image
 	@docker build --pull --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
 
 test-local: ## Run tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest $(PYTEST_ARGS) || { \
-		status=$$?; \
-		if [ $$status -eq 5 ]; then \
-			echo "pytest reported that no tests were collected; treating this as success." >&2; \
-			exit 0; \
-		fi; \
-		exit $$status; \
-	}
+	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
+	@echo "→ Running tests with pytest"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest $(PYTEST_ARGS)
 
 # Test categories
 test-unit: test-unit-local ## Run unit tests only (fast, isolated) - local version
 test-unit-local: ## Run unit tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running unit tests (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m unit $(PYTEST_ARGS) || { \
-		status=$$?; \
-		if [ $$status -eq 5 ]; then \
-			echo "pytest reported that no tests were collected; treating this as success." >&2; \
-			exit 0; \
-		fi; \
-		exit $$status; \
-	}
+	$(call run_tests,unit,unit)
 
 test-unit-container: test-image ## Run unit tests in Docker container
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
@@ -230,16 +253,7 @@ test-unit-container: test-image ## Run unit tests in Docker container
 
 test-component: test-component-local ## Run component tests (with mocked external dependencies) - local version
 test-component-local: ## Run component tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running component tests (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m component $(PYTEST_ARGS) || { \
-		status=$$?; \
-		if [ $$status -eq 5 ]; then \
-			echo "pytest reported that no tests were collected; treating this as success." >&2; \
-			exit 0; \
-		fi; \
-		exit $$status; \
-	}
+	$(call run_tests,component,component)
 
 test-component-container: test-image ## Run component tests in Docker container
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
@@ -255,19 +269,29 @@ test-component-container: test-image ## Run component tests in Docker container
 
 test-integration: test-integration-local ## Run integration tests (requires Docker Compose) - local version
 test-integration-local: ## Run integration tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run integration tests." >&2; exit 1; }
+	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
+	$(call check_tool,docker,Install Docker to run integration tests)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@echo -e "$(COLOR_CYAN)→ Running integration tests (local)$(COLOR_OFF)"
 	@echo -e "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)"
-	@$(DOCKER_COMPOSE) up -d --build
+	@timeout 300 $(DOCKER_COMPOSE) up -d --build || { \
+		echo "Error: Services failed to start within 5 minutes" >&2; \
+		$(DOCKER_COMPOSE) down; \
+		exit 1; \
+	}
 	@echo -e "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)"
-	@sleep 10
+	@for i in $$(seq 1 30); do \
+		if $(DOCKER_COMPOSE) ps --services --filter "status=running" | grep -q "discord\|stt\|llm"; then \
+			echo "→ Services are ready"; \
+			break; \
+		fi; \
+		echo "→ Waiting... ($$i/30)"; \
+		sleep 1; \
+	done
 	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m integration $(PYTEST_ARGS) || { \
-		status=$$?; \
 		echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"; \
 		$(DOCKER_COMPOSE) down; \
-		exit $$status; \
+		exit 1; \
 	}
 	@echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"
 	@$(DOCKER_COMPOSE) down
@@ -337,20 +361,13 @@ test-e2e-container: test-image ## Run end-to-end tests in Docker container
 # Test utilities
 test-coverage: test-coverage-local ## Generate coverage report - local version
 test-coverage-local: ## Generate coverage report using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
 	@echo -e "$(COLOR_CYAN)→ Running tests with coverage (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS) || { \
-		status=$$?; \
-		if [ $$status -eq 5 ]; then \
-			echo "pytest reported that no tests were collected; treating this as success." >&2; \
-			exit 0; \
-		fi; \
-		exit $$status; \
-	}
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS)
 	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
 
 test-coverage-container: test-image ## Generate coverage report in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+	$(call check_tool,docker,Install Docker to run containerized tests)
 	@echo -e "$(COLOR_CYAN)→ Running tests with coverage (container)$(COLOR_OFF)"
 	@docker run --rm \
 		-u $$(id -u):$$(id -g) \
@@ -359,14 +376,7 @@ test-coverage-container: test-image ## Generate coverage report in Docker contai
 		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
 		-v "$(CURDIR)":$(TEST_WORKDIR) \
 		$(TEST_IMAGE) \
-		pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS) || { \
-			status=$$?; \
-			if [ $$status -eq 5 ]; then \
-				echo "pytest reported that no tests were collected; treating this as success." >&2; \
-				exit 0; \
-			fi; \
-			exit $$status; \
-		}
+		pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS)
 	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
 
 test-watch: test-watch-local ## Run tests in watch mode (requires pytest-watch) - local version
