@@ -682,6 +682,33 @@ models-clean: ## Remove downloaded models from ./services/models/
 	fi
 
 # =============================================================================
+# TEST RECORDING & CONVERSION
+# =============================================================================
+
+.PHONY: convert-recordings test-recorder
+
+convert-recordings: ## Convert WebM test recordings to WAV format (INPUT_DIR=path OUTPUT_DIR=path)
+	@if [ -z "$(INPUT_DIR)" ] || [ -z "$(OUTPUT_DIR)" ]; then \
+		echo -e "$(COLOR_RED)→ Error: INPUT_DIR and OUTPUT_DIR must be specified$(COLOR_OFF)"; \
+		echo -e "$(COLOR_YELLOW)→ Example: make convert-recordings INPUT_DIR=recordings OUTPUT_DIR=converted$(COLOR_OFF)"; \
+		exit 1; \
+	fi
+	@echo -e "$(COLOR_CYAN)→ Converting test recordings$(COLOR_OFF)"
+	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
+	python3 scripts/convert_test_recordings.py "$(INPUT_DIR)" "$(OUTPUT_DIR)" --manifest
+
+test-recorder: ## Open the test phrase recorder web interface
+	@echo -e "$(COLOR_CYAN)→ Opening test phrase recorder$(COLOR_OFF)"
+	@echo -e "$(COLOR_YELLOW)→ Open test-recorder.html in your web browser$(COLOR_OFF)"
+	@if command -v xdg-open >/dev/null 2>&1; then \
+		xdg-open test-recorder.html; \
+	elif command -v open >/dev/null 2>&1; then \
+		open test-recorder.html; \
+	else \
+		echo "Please open test-recorder.html in your web browser"; \
+	fi
+
+# =============================================================================
 # EVALUATION
 # =============================================================================
 
