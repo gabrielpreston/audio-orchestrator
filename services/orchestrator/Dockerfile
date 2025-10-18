@@ -67,12 +67,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install runtime dependencies including Go
+# Install runtime dependencies including Go and audio processing tools
 # hadolint ignore=DL3008
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     libgomp1 libopenblas-dev ca-certificates libcurl4-openssl-dev \
     curl git golang-go \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Node.js and npm from MCP builder
@@ -96,6 +97,9 @@ COPY --from=python-builder /usr/local/bin /usr/local/bin
 
 COPY services/common /app/services/common
 COPY services/orchestrator /app/services/orchestrator
+
+# Create recordings directory
+RUN mkdir -p /app/recordings
 
 # Create debug directory
 RUN mkdir -p /app/debug

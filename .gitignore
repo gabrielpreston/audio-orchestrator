@@ -30,3 +30,9 @@ htmlcov/
 test_artifacts/
 .pytest_cache/
 .cursor/commands/
+
+# Test recorder files
+recordings/
+converted/
+test_phrases_*.zip
+test_phrases_metadata_*.json
