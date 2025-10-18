@@ -116,6 +116,7 @@ warn_return_any = false
 warn_no_return = false
 warn_unreachable = false
 strict_equality = false
+disallow_any_generics = false
 
 [tool.pytest.ini_options]
 # Test discovery
