@@ -558,6 +558,7 @@ install-dev-deps: ## Install development dependencies for CI
 	@echo "→ Installing development dependencies"
 	@python -m pip install --upgrade pip
 	@pip install -r requirements-dev.txt
+	@pip install -r requirements-test.txt
 
 install-ci-tools: ## Install CI-specific tools (hadolint, checkmake, markdownlint)
 	@echo "→ Installing CI tools"
