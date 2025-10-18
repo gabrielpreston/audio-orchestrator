@@ -557,6 +557,7 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 install-dev-deps: ## Install development dependencies for CI
 	@echo "→ Installing development dependencies"
 	@python -m pip install --upgrade pip
+	@pip install -r requirements-base.txt
 	@pip install -r requirements-dev.txt
 	@pip install -r requirements-test.txt
 
