@@ -2,7 +2,7 @@
 title: Local Development Workflows
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -16,7 +16,7 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 
 | Command | Description |
 | --- | --- |
-| `make run` | Build and launch the Discord, STT, LLM, and TTS services via Docker Compose. |
+| `make run` | Build and launch the Discord, STT, Orchestrator, LLM, and TTS services via Docker Compose. |
 | `make stop` | Stop running containers without removing volumes. |
 | `make logs [SERVICE=name]` | Stream JSON logs for the entire stack or a single service. |
 | `make lint` | Run containerized linting for Python, Dockerfiles, Markdown, and YAML. |

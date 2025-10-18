@@ -2,7 +2,7 @@
 title: LLM Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -22,9 +22,8 @@ The LLM service provides OpenAI-compatible completions and reasoning capabilitie
 ## API Surface
 
 - `POST /v1/chat/completions` — Primary route used by the orchestrator service.
-- `POST /v1/completions` — Compatibility endpoint for legacy clients.
-- `GET /health` — Container health check.
-- `GET /metrics` — Prometheus metrics when enabled.
+- `GET /health/live` — Liveness check for container health.
+- `GET /health/ready` — Readiness check for service availability.
 
 ## Configuration Highlights
 

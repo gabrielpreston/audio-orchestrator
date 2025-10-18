@@ -2,7 +2,7 @@
 title: Shared Utilities
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -53,15 +53,9 @@ Unified correlation ID generation system providing:
 - **MCP Tools**: `mcp-{client_name}-{tool_name}-{source_id}`
 - **Manual**: `manual-{service}-{context}-{timestamp_ms}`
 
-### Debug Management (`debug.py`)
+### Debug Management
 
-Comprehensive debug data management system:
-
-- **Hierarchical Storage**: Organized by date (`debug/YYYY/MM/DD/correlation_id/`)
-- **Consolidated Logs**: Single `debug_log.json` per correlation ID
-- **Audio Preservation**: Separate WAV files for playback
-- **Metadata Tracking**: Complete pipeline execution context
-- **Maintenance Tools**: Archive, cleanup, and statistics utilities
+Debug management utilities are available through individual service implementations. The shared utilities focus on core functionality rather than debug-specific features.
 
 ### Configuration Library (`config.py`, `service_configs.py`)
 
@@ -94,6 +88,32 @@ HTTP client management and utilities:
 - **Authentication**: Bearer token and API key management
 - **Error Handling**: Comprehensive error response processing
 - **Connection Pooling**: Efficient connection reuse
+
+### Surface Architecture (`surfaces/`)
+
+Composable surface architecture for voice assistant integration:
+
+- **Core Interfaces**: AudioSource, AudioSink, ControlChannel, SurfaceLifecycle
+- **Discord Adapters**: Specialized implementations for Discord voice integration
+- **Registry System**: Surface registration and management
+- **Media Gateway**: Audio routing and processing
+- **Event System**: Comprehensive event handling for surface interactions
+
+**Key Components**:
+
+- **AudioSource**: Captures audio from surfaces in standardized PCM format
+- **AudioSink**: Plays audio to surfaces with format conversion
+- **ControlChannel**: Handles surface-specific control events and user interactions
+- **SurfaceLifecycle**: Manages surface connection lifecycle and health monitoring
+
+**Current Implementation**: Discord service uses specialized adapters (DiscordAudioSource, DiscordAudioSink, DiscordControlChannel, DiscordSurfaceLifecycle) that implement the core interfaces.
+
+**Future Extensions**: Multi-surface sessions, surface switching, load balancing, and failover capabilities are planned for future releases.
+
+**Related Documentation**:
+
+- [Surface Architecture Reference](../reference/surface-architecture.md) - Current implementation details
+- [Multi-Surface Architecture Proposal](../proposals/multi-surface-architecture.md) - Future extensions and advanced features
 
 ## Usage Patterns
 
@@ -133,14 +153,7 @@ correlation_id = generate_correlation_id("discord", user_id="123", guild_id="456
 
 ### Debug Management
 
-```python
-from services.common.debug import get_debug_manager
-
-# Save debug data
-debug_manager = get_debug_manager()
-debug_manager.save_audio(correlation_id, audio_data)
-debug_manager.save_metadata(correlation_id, {"transcript": "hello world"})
-```
+Debug management is handled by individual services using their own debug utilities and logging systems.
 
 ## Integration with Services
 

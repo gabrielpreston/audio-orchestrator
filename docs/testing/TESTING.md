@@ -190,16 +190,7 @@ pytest services/stt/tests/test_stt_service.py::TestSTTServiceHealth::test_health
 #### Environment Variables
 
 ```bash
-# Test environment
-export TEST_ENV=true
-
-# Service URLs for integration tests
-export STT_SERVICE_URL=http://localhost:9000
-export TTS_SERVICE_URL=http://localhost:7000
-export LLM_SERVICE_URL=http://localhost:8000
-export ORCHESTRATOR_SERVICE_URL=http://localhost:8001
-
-# Quality test thresholds
+# Quality test thresholds (used in TTS integration tests)
 export MIN_SNR=20.0
 export MAX_THD=1.0
 export MAX_LATENCY=2.0
@@ -208,30 +199,45 @@ export MAX_MEMORY=100
 
 #### Pytest Configuration
 
-```ini
-# pytest.ini
-[tool:pytest]
-markers =
-    unit: Unit tests
-    component: Component tests
-    integration: Integration tests
-    quality: Quality tests
-    slow: Slow tests
-    audio: Audio processing tests
-    performance: Performance tests
-    regression: Regression tests
+```toml
+# pyproject.toml
+[tool.pytest.ini_options]
+# Test discovery
+testpaths = ["services"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
-testpaths = services
-python_files = test_*.py
-python_classes = Test*
-python_functions = test_*
+# Test execution options
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=services",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml:coverage.xml",
+    "--cov-fail-under=25",
+    "--junitxml=junit.xml",
+    "-ra",
+    "--tb=short",
+    "--maxfail=10",
+]
 
-addopts = 
-    --strict-markers
-    --strict-config
-    --verbose
-    --tb=short
-    --maxfail=5
+# Markers for test categorization
+markers = [
+    "unit: Unit tests (fast, isolated, no external dependencies)",
+    "component: Component tests (with mocked external dependencies)",
+    "integration: Integration tests (require Docker Compose)",
+    "e2e: End-to-end tests (manual trigger only)",
+    "slow: Slow tests (>1 second execution time)",
+    "external: Tests requiring external services or network access",
+    "audio: Tests involving audio processing",
+    "discord: Tests involving Discord API",
+    "stt: Tests involving speech-to-text",
+    "tts: Tests involving text-to-speech",
+    "llm: Tests involving language model",
+    "orchestrator: Tests involving orchestration logic",
+]
 ```
 
 ### Test Data

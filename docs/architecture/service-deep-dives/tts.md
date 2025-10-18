@@ -2,7 +2,7 @@
 title: TTS Service Deep Dive
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -18,6 +18,14 @@ The TTS service streams Piper-generated audio in response to orchestrator reques
 - Manage Piper model loading, concurrency limits, and SSML parameterization.
 - Provide `/voices`, `/health`, and `/metrics` endpoints for discovery and monitoring.
 - Enforce bearer authentication and per-minute rate limits to protect resources.
+
+## API Surface
+
+- `POST /synthesize` — Main synthesis endpoint for text-to-speech conversion.
+- `GET /voices` — List available voice options.
+- `GET /health/live` — Liveness check for container health.
+- `GET /health/ready` — Readiness check for service availability.
+- `GET /metrics` — Prometheus metrics when enabled.
 
 ## Configuration Highlights
 

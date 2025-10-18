@@ -6,7 +6,26 @@ last-updated: 2025-10-17
 
 # Audio Quality Thresholds
 
+> **Note**: The thresholds documented in this file are primarily used in test assertions and quality validation, not as runtime environment variables. Only `MAX_TTS_LATENCY` is actively used in TTS integration tests. Other thresholds serve as documentation of quality expectations and test baselines.
+
 This document defines the quality thresholds and benchmarks for the discord-voice-lab audio pipeline.
+
+## Configuration vs. Test Thresholds
+
+### Runtime Configuration
+
+These environment variables control actual service behavior:
+
+- `STT_TIMEOUT`, `TTS_MAX_CONCURRENCY`, `AUDIO_SILENCE_TIMEOUT`, etc.
+- Found in `.env.sample` and service `.env.service` files
+
+### Test Quality Thresholds
+
+These values are used in test assertions to validate quality:
+
+- `MIN_SNR`, `MAX_THD`, `MAX_E2E_LATENCY`, etc.
+- Hardcoded in test files, not configurable via environment
+- Document expected quality levels for the audio pipeline
 
 ## Audio Quality Metrics
 
@@ -15,28 +34,28 @@ This document defines the quality thresholds and benchmarks for the discord-voic
 - **Minimum**: 20dB for clean audio
 - **Acceptable**: 10dB for noisy audio
 - **Measurement**: `calculate_snr()` function
-- **Threshold**: `MIN_SNR=20.0`
+- **Threshold**: `MIN_SNR=20.0` (test assertion value, not environment variable)
 
 ### Total Harmonic Distortion (THD)
 
 - **Maximum**: 1% for normal amplitude
 - **Acceptable**: 2% for high amplitude
 - **Measurement**: `calculate_thd()` function
-- **Threshold**: `MAX_THD=1.0`
+- **Threshold**: `MAX_THD=1.0` (test assertion value, not environment variable)
 
 ### Frequency Response
 
 - **Voice Range**: 300Hz-3400Hz ratio > 0.8
 - **Aliasing**: < 10% aliasing ratio
 - **Measurement**: `measure_frequency_response()` function
-- **Threshold**: `VOICE_RANGE_RATIO=0.8`, `MAX_ALIASING=0.1`
+- **Note**: These thresholds are documented but not currently implemented as environment variables
 
 ### Audio Fidelity
 
 - **Correlation**: > 0.9 for processed audio
 - **MSE**: < 0.1 for normalized audio
 - **Measurement**: `validate_audio_fidelity()` function
-- **Threshold**: `MIN_CORRELATION=0.9`, `MAX_MSE=0.1`
+- **Note**: These thresholds are documented but not currently implemented as environment variables
 
 ## Performance Metrics
 
@@ -48,6 +67,7 @@ This document defines the quality thresholds and benchmarks for the discord-voic
 - **Wake Detection**: < 200ms
 - **Measurement**: Time-based measurements
 - **Threshold**: `MAX_E2E_LATENCY=2.0`, `MAX_STT_LATENCY=0.3`, `MAX_TTS_LATENCY=1.0`, `MAX_WAKE_LATENCY=0.2`
+- **Note**: Only `MAX_TTS_LATENCY` is currently used in TTS integration tests; others are test assertion values
 
 ### Throughput Thresholds
 
