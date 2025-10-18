@@ -2,7 +2,7 @@
 title: Proposal Index
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-11
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -23,6 +23,7 @@ Track design discussions and decisions across the voice lab.
 
 | Title | Status | Last Updated |
 | --- | --- | --- |
+| [Multi-Surface Architecture Proposal](multi-surface-architecture.md) | draft | 2025-10-18 |
 | [Monday.com State Ledger and Capability Registry Plan](phase04-monday-state-ledger-capability-registry-plan.md) | draft | 2025-10-11 |
 | [Structured Intent, Memory, and Confirmation Safeguards Plan](phase03-structured-intent-memory-confirmation-plan.md) | draft | 2025-10-11 |
 | [MCP Tooling Wave 1 Enablement Plan](phase02-mcp-tooling-wave1-plan.md) | draft | 2025-10-11 |

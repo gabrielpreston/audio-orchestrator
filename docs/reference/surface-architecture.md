@@ -1,34 +1,19 @@
 ---
-last-updated: 2025-10-16
+title: Surface Architecture Reference
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-18
 ---
 
-# Composable Surface Architecture - Integration Specification
+# Surface Architecture Reference
 
 ## Overview
 
-The Composable Surface Architecture provides a flexible, extensible framework for voice assistant integration across multiple platforms. This specification defines the interfaces, protocols, and integration patterns for implementing surface adapters.
-
-## Architecture Principles
-
-### 1. **Composability**
-
-- Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
-- Each component can be implemented independently and swapped without affecting others
-- Components communicate through well-defined interfaces
-
-### 2. **Extensibility**
-
-- New surface types can be added by implementing the four core interfaces
-- Existing surfaces can be enhanced without breaking changes
-- Plugin architecture supports third-party surface implementations
-
-### 3. **Consistency**
-
-- All surfaces provide consistent behavior through standardized interfaces
-- Common patterns for error handling, configuration, and lifecycle management
-- Unified event system across all surface types
+This document describes the current implementation of the Composable Surface Architecture in the Discord Voice Lab project. The architecture provides a flexible, extensible framework for voice assistant integration across multiple platforms through standardized interfaces.
 
 ## Core Interfaces
+
+The architecture is built around four core interfaces that define the contract for surface adapters:
 
 ### AudioSource Interface
 
@@ -158,7 +143,7 @@ class AudioFormat:
 
 **Purpose:** Describes audio format requirements and capabilities.
 
-### Event System
+## Event System
 
 The architecture uses a comprehensive event system for communication:
 
@@ -174,86 +159,66 @@ The architecture uses a comprehensive event system for communication:
 - **TranscriptFinalEvent**: Final transcript results
 - **ErrorEvent**: Error reporting
 
-## Integration Patterns
+## Discord Implementation
 
-### 1. **Surface Registration**
+The Discord service implements the Composable Surface Architecture through specialized adapters:
+
+### DiscordAudioSource
+
+Implements the `AudioSource` interface for Discord voice capture, handling:
+- Discord voice channel audio capture
+- Audio format conversion to PCM
+- Voice activity detection integration
+- Audio quality metrics
+
+### DiscordAudioSink
+
+Implements the `AudioSink` interface for Discord audio playback, handling:
+- Discord voice channel audio playback
+- Audio format conversion from PCM
+- Playback timing and synchronization
+- Playback quality metrics
+
+### DiscordControlChannel
+
+Implements the `ControlChannel` interface for Discord control events, handling:
+- Discord message events
+- Voice state changes
+- User interaction events
+- MCP tool integration
+
+### DiscordSurfaceLifecycle
+
+Implements the `SurfaceLifecycle` interface for Discord connection management, handling:
+- Discord bot connection lifecycle
+- Authentication and permissions
+- Connection health monitoring
+- Session management
+
+## Registry System
+
+The surface registry manages available surface adapters and their configurations:
 
 ```python
 # Register a new surface
 registry = SurfaceRegistry()
 registry.register_surface("discord", DiscordSurfaceAdapter())
-registry.register_surface("webrtc", WebRTCSurfaceAdapter())
 ```
 
-### 2. **Adapter Composition**
+## Media Gateway
 
-```python
-# Compose surface adapters
-surface = SurfaceAdapter(
-    audio_source=DiscordAudioSource(),
-    audio_sink=DiscordAudioSink(),
-    control_channel=DiscordControlChannel(),
-    surface_lifecycle=DiscordSurfaceLifecycle()
-)
-```
+The media gateway handles audio routing and processing between surfaces and the voice pipeline:
 
-### 3. **Event Routing**
-
-```python
-# Route events between components
-control_channel.register_event_handler("wake_detected", handle_wake_word)
-audio_source.register_frame_handler(process_audio_frame)
-```
-
-### 4. **Lifecycle Management**
-
-```python
-# Manage surface lifecycle
-await surface_lifecycle.connect()
-await audio_source.initialize()
-await audio_sink.initialize()
-await control_channel.initialize()
-```
+- Audio frame routing
+- Format conversion
+- Quality monitoring
+- Performance metrics
 
 ## Configuration
 
-### Environment Variables
+The Composable Surface Architecture interfaces are implemented in `services/common/surfaces/interfaces.py` and are used by the Discord service through the `DiscordAudioSource` and `DiscordAudioSink` adapters. These interfaces are not controlled by environment variables but are implemented as part of the service architecture.
 
-```bash
-# Surface configuration
-SURFACE_TYPE=discord
-SURFACE_ID=voice_channel_123
-SURFACE_CONFIG_PATH=/config/surfaces/
-
-# Audio configuration
-AUDIO_SAMPLE_RATE=16000
-AUDIO_CHANNELS=1
-AUDIO_BIT_DEPTH=16
-
-# Performance configuration
-AUDIO_BUFFER_SIZE=1024
-AUDIO_LATENCY_TARGET_MS=50
-```
-
-### Surface Configuration
-
-```yaml
-surfaces:
-  discord:
-    type: discord
-    guild_id: "123456789"
-    channel_id: "987654321"
-    audio:
-      sample_rate: 16000
-      channels: 1
-      bit_depth: 16
-    control:
-      wake_words: ["hey assistant", "ok assistant"]
-      barge_in_enabled: true
-    lifecycle:
-      auto_reconnect: true
-      health_check_interval: 30
-```
+**Note**: This document describes the interface specifications for the Composable Surface Architecture. The actual implementation is integrated into the Discord service without requiring special environment variables.
 
 ## Error Handling
 
@@ -319,93 +284,15 @@ Reliability testing includes:
 - Rapid connect/disconnect cycles
 - Concurrent operation stress tests
 
-## Migration Guide
+## Implementation Files
 
-### From Monolithic to Composable
+- **Core Interfaces**: `services/common/surfaces/interfaces.py`
+- **Discord Adapters**: `services/discord/adapters/`
+- **Registry System**: `services/common/surfaces/registry.py`
+- **Media Gateway**: `services/common/surfaces/gateway.py`
+- **Event System**: `services/common/surfaces/events.py`
 
-1. **Identify Surface Components**: Break down existing surface code into the four core interfaces
-2. **Implement Adapters**: Create adapter classes for each interface
-3. **Update Integration**: Replace direct surface calls with adapter calls
-4. **Test Migration**: Run contract and parity tests to validate migration
+## Related Documentation
 
-### Backward Compatibility
-
-- Existing surface implementations continue to work
-- Gradual migration path with feature flags
-- Compatibility layer for legacy interfaces
-
-## Security Considerations
-
-### Authentication
-
-- Surface-specific authentication mechanisms
-- Token-based authentication for API surfaces
-- Certificate-based authentication for secure connections
-
-### Data Privacy
-
-- Audio data encryption in transit
-- No persistent audio storage
-- Secure event transmission
-
-### Access Control
-
-- Surface-level permissions
-- User-based access control
-- Session-based authorization
-
-## Monitoring and Observability
-
-### Health Monitoring
-
-- Connection status monitoring
-- Performance metrics collection
-- Error rate tracking
-- Latency monitoring
-
-### Debugging Support
-
-- Detailed logging with correlation IDs
-- Event tracing across components
-- Performance profiling
-- Error diagnostics
-
-## Future Extensions
-
-### Planned Surface Types
-
-- **WebRTC/LiveKit**: Real-time communication surfaces
-- **Mobile SDK**: Native mobile app integration
-- **IoT Devices**: Smart home device integration
-- **Telephony**: Phone system integration
-
-### Advanced Features
-
-- **Multi-Surface Sessions**: Simultaneous multiple surface connections
-- **Surface Switching**: Dynamic surface switching during sessions
-- **Load Balancing**: Distribution across multiple surface instances
-- **Failover**: Automatic failover between surface instances
-
-## Implementation Checklist
-
-### For New Surface Implementations
-
-- [ ] Implement all four core interfaces
-- [ ] Add comprehensive error handling
-- [ ] Include performance optimizations
-- [ ] Write contract tests
-- [ ] Add parity test coverage
-- [ ] Document surface-specific configuration
-- [ ] Implement security measures
-- [ ] Add monitoring and logging
-
-### For Integration
-
-- [ ] Register surface in surface registry
-- [ ] Configure environment variables
-- [ ] Set up event routing
-- [ ] Implement lifecycle management
-- [ ] Add health monitoring
-- [ ] Test end-to-end functionality
-- [ ] Validate performance requirements
-- [ ] Document integration steps
+- [Shared Utilities](../architecture/shared-utilities.md) - Overview of shared utilities including surface architecture
+- [Multi-Surface Architecture Proposal](../proposals/multi-surface-architecture.md) - Future extensions and advanced features

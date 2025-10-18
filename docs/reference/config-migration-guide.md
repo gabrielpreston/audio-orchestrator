@@ -10,7 +10,17 @@ last-updated: 2025-10-18
 
 # Configuration Migration Guide
 
-This guide shows how to migrate each service from the current configuration management approach to the new common configuration library.
+This guide documents the migration of all services to the new common configuration library. **All services have already been migrated.**
+
+## Migration Status
+
+✅ **ALL SERVICES MIGRATED** - All services now use the new configuration library:
+
+- **Discord Service**: ✅ Migrated
+- **STT Service**: ✅ Migrated  
+- **LLM Service**: ✅ Migrated
+- **Orchestrator Service**: ✅ Migrated
+- **TTS Service**: ✅ Migrated
 
 ## Overview
 
@@ -24,41 +34,14 @@ The new configuration library provides:
 
 ## Discord Service Migration
 
-### Current Approach
+### Current State
+
+The Discord service is already using the new configuration library:
 
 ```python
 # services/discord/config.py
-@dataclass(slots=True)
-class DiscordConfig:
-    token: str
-    guild_id: int
-    voice_channel_id: int
-    intents: List[str] = field(default_factory=lambda: ["guilds", "voice_states", "guild_messages"])
-    auto_join: bool = False
-    # ... more fields
-
 def load_config() -> BotConfig:
-    # 100+ lines of manual environment variable parsing
-    discord = DiscordConfig(
-        token=_require_env("DISCORD_BOT_TOKEN"),
-        guild_id=_get_int("DISCORD_GUILD_ID"),
-        voice_channel_id=_get_int("DISCORD_VOICE_CHANNEL_ID"),
-        # ... more parsing
-    )
-    # ... more sections
-    return BotConfig(discord=discord, audio=audio, stt=stt, wake=wake, mcp=mcp, telemetry=telemetry)
-```
-
-### New Approach
-
-```python
-# services/discord/config.py
-from services.common.config import ConfigBuilder, Environment
-from services.common.service_configs import (
-    DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig, TelemetryConfig
-)
-
-def load_config():
+    """Load Discord configuration via shared configuration library."""
     return (
         ConfigBuilder.for_service("discord", Environment.DOCKER)
         .add_config("discord", DiscordConfig)
@@ -67,9 +50,22 @@ def load_config():
         .add_config("wake", WakeConfig)
         .add_config("mcp", MCPConfig)
         .add_config("telemetry", TelemetryConfig)
+        .add_config("orchestrator", OrchestratorClientConfig)
+        .add_config("runtime", DiscordRuntimeConfig)
         .load()
     )
 ```
+
+### Migration Status
+
+✅ **COMPLETED** - The Discord service has already been migrated to use the new configuration library.
+
+**Benefits achieved**:
+- Type-safe configuration with full validation
+- Consistent patterns with other services
+- Automatic environment variable loading
+- Comprehensive error handling
+- Self-documenting configuration
 
 ### Usage Changes
 

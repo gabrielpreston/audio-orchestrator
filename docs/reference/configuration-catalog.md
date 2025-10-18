@@ -2,7 +2,7 @@
 title: Configuration Catalog
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -24,6 +24,22 @@ Update this file whenever you add, rename, or remove configuration keys.
 | --- | --- | --- |
 | `LOG_LEVEL` | Global logging verbosity (`debug`, `info`, `warning`). | `info` |
 | `LOG_JSON` | Emit JSON-formatted logs when `true`. | `true` |
+| `LOG_SAMPLE_VAD_N` | Sample high-frequency VAD events to reduce log volume. | `50` |
+| `LOG_SAMPLE_UNKNOWN_USER_N` | Sample unknown user events to reduce log volume. | `100` |
+| `LOG_RATE_LIMIT_PACKET_WARN_S` | Rate limit for packet warning logs (seconds). | `10` |
+| `LOG_SAMPLE_SEGMENT_READY_RATE` | Sample rate for segment ready events. | *(empty)* |
+| `LOG_SAMPLE_SEGMENT_READY_N` | Sample count for segment ready events. | *(empty)* |
+| `DISCORD_WARMUP_AUDIO` | Enable Discord audio warm-up. | `true` |
+| `STT_WARMUP` | Enable STT service warm-up. | `true` |
+| `DISCORD_FULL_BOT` | Enable full Discord bot mode. | `false` |
+| `DISCORD_HTTP_MODE` | Enable Discord HTTP mode. | `false` |
+| `DISCORD_MCP_MODE` | Enable Discord MCP mode. | `false` |
+| `ORCH_TIMEOUT` | Orchestrator client timeout (seconds). | `30` |
+| `LLM_MAX_TOKENS` | Maximum tokens for LLM generation. | `128` |
+| `LLM_TEMPERATURE` | LLM temperature setting. | `0.7` |
+| `LLM_TOP_P` | LLM top-p setting. | `0.9` |
+| `LLM_TOP_K` | LLM top-k setting. | `40` |
+| `LLM_REPEAT_PENALTY` | LLM repeat penalty setting. | `1.1` |
 
 ## Docker Overrides (`.env.docker`)
 
@@ -70,6 +86,8 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `MCP_HEARTBEAT_INTERVAL` | Seconds between MCP heartbeat pings. | `30` |
 | `METRICS_PORT` | Optional port for Prometheus metrics. | *(empty)* |
 | `WAVEFORM_DEBUG_DIR` | Directory for debugging waveform artifacts. | *(empty)* |
+| `ORCHESTRATOR_WAKE_PHRASES` | Orchestrator-specific wake phrases. | *(empty)* |
+| `ORCHESTRATOR_URL` | Orchestrator service URL. | `http://orchestrator:8000` |
 
 ## STT Service (`services/stt/.env.service`)
 
@@ -79,7 +97,7 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `FW_DEVICE` | Execution target (`cpu`, `cuda`). | `cpu` |
 | `FW_COMPUTE_TYPE` | Precision trade-off for inference. | `int8` |
 
-## LLM Orchestrator (`services/llm/.env.service`)
+## LLM Service (`services/llm/.env.service`)
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -87,11 +105,23 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `LLAMA_MODEL_PATH` | GGUF model path. | `/app/models/llama-2-7b.Q4_K_M.gguf` |
 | `LLAMA_CTX` | Context window size. | `2048` |
 | `LLAMA_THREADS` | Number of CPU threads to use. | `4` |
-| `ORCH_AUTH_TOKEN` | Bearer token for orchestrator APIs. | `changeme` |
+| `LLM_AUTH_TOKEN` | Bearer token for LLM service authentication. | `changeme` |
 | `PORT` | HTTP listen port. | `8000` |
 | `TTS_BASE_URL` | Downstream TTS endpoint. | `http://tts:7000` |
 | `TTS_VOICE` | Default voice identifier. | *(empty)* |
 | `TTS_TIMEOUT` | Timeout for TTS requests (seconds). | `30` |
+
+## Orchestrator Service (`services/orchestrator/.env.service`)
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | HTTP listen port. | `8000` |
+| `LLM_BASE_URL` | LLM service URL. | `http://llm:8000` |
+| `LLM_AUTH_TOKEN` | Bearer token for LLM service authentication. | `changeme` |
+| `TTS_BASE_URL` | TTS service URL. | `http://tts:7000` |
+| `TTS_AUTH_TOKEN` | Bearer token for TTS service authentication. | `changeme` |
+| `MCP_CONFIG_PATH` | MCP manifest configuration path. | `./mcp.json` |
+| `ORCHESTRATOR_DEBUG_SAVE` | Enable debug data collection. | `false` |
 
 ## TTS Service (`services/tts/.env.service`)
 
