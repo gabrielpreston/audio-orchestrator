@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import struct
 from typing import Any
 
 import httpx
 
 from services.common.logging import get_logger
+from services.common.service_configs import LLMClientConfig, TTSClientConfig
 
 from .mcp_manager import MCPManager
 
@@ -22,19 +22,19 @@ class Orchestrator:
     def __init__(
         self,
         mcp_manager: MCPManager,
-        llm_base_url: str | None = None,
-        tts_base_url: str | None = None,
+        llm_config: LLMClientConfig,
+        tts_config: TTSClientConfig,
     ):
         self.mcp_manager = mcp_manager
-        self.llm_base_url = llm_base_url
-        self.tts_base_url = tts_base_url
+        self.llm_config = llm_config
+        self.tts_config = tts_config
         self._logger = get_logger(__name__, service_name="orchestrator")
         self._http_client: httpx.AsyncClient | None = None
         self._available_tools: dict[str, list[dict[str, Any]]] = {}
 
     async def initialize(self) -> None:
         """Initialize the orchestrator."""
-        if self.tts_base_url or self.llm_base_url:
+        if self.tts_config.base_url or self.llm_config.base_url:
             self._http_client = httpx.AsyncClient(timeout=60.0)
 
         # Load available tools from all MCP clients
@@ -253,12 +253,12 @@ class Orchestrator:
                 "orchestrator.response_generated",
                 response_length=len(response) if response else 0,
                 response_preview=response[:100] if response else "None",
-                tts_base_url=self.tts_base_url,
+                tts_base_url=self.tts_config.base_url,
                 correlation_id=correlation_id,
             )
 
             # Synthesize and play audio if TTS is available
-            if self.tts_base_url and response:
+            if self.tts_config.base_url and response:
                 self._logger.info(
                     "orchestrator.calling_tts",
                     correlation_id=correlation_id,
@@ -267,7 +267,7 @@ class Orchestrator:
             else:
                 self._logger.warning(
                     "orchestrator.tts_skipped",
-                    tts_base_url=self.tts_base_url,
+                    tts_base_url=self.tts_config.base_url,
                     has_response=bool(response),
                     correlation_id=correlation_id,
                 )
@@ -281,7 +281,7 @@ class Orchestrator:
 
     async def _generate_response(self, transcript: str) -> str:
         """Generate a response using LLM service via HTTP."""
-        if not self.llm_base_url or not self._http_client:
+        if not self.llm_config.base_url or not self._http_client:
             self._logger.warning("orchestrator.llm_unavailable")
             return "I'm sorry, but the language model is currently unavailable."
 
@@ -299,22 +299,20 @@ class Orchestrator:
 
         try:
             # Call LLM service
-            llm_auth_token = os.getenv("LLM_AUTH_TOKEN")
             headers = {}
-            if llm_auth_token:
-                headers["Authorization"] = f"Bearer {llm_auth_token}"
+            if self.llm_config.auth_token:
+                headers["Authorization"] = f"Bearer {self.llm_config.auth_token}"
 
             response = await self._http_client.post(
-                f"{self.llm_base_url}/v1/chat/completions",
+                f"{self.llm_config.base_url}/v1/chat/completions",
                 json={
                     "model": "local-llama",
                     "messages": messages,
-                    # Reduce completion size to improve latency; overridable by LLM service
-                    "max_tokens": int(os.getenv("LLM_MAX_TOKENS", "128")),
-                    # Provide basic sampling knobs when supported by the LLM service
-                    "temperature": float(os.getenv("LLM_TEMPERATURE", "0.7")),
-                    "top_p": float(os.getenv("LLM_TOP_P", "0.9")),
-                    "repeat_penalty": float(os.getenv("LLM_REPEAT_PENALTY", "1.1")),
+                    # Use config parameters for LLM request
+                    "max_tokens": self.llm_config.max_tokens,
+                    "temperature": self.llm_config.temperature,
+                    "top_p": self.llm_config.top_p,
+                    "repeat_penalty": self.llm_config.repeat_penalty,
                 },
                 headers=headers,
                 timeout=60.0,
@@ -363,12 +361,12 @@ class Orchestrator:
 
     async def _synthesize_and_play(self, text: str, context: dict[str, Any]) -> None:
         """Synthesize text to speech and play it in Discord."""
-        if not self._http_client or not self.tts_base_url:
+        if not self._http_client or not self.tts_config.base_url:
             return
 
         try:
-            # Get TTS auth token from environment
-            tts_auth_token = os.getenv("TTS_AUTH_TOKEN")
+            # Get TTS auth token from config
+            tts_auth_token = self.tts_config.auth_token
             headers = {}
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
@@ -380,7 +378,7 @@ class Orchestrator:
 
             # Call TTS service
             response = await self._http_client.post(
-                f"{self.tts_base_url}/synthesize",
+                f"{self.tts_config.base_url}/synthesize",
                 json={
                     "text": text,
                     "voice": "default",

@@ -39,7 +39,6 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "F",   # pyflakes
-    "I",   # isort
     "B",   # flake8-bugbear
     "C4",  # flake8-comprehensions
     "UP",  # pyupgrade
@@ -69,6 +68,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["services"]
+force-single-line = false
+force-sort-within-sections = true
 
 [tool.mypy]
 python_version = "3.11"

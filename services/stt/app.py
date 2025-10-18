@@ -10,26 +10,39 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    FasterWhisperConfig,
+    HttpConfig,
+    LoggingConfig,
+    TelemetryConfig,
+)
 
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
-MODEL_NAME = os.environ.get("FW_MODEL", "small")
-MODEL_PATH = os.environ.get("FW_MODEL_PATH", "/app/models")
+# Centralized configuration
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("stt", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("faster_whisper", FasterWhisperConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
+
+MODEL_NAME = _cfg.faster_whisper.model  # type: ignore[attr-defined]
+MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[attr-defined]
 # Module-level cached model to avoid repeated loads
 _model: Any = None
 # Health manager for service resilience
 _health_manager = HealthManager("stt")
 
 
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
-
-
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=_env_bool("LOG_JSON", "true"),
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="stt",
 )
 logger = get_logger(__name__, service_name="stt")
@@ -44,7 +57,8 @@ async def _warm_model() -> None:
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
         _health_manager.mark_startup_complete()  # Mark as ready
         # Optional warm-up inference to avoid first-request latency
-        if _env_bool("STT_WARMUP", "true"):
+        warmup = _cfg.telemetry.stt_warmup  # type: ignore[attr-defined]
+        if warmup:
             import tempfile
             import time as _time
 
@@ -128,9 +142,8 @@ def _lazy_load_model() -> Any:
         logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
         return _model
 
-    device = os.environ.get("FW_DEVICE", "cpu")
-    compute_type = os.environ.get("FW_COMPUTE_TYPE")
-
+    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]  # type: ignore[attr-defined]
+    compute_type = _cfg.faster_whisper.compute_type  # type: ignore[attr-defined]
     # Check if we have a local model directory
     local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
     model_path_or_name = (
@@ -218,8 +231,7 @@ async def _transcribe_request(
         channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
     model = _lazy_load_model()
-    device = os.environ.get("FW_DEVICE", "cpu")
-
+    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
 
@@ -505,7 +517,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
 
     # Sample noisy request logs to reduce verbosity in production
     try:
-        sample_n = int(os.getenv("LOG_SAMPLE_STT_REQUEST_N", "25"))
+        sample_n = _cfg.telemetry.log_sample_stt_request_n or 25  # type: ignore[attr-defined]
     except Exception:
         sample_n = 25
     from services.common.logging import should_sample

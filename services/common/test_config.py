@@ -3,7 +3,15 @@
 import os
 from unittest import TestCase, mock
 
-import pytest
+try:
+    import pytest
+except ImportError:  # pragma: no cover - fallback for static analysis environments
+
+    class _PytestDummy:
+        def __getattr__(self, name):
+            return lambda x: x
+
+    pytest = _PytestDummy()
 
 from .config import (
     BaseConfig,
@@ -21,7 +29,18 @@ from .config import (
     validate_positive,
     validate_url,
 )
-from .service_configs import AudioConfig, DiscordConfig, HttpConfig, LoggingConfig
+from .service_configs import (
+    AudioConfig,
+    DiscordConfig,
+    DiscordRuntimeConfig,
+    HttpConfig,
+    LLMClientConfig,
+    LLMServiceConfig,
+    LoggingConfig,
+    OrchestratorClientConfig,
+    TelemetryConfig,
+    TTSClientConfig,
+)
 
 
 class TestFieldDefinition(TestCase):
@@ -255,24 +274,39 @@ class TestEnvironmentLoader(TestCase):
 
     @pytest.mark.unit
     def test_convert_value(self):
-        """Test value conversion."""
-        # Test string conversion
-        self.assertEqual(self.loader._convert_value("test", str), "test")
-
-        # Test int conversion
-        self.assertEqual(self.loader._convert_value("42", int), 42)
-
-        # Test float conversion
-        self.assertEqual(self.loader._convert_value("3.14", float), 3.14)
-
-        # Test bool conversion
-        self.assertTrue(self.loader._convert_value("true", bool))
-        self.assertTrue(self.loader._convert_value("1", bool))
-        self.assertFalse(self.loader._convert_value("false", bool))
-        self.assertFalse(self.loader._convert_value("0", bool))
-
-        # Test list conversion
-        self.assertEqual(self.loader._convert_value("a,b,c", list), ["a", "b", "c"])
+        """Test value conversion via load_field (public API)."""
+        # string
+        field = FieldDefinition(name="str_f", field_type=str, default="test")
+        self.assertEqual(self.loader.load_field(field), "test")
+        # int
+        with mock.patch.dict(os.environ, {"TEST_INT": "42"}):
+            field = FieldDefinition(
+                name="int", field_type=int, default=0, env_var="TEST_INT"
+            )
+            self.assertEqual(self.loader.load_field(field), 42)
+        # float
+        with mock.patch.dict(os.environ, {"TEST_FLOAT": "3.14"}):
+            field = FieldDefinition(
+                name="flt", field_type=float, default=0.0, env_var="TEST_FLOAT"
+            )
+            self.assertEqual(self.loader.load_field(field), 3.14)
+        # bool
+        with mock.patch.dict(os.environ, {"TEST_BOOL": "true"}):
+            field = FieldDefinition(
+                name="b", field_type=bool, default=False, env_var="TEST_BOOL"
+            )
+            self.assertTrue(self.loader.load_field(field))
+        with mock.patch.dict(os.environ, {"TEST_BOOL": "0"}):
+            field = FieldDefinition(
+                name="b", field_type=bool, default=True, env_var="TEST_BOOL"
+            )
+            self.assertFalse(self.loader.load_field(field))
+        # list
+        with mock.patch.dict(os.environ, {"TEST_LIST": "a,b,c"}):
+            field = FieldDefinition(
+                name="l", field_type=list, default=[], env_var="TEST_LIST"
+            )
+            self.assertEqual(self.loader.load_field(field), ["a", "b", "c"])
 
     @pytest.mark.unit
     def test_load_config(self):
@@ -315,8 +349,8 @@ class TestConfigBuilder(TestCase):
         builder = ConfigBuilder.for_service("test", Environment.DEVELOPMENT)
         builder.add_config("logging", LoggingConfig)
 
-        self.assertIn("logging", builder._configs)
-        self.assertIsInstance(builder._configs["logging"], LoggingConfig)
+        self.assertIn("logging", builder.load().configs)
+        self.assertIsInstance(builder.load().configs["logging"], LoggingConfig)
 
     @pytest.mark.unit
     def test_load(self):
@@ -456,6 +490,103 @@ class TestServiceConfigs(TestCase):
         self.assertEqual(config.level, "INFO")
         self.assertTrue(config.json_logs)
         self.assertIsNone(config.service_name)
+
+    @pytest.mark.unit
+    def test_telemetry_config_extended_fields(self):
+        """Test TelemetryConfig with sampling and warmup fields."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "LOG_LEVEL": "DEBUG",
+                "LOG_JSON": "false",
+                "LOG_SAMPLE_VAD_N": "25",
+                "LOG_SAMPLE_UNKNOWN_USER_N": "100",
+                "LOG_RATE_LIMIT_PACKET_WARN_S": "10",
+                "LOG_SAMPLE_SEGMENT_READY_RATE": "0.5",
+                "LOG_SAMPLE_SEGMENT_READY_N": "200",
+                "DISCORD_WARMUP_AUDIO": "true",
+                "STT_WARMUP": "false",
+            },
+        ):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(TelemetryConfig)
+            self.assertEqual(cfg.log_level, "DEBUG")
+            self.assertFalse(cfg.log_json)
+            self.assertEqual(cfg.log_sample_vad_n, 25)
+            self.assertEqual(cfg.log_sample_unknown_user_n, 100)
+            self.assertEqual(cfg.log_rate_limit_packet_warn_s, 10)
+            self.assertAlmostEqual(cfg.log_sample_segment_ready_rate or 0.0, 0.5)
+            self.assertEqual(cfg.log_sample_segment_ready_n, 200)
+            self.assertTrue(cfg.discord_warmup_audio)
+            self.assertFalse(cfg.stt_warmup)
+
+    @pytest.mark.unit
+    def test_llm_service_config(self):
+        """Test LLMServiceConfig env mapping."""
+        with mock.patch.dict(os.environ, {"PORT": "8080", "LLM_AUTH_TOKEN": "abc"}):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(LLMServiceConfig)
+            self.assertEqual(cfg.port, 8080)
+            self.assertEqual(cfg.auth_token, "abc")
+
+    @pytest.mark.unit
+    def test_llm_client_config(self):
+        """Test LLMClientConfig env mapping."""
+        with mock.patch.dict(
+            os.environ, {"LLM_BASE_URL": "http://llm:8000", "LLM_AUTH_TOKEN": "xyz"}
+        ):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(LLMClientConfig)
+            self.assertEqual(cfg.base_url, "http://llm:8000")
+            self.assertEqual(cfg.auth_token, "xyz")
+
+    @pytest.mark.unit
+    def test_tts_client_config(self):
+        """Test TTSClientConfig env mapping."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "TTS_BASE_URL": "http://tts:7000",
+                "TTS_VOICE": "default",
+                "TTS_TIMEOUT": "45",
+                "TTS_AUTH_TOKEN": "tok",
+            },
+        ):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(TTSClientConfig)
+            self.assertEqual(cfg.base_url, "http://tts:7000")
+            self.assertEqual(cfg.voice, "default")
+            self.assertEqual(cfg.timeout, 45.0)
+            self.assertEqual(cfg.auth_token, "tok")
+
+    @pytest.mark.unit
+    def test_orchestrator_client_config(self):
+        """Test OrchestratorClientConfig env mapping."""
+        with mock.patch.dict(
+            os.environ,
+            {"ORCHESTRATOR_URL": "http://orchestrator:8000", "ORCH_TIMEOUT": "15"},
+        ):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(OrchestratorClientConfig)
+            self.assertEqual(cfg.base_url, "http://orchestrator:8000")
+            self.assertEqual(cfg.timeout, 15.0)
+
+    @pytest.mark.unit
+    def test_discord_runtime_config(self):
+        """Test DiscordRuntimeConfig env mapping."""
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DISCORD_FULL_BOT": "true",
+                "DISCORD_HTTP_MODE": "false",
+                "DISCORD_MCP_MODE": "true",
+            },
+        ):
+            loader = EnvironmentLoader()
+            cfg = loader.load_config(DiscordRuntimeConfig)
+            self.assertTrue(cfg.full_bot)
+            self.assertFalse(cfg.http_mode)
+            self.assertTrue(cfg.mcp_mode)
 
 
 class TestConvenienceFunctions(TestCase):

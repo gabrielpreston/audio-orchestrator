@@ -11,6 +11,7 @@ from typing import Any, Literal
 import webrtcvad
 
 from services.common.logging import get_logger, should_sample
+from services.common.service_configs import TelemetryConfig
 
 from .config import AudioConfig
 
@@ -128,8 +129,9 @@ class Accumulator:
 class AudioPipeline:
     """Manages audio accumulation per Discord speaker."""
 
-    def __init__(self, config: AudioConfig) -> None:
+    def __init__(self, config: AudioConfig, telemetry_config: TelemetryConfig) -> None:
         self._config = config
+        self._telemetry_config = telemetry_config
         self._accumulators: dict[int, Accumulator] = {}
         self._logger = get_logger(__name__, service_name="discord")
         frame_ms = config.vad_frame_duration_ms
@@ -214,12 +216,7 @@ class AudioPipeline:
         is_speech = self._is_speech(frame.pcm, frame.sample_rate)
 
         # Sample VAD decisions to reduce log verbosity
-        try:
-            import os
-
-            sample_n = int(os.getenv("LOG_SAMPLE_VAD_N", "50"))
-        except Exception:
-            sample_n = 50
+        sample_n = self._telemetry_config.log_sample_vad_n or 50
 
         if should_sample(
             "discord.vad_decision", sample_n

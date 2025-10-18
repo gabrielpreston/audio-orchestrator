@@ -2,7 +2,7 @@
 title: Environment Configuration
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-16
+last-updated: 2025-10-18
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -21,7 +21,7 @@ supporting services, and Docker Compose stack.
 | `.env.docker` | Container-specific overrides such as UID/GID and timezone. | Copy from `.env.sample`. |
 | `services/discord/.env.service` | Discord token, wake phrase settings, STT endpoint, MCP manifests. | Copy from `.env.sample`. |
 | `services/stt/.env.service` | faster-whisper model, device, and compute type. | Copy from `.env.sample`. |
-| `services/llm/.env.service` | Orchestrator auth token, llama.cpp configuration, downstream TTS URL. | Copy from `.env.sample`. |
+| `services/llm/.env.service` | LLM auth token, llama.cpp configuration, downstream TTS URL. | Copy from `.env.sample`. |
 | `services/tts/.env.service` | Piper model paths, voice defaults, auth token, rate limiting. | Copy from `.env.sample`. |
 
 ## Setup Steps
@@ -39,7 +39,7 @@ supporting services, and Docker Compose stack.
 ## Best Practices
 
 - Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
-- Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys.
+- Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys. Ensure new keys like `DISCORD_FULL_BOT`, `DISCORD_HTTP_MODE`, `DISCORD_MCP_MODE`, and `ORCH_TIMEOUT` are present where applicable.
 - Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
 - Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
 - Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.

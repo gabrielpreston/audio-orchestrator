@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from services.common.service_configs import TelemetryConfig
 from services.discord.audio import AudioPipeline
 from services.discord.config import AudioConfig as DiscordAudioConfig
 
@@ -32,9 +33,14 @@ class TestVADPipeline:
         )
 
     @pytest.fixture
-    def audio_pipeline(self, audio_config):
+    def telemetry_config(self):
+        """Create telemetry configuration for testing."""
+        return TelemetryConfig()
+
+    @pytest.fixture
+    def audio_pipeline(self, audio_config, telemetry_config):
         """Create audio pipeline for testing."""
-        return AudioPipeline(audio_config)
+        return AudioPipeline(audio_config, telemetry_config)
 
     @pytest.fixture
     def sample_pcm_frame(self):
@@ -62,10 +68,12 @@ class TestVADPipeline:
         return b"\x00" * (samples * 2)  # 2 bytes per int16 sample
 
     @pytest.mark.component
-    def test_vad_initialization_logs_config(self, audio_config, mock_logger):
+    def test_vad_initialization_logs_config(
+        self, audio_config, telemetry_config, mock_logger
+    ):
         """Test that VAD initialization logs configuration."""
         with patch("services.discord.audio.get_logger", return_value=mock_logger):
-            AudioPipeline(audio_config)
+            AudioPipeline(audio_config, telemetry_config)
 
         # Check that info log was called with VAD configuration
         mock_logger.info.assert_called_once()
@@ -83,7 +91,7 @@ class TestVADPipeline:
         assert kwargs["target_sample_rate"] == 16000
 
     @pytest.mark.component
-    def test_vad_aggressiveness_clamping(self, mock_logger):
+    def test_vad_aggressiveness_clamping(self, telemetry_config, mock_logger):
         """Test that VAD aggressiveness is clamped to valid range (0-3)."""
         # Test aggressiveness too high
         config_high = DiscordAudioConfig(
@@ -99,7 +107,7 @@ class TestVADPipeline:
         )
 
         with patch("services.discord.audio.get_logger", return_value=mock_logger):
-            AudioPipeline(config_high)
+            AudioPipeline(config_high, telemetry_config)
 
         # Should log warning about clamping
         mock_logger.warning.assert_called_once()
@@ -109,7 +117,7 @@ class TestVADPipeline:
         assert warning_call[1]["applied"] == 3
 
     @pytest.mark.component
-    def test_vad_frame_duration_validation(self, mock_logger):
+    def test_vad_frame_duration_validation(self, telemetry_config, mock_logger):
         """Test that VAD frame duration is validated and clamped."""
         # Test invalid frame duration
         config_invalid = DiscordAudioConfig(
@@ -125,7 +133,7 @@ class TestVADPipeline:
         )
 
         with patch("services.discord.audio.get_logger", return_value=mock_logger):
-            AudioPipeline(config_invalid)
+            AudioPipeline(config_invalid, telemetry_config)
 
         # Should log warning about frame duration clamping
         mock_logger.warning.assert_called_once()

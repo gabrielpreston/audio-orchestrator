@@ -3,7 +3,6 @@ Discord service HTTP API for MCP tool integration.
 """
 
 import asyncio
-import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -13,6 +12,8 @@ from services.common.health import HealthManager
 
 # Configure logging
 from services.common.logging import get_logger
+
+from .config import load_config
 
 logger = get_logger(__name__, service_name="discord")
 
@@ -45,8 +46,11 @@ async def startup_event() -> None:
     logger.info("discord.startup_event_called")
 
     try:
+        # Load configuration
+        config = load_config()
+
         # Check if we should run the full Discord bot
-        run_full_bot = os.getenv("DISCORD_FULL_BOT", "false").lower() == "true"
+        run_full_bot = config.runtime.full_bot  # type: ignore[attr-defined]
         logger.info("discord.full_bot_check", run_full_bot=run_full_bot)
 
         if run_full_bot:
@@ -55,23 +59,21 @@ async def startup_event() -> None:
             from services.common.logging import configure_logging
 
             from .audio import AudioPipeline
-            from .config import load_config
             from .discord_voice import VoiceBot
             from .wake import WakeDetector
 
             logger.info("discord.imports_complete")
-            config = load_config()
             logger.info("discord.config_loaded")
             configure_logging(
-                config.telemetry.log_level,
-                json_logs=config.telemetry.log_json,
+                config.telemetry.log_level,  # type: ignore[attr-defined]
+                json_logs=config.telemetry.log_json,  # type: ignore[attr-defined]
                 service_name="discord",
             )
             logger.info("discord.logging_configured")
 
-            audio_pipeline = AudioPipeline(config.audio)
+            audio_pipeline = AudioPipeline(config.audio, config.telemetry)  # type: ignore[arg-type]
             logger.info("discord.audio_pipeline_created")
-            wake_detector = WakeDetector(config.wake)
+            wake_detector = WakeDetector(config.wake)  # type: ignore[arg-type]
             logger.info("discord.wake_detector_created")
 
             async def dummy_transcript_publisher(
@@ -87,7 +89,7 @@ async def startup_event() -> None:
             )
             logger.info("discord.voicebot_created")
 
-            _bot_task = asyncio.create_task(_bot.start(config.discord.token))
+            _bot_task = asyncio.create_task(_bot.start(config.discord.token))  # type: ignore[attr-defined]
             # Store reference to prevent garbage collection
             # Store reference to prevent garbage collection
             logger.info("discord.full_bot_started")

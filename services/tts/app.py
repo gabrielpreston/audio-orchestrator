@@ -15,61 +15,47 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    HttpConfig,
+    LoggingConfig,
+    TelemetryConfig,
+    TTSConfig,
+)
+
+# Deprecated helpers retained for backward compat in tests; prefer config values
 
 
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
-
-
-def _env_int(name: str, default: int, *, minimum: int, maximum: int) -> int:
-    raw = os.getenv(name)
-    value = default
-    if raw is not None:
-        from contextlib import suppress
-
-        with suppress(ValueError):
-            value = int(raw)
-    value = max(value, minimum)
-    value = min(value, maximum)
-    return value
-
-
-def _env_float(name: str, default: float, *, minimum: float, maximum: float) -> float:
-    raw = os.getenv(name)
-    value = default
-    if raw is not None:
-        from contextlib import suppress
-
-        with suppress(ValueError):
-            value = float(raw)
-    value = max(value, minimum)
-    value = min(value, maximum)
-    return value
-
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("tts", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("tts", TTSConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
 
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=_env_bool("LOG_JSON", "true"),
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="tts",
 )
 logger = get_logger(__name__, service_name="tts")
 
 app = FastAPI(title="Piper Text-to-Speech Service")
 
-_MODEL_PATH = os.getenv("TTS_MODEL_PATH")
-_MODEL_CONFIG_PATH = os.getenv("TTS_MODEL_CONFIG_PATH")
-_DEFAULT_VOICE = os.getenv("TTS_DEFAULT_VOICE")
-_MAX_TEXT_LENGTH = _env_int("TTS_MAX_TEXT_LENGTH", 1000, minimum=32, maximum=10000)
-_MAX_CONCURRENCY = _env_int("TTS_MAX_CONCURRENCY", 4, minimum=1, maximum=64)
-_RATE_LIMIT_PER_MINUTE = _env_int(
-    "TTS_RATE_LIMIT_PER_MINUTE", 60, minimum=0, maximum=100000
-)
-_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
-_DEFAULT_LENGTH_SCALE = _env_float("TTS_LENGTH_SCALE", 1.0, minimum=0.1, maximum=3.0)
-_DEFAULT_NOISE_SCALE = _env_float("TTS_NOISE_SCALE", 0.667, minimum=0.0, maximum=2.0)
-_DEFAULT_NOISE_W = _env_float("TTS_NOISE_W", 0.8, minimum=0.0, maximum=2.0)
+_MODEL_PATH = _cfg.tts.model_path  # type: ignore[attr-defined]
+_MODEL_CONFIG_PATH = _cfg.tts.model_config_path  # type: ignore[attr-defined]
+_DEFAULT_VOICE = _cfg.tts.default_voice  # type: ignore[attr-defined]
+_MAX_TEXT_LENGTH = _cfg.tts.max_text_length  # type: ignore[attr-defined]
+_MAX_CONCURRENCY = _cfg.tts.max_concurrency  # type: ignore[attr-defined]
+_RATE_LIMIT_PER_MINUTE = _cfg.tts.rate_limit_per_minute  # type: ignore[attr-defined]
+_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
+_DEFAULT_LENGTH_SCALE = _cfg.tts.length_scale  # type: ignore[attr-defined]
+_DEFAULT_NOISE_SCALE = _cfg.tts.noise_scale  # type: ignore[attr-defined]
+_DEFAULT_NOISE_W = _cfg.tts.noise_w  # type: ignore[attr-defined]
 
 _CONCURRENCY_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
 _RATE_LIMIT_LOCK = asyncio.Lock()
@@ -300,7 +286,7 @@ def _generate_silence_audio(sample_rate: int, duration: float = 1.0) -> bytes:
 
         # Use standardized audio processing to create WAV
         wav_data = processor.pcm_to_wav(silence_data, sample_rate, 1, 2)
-        return wav_data
+        return bytes(wav_data)
 
     except Exception:
         # Fallback to original implementation

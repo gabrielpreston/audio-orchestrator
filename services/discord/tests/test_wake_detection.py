@@ -129,7 +129,7 @@ class TestWakeDetection:
 
             config = load_config()
 
-            assert config.wake.enabled is False
+            assert config.wake.enabled is False  # type: ignore[attr-defined]
 
     @pytest.mark.component
     def test_wake_config_loads_enabled_field_default(self):
@@ -150,7 +150,7 @@ class TestWakeDetection:
 
             config = load_config()
 
-            assert config.wake.enabled is True
+            assert config.wake.enabled is True  # type: ignore[attr-defined]
 
     @pytest.mark.component
     def test_wake_detection_audio_priority(
@@ -301,5 +301,5 @@ class TestWakeDetection:
                 config = load_config()
 
                 assert (
-                    config.wake.enabled == expected
+                    config.wake.enabled == expected  # type: ignore[attr-defined]
                 ), f"Failed for env value: {env_value}"

@@ -339,6 +339,7 @@ class AudioProcessor:
         sample_width: int = 2,
         log_sample_rate: float = 0.01,
         user_id: int | None = None,
+        telemetry_config: Any = None,
     ) -> tuple[bytes, float]:
         """Normalize audio to target RMS level with proper scaling."""
         try:
@@ -364,15 +365,13 @@ class AudioProcessor:
 
             if current_rms < 1.0:  # Avoid amplifying silence
                 # Only log silence skipping occasionally to reduce verbosity
-                # Sample rate can be tuned via LOG_SAMPLE_AUDIO_RATE (0.0 - 1.0)
-                try:
-                    import os
-
-                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
-                    configured_rate = (
-                        float(env_rate) if env_rate is not None else log_sample_rate
-                    )
-                except Exception:
+                # Sample rate can be tuned via telemetry config
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
                     configured_rate = log_sample_rate
                 if np.random.random() < max(0.0, min(1.0, configured_rate)):
                     self._log(
@@ -389,14 +388,12 @@ class AudioProcessor:
             max_boost = 50.0  # do not boost above this factor
             if scaling_factor < min_shrink:
                 # Sample logging via LOG_SAMPLE_AUDIO_RATE
-                try:
-                    import os
-
-                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
-                    configured_rate = (
-                        float(env_rate) if env_rate is not None else log_sample_rate
-                    )
-                except Exception:
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
                     configured_rate = log_sample_rate
                 if np.random.random() < max(0.0, min(1.0, configured_rate)):
                     self._log(
@@ -408,14 +405,12 @@ class AudioProcessor:
                 scaling_factor = min_shrink
             elif scaling_factor > max_boost:
                 # Sample logging via LOG_SAMPLE_AUDIO_RATE
-                try:
-                    import os
-
-                    env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
-                    configured_rate = (
-                        float(env_rate) if env_rate is not None else log_sample_rate
-                    )
-                except Exception:
+                if (
+                    telemetry_config
+                    and telemetry_config.log_sample_audio_rate is not None
+                ):
+                    configured_rate = telemetry_config.log_sample_audio_rate
+                else:
                     configured_rate = log_sample_rate
                 if np.random.random() < max(0.0, min(1.0, configured_rate)):
                     self._log(
@@ -434,15 +429,10 @@ class AudioProcessor:
             new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
 
             # Only log normalization occasionally to reduce verbosity
-            # Sample rate can be tuned via LOG_SAMPLE_AUDIO_RATE (0.0 - 1.0)
-            try:
-                import os
-
-                env_rate = os.getenv("LOG_SAMPLE_AUDIO_RATE")
-                configured_rate = (
-                    float(env_rate) if env_rate is not None else log_sample_rate
-                )
-            except Exception:
+            # Sample rate can be tuned via telemetry config
+            if telemetry_config and telemetry_config.log_sample_audio_rate is not None:
+                configured_rate = telemetry_config.log_sample_audio_rate
+            else:
                 configured_rate = log_sample_rate
             if np.random.random() < max(0.0, min(1.0, configured_rate)):
                 log_data = {

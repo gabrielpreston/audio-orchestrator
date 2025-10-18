@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from services.common.service_configs import TelemetryConfig
 from services.discord.audio import Accumulator, AudioPipeline, FlushDecision
 from services.discord.config import AudioConfig as DiscordAudioConfig
 
@@ -32,10 +33,15 @@ class TestAudioSegments:
         )
 
     @pytest.fixture
-    def audio_pipeline(self, audio_config, mock_logger):
+    def telemetry_config(self):
+        """Create telemetry configuration for testing."""
+        return TelemetryConfig()
+
+    @pytest.fixture
+    def audio_pipeline(self, audio_config, telemetry_config, mock_logger):
         """Create audio pipeline for testing."""
         with patch("services.discord.audio.get_logger", return_value=mock_logger):
-            return AudioPipeline(audio_config)
+            return AudioPipeline(audio_config, telemetry_config)
 
     @pytest.fixture
     def sample_accumulator(self, audio_config):

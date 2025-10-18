@@ -69,7 +69,7 @@ class VoiceBot(discord.Client):
         wake_detector: WakeDetector,
         transcript_publisher: TranscriptPublisher,
     ) -> None:
-        intents = self._build_intents(config.discord)
+        intents = self._build_intents(config.discord)  # type: ignore[arg-type]
         super().__init__(intents=intents)
         self.config = config
         self.audio_pipeline = audio_pipeline
@@ -91,7 +91,7 @@ class VoiceBot(discord.Client):
         # Health manager for service resilience
         self._health_manager = HealthManager("discord")
         self._required_services = {
-            "stt": self.config.stt.base_url,
+            "stt": self.config.stt.base_url,  # type: ignore[attr-defined]
             "orchestrator": "http://orchestrator:8000",  # Default orchestrator URL
         }
 
@@ -113,14 +113,7 @@ class VoiceBot(discord.Client):
             timeout = httpx.Timeout(30.0, connect=10.0)
             self._http_session = httpx.AsyncClient(timeout=timeout)
         # Optional audio warm-up to avoid first-interaction latency spikes
-        import os
-
-        if os.getenv("DISCORD_WARMUP_AUDIO", "true").lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }:
+        if self.config.telemetry.discord_warmup_audio:  # type: ignore[attr-defined]
 
             async def _do_warmup() -> None:
                 import time
@@ -183,21 +176,21 @@ class VoiceBot(discord.Client):
             user=str(self.user),
             guilds=[guild.id for guild in self.guilds],
         )
-        if self.config.discord.auto_join:
+        if self.config.discord.auto_join:  # type: ignore[attr-defined]
             try:
                 await self.join_voice_channel(
-                    self.config.discord.guild_id, self.config.discord.voice_channel_id
+                    self.config.discord.guild_id, self.config.discord.voice_channel_id  # type: ignore[attr-defined]
                 )
             except Exception as exc:
                 self._logger.error(
                     "discord.voice_auto_join_failed",
-                    guild_id=self.config.discord.guild_id,
-                    channel_id=self.config.discord.voice_channel_id,
+                    guild_id=self.config.discord.guild_id,  # type: ignore[attr-defined]
+                    channel_id=self.config.discord.voice_channel_id,  # type: ignore[attr-defined]
                     error=str(exc),
                 )
                 self._schedule_voice_reconnect(
-                    self.config.discord.guild_id,
-                    self.config.discord.voice_channel_id,
+                    self.config.discord.guild_id,  # type: ignore[attr-defined]
+                    self.config.discord.voice_channel_id,  # type: ignore[attr-defined]
                     reason="auto_join_failed",
                 )
 
@@ -245,13 +238,13 @@ class VoiceBot(discord.Client):
                         "channel_id": channel_id,
                     }
 
-            timeout = max(1.0, self.config.discord.voice_connect_timeout_seconds)
-            max_attempts = max(1, self.config.discord.voice_connect_max_attempts)
+            timeout = max(1.0, self.config.discord.voice_connect_timeout_seconds)  # type: ignore[attr-defined]
+            max_attempts = max(1, self.config.discord.voice_connect_max_attempts)  # type: ignore[attr-defined]
             base_backoff = max(
-                0.5, self.config.discord.voice_reconnect_initial_backoff_seconds
+                0.5, self.config.discord.voice_reconnect_initial_backoff_seconds  # type: ignore[attr-defined]
             )
             max_backoff = max(
-                base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds
+                base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds  # type: ignore[attr-defined]
             )
 
             attempt = 0
@@ -365,11 +358,11 @@ class VoiceBot(discord.Client):
         if self._shutdown.is_set():
             return
         if (
-            not self.config.discord.auto_join
-            or guild_id != self.config.discord.guild_id
+            not self.config.discord.auto_join  # type: ignore[attr-defined]
+            or guild_id != self.config.discord.guild_id  # type: ignore[attr-defined]
         ):
             return
-        target_channel_id = self.config.discord.voice_channel_id
+        target_channel_id = self.config.discord.voice_channel_id  # type: ignore[attr-defined]
         if after.channel is not None:
             return
         previous_channel_id = before.channel.id if before.channel else None
@@ -509,14 +502,14 @@ class VoiceBot(discord.Client):
 
     def _save_debug_wav(self, segment: AudioSegment, prefix: str = "segment") -> None:
         """Save segment as WAV file for debugging."""
-        if not self.config.telemetry.waveform_debug_dir:
+        if not self.config.telemetry.waveform_debug_dir:  # type: ignore[attr-defined]
             return
 
         try:
             import time
             import wave
 
-            debug_dir = self.config.telemetry.waveform_debug_dir
+            debug_dir = self.config.telemetry.waveform_debug_dir  # type: ignore[attr-defined]  # type: ignore[attr-defined]
             debug_dir.mkdir(parents=True, exist_ok=True)
 
             timestamp = int(time.time() * 1000)
@@ -545,7 +538,7 @@ class VoiceBot(discord.Client):
     async def _idle_flush_loop(self) -> None:
         """Periodically flush stale accumulators so silence gaps emit segments."""
 
-        interval = max(self.config.audio.silence_timeout_seconds / 2.0, 0.1)
+        interval = max(self.config.audio.silence_timeout_seconds / 2.0, 0.1)  # type: ignore[attr-defined]  # type: ignore[attr-defined]
         interval = min(interval, 0.5)
         try:
             self._logger.debug(
@@ -608,7 +601,7 @@ class VoiceBot(discord.Client):
             return
 
         await asyncio.sleep(0)
-        async with TranscriptionClient(self.config.stt) as stt_client:
+        async with TranscriptionClient(self.config.stt) as stt_client:  # type: ignore[arg-type]  # type: ignore[arg-type]
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:
@@ -817,10 +810,10 @@ class VoiceBot(discord.Client):
         self, guild_id: int, channel_id: int, reason: str
     ) -> None:
         base_backoff = max(
-            0.5, self.config.discord.voice_reconnect_initial_backoff_seconds
+            0.5, self.config.discord.voice_reconnect_initial_backoff_seconds  # type: ignore[attr-defined]
         )
         max_backoff = max(
-            base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds
+            base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds  # type: ignore[attr-defined]
         )
         attempt = 0
         while not self._shutdown.is_set():
@@ -956,13 +949,13 @@ class VoiceBot(discord.Client):
 async def run_bot(config: BotConfig) -> None:
     """Entrypoint that wires together all components."""
 
-    audio_pipeline = AudioPipeline(config.audio)
-    wake_detector = WakeDetector(config.wake)
+    audio_pipeline = AudioPipeline(config.audio, config.telemetry)  # type: ignore[arg-type]
+    wake_detector = WakeDetector(config.wake)  # type: ignore[arg-type]
     server = MCPServer(config)
     bot = VoiceBot(config, audio_pipeline, wake_detector, server.publish_transcript)
     server.attach_voice_bot(bot)
 
-    bot_task = asyncio.create_task(bot.start(config.discord.token))
+    bot_task = asyncio.create_task(bot.start(config.discord.token))  # type: ignore[attr-defined]
     server_task = asyncio.create_task(server.serve())
     try:
         await bot_task

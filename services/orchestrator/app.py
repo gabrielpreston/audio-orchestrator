@@ -1,14 +1,23 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel, field_validator
 
+from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager
 from services.common.logging import configure_logging, get_logger
+from services.common.service_configs import (
+    HttpConfig,
+    LLMClientConfig,
+    LoggingConfig,
+    OrchestratorConfig,
+    PortConfig,
+    TelemetryConfig,
+    TTSClientConfig,
+)
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
@@ -23,9 +32,21 @@ except ImportError:
 
 app = FastAPI(title="Voice Assistant Orchestrator")
 
+_cfg: ServiceConfig = (
+    ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
+    .add_config("logging", LoggingConfig)
+    .add_config("http", HttpConfig)
+    .add_config("port", PortConfig)
+    .add_config("llm_client", LLMClientConfig)
+    .add_config("tts_client", TTSClientConfig)
+    .add_config("orchestrator", OrchestratorConfig)
+    .add_config("telemetry", TelemetryConfig)
+    .load()
+)
+
 configure_logging(
-    os.getenv("LOG_LEVEL", "INFO"),
-    json_logs=os.getenv("LOG_JSON", "true").lower() in {"1", "true", "yes", "on"},
+    _cfg.logging.level,  # type: ignore[attr-defined]
+    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
     service_name="orchestrator",
 )
 logger = get_logger(__name__, service_name="orchestrator")
@@ -35,15 +56,13 @@ _MCP_MANAGER: MCPManager | None = None
 _LLM_CLIENT: httpx.AsyncClient | None = None
 _health_manager = HealthManager("orchestrator")
 
-_LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://llm:8000")
-_LLM_AUTH_TOKEN = os.getenv("LLM_AUTH_TOKEN")
-_TTS_BASE_URL = os.getenv("TTS_BASE_URL")
-_TTS_AUTH_TOKEN = os.getenv("TTS_AUTH_TOKEN")
-_MCP_CONFIG_PATH = os.getenv("MCP_CONFIG_PATH", "./mcp.json")
+_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm:8000"  # type: ignore[attr-defined]
+_LLM_AUTH_TOKEN = _cfg.llm_client.auth_token  # type: ignore[attr-defined]
+_TTS_BASE_URL = _cfg.tts_client.base_url  # type: ignore[attr-defined]
+_TTS_AUTH_TOKEN = _cfg.tts_client.auth_token  # type: ignore[attr-defined]
+_MCP_CONFIG_PATH = _cfg.orchestrator.mcp_config_path  # type: ignore[attr-defined]
 
-
-def _env_bool(name: str, default: str = "true") -> bool:
-    return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+# Deprecated helper retained for backward compat; prefer config values
 
 
 async def _ensure_llm_client() -> httpx.AsyncClient | None:
@@ -67,7 +86,7 @@ async def _startup_event() -> None:
         await _MCP_MANAGER.initialize()
 
         # Initialize orchestrator
-        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _LLM_BASE_URL, _TTS_BASE_URL)
+        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.llm_client, _cfg.tts_client)  # type: ignore[arg-type]
         await _ORCHESTRATOR.initialize()
         logger.info("orchestrator.initialized")
 
@@ -225,4 +244,4 @@ if PROMETHEUS_AVAILABLE:
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", "8000")))
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)  # type: ignore[attr-defined]
