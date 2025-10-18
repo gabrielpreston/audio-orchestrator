@@ -189,21 +189,25 @@ This proposal addresses several key needs:
 ## Timeline and Phasing
 
 ### Phase 1: Foundation (Q1 2025)
+
 - Complete current Discord implementation
 - Establish testing framework
 - Document current architecture
 
 ### Phase 2: Multi-Surface Support (Q2 2025)
+
 - Implement surface registry enhancements
 - Add multi-surface session management
 - Develop WebRTC surface adapter
 
 ### Phase 3: Advanced Features (Q3 2025)
+
 - Implement load balancing
 - Add failover capabilities
 - Enhance security measures
 
 ### Phase 4: Ecosystem (Q4 2025)
+
 - Plugin architecture
 - Third-party surface support
 - Advanced monitoring and observability

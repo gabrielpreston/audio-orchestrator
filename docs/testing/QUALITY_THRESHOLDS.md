@@ -13,12 +13,16 @@ This document defines the quality thresholds and benchmarks for the discord-voic
 ## Configuration vs. Test Thresholds
 
 ### Runtime Configuration
+
 These environment variables control actual service behavior:
+
 - `STT_TIMEOUT`, `TTS_MAX_CONCURRENCY`, `AUDIO_SILENCE_TIMEOUT`, etc.
 - Found in `.env.sample` and service `.env.service` files
 
 ### Test Quality Thresholds
+
 These values are used in test assertions to validate quality:
+
 - `MIN_SNR`, `MAX_THD`, `MAX_E2E_LATENCY`, etc.
 - Hardcoded in test files, not configurable via environment
 - Document expected quality levels for the audio pipeline

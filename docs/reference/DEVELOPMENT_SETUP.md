@@ -83,18 +83,23 @@ When working on the project:
 Each service has its own `requirements.txt` with:
 
 **Discord Service**:
+
 - `discord.py[voice]`, `discord-ext-voice_recv`, `PyNaCl`, `rapidfuzz`, `webrtcvad`
 
 **STT Service**:
+
 - `faster-whisper`, `python-multipart`
 
 **LLM Service**:
+
 - `llama-cpp-python`
 
 **Orchestrator Service**:
+
 - `mcp`, `instructor`
 
 **TTS Service**:
+
 - `piper-tts`, `prometheus_client`
 
 ## 🎯 Development Workflows

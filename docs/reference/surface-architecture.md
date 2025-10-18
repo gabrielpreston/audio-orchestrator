@@ -166,6 +166,7 @@ The Discord service implements the Composable Surface Architecture through speci
 ### DiscordAudioSource
 
 Implements the `AudioSource` interface for Discord voice capture, handling:
+
 - Discord voice channel audio capture
 - Audio format conversion to PCM
 - Voice activity detection integration
@@ -174,6 +175,7 @@ Implements the `AudioSource` interface for Discord voice capture, handling:
 ### DiscordAudioSink
 
 Implements the `AudioSink` interface for Discord audio playback, handling:
+
 - Discord voice channel audio playback
 - Audio format conversion from PCM
 - Playback timing and synchronization
@@ -182,6 +184,7 @@ Implements the `AudioSink` interface for Discord audio playback, handling:
 ### DiscordControlChannel
 
 Implements the `ControlChannel` interface for Discord control events, handling:
+
 - Discord message events
 - Voice state changes
 - User interaction events
@@ -190,6 +193,7 @@ Implements the `ControlChannel` interface for Discord control events, handling:
 ### DiscordSurfaceLifecycle
 
 Implements the `SurfaceLifecycle` interface for Discord connection management, handling:
+
 - Discord bot connection lifecycle
 - Authentication and permissions
 - Connection health monitoring
@@ -216,7 +220,9 @@ The media gateway handles audio routing and processing between surfaces and the 
 
 ## Configuration
 
-The Composable Surface Architecture interfaces are implemented in `services/common/surfaces/interfaces.py` and are used by the Discord service through the `DiscordAudioSource` and `DiscordAudioSink` adapters. These interfaces are not controlled by environment variables but are implemented as part of the service architecture.
+The Composable Surface Architecture interfaces are implemented in `services/common/surfaces/interfaces.py` and are used by the Discord service through the `DiscordAudioSource` and `DiscordAudioSink` adapters.
+
+These interfaces are not controlled by environment variables but are implemented as part of the service architecture.
 
 **Note**: This document describes the interface specifications for the Composable Surface Architecture. The actual implementation is integrated into the Discord service without requiring special environment variables.
 
