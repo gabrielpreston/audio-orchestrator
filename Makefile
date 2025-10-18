@@ -560,6 +560,13 @@ install-dev-deps: ## Install development dependencies for CI
 	@pip install -r requirements-base.txt
 	@pip install -r requirements-dev.txt
 	@pip install -r requirements-test.txt
+	@echo "→ Installing service-specific dependencies"
+	@for req_file in services/*/requirements.txt; do \
+		if [ -f "$$req_file" ]; then \
+			echo "  Installing from $$req_file"; \
+			pip install -r "$$req_file"; \
+		fi; \
+	done
 
 install-ci-tools: ## Install CI-specific tools (hadolint, checkmake, markdownlint)
 	@echo "→ Installing CI tools"
