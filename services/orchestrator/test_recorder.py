@@ -32,7 +32,7 @@ class RecorderManager:
         self.recordings_dir = Path(recordings_dir)
         self.recordings_dir.mkdir(parents=True, exist_ok=True)
         self.max_file_size = max_file_size
-        self.recordings: dict[str, dict[str, Any]] = {}
+        self.recordings: Dict[str, Dict[str, Any]] = {}
 
         # Load existing recordings
         self._load_recordings()
@@ -42,7 +42,7 @@ class RecorderManager:
         metadata_file = self.recordings_dir / "recordings_metadata.json"
         if metadata_file.exists():
             try:
-                with open(metadata_file) as f:
+                with open(metadata_file, "r") as f:
                     self.recordings = json.load(f)
                 logger.info(
                     "test_recorder.loaded_existing_recordings",
@@ -96,7 +96,7 @@ class RecorderManager:
 
     def save_audio(
         self, phrase_id: str, audio_data: bytes, audio_format: str = "webm"
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Save audio data for a phrase.
 
@@ -173,7 +173,7 @@ class RecorderManager:
 
     def convert_to_wav(
         self, phrase_id: str, sample_rate: int = 48000
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         """
         Convert phrase audio to WAV format.
 
