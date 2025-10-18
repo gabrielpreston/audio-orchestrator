@@ -220,7 +220,7 @@ def setup_default_services():
         command=["python", "-m", "services.stt.app"],
         base_url="http://localhost:9000",
         health_endpoint="/health/ready",
-        env_vars={"FW_MODEL": "tiny", "FW_DEVICE": "cpu", "LOG_LEVEL": "INFO"},
+        env_vars={"STT_MODEL": "tiny", "STT_DEVICE": "cpu", "LOG_LEVEL": "INFO"},
     )
 
     # TTS Service

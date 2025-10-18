@@ -121,8 +121,8 @@ class TestWakeDetection:
                 "DISCORD_BOT_TOKEN": "test-token",
                 "DISCORD_GUILD_ID": "987654321",
                 "DISCORD_VOICE_CHANNEL_ID": "123456789",
-                "STT_BASE_URL": "http://test-stt:9000",
-                "ORCHESTRATOR_BASE_URL": "http://test-orchestrator:8000",
+                "STT_URL": "http://test-stt:9000",
+                "ORCH_URL": "http://test-orchestrator:8000",
             },
         ):
             from services.discord.config import load_config
@@ -141,8 +141,8 @@ class TestWakeDetection:
                 "DISCORD_BOT_TOKEN": "test-token",
                 "DISCORD_GUILD_ID": "987654321",
                 "DISCORD_VOICE_CHANNEL_ID": "123456789",
-                "STT_BASE_URL": "http://test-stt:9000",
-                "ORCHESTRATOR_BASE_URL": "http://test-orchestrator:8000",
+                "STT_URL": "http://test-stt:9000",
+                "ORCH_URL": "http://test-orchestrator:8000",
             },
             clear=True,
         ):
@@ -292,8 +292,8 @@ class TestWakeDetection:
                     "DISCORD_BOT_TOKEN": "test-token",
                     "DISCORD_GUILD_ID": "987654321",
                     "DISCORD_VOICE_CHANNEL_ID": "123456789",
-                    "STT_BASE_URL": "http://test-stt:9000",
-                    "ORCHESTRATOR_BASE_URL": "http://test-orchestrator:8000",
+                    "STT_URL": "http://test-stt:9000",
+                    "ORCH_URL": "http://test-orchestrator:8000",
                 },
             ):
                 from services.discord.config import load_config

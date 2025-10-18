@@ -1,7 +1,7 @@
 ---
 title: Integrated Test Recorder
 description: Test phrase recorder integrated with the Orchestrator service
-last-updated: 2025-01-27
+last-updated: 2025-10-18
 ---
 
 # Integrated Test Recorder
@@ -11,6 +11,7 @@ The Test Phrase Recorder is now integrated into the Orchestrator service, provid
 ## Overview
 
 The integrated test recorder provides:
+
 - **Web Interface**: Accessible at `/test-recorder` on the orchestrator service
 - **REST API**: Full programmatic access to recording management
 - **Audio Processing**: Built-in conversion from WebM to WAV format
@@ -150,7 +151,7 @@ def test_wake_phrase_detection():
 
 Recordings are stored in the orchestrator container at `/app/recordings/`:
 
-```
+```text
 /app/recordings/
 ├── recordings_metadata.json    # Phrase metadata
 ├── wake_123_hey_atlas.webm    # Original WebM recording
@@ -169,6 +170,7 @@ Recordings are stored in the orchestrator container at `/app/recordings/`:
 ### Common Issues
 
 1. **Service Not Accessible**
+
    ```bash
    # Check if orchestrator is running
    make logs SERVICE=orchestrator

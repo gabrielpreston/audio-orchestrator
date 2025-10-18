@@ -117,9 +117,9 @@ class TestSTTServiceModelLoading:
     """Test STT service model loading."""
 
     def test_model_initialization_from_env(self):
-        """Test model loads from environment variable FW_MODEL."""
+        """Test model loads from environment variable STT_MODEL."""
         with (
-            patch.dict(os.environ, {"FW_MODEL": "tiny"}),
+            patch.dict(os.environ, {"STT_MODEL": "tiny"}),
             patch("services.stt.models.FastWhisperAdapter") as mock_adapter,
         ):
             mock_adapter.return_value = Mock()
@@ -128,13 +128,13 @@ class TestSTTServiceModelLoading:
             pass
 
     def test_model_initialization_from_path(self):
-        """Test model loads from local path FW_MODEL_PATH."""
+        """Test model loads from local path STT_MODEL_PATH."""
         with tempfile.TemporaryDirectory() as temp_dir:
             model_path = Path(temp_dir) / "model"
             model_path.mkdir()
 
             with (
-                patch.dict(os.environ, {"FW_MODEL_PATH": str(model_path)}),
+                patch.dict(os.environ, {"STT_MODEL_PATH": str(model_path)}),
                 patch("services.stt.models.FastWhisperAdapter") as mock_adapter,
             ):
                 mock_adapter.return_value = Mock()
@@ -144,7 +144,7 @@ class TestSTTServiceModelLoading:
     def test_model_fallback_to_remote(self):
         """Test fallback to remote model when local not found."""
         with (
-            patch.dict(os.environ, {"FW_MODEL_PATH": "/nonexistent/path"}),
+            patch.dict(os.environ, {"STT_MODEL_PATH": "/nonexistent/path"}),
             patch("services.stt.models.FastWhisperAdapter") as mock_adapter,
         ):
             mock_adapter.return_value = Mock()
@@ -154,7 +154,7 @@ class TestSTTServiceModelLoading:
     def test_device_configuration_cpu(self):
         """Test device configuration for CPU."""
         with (
-            patch.dict(os.environ, {"FW_DEVICE": "cpu"}),
+            patch.dict(os.environ, {"STT_DEVICE": "cpu"}),
             patch("services.stt.models.FastWhisperAdapter") as mock_adapter,
         ):
             mock_adapter.return_value = Mock()
@@ -164,7 +164,7 @@ class TestSTTServiceModelLoading:
     def test_compute_type_configuration(self):
         """Test compute type configuration."""
         with (
-            patch.dict(os.environ, {"FW_COMPUTE_TYPE": "int8"}),
+            patch.dict(os.environ, {"STT_COMPUTE_TYPE": "int8"}),
             patch("services.stt.models.FastWhisperAdapter") as mock_adapter,
         ):
             mock_adapter.return_value = Mock()

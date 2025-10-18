@@ -262,7 +262,7 @@ class STTConfig(BaseConfig):
                 required=True,
                 description="Base URL for STT service",
                 validator=validate_url,
-                env_var="STT_BASE_URL",
+                env_var="STT_URL",
             ),
             create_field_definition(
                 name="request_timeout_seconds",
@@ -530,13 +530,13 @@ class TelemetryConfig(BaseConfig):
                 name="discord_warmup_audio",
                 field_type=bool,
                 description="Enable Discord audio warmup on startup",
-                env_var="DISCORD_WARMUP_AUDIO",
+                env_var="DISCORD_WARMUP_ENABLED",
             ),
             create_field_definition(
                 name="stt_warmup",
                 field_type=bool,
                 description="Enable STT warmup on startup",
-                env_var="STT_WARMUP",
+                env_var="STT_WARMUP_ENABLED",
             ),
         ]
 
@@ -575,7 +575,7 @@ class FasterWhisperConfig(BaseConfig):
                     "large-v2",
                     "large-v3",
                 ],
-                env_var="FW_MODEL",
+                env_var="STT_MODEL",
             ),
             create_field_definition(
                 name="device",
@@ -583,7 +583,7 @@ class FasterWhisperConfig(BaseConfig):
                 default="cpu",
                 description="Device to run the model on",
                 choices=["cpu", "cuda", "auto"],
-                env_var="FW_DEVICE",
+                env_var="STT_DEVICE",
             ),
             create_field_definition(
                 name="compute_type",
@@ -591,13 +591,13 @@ class FasterWhisperConfig(BaseConfig):
                 default=None,
                 description="Compute type for the model",
                 choices=["int8", "int8_float16", "int16", "float16", "float32"],
-                env_var="FW_COMPUTE_TYPE",
+                env_var="STT_COMPUTE_TYPE",
             ),
             create_field_definition(
                 name="model_path",
                 field_type=str,
                 description="Path to the model directory",
-                env_var="FW_MODEL_PATH",
+                env_var="STT_MODEL_PATH",
             ),
         ]
 
@@ -625,7 +625,7 @@ class LlamaConfig(BaseConfig):
                 field_type=str,
                 default="/app/models/llama2-7b.gguf",
                 description="Path to Llama model file",
-                env_var="LLAMA_MODEL_PATH",
+                env_var="LLM_MODEL_PATH",
             ),
             create_field_definition(
                 name="context_length",
@@ -634,7 +634,7 @@ class LlamaConfig(BaseConfig):
                 description="Context length for the model",
                 min_value=512,
                 max_value=8192,
-                env_var="LLAMA_CTX",
+                env_var="LLM_CTX",
             ),
             create_field_definition(
                 name="threads",
@@ -643,7 +643,7 @@ class LlamaConfig(BaseConfig):
                 description="Number of threads for model inference",
                 min_value=1,
                 max_value=32,
-                env_var="LLAMA_THREADS",
+                env_var="LLM_THREADS",
             ),
         ]
 
@@ -688,7 +688,7 @@ class TTSConfig(BaseConfig):
                 default=7000,
                 description="Port for TTS service",
                 validator=validate_port,
-                env_var="PORT",
+                env_var="TTS_PORT",
             ),
             create_field_definition(
                 name="model_path",
@@ -803,7 +803,7 @@ class OrchestratorConfig(BaseConfig):
                 default=8000,
                 description="Port for orchestrator service",
                 validator=validate_port,
-                env_var="PORT",
+                env_var="ORCH_PORT",
             ),
             create_field_definition(
                 name="auth_token",
@@ -816,14 +816,14 @@ class OrchestratorConfig(BaseConfig):
                 field_type=bool,
                 default=False,
                 description="Whether to save debug data",
-                env_var="ORCHESTRATOR_DEBUG_SAVE",
+                env_var="ORCH_DEBUG_SAVE",
             ),
             create_field_definition(
                 name="tts_base_url",
                 field_type=str,
                 description="Base URL for TTS service",
                 validator=validate_url,
-                env_var="TTS_BASE_URL",
+                env_var="TTS_URL",
             ),
             create_field_definition(
                 name="tts_voice",
@@ -941,7 +941,7 @@ class LLMServiceConfig(BaseConfig):
                 default=8000,
                 description="Port for LLM service",
                 validator=validate_port,
-                env_var="PORT",
+                env_var="LLM_PORT",
             ),
             create_field_definition(
                 name="auth_token",
@@ -980,7 +980,7 @@ class LLMClientConfig(BaseConfig):
                 name="base_url",
                 field_type=str,
                 description="Base URL for LLM service",
-                env_var="LLM_BASE_URL",
+                env_var="LLM_URL",
             ),
             create_field_definition(
                 name="auth_token",
@@ -1044,7 +1044,7 @@ class TTSClientConfig(BaseConfig):
                 field_type=str,
                 description="Base URL for TTS service",
                 validator=validate_url,
-                env_var="TTS_BASE_URL",
+                env_var="TTS_URL",
             ),
             create_field_definition(
                 name="voice",
@@ -1091,7 +1091,7 @@ class OrchestratorClientConfig(BaseConfig):
                 field_type=str,
                 description="Base URL for orchestrator",
                 validator=validate_url,
-                env_var="ORCHESTRATOR_URL",
+                env_var="ORCH_URL",
             ),
             create_field_definition(
                 name="timeout",
@@ -1167,6 +1167,6 @@ class PortConfig(BaseConfig):
                 default=8000,
                 description="Port number for service binding",
                 validator=validate_port,
-                env_var="PORT",
+                env_var="STT_PORT",
             ),
         ]
