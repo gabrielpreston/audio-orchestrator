@@ -86,13 +86,13 @@ YAML_FILES := docker-compose.yml $(shell find .github/workflows -type f -name '*
 MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' 2>/dev/null)
 
 # Container images and paths
-LINT_IMAGE ?= discord-voice-lab/lint:latest
+LINT_IMAGE ?= ghcr.io/gabrielpreston/lint:latest
 LINT_DOCKERFILE := services/linter/Dockerfile
 LINT_WORKDIR := /workspace
-TEST_IMAGE ?= discord-voice-lab/test:latest
+TEST_IMAGE ?= ghcr.io/gabrielpreston/test:latest
 TEST_DOCKERFILE := services/tester/Dockerfile
 TEST_WORKDIR := /workspace
-SECURITY_IMAGE ?= discord-voice-lab/security:latest
+SECURITY_IMAGE ?= ghcr.io/gabrielpreston/security:latest
 SECURITY_DOCKERFILE := services/security/Dockerfile
 SECURITY_WORKDIR := /workspace
 

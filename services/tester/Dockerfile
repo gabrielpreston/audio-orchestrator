@@ -1,5 +1,5 @@
 # Use shared tools base image
-FROM discord-voice-lab/tools:latest
+FROM ghcr.io/gabrielpreston/tools:latest
 
 WORKDIR /workspace
 

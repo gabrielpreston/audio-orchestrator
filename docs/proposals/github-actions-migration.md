@@ -125,7 +125,7 @@ Triggered on pushes to `main`, tags, or manual dispatch.
 
 ### Normalize Container Baselines
 
-- Introduce a shared base image (e.g., `discord-voice-lab/python-audio:3.11`) that preinstalls
+- Introduce a shared base image (e.g., `ghcr.io/gabrielpreston/python-audio:latest`) that preinstalls
   FFmpeg, build tools, and Python dependencies, then reuse it across Discord, STT, LLM, TTS,
   lint, and tester images to reduce rebuild churn.
   【F:services/discord/Dockerfile†L1-L27】【F:services/stt/Dockerfile†L1-L33】【F:services/llm/Dockerfile†L1-L21】
