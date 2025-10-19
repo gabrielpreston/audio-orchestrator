@@ -43,7 +43,7 @@ class MCPConfig:
             return
 
         try:
-            with open(self.config_path, encoding="utf-8") as f:
+            with self.config_path.open(encoding="utf-8") as f:
                 data = json.load(f)
 
             mcp_servers = data.get("mcpServers", {})
