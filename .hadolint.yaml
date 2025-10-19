@@ -33,13 +33,3 @@ ignore:
   # Reason: Development images often need caching for faster builds
   - DL3059
 
-# Override specific rules - treat as warnings instead of errors
-# This allows us to see potential issues without failing the build
-override:
-  - DL3006: warning  # Use specific tags instead of latest
-  - DL3008: warning  # Use specific digest instead of tag
-  - DL3009: warning  # Pin versions in apt-get install
-  - DL3018: warning  # Use --no-cache flag with apk
-  - DL3019: warning  # Use apk add --no-cache
-  - DL3013: warning  # Pin versions in pip install
-  - DL3059: warning  # Use --no-cache-dir flag with pip

@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # =============================================================================
 # PHONY TARGETS
 # =============================================================================
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-unit-local test-unit-container test-component test-component-local test-component-container test-integration test-integration-local test-integration-container test-e2e test-e2e-local test-e2e-container test-coverage test-coverage-local test-coverage-container test-watch test-watch-local test-watch-container test-debug test-debug-local test-debug-container test-specific test-specific-local test-specific-container typecheck security docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup eval-stt eval-wake eval-stt-all clean-eval
+.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-unit-local test-unit-container test-component test-component-local test-component-container test-integration test-integration-local test-integration-container test-e2e test-e2e-local test-e2e-container test-coverage test-coverage-local test-coverage-container test-watch test-watch-local test-watch-container test-debug test-debug-local test-debug-container test-specific test-specific-local test-specific-container typecheck security security-container security-image security-clean security-reports docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup eval-stt eval-wake eval-stt-all clean-eval
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -65,6 +65,9 @@ LINT_WORKDIR := /workspace
 TEST_IMAGE ?= discord-voice-lab/test:latest
 TEST_DOCKERFILE := services/tester/Dockerfile
 TEST_WORKDIR := /workspace
+SECURITY_IMAGE ?= discord-voice-lab/security:latest
+SECURITY_DOCKERFILE := services/security/Dockerfile
+SECURITY_WORKDIR := /workspace
 
 # Test configuration
 PYTEST_ARGS ?=
@@ -213,7 +216,9 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 
 test: test-unit-container test-component-container ## Run unit and component tests in containers (default)
 
-test-ci: test-local ## Run tests using locally installed tooling (for CI)
+# DEPRECATED: Use 'make test' instead (Docker-based)
+test-ci: test-local ## [DEPRECATED] Run tests using locally installed tooling (for CI)
+	@echo "⚠️  WARNING: test-ci is deprecated. Use 'make test' for Docker-based testing."
 
 test-container: test-image ## Build test container (if needed) and run the test suite
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
@@ -468,11 +473,14 @@ lint-sequential: lint-image ## Run linters sequentially (legacy behavior)
 		$(LINT_IMAGE) \
 		/usr/local/bin/run-lint.sh
 
-lint-ci: lint-ci-parallel ## Run linting with local tools in parallel (for CI)
+# DEPRECATED: Use 'make lint' instead (Docker-based)
+lint-ci: lint-ci-parallel ## [DEPRECATED] Run linting with local tools in parallel (for CI)
+	@echo "⚠️  WARNING: lint-ci is deprecated. Use 'make lint' for Docker-based linting."
 	@echo "✓ All linting checks passed"
 
-# Local parallel linting for CI
-lint-ci-parallel: ## Run all linters locally in parallel (for CI environments)
+# DEPRECATED: Use 'make lint' instead (Docker-based)
+lint-ci-parallel: ## [DEPRECATED] Run all linters locally in parallel (for CI environments)
+	@echo "⚠️  WARNING: lint-ci-parallel is deprecated. Use 'make lint' for Docker-based linting."
 	@echo "→ Running all linters in parallel..."
 	@$(MAKE) -j8 lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown
 
@@ -544,10 +552,39 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 # SECURITY & QUALITY GATES
 # =============================================================================
 
-security: ## Run security scanning with pip-audit
-	@command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
-	@mkdir -p security-reports; audit_status=0; for req in services/*/requirements.txt; do report="security-reports/$$(basename $$(dirname "$$req"))-requirements.json"; echo "Auditing $$req"; pip-audit --progress-spinner off --format json --requirement "$$req" > "$$report" || audit_status=$$?; done; if [ "$$audit_status" -ne 0 ]; then echo -e "$(COLOR_RED)→ pip-audit reported vulnerabilities$(COLOR_OFF)"; exit $$audit_status; fi; echo -e "$(COLOR_GREEN)→ Security scan completed$(COLOR_OFF)"
+security: security-container ## Run security scanning with pip-audit (Docker-based)
+
+security-container: security-image ## Run security scanning in Docker container
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(SECURITY_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo security) \
+		-v "$(CURDIR)":$(SECURITY_WORKDIR) \
+		$(SECURITY_IMAGE)
+
+security-image: ## Build the security scanning container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
+	@docker build --pull --tag $(SECURITY_IMAGE) -f $(SECURITY_DOCKERFILE) .
+
+security-clean: ## Clean security scan artifacts
+	@echo "→ Cleaning security scan artifacts"
+	@rm -rf security-reports
+	@echo "✓ Security artifacts cleaned"
+
+security-reports: ## Show security scan report summary
+	@if [ -d "security-reports" ]; then \
+		echo "→ Security scan reports:"; \
+		for report in security-reports/*.json; do \
+			if [ -f "$$report" ]; then \
+				service=$$(basename "$$report" -requirements.json); \
+				vulns=$$(jq '.vulnerabilities | length' "$$report" 2>/dev/null || echo "0"); \
+				echo "  $$service: $$vulns vulnerabilities"; \
+			fi; \
+		done; \
+	else \
+		echo "→ No security reports found. Run 'make security' first."; \
+	fi
 
 # =============================================================================
 # CLEANUP & MAINTENANCE
@@ -581,7 +618,9 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 # CI SETUP & DEPENDENCIES
 # =============================================================================
 
-install-dev-deps: ## Install development dependencies for CI
+# DEPRECATED: Use Docker-based targets instead
+install-dev-deps: ## [DEPRECATED] Install development dependencies for CI
+	@echo "⚠️  WARNING: install-dev-deps is deprecated. Use Docker-based targets instead."
 	@echo "→ Installing development dependencies"
 	@python -m pip install --upgrade pip
 	@pip install -r requirements-base.txt
@@ -595,7 +634,9 @@ install-dev-deps: ## Install development dependencies for CI
 		fi; \
 	done
 
-install-ci-tools: ## Install CI-specific tools (hadolint, checkmake, markdownlint)
+# DEPRECATED: Use Docker-based targets instead
+install-ci-tools: ## [DEPRECATED] Install CI-specific tools (hadolint, checkmake, markdownlint)
+	@echo "⚠️  WARNING: install-ci-tools is deprecated. Use Docker-based targets instead."
 	@echo "→ Installing CI tools"
 	@command -v hadolint >/dev/null 2>&1 || { \
 		echo "Installing Hadolint..."; \
@@ -613,7 +654,9 @@ install-ci-tools: ## Install CI-specific tools (hadolint, checkmake, markdownlin
 	}
 	@echo "✓ CI tools installed"
 
-ci-setup: install-dev-deps install-ci-tools ## Complete CI environment setup
+# DEPRECATED: Use Docker-based targets instead
+ci-setup: install-dev-deps install-ci-tools ## [DEPRECATED] Complete CI environment setup
+	@echo "⚠️  WARNING: ci-setup is deprecated. Use Docker-based targets instead."
 	@echo "✓ CI environment ready"
 
 # =============================================================================

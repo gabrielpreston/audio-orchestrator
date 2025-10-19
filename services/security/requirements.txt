@@ -1,0 +1,2 @@
+# Security scanning tools with pinned versions
+pip-audit==2.6.3

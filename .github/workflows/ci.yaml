@@ -80,15 +80,10 @@ jobs:
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
-      - name: 'Set up Python'
-        uses: 'actions/setup-python@v5'
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: 'Install CI tools and dependencies'
-        run: 'make ci-setup'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
       - name: 'Run unified lint suite'
-        run: 'make lint-ci'
+        run: 'make lint'
 
   security-scan:
     name: 'Security scan'
@@ -101,15 +96,17 @@ jobs:
       needs.lint.result == 'success'
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
-      - name: 'Set up Python'
-        uses: 'actions/setup-python@v5'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          driver-opts: |
+            image=moby/buildkit:latest
+            cache-from=type=gha
+            cache-to=type=gha,mode=max
       - name: 'Run security scan'
         run: 'make security'
       - name: 'Upload pip-audit reports'
@@ -118,6 +115,22 @@ jobs:
         with:
           name: 'pip-audit-reports'
           path: 'security-reports'
+          retention-days: 30
+      - name: 'Security scan summary'
+        if: 'always()'
+        run: |
+          if [ -d "security-reports" ]; then
+            echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+            echo "| Service | Vulnerabilities |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|----------------|" >> $GITHUB_STEP_SUMMARY
+            for report in security-reports/*.json; do
+              if [ -f "$report" ]; then
+                service=$(basename "$report" -requirements.json)
+                vulns=$(jq '.vulnerabilities | length' "$report" 2>/dev/null || echo "0")
+                echo "| $service | $vulns |" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          fi
 
   test:
     name: 'Tests'
@@ -134,17 +147,10 @@ jobs:
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
-      - name: 'Set up Python'
-        uses: 'actions/setup-python@v5'
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: 'Install development dependencies'
-        run: 'make install-dev-deps'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
       - name: 'Run unit and component tests'
-        env:
-          PYTHONPATH: '${{ github.workspace }}'
-        run: 'make test-ci | tee pytest.log'
+        run: 'make test | tee pytest.log'
       - name: 'Upload pytest log'
         if: 'always()'
         uses: 'actions/upload-artifact@v4'
@@ -173,13 +179,6 @@ jobs:
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
-      - name: 'Set up Python'
-        uses: 'actions/setup-python@v5'
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: 'Install development dependencies'
-        run: 'make install-dev-deps'
       - name: 'Verify documentation metadata'
         run: 'make docs-verify'
 
