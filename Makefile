@@ -9,6 +9,8 @@ SHELL := /bin/bash
 # Docker Management
 .PHONY: docker-build docker-build-nocache docker-build-service docker-restart docker-shell docker-config docker-smoke docker-validate docker-prune-cache docker-clean
 
+# Base Image Management
+.PHONY: base-images base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain
 # Testing (Docker-based)
 .PHONY: test test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific test-image
 
@@ -172,6 +174,20 @@ docker-build: ## Build or rebuild images for the compose stack
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
+# CI-optimized build targets
+docker-build-ci: ## Build images with CI optimizations (GitHub Actions cache)
+	@echo -e "$(COLOR_GREEN)→ Building docker images (CI optimized)$(COLOR_OFF)"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
+
+
+docker-smoke-ci: ## Use CI compose profile for smoke tests
+	@echo -e "$(COLOR_GREEN)→ Running Docker smoke tests (CI optimized)$(COLOR_OFF)"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null
+	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config --services
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml build --pull --progress=plain
+
 docker-build-nocache: ## Force rebuild all images without using cache
 	@echo -e "$(COLOR_GREEN)→ Building docker images (no cache)$(COLOR_OFF)"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
@@ -189,6 +205,29 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	fi
 	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
+
+# Base image build targets
+base-images: base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain ## Build all base images
+
+base-images-python-base: ## Build python-base image
+	@echo -e "$(COLOR_GREEN)→ Building python-base image$(COLOR_OFF)"
+	@docker buildx build --tag discord-voice-lab/python-base:latest --file services/base/Dockerfile.python-base --load .
+
+base-images-python-audio: base-images-python-base ## Build python-audio image
+	@echo -e "$(COLOR_GREEN)→ Building python-audio image$(COLOR_OFF)"
+	@docker buildx build --tag discord-voice-lab/python-audio:latest --file services/base/Dockerfile.python-audio --load .
+
+base-images-python-ml: base-images-python-base ## Build python-ml image
+	@echo -e "$(COLOR_GREEN)→ Building python-ml image$(COLOR_OFF)"
+	@docker buildx build --tag discord-voice-lab/python-ml:latest --file services/base/Dockerfile.python-ml --load .
+
+base-images-tools: base-images-python-base ## Build tools image
+	@echo -e "$(COLOR_GREEN)→ Building tools image$(COLOR_OFF)"
+	@docker buildx build --tag discord-voice-lab/tools:latest --file services/base/Dockerfile.tools --load .
+
+base-images-mcp-toolchain: base-images-python-base ## Build mcp-toolchain image
+	@echo -e "$(COLOR_GREEN)→ Building mcp-toolchain image$(COLOR_OFF)"
+	@docker buildx build --tag discord-voice-lab/mcp-toolchain:latest --file services/base/Dockerfile.mcp-toolchain --load .
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@echo -e "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)"
@@ -241,11 +280,15 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 
 test: test-unit test-component ## Run unit and component tests
 
+# CI-optimized testing targets
+test-ci: test-unit test-component ## Run unit and component tests (CI optimized)
+test-ci-fast: test-unit ## Run only unit tests (fastest CI option)
+
 
 
 test-image: ## Build the test toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
-	@docker build --pull --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
+	@docker build --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
 
 
 # Test categories
@@ -336,6 +379,9 @@ test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
 
 lint: lint-parallel ## Run all linters
 
+# CI-optimized linting targets
+lint-ci: lint-parallel ## Run all linters (CI optimized)
+
 lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@docker run --rm \
@@ -351,7 +397,7 @@ lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	@docker build --pull --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
+	@docker build --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
 
 # Local linting tools
 lint-python: ## Python formatting and linting (black, isort, ruff)

@@ -1,0 +1,21 @@
+# Python ML Base Image
+# Python + ML libraries (cmake, openblas, etc.) for LLM and STT services
+FROM discord-voice-lab/python-base:latest as base
+
+# Install ML-specific system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        cmake \
+        pkg-config \
+        libgomp1 \
+        libopenblas-dev \
+        wget \
+        libcurl4-openssl-dev \
+        libsndfile1 \
+        libavdevice-dev \
+        libavformat-dev \
+        libavfilter-dev \
+        libavcodec-dev \
+        libavutil-dev \
+    && rm -rf /var/lib/apt/lists/*

@@ -1,5 +1,5 @@
 # Include base requirements
--r ../../requirements-base.txt
+-r ../requirements-base.txt
 
 # Orchestrator-specific dependencies
 mcp>=1.0,<2.0

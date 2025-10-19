@@ -1,5 +1,5 @@
 # Include base requirements
--r ../../requirements-base.txt
+-r ../requirements-base.txt
 
 # Discord-specific dependencies
 discord.py[voice]>=2.4,<3.0

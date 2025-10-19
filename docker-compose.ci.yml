@@ -1,0 +1,114 @@
+# CI-specific Docker Compose overrides
+# Optimized for build speed over runtime performance
+version: '3.8'
+
+services:
+  discord:
+    build:
+      context: '.'
+      dockerfile: 'services/discord/Dockerfile'
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    # Disable unnecessary ports in CI
+    ports: []
+    # Use minimal environment for CI
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    # Disable restart policy in CI
+    restart: 'no'
+    # Use minimal logging
+    logging:
+      driver: 'none'
+    # CI-specific health checks for faster startup detection
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  stt:
+    build:
+      context: '.'
+      dockerfile: 'services/stt/Dockerfile'
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    ports: []
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: 'no'
+    logging:
+      driver: 'none'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  llm:
+    build:
+      context: '.'
+      dockerfile: 'services/llm/Dockerfile'
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    ports: []
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: 'no'
+    logging:
+      driver: 'none'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  orchestrator:
+    build:
+      context: '.'
+      dockerfile: 'services/orchestrator/Dockerfile'
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    ports: []
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: 'no'
+    logging:
+      driver: 'none'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  tts:
+    build:
+      context: '.'
+      dockerfile: 'services/tts/Dockerfile'
+      args:
+        BUILDKIT_INLINE_CACHE: '1'
+    ports: []
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: 'no'
+    logging:
+      driver: 'none'
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

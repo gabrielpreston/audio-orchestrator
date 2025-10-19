@@ -1,0 +1,25 @@
+# Python Base Image
+# Common Python + system dependencies for all services
+FROM python:3.11-slim as base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Install common system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        curl \
+        git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install base requirements
+COPY services/requirements-base.txt /app/requirements-base.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip setuptools wheel && \
+    pip install -r /app/requirements-base.txt

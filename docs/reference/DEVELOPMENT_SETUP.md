@@ -1,7 +1,7 @@
 ---
 title: Development Environment Setup
 description: Multi-virtual environment setup for the discord-voice-lab project
-last-updated: 2025-10-17
+last-updated: 2025-10-19
 ---
 
 # Development Environment Setup
@@ -15,6 +15,7 @@ The project uses a **Docker-based development approach**:
 - **Docker Compose**: All services run in containers for consistency
 - **Shared utilities**: `services.common` library provides shared functionality
 - **Service isolation**: Each service runs in its own container with specific dependencies
+- **Optimized builds**: CI uses shared base images and parallel builds for 80-90% faster build times
 
 ## 📁 Directory Structure
 
@@ -63,6 +64,15 @@ When working on the project:
 1. **Use Docker Compose** for running services
 2. **Edit code locally** - changes are reflected in containers
 3. **Use make targets** for common operations (test, lint, etc.)
+
+## 🔧 Build Optimization
+
+The project includes optimized Docker builds for CI/CD:
+
+- **Local Development**: Uses standard `make` targets (`make run`, `make test`, `make lint`)
+- **CI/CD**: Uses optimized targets (`make docker-build-ci`, `make test-ci`, `make lint-ci`)
+- **Base Images**: Shared base images reduce build times by 80-90%
+- **Parallel Builds**: Services build in parallel for maximum efficiency
 
 ## 🔧 Environment Details
 

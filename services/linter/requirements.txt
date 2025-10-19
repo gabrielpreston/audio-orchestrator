@@ -1,5 +1,5 @@
 # Include dev tools
--r ../../requirements-dev.txt
+-r ../requirements-dev.txt
 
 # Project dependencies needed for type checking
--r ../../requirements-base.txt
+-r ../requirements-base.txt

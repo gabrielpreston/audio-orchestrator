@@ -123,6 +123,7 @@ manifests; document and test them when introduced.
   on `docker-compose`.
 - Mount paths introduced in Compose must work with the existing `.env.*` structure and repository
   directories mounted into the containers (e.g., `./logs`, `./.wavs`).
+- **CI/CD Optimization**: Use `make docker-build-ci`, `make test-ci`, and `make lint-ci` for GitHub Actions workflows. Local development uses standard targets (`make run`, `make test`, `make lint`).
 
 ## 7. Python coding guidelines
 

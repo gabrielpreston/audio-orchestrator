@@ -1,0 +1,101 @@
+# Workflow: Build Base Images
+# Purpose: Build shared base images weekly and on base Dockerfile changes
+name: 'Build Base Images'
+description: |
+  Build shared base images for Docker optimization
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM
+  push:
+    paths:
+      - 'services/base/**'
+      - 'requirements-base.txt'
+      - 'requirements-dev.txt'
+      - 'requirements-test.txt'
+  workflow_dispatch: {}
+permissions:
+  contents: 'read'
+
+concurrency:
+  group: 'base-images'
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PIP_NO_PYTHON_VERSION_WARNING: '1'
+  PYTHONDONTWRITEBYTECODE: '1'
+
+jobs:
+  build-base-images:
+    name: 'Build Base Images'
+    runs-on: 'ubuntu-latest'
+    timeout-minutes: 45
+    steps:
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            cache-from=type=gha,scope=base-images
+            cache-to=type=gha,mode=max,scope=base-images
+
+      - name: 'Build Python Base Image'
+        run: |
+          docker buildx build \
+            --tag discord-voice-lab/python-base:latest \
+            --file services/base/Dockerfile.python-base \
+            --cache-from=type=gha,scope=base-images \
+            --cache-to=type=gha,mode=max,scope=base-images \
+            .
+
+      - name: 'Build Python Audio Base Image'
+        run: |
+          docker buildx build \
+            --tag discord-voice-lab/python-audio:latest \
+            --file services/base/Dockerfile.python-audio \
+            --cache-from=type=gha,scope=base-images \
+            --cache-to=type=gha,mode=max,scope=base-images \
+            .
+
+      - name: 'Build Python ML Base Image'
+        run: |
+          docker buildx build \
+            --tag discord-voice-lab/python-ml:latest \
+            --file services/base/Dockerfile.python-ml \
+            --cache-from=type=gha,scope=base-images \
+            --cache-to=type=gha,mode=max,scope=base-images \
+            .
+
+      - name: 'Build Tools Base Image'
+        run: |
+          docker buildx build \
+            --tag discord-voice-lab/tools:latest \
+            --file services/base/Dockerfile.tools \
+            --cache-from=type=gha,scope=base-images \
+            --cache-to=type=gha,mode=max,scope=base-images \
+            .
+
+      - name: 'Build MCP Toolchain Base Image'
+        run: |
+          docker buildx build \
+            --tag discord-voice-lab/mcp-toolchain:latest \
+            --file services/base/Dockerfile.mcp-toolchain \
+            --cache-from=type=gha,scope=base-images \
+            --cache-to=type=gha,mode=max,scope=base-images \
+            .
+
+      - name: 'Build Summary'
+        run: |
+          echo "## Base Images Built Successfully" >> $GITHUB_STEP_SUMMARY
+          echo "| Image | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| python-base | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "| python-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "| python-ml | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "| tools | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "| mcp-toolchain | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
