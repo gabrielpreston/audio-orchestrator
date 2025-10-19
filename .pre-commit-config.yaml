@@ -1,0 +1,102 @@
+# Pre-commit hooks configuration
+# https://pre-commit.com/
+
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$'
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: detect-private-key
+
+  # Python hooks
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3.11
+        args: ['--line-length=88']
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ['--profile', 'black', '--line-length', '88']
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.8
+    hooks:
+      - id: ruff
+        args: ['--fix', '--exit-non-zero-on-fix']
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-all]
+        args: ['--ignore-missing-imports']
+
+  # YAML linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ['-c', '.yamllint']
+
+  # Markdown linting
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.37.0
+    hooks:
+      - id: markdownlint
+        args: ['--config', '.markdownlint.yaml']
+
+  # Dockerfile linting
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.0
+    hooks:
+      - id: hadolint
+        args: ['--config', '.hadolint.yaml']
+
+  # Makefile linting
+  - repo: https://github.com/checkmake/checkmake
+    rev: v0.2.2
+    hooks:
+      - id: checkmake
+        args: ['--config', '.checkmake.yaml']
+
+# Configuration
+default_language_version:
+  python: python3.11
+
+# Exclude patterns
+exclude: |
+  (?x)^(
+    \.git/.*|
+    \.venv/.*|
+    \.eggs/.*|
+    build/.*|
+    dist/.*|
+    \.mypy_cache/.*|
+    \.pytest_cache/.*|
+    __pycache__/.*|
+    \.ruff_cache/.*|
+    htmlcov/.*|
+    \.coverage.*|
+    coverage\.xml|
+    \.tox/.*|
+    \.env.*|
+    node_modules/.*
+  )$

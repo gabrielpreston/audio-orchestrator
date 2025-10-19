@@ -72,7 +72,6 @@ select = [
     "RSE", # flake8-raise
     "RUF", # ruff-specific rules
     "T20", # flake8-print
-    "UP",  # pyupgrade
     "WPS", # wemake-python-styleguide
     "YTT", # flake8-2020
 ]
@@ -90,6 +89,14 @@ ignore = [
     "RET504", # unnecessary assignment before return
     "RET505", # unnecessary else after return
     "SIM108", # use ternary operator (sometimes less readable)
+    "PLR0913", # too many arguments (common in service constructors)
+    "PLR0912", # too many branches (common in complex logic)
+    "PLR0915", # too many statements (common in main functions)
+    "PLR2004", # magic value used in comparison
+    "COM812", # missing trailing comma (handled by black)
+    "ISC001", # implicitly concatenated string literals (common in SQL)
+    "T201", # print statements (common in scripts)
+    "ERA001", # commented out code (sometimes needed for debugging)
 ]
 
 [tool.ruff.lint.per-file-ignores]
