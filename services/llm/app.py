@@ -25,6 +25,7 @@ from services.common.service_configs import (
     TTSClientConfig,
 )
 
+
 app = FastAPI(title="Local LLM Service")
 
 _cfg: ServiceConfig = (

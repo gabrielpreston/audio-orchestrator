@@ -9,12 +9,13 @@ for Discord voice channels.
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from services.common.surfaces.config import SurfaceConfig, SurfaceStatus, SurfaceType
 from services.common.surfaces.events import ConnectionEvent, ErrorEvent
 from services.common.surfaces.interfaces import SurfaceLifecycle
+
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +84,8 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             await asyncio.sleep(0.1)  # Simulate connection delay
 
             self._is_connected = True
-            self._connection_start_time = datetime.now()
-            self._last_heartbeat = datetime.now()
+            self._connection_start_time = datetime.now(tz=timezone.utc)
+            self._last_heartbeat = datetime.now(tz=timezone.utc)
             self._reconnect_attempts = 0
 
             # Update surface status
@@ -97,7 +98,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             connection_event = ConnectionEvent(
                 event_type="connection.established",
                 surface_id=self._surface_config.surface_id,
-                timestamp=datetime.now().timestamp(),
+                timestamp=datetime.now(tz=timezone.utc).timestamp(),
                 connection_params=self._surface_config.config,
             )
             await self._emit_lifecycle_event(connection_event.to_dict())
@@ -139,7 +140,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             disconnect_event = ConnectionEvent(
                 event_type="connection.closed",
                 surface_id=self._surface_config.surface_id,
-                timestamp=datetime.now().timestamp(),
+                timestamp=datetime.now(tz=timezone.utc).timestamp(),
                 connection_params=self._surface_config.config,
             )
             await self._emit_lifecycle_event(disconnect_event.to_dict())
@@ -284,7 +285,9 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
 
                 # Check if heartbeat is recent
                 if self._last_heartbeat:
-                    time_since_heartbeat = datetime.now() - self._last_heartbeat
+                    time_since_heartbeat = (
+                        datetime.now(tz=timezone.utc) - self._last_heartbeat
+                    )
                     if time_since_heartbeat.total_seconds() > self._connection_timeout:
                         logger.warning(
                             "Connection timeout detected, attempting reconnection"
@@ -293,7 +296,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
                         break
 
                 # Simulate heartbeat
-                self._last_heartbeat = datetime.now()
+                self._last_heartbeat = datetime.now(tz=timezone.utc)
 
         except asyncio.CancelledError:
             logger.debug("Health monitoring cancelled")
@@ -302,7 +305,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
 
     async def update_heartbeat(self) -> None:
         """Update connection heartbeat timestamp."""
-        self._last_heartbeat = datetime.now()
+        self._last_heartbeat = datetime.now(tz=timezone.utc)
         logger.debug("Heartbeat updated")
 
     async def get_connection_metrics(self) -> dict[str, Any]:
@@ -314,7 +317,9 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
         """
         uptime = None
         if self._connection_start_time:
-            uptime = (datetime.now() - self._connection_start_time).total_seconds()
+            uptime = (
+                datetime.now(tz=timezone.utc) - self._connection_start_time
+            ).total_seconds()
 
         return {
             "is_connected": self._is_connected,

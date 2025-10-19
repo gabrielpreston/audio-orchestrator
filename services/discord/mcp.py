@@ -14,6 +14,7 @@ from services.common.logging import get_logger
 
 from .config import BotConfig
 
+
 if TYPE_CHECKING:  # pragma: no cover - runtime only
     from .discord_voice import VoiceBot
 

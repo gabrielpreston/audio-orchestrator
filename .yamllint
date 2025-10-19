@@ -1,11 +1,79 @@
-extends: relaxed
+# yamllint configuration
+# Purpose: Ensures consistent YAML formatting and catches common YAML errors
+extends: default
 
 rules:
+  # Line length configuration
+  # Purpose: Prevent overly long lines while allowing reasonable flexibility
   line-length:
-    max: 200
-    level: warning
+    max: 88  # Match Python line length for consistency across project
+    level: warning  # Warn instead of error (some YAML files may need longer lines
+    # Allow longer lines for GitHub workflow files due to complex expressions
+    ignore: |
+      .github/workflows/*.yaml
+      .github/workflows/*.yml
+  
+  # Indentation configuration
+  # Purpose: Enforce consistent indentation throughout YAML files
+  indentation:
+    spaces: 2  # Use 2 spaces per indentation level (YAML standard)
+    indent-sequences: true  # Require proper indentation for sequences
+    check-multi-line-strings: false  # Allow flexible indentation in multi-line strings
+  
+  # Comments configuration
+  # Purpose: Ensure comments are properly formatted
+  comments:
+    min-spaces-from-content: 1  # Require at least 1 space before comments
+  
+  # Document start configuration
+  # Purpose: Allow YAML files without document start markers
+  document-start:
+    present: false  # Don't require --- at the start of files
+  
+  # Truthy values configuration
+  # Purpose: Prevent ambiguous boolean values in YAML
   truthy:
-    allowed-values: ['true', 'false', 'on', 'off']
-    check-keys: false
-  document-start: disable
-  quoted-strings: disable
+    allowed-values: ['true', 'false', 'on', 'off']  # Only allow explicit boolean values
+    check-keys: false  # Don't check keys, only values
+  
+  # Empty lines configuration
+  # Purpose: Prevent excessive blank lines
+  empty-lines:
+    max: 2  # Allow up to 2 consecutive empty lines
+    max-start: 0  # No empty lines at the start of files
+    max-end: 1  # Allow 1 empty line at the end of files
+  
+  # Empty values configuration
+  # Purpose: Prevent empty values that might cause issues
+  empty-values:
+    forbid-in-block-mappings: true  # Don't allow empty values in block mappings
+    forbid-in-flow-mappings: true  # Don't allow empty values in flow mappings
+  
+  # Key ordering configuration
+  # Purpose: Allow flexible key ordering (not always practical)
+  key-ordering: disable  # Don't enforce key ordering
+  
+  # Octal values configuration
+  # Purpose: Prevent octal values that might be confusing
+  octal-values:
+    forbid-implicit-octal: true  # Don't allow implicit octal values
+    forbid-explicit-octal: true  # Don't allow explicit octal values
+  
+  # Quoted strings configuration
+  # Purpose: Enforce consistent string quoting
+  quoted-strings:
+    quote-type: single  # Prefer single quotes for strings
+    check-keys: false  # Don't enforce quoting on keys
+    # Disable for GitHub workflow files to allow GitHub Actions expressions
+    ignore: |
+      .github/workflows/*.yaml
+      .github/workflows/*.yml
+  
+  # Trailing spaces configuration
+  # Purpose: Remove trailing spaces for cleaner files
+  trailing-spaces: enable  # Remove trailing spaces
+  
+  # Hyphens configuration
+  # Purpose: Ensure proper spacing around hyphens
+  hyphens:
+    max-spaces-after: 1  # Allow at most 1 space after hyphens

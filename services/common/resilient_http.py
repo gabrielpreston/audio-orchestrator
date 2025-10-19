@@ -15,8 +15,6 @@ from .logging import get_logger
 class ServiceUnavailableError(Exception):
     """Raised when service is unavailable."""
 
-    pass
-
 
 class ResilientHTTPClient:
     """HTTP client with circuit breaker and health checks."""

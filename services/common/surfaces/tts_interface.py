@@ -14,6 +14,7 @@ from typing import Any
 
 from .types import AudioFormat
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -129,7 +130,7 @@ class TTSAdapter(ABC):
         Returns:
             True if initialization successful, False otherwise
         """
-        pass
+        ...
 
     @abstractmethod
     async def connect(self) -> bool:
@@ -139,12 +140,12 @@ class TTSAdapter(ABC):
         Returns:
             True if connection successful, False otherwise
         """
-        pass
+        ...
 
     @abstractmethod
     async def disconnect(self) -> None:
         """Disconnect from TTS service."""
-        pass
+        ...
 
     @abstractmethod
     async def synthesize(
@@ -161,7 +162,7 @@ class TTSAdapter(ABC):
         Returns:
             TTS result containing audio data and metadata
         """
-        pass
+        ...
 
     @abstractmethod
     async def synthesize_stream(
@@ -178,7 +179,7 @@ class TTSAdapter(ABC):
         Yields:
             TTS results as they become available
         """
-        pass
+        ...
 
     @abstractmethod
     async def get_available_voices(self) -> list[dict[str, Any]]:
@@ -188,7 +189,7 @@ class TTSAdapter(ABC):
         Returns:
             List of available voices with metadata
         """
-        pass
+        ...
 
     @abstractmethod
     async def get_supported_languages(self) -> list[str]:
@@ -198,7 +199,7 @@ class TTSAdapter(ABC):
         Returns:
             List of supported language codes
         """
-        pass
+        ...
 
     @abstractmethod
     async def get_model_info(self) -> dict[str, Any]:
@@ -208,7 +209,7 @@ class TTSAdapter(ABC):
         Returns:
             Dictionary containing model information
         """
-        pass
+        ...
 
     @abstractmethod
     async def get_telemetry(self) -> dict[str, Any]:
@@ -218,7 +219,7 @@ class TTSAdapter(ABC):
         Returns:
             Dictionary containing telemetry data
         """
-        pass
+        ...
 
     def is_initialized(self) -> bool:
         """Check if adapter is initialized."""

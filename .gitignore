@@ -1,32 +1,83 @@
-*.logs
-*.log
-.vscode/
+# Environment & Configuration
 .env.*
-bin/
-.venv-*/
-.venv/
-.tmpvenv/
-.*_cache/
-cache/
-__pycache__/
-logs/
-.wavs/
-*.gguf
 mcp.json
-.cache/
-*.onnx
-*.onnx.json
-debug/
-services/models/
-*.zip
-.npm/
-*.txt
-!requirements*.txt
+
+# Python Development
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
 .coverage
 coverage.xml
-junit.xml
 htmlcov/
-.cursor/rules/
-test_artifacts/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.bandit/
+
+# Virtual Environments
+.venv/
+.venv-*/
+.tmpvenv/
+
+# Logs & Debug
+*.log
+*.logs
+logs/
+debug/
+*.pid
+
+# IDE & Editor
+.vscode/
+.cursor/rules/
 .cursor/commands/
+.idea/
+*.iml
+
+# Build Artifacts
+*.zip
+junit.xml
+test_artifacts/
+*.tmp
+*.swp
+
+# Docker
+docker-compose.override.yml
+
+# Cache Directories
+cache/
+.*_cache/
+.cache/
+.npm/
+
+# Model Files
+*.gguf
+*.onnx
+*.onnx.json
+services/models/
+
+# Audio Files (runtime generated, not test fixtures)
+.wavs/
+
+# Security Reports
+security-reports/
+
+# OS-Specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Preserve requirements files
+*.txt
+!requirements*.txt
+.pip-audit-cache/

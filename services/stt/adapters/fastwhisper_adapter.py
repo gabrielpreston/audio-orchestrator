@@ -14,6 +14,7 @@ from typing import Any
 from services.common.surfaces.stt_interface import STTAdapter, STTConfig, STTResult
 from services.common.surfaces.types import AudioFormat, AudioMetadata
 
+
 logger = logging.getLogger(__name__)
 
 

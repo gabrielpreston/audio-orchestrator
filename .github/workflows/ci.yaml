@@ -1,49 +1,47 @@
----
 # Workflow: CI
 # Purpose: Run linting, testing, security scanning, and Docker smoke tests
 # when code changes are detected.
-name: CI
+name: 'CI'
 description: |
   CI workflow validation steps
 on:
   push:
-    branches: [main]
+    branches: ['main']
   pull_request:
-    branches: [main]
-  workflow_dispatch:
-
+    branches: ['main']
+  workflow_dispatch: {}
 permissions:
-  contents: read
-  pull-requests: read
+  contents: 'read'
+  pull-requests: 'read'
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: 'ci-${{ github.ref }}'
   cancel-in-progress: true
 
 env:
-  PIP_DISABLE_PIP_VERSION_CHECK: "1"
-  PIP_NO_PYTHON_VERSION_WARNING: "1"
-  PYTHONDONTWRITEBYTECODE: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  PIP_NO_PYTHON_VERSION_WARNING: '1'
+  PYTHONDONTWRITEBYTECODE: '1'
 
 jobs:
   changes:
-    name: Detect affected areas
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
+    name: 'Detect affected areas'
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
     outputs:
-      python: ${{ steps.filter.outputs.python }}
-      docker: ${{ steps.filter.outputs.docker }}
-      docs: ${{ steps.filter.outputs.docs }}
-      workflows: ${{ steps.filter.outputs.workflows }}
-      security: ${{ steps.filter.outputs.security }}
+      python: '${{ steps.filter.outputs.python }}'
+      docker: '${{ steps.filter.outputs.docker }}'
+      docs: '${{ steps.filter.outputs.docs }}'
+      workflows: '${{ steps.filter.outputs.workflows }}'
+      security: '${{ steps.filter.outputs.security }}'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
         with:
           fetch-depth: 2
-      - name: Filter paths
-        id: filter
-        uses: dorny/paths-filter@v3
+      - name: 'Filter paths'
+        id: 'filter'
+        uses: 'dorny/paths-filter@v3'
         with:
           filters: |
             python:
@@ -67,8 +65,8 @@ jobs:
               - 'services/**/requirements.txt'
 
   lint:
-    name: Lint
-    needs: changes
+    name: 'Lint'
+    needs: 'changes'
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
@@ -76,143 +74,142 @@ jobs:
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
     timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install CI tools and dependencies
-        run: make ci-setup
-      - name: Run unified lint suite
-        run: make lint-ci
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
+      - name: 'Run unified lint suite'
+        run: 'make lint'
 
   security-scan:
-    name: Security scan
-    needs: changes
+    name: 'Security scan'
+    needs: 'changes'
     if: |
       (needs.changes.outputs.security == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
-    timeout-minutes: 10
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
+    timeout-minutes: 15
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
         with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Run security scan
-        run: make security
-      - name: Upload pip-audit reports
-        if: always()
-        uses: actions/upload-artifact@v4
+          driver-opts: |
+            image=moby/buildkit:latest
+            cache-from=type=gha
+            cache-to=type=gha,mode=max
+      - name: 'Run security scan'
+        run: 'make security'
+      - name: 'Upload pip-audit reports'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
         with:
-          name: pip-audit-reports
-          path: security-reports
+          name: 'pip-audit-reports'
+          path: 'security-reports'
+          retention-days: 30
+      - name: 'Security scan summary'
+        if: 'always()'
+        run: |
+          if [ -d "security-reports" ]; then
+            echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
+            echo "| Service | Vulnerabilities |" >> $GITHUB_STEP_SUMMARY
+            echo "|---------|----------------|" >> $GITHUB_STEP_SUMMARY
+            for report in security-reports/*.json; do
+              if [ -f "$report" ]; then
+                service=$(basename "$report" -requirements.json)
+                vulns=$(jq '.vulnerabilities | length' "$report" 2>/dev/null || echo "0")
+                echo "| $service | $vulns |" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
+          fi
 
   test:
-    name: Tests
-    needs: [changes, lint]
+    name: 'Tests'
+    needs: ['changes', 'lint']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
     timeout-minutes: 20
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
+      - name: 'Run unit and component tests'
+        run: 'make test | tee pytest.log'
+      - name: 'Upload pytest log'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
         with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install development dependencies
-        run: make install-dev-deps
-      - name: Run unit and component tests
-        env:
-          PYTHONPATH: ${{ github.workspace }}
-        run: make test-ci | tee pytest.log
-      - name: Upload pytest log
-        if: always()
-        uses: actions/upload-artifact@v4
+          name: 'pytest-log'
+          path: 'pytest.log'
+      - name: 'Upload coverage report'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
         with:
-          name: pytest-log
-          path: pytest.log
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
+          name: 'coverage-report'
           path: |
-            coverage.xml
-            htmlcov/
+            'coverage.xml'
+            'htmlcov/'
 
   docs-verify:
-    name: Documentation verification
-    needs: changes
+    name: 'Documentation verification'
+    needs: 'changes'
     if: |
       (needs.changes.outputs.docs == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
     timeout-minutes: 10
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-          cache: 'pip'
-      - name: Install development dependencies
-        run: make install-dev-deps
-      - name: Verify documentation metadata
-        run: make docs-verify
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+      - name: 'Verify documentation metadata'
+        run: 'make docs-verify'
 
   docker-smoke:
-    name: Docker smoke
-    needs: [changes, lint, test, security-scan, docs-verify]
+    name: 'Docker smoke'
+    needs: ['changes', 'lint', 'test', 'security-scan', 'docs-verify']
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       needs.lint.result == 'success'
-    runs-on: ubuntu-latest
-    environment: discord-voice-lab
+    runs-on: 'ubuntu-latest'
+    environment: 'discord-voice-lab'
     timeout-minutes: 30
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.2.2
-      - name: Prepare environment defaults
-        run: python3 scripts/prepare_env_files.py --force
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-      - name: Build and validate Compose stack
-        run: make docker-smoke | tee docker-smoke.log
-      - name: Capture rendered Compose config
-        run: docker compose config > docker-compose.config.yaml
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: 'Checkout repository'
+        uses: 'actions/checkout@v4.2.2'
+      - name: 'Prepare environment defaults'
+        run: 'python3 scripts/prepare_env_files.py --force'
+      - name: 'Set up Docker Buildx'
+        uses: 'docker/setup-buildx-action@v3'
+      - name: 'Build and validate Compose stack'
+        run: 'make docker-smoke | tee docker-smoke.log'
+      - name: 'Capture rendered Compose config'
+        run: 'docker compose config > docker-compose.config.yaml'
+      - name: 'Upload diagnostics'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
         with:
-          name: docker-smoke-artifacts
+          name: 'docker-smoke-artifacts'
           path: |
-            docker-smoke.log
-            docker-compose.config.yaml
+            'docker-smoke.log'
+            'docker-compose.config.yaml'

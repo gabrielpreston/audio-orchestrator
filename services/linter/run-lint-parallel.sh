@@ -36,7 +36,18 @@ run_linter() {
         # Store failure info for later reporting
         echo "$name:$exit_code" >> /tmp/lint_failures.txt
         
-        # Capture output for aggregation
+        # Display failure output immediately
+        print_status "$YELLOW" "=== $name FAILURE OUTPUT ==="
+        if [ -s "$output_file" ]; then
+            cat "$output_file"
+        fi
+        if [ -s "$error_file" ]; then
+            cat "$error_file"
+        fi
+        print_status "$YELLOW" "=== END $name OUTPUT ==="
+        echo ""
+        
+        # Also capture output for aggregation (for final summary)
         {
             echo "=== $name OUTPUT ==="
             cat "$output_file" 2>/dev/null || true
@@ -178,15 +189,15 @@ else
     print_status "$RED" "✗ markdownlint: failed"
 fi
 
-# Show aggregated output if there were failures
+# Show aggregated output if there were failures (as a final summary)
 if [ $OVERALL_EXIT -ne 0 ]; then
     echo ""
-    print_status "$RED" "=== DETAILED FAILURE OUTPUT ==="
+    print_status "$RED" "=== FINAL FAILURE SUMMARY ==="
     if [ -f /tmp/lint_aggregated_output.log ]; then
         cat /tmp/lint_aggregated_output.log
     fi
     echo ""
-    print_status "$RED" "=== END OF FAILURE OUTPUT ==="
+    print_status "$RED" "=== END OF FAILURE SUMMARY ==="
 fi
 
 # Clean up temporary files

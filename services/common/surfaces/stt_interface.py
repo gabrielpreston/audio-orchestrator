@@ -14,6 +14,7 @@ from typing import Any
 
 from .types import AudioFormat, AudioMetadata
 
+
 logger = logging.getLogger(__name__)
 
 

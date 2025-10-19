@@ -142,7 +142,7 @@ class TestContextManager:
 
         def log_with_context(correlation_id: str, thread_id: int):
             with correlation_context(correlation_id) as logger:
-                logger.info(f"thread {thread_id} message")
+                logger.info("thread %s message", thread_id)
 
         threads = []
         correlation_ids = [
@@ -217,7 +217,7 @@ class TestContextManager:
 
         with correlation_context(correlation_id) as logger:
             for i in range(10):
-                logger.info(f"message {i}")
+                logger.info("message %s", i)
 
         log_output = captured_output.getvalue()
         log_lines = [

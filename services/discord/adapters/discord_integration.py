@@ -9,7 +9,7 @@ while maintaining backward compatibility.
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from services.common.surfaces.interfaces import (
@@ -24,6 +24,7 @@ from .discord_control import DiscordControlChannel
 from .discord_lifecycle import DiscordSurfaceLifecycle
 from .discord_sink import DiscordAudioSink
 from .discord_source import DiscordAudioSource
+
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +317,7 @@ class DiscordAdapterIntegration:
                     {
                         "frame": frame,
                         "metadata": metadata,
-                        "timestamp": datetime.now().timestamp(),
+                        "timestamp": datetime.now(tz=timezone.utc).timestamp(),
                     },
                 )
 

@@ -22,12 +22,12 @@ RUN apt-get update && \
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
     | tar -C /usr/local -xz
 
-# Copy all requirements files needed for linting to workspace
+# Copy all requirements files needed for linting and install
 COPY requirements-base.txt /workspace/requirements-base.txt
 COPY requirements-dev.txt /workspace/requirements-dev.txt
-COPY services/linter/requirements.txt /workspace/requirements.txt
+COPY services/linter/requirements.txt /workspace/services/linter/requirements.txt
 RUN python -m pip install --upgrade pip==24.0 && \
-    pip install -r /workspace/requirements.txt
+    pip install -r /workspace/services/linter/requirements.txt
 
 # Pin markdownlint version
 RUN npm install -g markdownlint-cli@0.39.0

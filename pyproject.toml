@@ -3,12 +3,14 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
-line-length = 88
-target-version = ['py311']
-include = '\.pyi?$'
+# Black code formatter configuration
+# Purpose: Ensures consistent Python code formatting across the project
+line-length = 88  # Standard line length for Python projects (PEP 8 recommends 79, but 88 is more practical)
+target-version = ['py311']  # Target Python 3.11 for modern syntax features
+include = '\.pyi?$'  # Include both .py and .pyi files (type stubs)
 extend-exclude = '''
 /(
-  # directories
+  # Exclude common build and cache directories to avoid formatting generated files
   \.eggs
   | \.git
   | \.hg
@@ -21,55 +23,201 @@ extend-exclude = '''
 '''
 
 [tool.isort]
-profile = "black"
-multi_line_output = 3
-line_length = 88
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
-ensure_newline_before_comments = true
-skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]
+# isort import sorting configuration
+# Purpose: Organizes imports in a consistent, readable manner that works with Black
+profile = "black"  # Use Black-compatible import sorting style
+multi_line_output = 3  # Use vertical hanging indent for multi-line imports (Black-compatible)
+line_length = 88  # Match Black's line length to prevent conflicts
+include_trailing_comma = true  # Always include trailing commas (Black requirement)
+force_grid_wrap = 0  # Don't force grid wrapping (let Black handle it)
+use_parentheses = true  # Use parentheses for multi-line imports (Black-compatible)
+ensure_newline_before_comments = true  # Add blank line before import comments for readability
+lines_after_imports = 2  # Add 2 blank lines after imports (PEP 8 compliance)
+skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]  # Skip virtual environments and build directories
+known_first_party = ["services"]  # Align with Ruff's isort config to classify internal package
 
 [tool.ruff]
-target-version = "py311"
-line-length = 88
+# Ruff linter configuration
+# Purpose: Fast Python linting that replaces multiple tools (flake8, isort, etc.)
+target-version = "py311"  # Target Python 3.11 for modern syntax features
+line-length = 88  # Match Black's line length to prevent conflicts
 
 [tool.ruff.lint]
+# Ruff linting rules selection
+# Purpose: Enable comprehensive code quality checks while maintaining reasonable strictness
 select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "UP",  # pyupgrade
-    "N",   # pep8-naming
-    "S",   # flake8-bandit
-    "RET", # flake8-return
-    "SIM", # flake8-simplify
+    # Core Python style and error detection
+    "E",   # pycodestyle errors - catches basic Python style violations
+    "W",   # pycodestyle warnings - catches style issues that aren't errors
+    "F",   # pyflakes - catches unused imports, undefined names, and other logical errors
+    "B",   # flake8-bugbear - catches common bugs and design problems
+    "C4",  # flake8-comprehensions - suggests better list/dict comprehensions
+    "UP",  # pyupgrade - suggests modern Python syntax (e.g., f-strings, walrus operator)
+    "N",   # pep8-naming - enforces PEP 8 naming conventions
+    "S",   # flake8-bandit - security-focused linting (catches potential security issues)
+    "RET", # flake8-return - catches unnecessary return statements and else blocks
+    "SIM", # flake8-simplify - suggests code simplifications
+    
+    # Import and type checking
+    "TCH", # flake8-type-checking - catches imports that should be TYPE_CHECKING
+    "TID", # flake8-tidy-imports - enforces import organization and naming
+    "ARG", # flake8-unused-arguments - catches unused function arguments
+    "PIE", # flake8-pie - catches various code issues (e.g., unnecessary pass)
+    "A",   # flake8-builtins - prevents shadowing of built-in names
+    "COM", # flake8-commas - enforces trailing comma usage (Black compatibility)
+    "C90", # mccabe - measures cyclomatic complexity
+    "DTZ", # flake8-datetimez - catches timezone-naive datetime usage
+    "EM",  # flake8-errmsg - catches error messages that should be f-strings
+    "EXE", # flake8-executable - catches executable files that shouldn't be
+    "FA",  # flake8-future-annotations - enforces from __future__ import annotations
+    "ISC", # flake8-implicit-str-concat - catches implicit string concatenation
+    "ICN", # flake8-import-conventions - enforces import naming conventions
+    "G",   # flake8-logging-format - catches logging format issues
+    "INP", # flake8-no-pep420 - catches implicit namespace packages
+    "PTH", # flake8-use-pathlib - suggests pathlib over os.path
+    "ERA", # eradicate - catches commented-out code
+    "PD",  # pandas-vet - catches pandas anti-patterns
+    "PGH", # pygrep-hooks - catches various code patterns
+    "PL",  # pylint - catches various code quality issues
+    "PT",  # flake8-pytest-style - enforces pytest best practices
+    "Q",   # flake8-quotes - enforces consistent quote usage
+    "RSE", # flake8-raise - catches raise statements that should use 'from'
+    "RUF", # ruff-specific rules - catches Ruff-specific issues
+    "T20", # flake8-print - catches print statements (useful for scripts)
+    "YTT", # flake8-2020 - catches Python 3.8+ specific issues
 ]
 ignore = [
-    "E501",  # line too long, handled by black
-    "B008",  # do not perform function calls in argument defaults
-    "C901",  # too complex
-    "B904",  # within an except clause, raise exceptions with raise ... from err
-    "UP038", # use X | Y in isinstance call instead of (X, Y)
-    "S101",  # use of assert (common in tests)
-    "S104",  # hardcoded bind all interfaces (common in Docker)
-    "S311",  # random usage for jitter in retry logic (non-cryptographic)
-    "S603",  # subprocess call (common in Docker)
-    "S607",  # starting a process with a partial executable path
-    "RET504", # unnecessary assignment before return
-    "RET505", # unnecessary else after return
-    "SIM108", # use ternary operator (sometimes less readable)
+    # Black compatibility - let Black handle these formatting issues
+    "E501",  # line too long - Black handles line length automatically
+    "COM812", # missing trailing comma - Black handles comma placement
+    
+    # Function argument and complexity rules - too strict for our use case
+    "B008",  # do not perform function calls in argument defaults - sometimes necessary for dependency injection
+    "C901",  # too complex - some functions need to be complex (e.g., main event loops)
+    "PLR0913", # too many arguments - common in service constructors with many config options
+    "PLR0912", # too many branches - common in complex business logic
+    "PLR0915", # too many statements - common in main functions and event handlers
+    
+    # Exception handling - sometimes we need different patterns
+    "B904",  # within an except clause, raise exceptions with raise ... from err - not always applicable
+    "RSE",   # flake8-raise - sometimes we want to re-raise without 'from'
+    
+    # Modern Python syntax - some features not available in our target version
+    "UP038", # use X | Y in isinstance call instead of (X, Y) - requires Python 3.10+
+    
+    # Security rules - too strict for our development environment
+    "S101",  # use of assert - common and necessary in tests
+    "S104",  # hardcoded bind all interfaces - common in Docker development
+    "S311",  # random usage for jitter in retry logic - non-cryptographic usage is fine
+    "S603",  # subprocess call - common in Docker and deployment scripts
+    "S607",  # starting a process with a partial executable path - common in containerized environments
+    
+    # Code style - sometimes readability trumps strict rules
+    "RET504", # unnecessary assignment before return - sometimes clearer than one-liner
+    "RET505", # unnecessary else after return - sometimes improves readability
+    "SIM108", # use ternary operator - sometimes if/else is more readable
+    "PLR2004", # magic value used in comparison - sometimes constants are overkill
+    "ISC001", # implicitly concatenated string literals - common in SQL queries and long strings
+    "T201", # print statements - common in scripts and debugging
+    "ERA001", # commented out code - sometimes needed for debugging or future features
+
+    # Temporary relaxations to align with current codebase until follow-up refactors
+    # Exception message formatting and raises patterns
+    "EM",      # flake8-errmsg family (EM101/EM102)
+    # Type-checking import placement
+    "TCH001", "TCH002", "TCH003",
+    # Pytest style adjustments
+    "PT011", "PT012", "PT023",
+    # Additional pytest style adjustments surfaced in CI
+    "PT018",
+    # Pygrep hooks specifics not yet narrowed
+    "PGH003",
+    # Ruff-specific tidy-ups that require code changes
+    "RUF006", "RUF019", "RUF100",
+    # Frequent false positives or intentional patterns in this codebase
+    "PLW0603",   # global updates used for cached singletons
+    "ARG002",    # unused args for interface compatibility
+    "G004",      # f-strings in logging allowed (structured logger handles it)
+    "INP001",    # implicit namespace packages are acceptable here
+    # Pathlib migration suggestions (defer until broader refactor)
+    "PTH108", "PTH110", "PTH118",
+    # Datetime/Timezone guidance (address in targeted refactor)
+    "DTZ005",
+    # Pyupgrade suggestion that is not universally desirable here
+    "UP017",
+    # Minor cleanups
+    "PIE790",    # unnecessary pass
+    "RUF010",    # explicit conversion flag
+    # Complexity/structure where current implementations intentionally branch/return early
+    "PLR0911",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401"]  # unused imports in __init__.py
+# Per-file rule ignores - relax rules for specific file types where appropriate
+"__init__.py" = ["F401"]  # unused imports - __init__.py files often import for re-export
+"**/tests/**/*.py" = [
+    "S101",    # use of assert - essential for testing
+    "S106",    # hardcoded password - test fixtures often contain test credentials
+    "S108",    # hardcoded temp file - test fixtures often use temp files
+    "PLR2004", # magic value used in comparison - test assertions often use magic values
+    "PLR0913", # too many arguments - test fixtures often have many parameters
+    "PLR0912", # too many branches - test cases often have complex branching
+    "PLR0915", # too many statements - test functions can be long
+    "PT009",   # allow unittest-style asserts in legacy tests
+    "PT001",   # prefer @pytest.fixture() over @pytest.fixture - allow existing style
+    "PT004",   # fixture returns nothing - allow without leading underscore rename
+    "ARG001",  # allow unused function argument in tests
+    "ARG002",  # allow unused method argument in tests
+    "PIE790",  # unnecessary pass in tests/mocks
+    "PIE796",  # duplicate Enum values allowed in test constants
+    "A002",    # builtins shadowing in test helpers/mocks
+    "PT022",   # yield fixtures without teardown
+    "PLW1509", # preexec_fn warning in tests
+    "PLR1711", # useless return in test mocks
+    "PTH123",  # open() usage in tests
+    "DTZ003",  # utcnow in tests
+    "DTZ005",  # datetime.now() without tz in tests
+]
+"services/common/test_config.py" = [
+    "PT009",  # allow unittest-style asserts in this legacy test module
+    "PT027",  # allow unittest-style assertRaises in this legacy test module
+]
+"**/conftest.py" = [
+    "F401", # unused imports - pytest conftest files often import for fixtures
+    "F403", # star imports - conftest files often use star imports for fixtures
+    "F405", # undefined name from star import - side effect of star imports
+]
+"**/migrations/**/*.py" = ["ALL"]  # database migrations - generated code, skip all linting
+"**/scripts/**/*.py" = [
+    "T201", # print statements - scripts often use print for output
+    "T20",  # print statements - alternative rule for print statements
+]
+"services/tts/adapters/piper_adapter.py" = [
+    "DTZ005", # datetime.now() without tz in adapter logging
+    "ARG002", # unused method arguments (signature compatibility)
+]
+"services/tts/app.py" = [
+    "PLW0603", # updating globals for cached voice config
+    "PTH110",  # os.path.exists in app boot logic
+    "PTH123",  # open() for small config writes
+    "ARG001",  # optional API params unused in stubbed handler
+]
 
 [tool.ruff.lint.isort]
-known-first-party = ["services"]
-force-single-line = false
-force-sort-within-sections = true
+# Ruff's isort integration configuration
+# Purpose: Ensures import sorting is consistent with isort settings and Black formatting
+known-first-party = ["services"]  # Mark our services package as first-party for proper import grouping
+force-single-line = false  # Allow multi-line imports (Black-compatible)
+force-sort-within-sections = true  # Sort imports within each section (stdlib, third-party, first-party)
+lines-after-imports = 2  # Add 2 blank lines after imports (PEP 8 compliance)
+lines-between-types = 1  # Add 1 blank line between different import types for readability
+
+[tool.ruff.lint.flake8-quotes]
+# Quote style configuration
+# Purpose: Enforce consistent quote usage throughout the codebase
+docstring-quotes = "double"  # Use double quotes for docstrings (PEP 257 recommendation)
+inline-quotes = "double"  # Use double quotes for inline strings (consistent with docstrings)
+multiline-quotes = "double"  # Use double quotes for multiline strings (consistency)
 
 [tool.mypy]
 python_version = "3.11"

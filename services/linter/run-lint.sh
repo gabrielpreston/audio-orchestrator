@@ -21,17 +21,17 @@ mypy services
 
 echo "Linting YAML files..."
 # Auto-discover: docker-compose.yml + all workflow files
-yamllint docker-compose.yml .github/workflows/*.y*ml 2>/dev/null
+yamllint -c .yamllint docker-compose.yml .github/workflows/*.y*ml 2>/dev/null
 
 echo "Linting Dockerfiles..."
 # Auto-discover all Dockerfiles in services/
-find services -type f -name 'Dockerfile' -exec hadolint {} \;
+find services -type f -name 'Dockerfile' -exec hadolint --config .hadolint.yaml {} \;
 
 echo "Linting Makefile..."
-checkmake Makefile
+checkmake --config .checkmake.yaml Makefile
 
 echo "Linting Markdown files..."
 # Auto-discover all Markdown files
-markdownlint README.md AGENTS.md 'docs/**/*.md'
+markdownlint --config .markdownlint.yaml README.md AGENTS.md 'docs/**/*.md'
 
 echo "All linting checks passed!"

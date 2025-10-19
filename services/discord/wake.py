@@ -13,6 +13,7 @@ from rapidfuzz import fuzz, process, utils
 
 from services.common.logging import get_logger
 
+
 try:  # pragma: no cover - optional dependency import guard
     from openwakeword import Model as WakeWordModel
 except Exception:  # pragma: no cover - gracefully degrade when package missing

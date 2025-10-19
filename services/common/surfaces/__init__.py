@@ -23,6 +23,7 @@ from .events import (
 from .interfaces import AudioSink, AudioSource, ControlChannel, SurfaceLifecycle
 from .types import AudioMetadata, AudioSegment, ControlEvent, PCMFrame
 
+
 __all__ = [
     # Core interfaces
     "AudioSource",

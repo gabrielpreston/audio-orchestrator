@@ -36,6 +36,7 @@ from services.common.surfaces.types import (
     WordTimestamp,
 )
 
+
 logger = get_logger(__name__)
 
 
@@ -184,7 +185,7 @@ class DiscordControlChannel(ControlChannel):
             raise
 
     def register_event_handler(
-        self, event_type: str, handler: Callable[[Any], None]
+        self, _event_type: str, handler: Callable[[Any], None]
     ) -> None:
         """Register a callback for incoming control events."""
         self._event_handlers.append(handler)
