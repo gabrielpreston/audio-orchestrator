@@ -161,11 +161,6 @@ docstring-quotes = "double"  # Use double quotes for docstrings (PEP 257 recomme
 inline-quotes = "double"  # Use double quotes for inline strings (consistent with docstrings)
 multiline-quotes = "double"  # Use double quotes for multiline strings (consistency)
 
-[tool.ruff.lint.flake8-commas]
-# Trailing comma configuration
-# Purpose: Enforce trailing commas for better diffs and Black compatibility
-trailing-comma = "always"  # Always require trailing commas (Black requirement, better git diffs)
-
 [tool.mypy]
 python_version = "3.11"
 warn_return_any = true
