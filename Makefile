@@ -3,7 +3,32 @@ SHELL := /bin/bash
 # =============================================================================
 # PHONY TARGETS
 # =============================================================================
-.PHONY: all test help run stop logs logs-dump docker-build docker-restart docker-shell docker-config docker-smoke clean docker-clean docker-status lint lint-container lint-image lint-fix lint-local lint-python lint-dockerfiles lint-compose lint-makefile lint-markdown lint-fix-local lint-fix-python lint-fix-yaml lint-fix-markdown test test-ci test-container test-image test-local test-unit test-unit-local test-unit-container test-component test-component-local test-component-container test-integration test-integration-local test-integration-container test-e2e test-e2e-local test-e2e-container test-coverage test-coverage-local test-coverage-container test-watch test-watch-local test-watch-container test-debug test-debug-local test-debug-container test-specific test-specific-local test-specific-container typecheck security security-container security-image security-clean security-reports docs-verify models-download models-clean install-dev-deps install-ci-tools ci-setup eval-stt eval-wake eval-stt-all clean-eval
+# Application Lifecycle
+.PHONY: run stop logs logs-dump docker-status
+
+# Docker Management
+.PHONY: docker-build docker-build-nocache docker-build-service docker-restart docker-shell docker-config docker-smoke docker-validate docker-prune-cache docker-clean
+
+# Testing (Docker-based)
+.PHONY: test test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific test-image
+
+# Linting (Docker-based)
+.PHONY: lint lint-parallel lint-image lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown lint-fix
+
+# Security (Docker-based)
+.PHONY: security security-image security-clean security-reports
+
+# Cleanup
+.PHONY: clean
+
+# Documentation & Utilities
+.PHONY: docs-verify rotate-tokens rotate-tokens-dry-run validate-tokens models-download models-clean
+
+# Evaluation
+.PHONY: eval-stt eval-wake eval-stt-all clean-eval
+
+# Meta
+.PHONY: all help
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -77,25 +102,25 @@ RUN_SCRIPT := scripts/run-compose.sh
 # HELPER FUNCTIONS
 # =============================================================================
 
-# Helper function for tool detection with better error messages
-define check_tool
-@command -v $(1) >/dev/null 2>&1 || { \
-	echo "Error: $(1) not found" >&2; \
-	echo "  $(2)" >&2; \
-	exit 1; \
-}
-endef
-
-# Helper function for running tests with consistent pattern
-define run_tests
-$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
-@echo "→ Running $(1) tests (local)"
-@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m $(2) $(PYTEST_ARGS)
+# Helper function for Docker container execution
+define run_docker_container
+@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+@docker run --rm \
+	-u $$(id -u):$$(id -g) \
+	-e HOME=$(2) \
+	-e USER=$$(id -un 2>/dev/null || echo user) \
+	$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
+	-v "$(CURDIR)":$(2) \
+	$(1) \
+	$(3)
 endef
 
 # Dynamic service discovery
 SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
 VALID_SERVICES := $(shell echo "$(SERVICES)" | tr '\n' ' ')
+
+# Runtime services (excludes tooling services like linter, tester, security)
+RUNTIME_SERVICES := discord stt llm orchestrator tts common
 
 # =============================================================================
 # DEFAULT TARGETS
@@ -155,11 +180,11 @@ docker-build-nocache: ## Force rebuild all images without using cache
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "Set SERVICE=<service-name> ($(VALID_SERVICES))"; \
+		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
 		exit 1; \
 	fi
-	@if ! echo "$(VALID_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
-		echo "Invalid service: $(SERVICE). Valid services: $(VALID_SERVICES)"; \
+	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
 		exit 1; \
 	fi
 	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
@@ -177,11 +202,11 @@ docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 docker-shell: ## Open an interactive shell inside a running service (SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "Set SERVICE=<service-name> ($(VALID_SERVICES))"; \
+		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
 		exit 1; \
 	fi
-	@if ! echo "$(VALID_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
-		echo "Invalid service: $(SERVICE). Valid services: $(VALID_SERVICES)"; \
+	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
 		exit 1; \
 	fi
 	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
@@ -214,97 +239,27 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 # TESTING
 # =============================================================================
 
-test: test-unit-container test-component-container ## Run unit and component tests in containers (default)
+test: test-unit test-component ## Run unit and component tests
 
-# DEPRECATED: Use 'make test' instead (Docker-based)
-test-ci: test-local ## [DEPRECATED] Run tests using locally installed tooling (for CI)
-	@echo "⚠️  WARNING: test-ci is deprecated. Use 'make test' for Docker-based testing."
 
-test-container: test-image ## Build test container (if needed) and run the test suite
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE)
 
 test-image: ## Build the test toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
 	@docker build --pull --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
 
-test-local: ## Run tests using locally installed tooling
-	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
-	@echo "→ Running tests with pytest"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest $(PYTEST_ARGS)
 
 # Test categories
-test-unit: test-unit-local ## Run unit tests only (fast, isolated) - local version
-test-unit-local: ## Run unit tests using locally installed tooling
-	$(call run_tests,unit,unit)
+test-unit: test-image ## Run unit tests (fast, isolated)
+	@echo -e "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m unit $(PYTEST_ARGS))
 
-test-unit-container: test-image ## Run unit tests in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running unit tests (container)$(COLOR_OFF)"
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest -m unit $(PYTEST_ARGS)
+test-component: test-image ## Run component tests (with mocked external dependencies)
+	@echo -e "$(COLOR_CYAN)→ Running component tests$(COLOR_OFF)"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m component $(PYTEST_ARGS))
 
-test-component: test-component-local ## Run component tests (with mocked external dependencies) - local version
-test-component-local: ## Run component tests using locally installed tooling
-	$(call run_tests,component,component)
-
-test-component-container: test-image ## Run component tests in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running component tests (container)$(COLOR_OFF)"
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest -m component $(PYTEST_ARGS)
-
-test-integration: test-integration-local ## Run integration tests (requires Docker Compose) - local version
-test-integration-local: ## Run integration tests using locally installed tooling
-	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
-	$(call check_tool,docker,Install Docker to run integration tests)
+test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@echo -e "$(COLOR_CYAN)→ Running integration tests (local)$(COLOR_OFF)"
-	@echo -e "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)"
-	@timeout 300 $(DOCKER_COMPOSE) up -d --build || { \
-		echo "Error: Services failed to start within 5 minutes" >&2; \
-		$(DOCKER_COMPOSE) down; \
-		exit 1; \
-	}
-	@echo -e "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)"
-	@for i in $$(seq 1 30); do \
-		if $(DOCKER_COMPOSE) ps --services --filter "status=running" | grep -q "discord\|stt\|llm"; then \
-			echo "→ Services are ready"; \
-			break; \
-		fi; \
-		echo "→ Waiting... ($$i/30)"; \
-		sleep 1; \
-	done
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m integration $(PYTEST_ARGS) || { \
-		echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"; \
-		$(DOCKER_COMPOSE) down; \
-		exit 1; \
-	}
-	@echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"
-	@$(DOCKER_COMPOSE) down
-
-test-integration-container: test-image ## Run integration tests in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@echo -e "$(COLOR_CYAN)→ Running integration tests (container)$(COLOR_OFF)"
+	@echo -e "$(COLOR_CYAN)→ Running integration tests$(COLOR_OFF)"
 	@echo -e "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)"
 	@$(DOCKER_COMPOSE) up -d --build
 	@echo -e "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)"
@@ -326,25 +281,7 @@ test-integration-container: test-image ## Run integration tests in Docker contai
 	@echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"
 	@$(DOCKER_COMPOSE) down
 
-test-e2e: test-e2e-local ## Run end-to-end tests (manual trigger only) - local version
-test-e2e-local: ## Run end-to-end tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@echo -e "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)"
-	@echo -e "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)"
-	@read -p "Are you sure you want to continue? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -m e2e $(PYTEST_ARGS) || { \
-			status=$$?; \
-			exit $$status; \
-		}; \
-	else \
-		echo -e "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)"; \
-		exit 0; \
-	fi
-
-test-e2e-container: test-image ## Run end-to-end tests in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+test-e2e: test-image ## Run end-to-end tests (manual trigger only)
 	@echo -e "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)"
 	@echo -e "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)"
 	@read -p "Are you sure you want to continue? [y/N] " -n 1 -r; \
@@ -364,35 +301,13 @@ test-e2e-container: test-image ## Run end-to-end tests in Docker container
 	fi
 
 # Test utilities
-test-coverage: test-coverage-local ## Generate coverage report - local version
-test-coverage-local: ## Generate coverage report using locally installed tooling
-	$(call check_tool,pytest,Install with: pip install pytest or run: make install-dev-deps)
-	@echo -e "$(COLOR_CYAN)→ Running tests with coverage (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS)
+test-coverage: test-image ## Generate coverage report
+	@echo -e "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS))
 	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
 
-test-coverage-container: test-image ## Generate coverage report in Docker container
-	$(call check_tool,docker,Install Docker to run containerized tests)
-	@echo -e "$(COLOR_CYAN)→ Running tests with coverage (container)$(COLOR_OFF)"
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS)
-	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
-
-test-watch: test-watch-local ## Run tests in watch mode (requires pytest-watch) - local version
-test-watch-local: ## Run tests in watch mode using locally installed tooling
-	@command -v ptw >/dev/null 2>&1 || { echo "pytest-watch not found; install it (e.g. pip install pytest-watch)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running tests in watch mode (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} ptw --runner "pytest -xvs" $(PYTEST_ARGS)
-
-test-watch-container: test-image ## Run tests in watch mode in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running tests in watch mode (container)$(COLOR_OFF)"
+test-watch: test-image ## Run tests in watch mode (requires pytest-watch)
+	@echo -e "$(COLOR_CYAN)→ Running tests in watch mode$(COLOR_OFF)"
 	@docker run --rm -it \
 		-u $$(id -u):$$(id -g) \
 		-e HOME=$(TEST_WORKDIR) \
@@ -402,57 +317,24 @@ test-watch-container: test-image ## Run tests in watch mode in Docker container
 		$(TEST_IMAGE) \
 		ptw --runner "pytest -xvs" $(PYTEST_ARGS)
 
-test-debug: test-debug-local ## Run tests in debug mode with verbose output - local version
-test-debug-local: ## Run tests in debug mode using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running tests in debug mode (local)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -xvs --tb=long --capture=no $(PYTEST_ARGS)
+test-debug: test-image ## Run tests in debug mode with verbose output
+	@echo -e "$(COLOR_CYAN)→ Running tests in debug mode$(COLOR_OFF)"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs --tb=long --capture=no $(PYTEST_ARGS))
 
-test-debug-container: test-image ## Run tests in debug mode in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Running tests in debug mode (container)$(COLOR_OFF)"
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest -xvs --tb=long --capture=no $(PYTEST_ARGS)
-
-test-specific: test-specific-local ## Run specific tests (use PYTEST_ARGS="-k pattern") - local version
-test-specific-local: ## Run specific tests using locally installed tooling
-	@command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
 	@if [ -z "$(PYTEST_ARGS)" ]; then \
 		echo -e "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)"; \
 		echo -e "$(COLOR_YELLOW)→ Example: make test-specific PYTEST_ARGS='-k test_audio'$(COLOR_OFF)"; \
 		exit 1; \
 	fi
-	@echo -e "$(COLOR_CYAN)→ Running specific tests (local): $(PYTEST_ARGS)$(COLOR_OFF)"
-	@PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} pytest -xvs $(PYTEST_ARGS)
-
-test-specific-container: test-image ## Run specific tests in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
-	@if [ -z "$(PYTEST_ARGS)" ]; then \
-		echo -e "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)"; \
-		echo -e "$(COLOR_YELLOW)→ Example: make test-specific-container PYTEST_ARGS='-k test_audio'$(COLOR_OFF)"; \
-		exit 1; \
-	fi
-	@echo -e "$(COLOR_CYAN)→ Running specific tests (container): $(PYTEST_ARGS)$(COLOR_OFF)"
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest -xvs $(PYTEST_ARGS)
+	@echo -e "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs $(PYTEST_ARGS))
 
 # =============================================================================
 # LINTING & CODE QUALITY
 # =============================================================================
 
-lint: lint-docker ## Run all linters in Docker container (default for local dev)
+lint: lint-parallel ## Run all linters
 
 lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
@@ -463,29 +345,9 @@ lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 		-v "$(CURDIR)":$(LINT_WORKDIR) \
 		$(LINT_IMAGE)
 
-lint-sequential: lint-image ## Run linters sequentially (legacy behavior)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) \
-		$(LINT_IMAGE) \
-		/usr/local/bin/run-lint.sh
 
-# DEPRECATED: Use 'make lint' instead (Docker-based)
-lint-ci: lint-ci-parallel ## [DEPRECATED] Run linting with local tools in parallel (for CI)
-	@echo "⚠️  WARNING: lint-ci is deprecated. Use 'make lint' for Docker-based linting."
-	@echo "✓ All linting checks passed"
-
-# DEPRECATED: Use 'make lint' instead (Docker-based)
-lint-ci-parallel: ## [DEPRECATED] Run all linters locally in parallel (for CI environments)
-	@echo "⚠️  WARNING: lint-ci-parallel is deprecated. Use 'make lint' for Docker-based linting."
-	@echo "→ Running all linters in parallel..."
-	@$(MAKE) -j8 lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown
 
 # Docker-based linting
-lint-docker: lint-parallel ## Run linting via Docker container (now uses parallel execution)
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
@@ -552,16 +414,9 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 # SECURITY & QUALITY GATES
 # =============================================================================
 
-security: security-container ## Run security scanning with pip-audit (Docker-based)
-
-security-container: security-image ## Run security scanning in Docker container
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(SECURITY_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo security) \
-		-v "$(CURDIR)":$(SECURITY_WORKDIR) \
-		$(SECURITY_IMAGE)
+security: security-image ## Run security scanning with pip-audit
+	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
+	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
 security-image: ## Build the security scanning container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
@@ -618,46 +473,6 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 # CI SETUP & DEPENDENCIES
 # =============================================================================
 
-# DEPRECATED: Use Docker-based targets instead
-install-dev-deps: ## [DEPRECATED] Install development dependencies for CI
-	@echo "⚠️  WARNING: install-dev-deps is deprecated. Use Docker-based targets instead."
-	@echo "→ Installing development dependencies"
-	@python -m pip install --upgrade pip
-	@pip install -r requirements-base.txt
-	@pip install -r requirements-dev.txt
-	@pip install -r requirements-test.txt
-	@echo "→ Installing service-specific dependencies"
-	@for req_file in services/*/requirements.txt; do \
-		if [ -f "$$req_file" ]; then \
-			echo "  Installing from $$req_file"; \
-			pip install -r "$$req_file"; \
-		fi; \
-	done
-
-# DEPRECATED: Use Docker-based targets instead
-install-ci-tools: ## [DEPRECATED] Install CI-specific tools (hadolint, checkmake, markdownlint)
-	@echo "⚠️  WARNING: install-ci-tools is deprecated. Use Docker-based targets instead."
-	@echo "→ Installing CI tools"
-	@command -v hadolint >/dev/null 2>&1 || { \
-		echo "Installing Hadolint..."; \
-		curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
-			-o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint; \
-	}
-	@command -v checkmake >/dev/null 2>&1 || { \
-		echo "Installing Checkmake..."; \
-		go install github.com/checkmake/checkmake/cmd/checkmake@latest; \
-		echo "$${HOME}/go/bin" >> $$GITHUB_PATH; \
-	}
-	@command -v markdownlint >/dev/null 2>&1 || { \
-		echo "Installing Markdownlint..."; \
-		npm install -g markdownlint-cli@0.39.0; \
-	}
-	@echo "✓ CI tools installed"
-
-# DEPRECATED: Use Docker-based targets instead
-ci-setup: install-dev-deps install-ci-tools ## [DEPRECATED] Complete CI environment setup
-	@echo "⚠️  WARNING: ci-setup is deprecated. Use Docker-based targets instead."
-	@echo "✓ CI environment ready"
 
 # =============================================================================
 # DOCUMENTATION & UTILITIES
