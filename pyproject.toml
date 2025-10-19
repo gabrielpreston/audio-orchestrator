@@ -151,6 +151,13 @@ ignore = [
     "PT004",   # fixture returns nothing - allow without leading underscore rename
     "ARG001",  # allow unused function argument in tests
     "ARG002",  # allow unused method argument in tests
+    "PIE790",  # unnecessary pass in tests/mocks
+    "A002",    # builtins shadowing in test helpers/mocks
+    "PT022",   # yield fixtures without teardown
+    "PLW1509", # preexec_fn warning in tests
+    "PLR1711", # useless return in test mocks
+    "PTH123",  # open() usage in tests
+    "DTZ003",  # utcnow in tests
 ]
 "**/conftest.py" = [
     "F401", # unused imports - pytest conftest files often import for fixtures
@@ -161,6 +168,16 @@ ignore = [
 "**/scripts/**/*.py" = [
     "T201", # print statements - scripts often use print for output
     "T20",  # print statements - alternative rule for print statements
+]
+"services/tts/adapters/piper_adapter.py" = [
+    "DTZ005", # datetime.now() without tz in adapter logging
+    "ARG002", # unused method arguments (signature compatibility)
+]
+"services/tts/app.py" = [
+    "PLW0603", # updating globals for cached voice config
+    "PTH110",  # os.path.exists in app boot logic
+    "PTH123",  # open() for small config writes
+    "ARG001",  # optional API params unused in stubbed handler
 ]
 
 [tool.ruff.lint.isort]
