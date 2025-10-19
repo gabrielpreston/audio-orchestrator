@@ -7,7 +7,11 @@ rules:
   # Purpose: Prevent overly long lines while allowing reasonable flexibility
   line-length:
     max: 88  # Match Python line length for consistency across project
-    level: warning  # Warn instead of error (some YAML files may need longer lines)
+    level: warning  # Warn instead of error (some YAML files may need longer lines
+    # Allow longer lines for GitHub workflow files due to complex expressions
+    ignore: |
+      .github/workflows/*.yaml
+      .github/workflows/*.yml
   
   # Indentation configuration
   # Purpose: Enforce consistent indentation throughout YAML files
@@ -60,6 +64,10 @@ rules:
   quoted-strings:
     quote-type: single  # Prefer single quotes for strings
     check-keys: false  # Don't enforce quoting on keys
+    # Disable for GitHub workflow files to allow GitHub Actions expressions
+    ignore: |
+      .github/workflows/*.yaml
+      .github/workflows/*.yml
   
   # Trailing spaces configuration
   # Purpose: Remove trailing spaces for cleaner files
