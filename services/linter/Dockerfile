@@ -41,8 +41,9 @@ RUN curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/had
 RUN go install github.com/checkmake/checkmake/cmd/checkmake@latest
 
 COPY services/linter/run-lint.sh /usr/local/bin/run-lint.sh
-RUN chmod +x /usr/local/bin/run-lint.sh
+COPY services/linter/run-lint-parallel.sh /usr/local/bin/run-lint-parallel.sh
+RUN chmod +x /usr/local/bin/run-lint.sh /usr/local/bin/run-lint-parallel.sh
 
 WORKDIR /workspace
 
-ENTRYPOINT ["/usr/local/bin/run-lint.sh"]
+ENTRYPOINT ["/usr/local/bin/run-lint-parallel.sh"]

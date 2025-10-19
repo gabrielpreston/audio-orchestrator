@@ -449,11 +449,7 @@ test-specific-container: test-image ## Run specific tests in Docker container
 
 lint: lint-docker ## Run all linters in Docker container (default for local dev)
 
-lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
-	@echo "✓ All linting checks passed"
-
-# Docker-based linting
-lint-docker: lint-image ## Run linting via Docker container
+lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@docker run --rm \
 		-u $$(id -u):$$(id -g) \
@@ -461,6 +457,22 @@ lint-docker: lint-image ## Run linting via Docker container
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) \
 		$(LINT_IMAGE)
+
+lint-sequential: lint-image ## Run linters sequentially (legacy behavior)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) \
+		$(LINT_IMAGE) \
+		/usr/local/bin/run-lint.sh
+
+lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
+	@echo "✓ All linting checks passed"
+
+# Docker-based linting
+lint-docker: lint-parallel ## Run linting via Docker container (now uses parallel execution)
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
