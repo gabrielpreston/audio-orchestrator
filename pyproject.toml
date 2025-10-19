@@ -139,7 +139,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Per-file rule ignores - relax rules for specific file types where appropriate
 "__init__.py" = ["F401"]  # unused imports - __init__.py files often import for re-export
-"tests/**/*.py" = [
+"**/tests/**/*.py" = [
     "S101",    # use of assert - essential for testing
     "S106",    # hardcoded password - test fixtures often contain test credentials
     "S108",    # hardcoded temp file - test fixtures often use temp files
@@ -147,6 +147,10 @@ ignore = [
     "PLR0913", # too many arguments - test fixtures often have many parameters
     "PLR0912", # too many branches - test cases often have complex branching
     "PLR0915", # too many statements - test functions can be long
+    "PT001",   # prefer @pytest.fixture() over @pytest.fixture - allow existing style
+    "PT004",   # fixture returns nothing - allow without leading underscore rename
+    "ARG001",  # allow unused function argument in tests
+    "ARG002",  # allow unused method argument in tests
 ]
 "**/conftest.py" = [
     "F401", # unused imports - pytest conftest files often import for fixtures

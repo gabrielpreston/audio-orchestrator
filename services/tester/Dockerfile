@@ -38,9 +38,9 @@ COPY services/llm/requirements.txt /workspace/services/llm/requirements.txt
 COPY services/orchestrator/requirements.txt /workspace/services/orchestrator/requirements.txt
 COPY services/tts/requirements.txt /workspace/services/tts/requirements.txt
 COPY services/linter/requirements.txt /workspace/services/linter/requirements.txt
-COPY services/tester/requirements.txt /workspace/requirements.txt
+COPY services/tester/requirements.txt /workspace/services/tester/requirements.txt
 RUN python -m pip install --upgrade pip==24.0 && \
-    pip install -r /workspace/requirements.txt
+    pip install -r /workspace/services/tester/requirements.txt
 
 COPY services/tester/run-tests.sh /usr/local/bin/run-tests.sh
 RUN chmod +x /usr/local/bin/run-tests.sh

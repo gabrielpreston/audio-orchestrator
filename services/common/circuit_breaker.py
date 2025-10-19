@@ -183,7 +183,6 @@ class CircuitBreaker:
 class CircuitOpenError(Exception):
     """Raised when circuit breaker is open."""
 
-    pass
 
 
 __all__ = ["CircuitState", "CircuitBreakerConfig", "CircuitBreaker", "CircuitOpenError"]
