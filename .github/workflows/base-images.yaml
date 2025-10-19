@@ -66,7 +66,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.python-audio
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/python-audio:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -78,7 +78,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.python-ml
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/python-ml:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -90,7 +90,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.tools
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/tools:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -102,7 +102,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.mcp-toolchain
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images

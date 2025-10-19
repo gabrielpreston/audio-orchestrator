@@ -1,7 +1,7 @@
 # Python Audio Base Image
 # Python + audio libraries (FFmpeg, etc.) for Discord and TTS services
-ARG BASE_IMAGE=discord-voice-lab/python-base:latest
-FROM ${BASE_IMAGE} as base
+ARG BASE_IMAGE=ghcr.io/gabrielpreston/python-base:latest
+FROM ${BASE_IMAGE} AS base
 
 # Install audio-specific system dependencies
 RUN --mount=type=cache,target=/var/cache/apt \

@@ -280,7 +280,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.python-audio
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/python-audio:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -291,7 +291,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.python-ml
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/python-ml:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -302,7 +302,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.tools
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/tools:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -313,7 +313,7 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.mcp-toolchain
-          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
           tags: ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
@@ -352,7 +352,7 @@ jobs:
           echo "::group::Base Image Validation"
           docker images | grep discord-voice-lab || echo "No base images found"
           # Verify all required base images exist
-          required_images=("discord-voice-lab/python-base:latest" "discord-voice-lab/python-audio:latest" "discord-voice-lab/python-ml:latest" "discord-voice-lab/tools:latest" "discord-voice-lab/mcp-toolchain:latest")
+          required_images=("ghcr.io/${{ github.repository_owner }}/python-base:latest" "ghcr.io/${{ github.repository_owner }}/python-audio:latest" "ghcr.io/${{ github.repository_owner }}/python-ml:latest" "ghcr.io/${{ github.repository_owner }}/tools:latest" "ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest")
           for image in "${required_images[@]}"; do
             if ! docker image inspect "$image" >/dev/null 2>&1; then
               echo "❌ Base image $image not found"
@@ -384,7 +384,7 @@ jobs:
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
           # Basic smoke test - verify the image can start
-          docker run --rm discord-voice-lab/${{ matrix.service }}:latest python --version || echo "Service ${{ matrix.service }} smoke test completed"
+          docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python --version || echo "Service ${{ matrix.service }} smoke test completed"
           echo "::endgroup::"
       - name: 'Upload ${{ matrix.service }} build artifacts'
         uses: 'actions/upload-artifact@v4'
@@ -441,7 +441,7 @@ jobs:
         run: |
           echo "::group::Testing ${{ matrix.tool }} tool"
           # Basic test - verify the tool can start
-          docker run --rm discord-voice-lab/${{ matrix.tool }}:latest --help || echo "Tool ${{ matrix.tool }} test completed"
+          docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest --help || echo "Tool ${{ matrix.tool }} test completed"
           echo "::endgroup::"
 
   docker-smoke-aggregate:
