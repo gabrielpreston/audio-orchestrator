@@ -47,6 +47,7 @@ jobs:
             --file services/base/Dockerfile.python-base \
             --cache-from=type=gha,scope=base-images \
             --cache-to=type=gha,mode=max,scope=base-images \
+            --load \
             .
 
       - name: 'Build Python Audio Base Image'
@@ -56,6 +57,7 @@ jobs:
             --file services/base/Dockerfile.python-audio \
             --cache-from=type=gha,scope=base-images \
             --cache-to=type=gha,mode=max,scope=base-images \
+            --load \
             .
 
       - name: 'Build Python ML Base Image'
@@ -65,6 +67,7 @@ jobs:
             --file services/base/Dockerfile.python-ml \
             --cache-from=type=gha,scope=base-images \
             --cache-to=type=gha,mode=max,scope=base-images \
+            --load \
             .
 
       - name: 'Build Tools Base Image'
@@ -74,6 +77,7 @@ jobs:
             --file services/base/Dockerfile.tools \
             --cache-from=type=gha,scope=base-images \
             --cache-to=type=gha,mode=max,scope=base-images \
+            --load \
             .
 
       - name: 'Build MCP Toolchain Base Image'
@@ -83,6 +87,7 @@ jobs:
             --file services/base/Dockerfile.mcp-toolchain \
             --cache-from=type=gha,scope=base-images \
             --cache-to=type=gha,mode=max,scope=base-images \
+            --load \
             .
 
       - name: 'Build Summary'
