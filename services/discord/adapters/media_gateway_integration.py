@@ -8,7 +8,7 @@ enabling codec normalization and audio processing in the Discord voice pipeline.
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from services.common.surfaces.audio_contract import AudioContract
@@ -182,7 +182,10 @@ class DiscordMediaGatewayIntegration:
                 # Emit processed frame event
                 await self._emit_event(
                     "audio.frame_processed",
-                    {"frame": processed_frame, "timestamp": datetime.now().timestamp()},
+                    {
+                        "frame": processed_frame,
+                        "timestamp": datetime.now(tz=timezone.utc).timestamp(),
+                    },
                 )
 
             return processed_frame
@@ -219,7 +222,7 @@ class DiscordMediaGatewayIntegration:
                     "audio.normalized",
                     {
                         "data_length": len(normalized_data),
-                        "timestamp": datetime.now().timestamp(),
+                        "timestamp": datetime.now(tz=timezone.utc).timestamp(),
                     },
                 )
 
@@ -260,7 +263,7 @@ class DiscordMediaGatewayIntegration:
                         "input_format": input_format.value,
                         "output_format": output_format.value,
                         "data_length": len(converted_data),
-                        "timestamp": datetime.now().timestamp(),
+                        "timestamp": datetime.now(tz=timezone.utc).timestamp(),
                     },
                 )
 
