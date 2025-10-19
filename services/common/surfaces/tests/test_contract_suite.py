@@ -79,7 +79,8 @@ class TestSurfaceAdapterContractTester:
         adapter.initialize.return_value = True
         adapter.connect.return_value = True
         adapter.disconnect.return_value = None
-        adapter.is_connected.return_value = True
+        # Fix: Use MagicMock for synchronous method to prevent async/sync mismatch
+        adapter.is_connected = MagicMock(return_value=True)
         adapter.get_telemetry.return_value = {"status": "healthy"}
         return adapter
 

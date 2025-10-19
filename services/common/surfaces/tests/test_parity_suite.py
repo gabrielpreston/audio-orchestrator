@@ -6,7 +6,7 @@ to ensure it correctly validates performance across different surfaces.
 """
 
 import time
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 from services.common.surfaces.interfaces import (
     AudioSink,
@@ -202,7 +202,8 @@ class TestCrossSurfaceParityTester:
         surface_lifecycle.initialize.return_value = None
         surface_lifecycle.connect.return_value = None
         surface_lifecycle.disconnect.return_value = None
-        surface_lifecycle.is_connected.return_value = True
+        # Fix: Use MagicMock for synchronous method to prevent async/sync mismatch
+        surface_lifecycle.is_connected = MagicMock(return_value=True)
 
         adapters = {"surface_lifecycle": surface_lifecycle}
         tester.register_surface("test_surface", adapters)
@@ -253,7 +254,8 @@ class TestCrossSurfaceParityTester:
         surface_lifecycle.initialize.return_value = None
         surface_lifecycle.connect.return_value = True
         surface_lifecycle.disconnect.return_value = None
-        surface_lifecycle.is_connected.return_value = True
+        # Fix: Use MagicMock for synchronous method to prevent async/sync mismatch
+        surface_lifecycle.is_connected = MagicMock(return_value=True)
 
         adapters = {
             "audio_source": audio_source,
