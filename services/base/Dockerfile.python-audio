@@ -1,0 +1,17 @@
+# Python Audio Base Image
+# Python + audio libraries (FFmpeg, etc.) for Discord and TTS services
+FROM discord-voice-lab/python-base:latest as base
+
+# Install audio-specific system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libffi-dev \
+        libsodium-dev \
+        libopus0 \
+        libsndfile1 \
+        espeak-ng \
+        libespeak-ng1 \
+        libasound2 \
+    && rm -rf /var/lib/apt/lists/*

@@ -1,5 +1,5 @@
 # Include base requirements
--r ../../requirements-base.txt
+-r ../requirements-base.txt
 
 # TTS-specific dependencies
 piper-tts>=1.2,<2.0

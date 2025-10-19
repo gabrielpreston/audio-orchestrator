@@ -29,7 +29,7 @@ Track design discussions and decisions across the voice lab.
 | [MCP Tooling Wave 1 Enablement Plan](phase02-mcp-tooling-wave1-plan.md) | draft | 2025-10-11 |
 | [Discord Voice MCP User Journeys](discord-voice-mcp-user-journeys.md) | draft | 2024-07-05 |
 | [Documentation Restructure Proposal](documentation-restructure.md) | accepted | 2024-07-05 |
-| [GitHub Actions Migration](github-actions-migration.md) | draft | 2024-07-05 |
+| [GitHub Actions Migration](github-actions-migration.md) | draft | 2025-10-19 |
 | [OpenAI Agents Python Integration](openai-agents-python-integration.md) | draft | 2024-07-05 |
 
 ## Templates
