@@ -1,6 +1,7 @@
 # Python ML Base Image
 # Python + ML libraries (cmake, openblas, etc.) for LLM and STT services
-FROM discord-voice-lab/python-base:latest as base
+ARG BASE_IMAGE=discord-voice-lab/python-base:latest
+FROM ${BASE_IMAGE} as base
 
 # Install ML-specific system dependencies
 RUN --mount=type=cache,target=/var/cache/apt \

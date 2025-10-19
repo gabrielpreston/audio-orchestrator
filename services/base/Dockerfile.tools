@@ -1,6 +1,7 @@
 # Tools Base Image
 # Linter/tester base with all development tools
-FROM discord-voice-lab/python-base:latest as base
+ARG BASE_IMAGE=discord-voice-lab/python-base:latest
+FROM ${BASE_IMAGE} as base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     GO_VERSION=1.25.2 \

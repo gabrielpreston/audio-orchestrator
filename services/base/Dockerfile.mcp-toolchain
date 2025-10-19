@@ -1,6 +1,7 @@
 # MCP Toolchain Base Image
 # Node.js, Rust, Go toolchain for orchestrator service
-FROM discord-voice-lab/python-base:latest as base
+ARG BASE_IMAGE=discord-voice-lab/python-base:latest
+FROM ${BASE_IMAGE} as base
 
 ENV GO_VERSION=1.25.2 \
     PATH="/usr/local/go/bin:${PATH}" \

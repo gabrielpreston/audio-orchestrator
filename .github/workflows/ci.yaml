@@ -13,6 +13,7 @@ on:
 permissions:
   contents: 'read'
   pull-requests: 'read'
+  packages: 'write'  # Required for GHCR publishing
 
 concurrency:
   group: 'ci-${{ github.ref }}'
@@ -256,51 +257,70 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Build Python Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-base:latest \
-            --file services/base/Dockerfile.python-base \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
-      - name: 'Build Python Audio Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-audio:latest \
-            --file services/base/Dockerfile.python-audio \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
-      - name: 'Build Python ML Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-ml:latest \
-            --file services/base/Dockerfile.python-ml \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
-      - name: 'Build Tools Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/tools:latest \
-            --file services/base/Dockerfile.tools \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
-      - name: 'Build MCP Toolchain Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/mcp-toolchain:latest \
-            --file services/base/Dockerfile.mcp-toolchain \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push Python Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-base
+          tags: |
+            discord-voice-lab/python-base:latest
+            ghcr.io/${{ github.repository_owner }}/python-base:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
+      - name: 'Build and push Python Audio Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-audio
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/python-audio:latest
+            ghcr.io/${{ github.repository_owner }}/python-audio:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
+      - name: 'Build and push Python ML Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-ml
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/python-ml:latest
+            ghcr.io/${{ github.repository_owner }}/python-ml:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
+      - name: 'Build and push Tools Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.tools
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/tools:latest
+            ghcr.io/${{ github.repository_owner }}/tools:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
+      - name: 'Build and push MCP Toolchain Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.mcp-toolchain
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/mcp-toolchain:latest
+            ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
   docker-smoke:
     name: 'Docker smoke'
@@ -342,21 +362,20 @@ jobs:
             fi
           done
           echo "::endgroup::"
-      - name: 'Build ${{ matrix.service }} service'
-        run: |
-          echo "::group::Building ${{ matrix.service }} service"
-          start_time=$(date +%s)
-          docker buildx build \
-            --tag discord-voice-lab/${{ matrix.service }}:latest \
-            --file services/${{ matrix.service }}/Dockerfile \
-            --cache-from=type=gha,scope=docker-smoke-${{ matrix.service }}-buildx \
-            --cache-to=type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx \
-            --load \
-            .
-          end_time=$(date +%s)
-          duration=$((end_time - start_time))
-          echo "::endgroup::"
-          echo "${{ matrix.service }} service built in ${duration}s"
+      - name: 'Build and push ${{ matrix.service }} service'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.service }}/Dockerfile
+          tags: |
+            discord-voice-lab/${{ matrix.service }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+          cache-from: |
+            type=gha,scope=base-images
+            type=gha,scope=docker-smoke-${{ matrix.service }}-buildx
+          cache-to: type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx
+          push: true
+          load: true
       - name: 'Smoke test ${{ matrix.service }} service'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
@@ -394,21 +413,20 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Build ${{ matrix.tool }} tool'
-        run: |
-          echo "::group::Building ${{ matrix.tool }} tool"
-          start_time=$(date +%s)
-          docker buildx build \
-            --tag discord-voice-lab/${{ matrix.tool }}:latest \
-            --file services/${{ matrix.tool }}/Dockerfile \
-            --cache-from=type=gha,scope=docker-tools-${{ matrix.tool }}-buildx \
-            --cache-to=type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx \
-            --load \
-            .
-          end_time=$(date +%s)
-          duration=$((end_time - start_time))
-          echo "::endgroup::"
-          echo "${{ matrix.tool }} tool built in ${duration}s"
+      - name: 'Build and push ${{ matrix.tool }} tool'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/${{ matrix.tool }}/Dockerfile
+          tags: |
+            discord-voice-lab/${{ matrix.tool }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest
+          cache-from: |
+            type=gha,scope=base-images
+            type=gha,scope=docker-tools-${{ matrix.tool }}-buildx
+          cache-to: type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx
+          push: true
+          load: true
       - name: 'Test ${{ matrix.tool }} tool'
         run: |
           echo "::group::Testing ${{ matrix.tool }} tool"

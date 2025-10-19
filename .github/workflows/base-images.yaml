@@ -15,6 +15,7 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: 'read'
+  packages: 'write'  # Required for GHCR publishing
 
 concurrency:
   group: 'base-images'
@@ -40,55 +41,74 @@ jobs:
           driver-opts: |
             image=moby/buildkit:latest
 
-      - name: 'Build Python Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-base:latest \
-            --file services/base/Dockerfile.python-base \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push Python Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-base
+          tags: |
+            discord-voice-lab/python-base:latest
+            ghcr.io/${{ github.repository_owner }}/python-base:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
-      - name: 'Build Python Audio Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-audio:latest \
-            --file services/base/Dockerfile.python-audio \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push Python Audio Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-audio
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/python-audio:latest
+            ghcr.io/${{ github.repository_owner }}/python-audio:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
-      - name: 'Build Python ML Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/python-ml:latest \
-            --file services/base/Dockerfile.python-ml \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push Python ML Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.python-ml
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/python-ml:latest
+            ghcr.io/${{ github.repository_owner }}/python-ml:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
-      - name: 'Build Tools Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/tools:latest \
-            --file services/base/Dockerfile.tools \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push Tools Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.tools
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/tools:latest
+            ghcr.io/${{ github.repository_owner }}/tools:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
-      - name: 'Build MCP Toolchain Base Image'
-        run: |
-          docker buildx build \
-            --tag discord-voice-lab/mcp-toolchain:latest \
-            --file services/base/Dockerfile.mcp-toolchain \
-            --cache-from=type=gha,scope=base-images \
-            --cache-to=type=gha,mode=max,scope=base-images \
-            --load \
-            .
+      - name: 'Build and push MCP Toolchain Base Image'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: services/base/Dockerfile.mcp-toolchain
+          build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
+          tags: |
+            discord-voice-lab/mcp-toolchain:latest
+            ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
+          cache-from: type=gha,scope=base-images
+          cache-to: type=gha,mode=max,scope=base-images
+          push: true
+          load: true
 
       - name: 'Build Summary'
         run: |
