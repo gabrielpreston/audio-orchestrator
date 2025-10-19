@@ -1,10 +1,10 @@
 # Build stage for MCP toolchains using shared base
-FROM discord-voice-lab/mcp-toolchain:latest as mcp-builder
+FROM ghcr.io/gabrielpreston/mcp-toolchain:latest AS mcp-builder
 
 WORKDIR /app
 
 # Python dependencies stage using shared ML base
-FROM discord-voice-lab/python-ml:latest as python-builder
+FROM ghcr.io/gabrielpreston/python-ml:latest AS python-builder
 
 WORKDIR /app
 
@@ -17,7 +17,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/discord/requirements.txt
 
 # Runtime stage using shared ML base
-FROM discord-voice-lab/python-ml:latest
+FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 

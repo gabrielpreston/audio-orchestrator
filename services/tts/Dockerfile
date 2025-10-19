@@ -1,5 +1,5 @@
 # Build stage using shared audio base image
-FROM discord-voice-lab/python-audio:latest as builder
+FROM ghcr.io/gabrielpreston/python-audio:latest AS builder
 
 WORKDIR /app
 
@@ -12,7 +12,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r /app/services/tts/requirements.txt
 
 # Runtime stage using shared audio base image
-FROM discord-voice-lab/python-audio:latest
+FROM ghcr.io/gabrielpreston/python-audio:latest
 
 WORKDIR /app
 

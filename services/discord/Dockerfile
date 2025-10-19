@@ -1,5 +1,5 @@
 # Use shared audio base image
-FROM discord-voice-lab/python-audio:latest as base
+FROM ghcr.io/gabrielpreston/python-audio:latest AS base
 
 WORKDIR /app
 
