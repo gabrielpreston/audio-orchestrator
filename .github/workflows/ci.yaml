@@ -121,8 +121,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=lint-buildx
-            cache-to=type=gha,mode=max,scope=lint-buildx
       - name: 'Run unified lint suite'
         run: |
           echo "::group::Lint Execution"
@@ -153,8 +151,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=security-buildx
-            cache-to=type=gha,mode=max,scope=security-buildx
       - name: 'Run security scan'
         run: 'make security'
       - name: 'Upload pip-audit reports'
@@ -200,8 +196,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=test-buildx
-            cache-to=type=gha,mode=max,scope=test-buildx
       - name: 'Run unit and component tests'
         run: |
           echo "::group::Test Execution"
@@ -262,8 +256,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=base-images
-            cache-to=type=gha,mode=max,scope=base-images
       - name: 'Build Python Base Image'
         run: |
           docker buildx build \
@@ -330,8 +322,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=docker-smoke-${{ matrix.service }}-buildx
-            cache-to=type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx
       - name: 'Validate Base Images Exist'
         run: |
           echo "::group::Base Image Validation"
@@ -399,8 +389,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=docker-tools-${{ matrix.tool }}-buildx
-            cache-to=type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx
       - name: 'Build ${{ matrix.tool }} tool'
         run: |
           echo "::group::Building ${{ matrix.tool }} tool"

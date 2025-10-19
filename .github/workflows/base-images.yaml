@@ -39,8 +39,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-            cache-from=type=gha,scope=base-images
-            cache-to=type=gha,mode=max,scope=base-images
 
       - name: 'Build Python Base Image'
         run: |
