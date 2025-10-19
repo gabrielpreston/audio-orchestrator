@@ -20,6 +20,7 @@ from services.common.service_configs import (
     TelemetryConfig,
 )
 
+
 app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
 
 # Centralized configuration

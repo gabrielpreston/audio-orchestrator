@@ -16,6 +16,7 @@ from services.common.logging import get_logger
 from .config import SurfaceConfig, SurfaceStatus, SurfaceType
 from .interfaces import SurfaceAdapter
 
+
 logger = get_logger(__name__)
 
 

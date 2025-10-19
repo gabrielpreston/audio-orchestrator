@@ -15,6 +15,7 @@ from services.common.logging import get_logger
 
 from .config import load_config
 
+
 logger = get_logger(__name__, service_name="discord")
 
 app = FastAPI(title="Discord Voice Service", version="1.0.0")

@@ -36,6 +36,7 @@ from services.common.surfaces.types import (
     WordTimestamp,
 )
 
+
 logger = get_logger(__name__)
 
 

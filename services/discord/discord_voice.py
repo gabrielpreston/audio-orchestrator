@@ -24,6 +24,7 @@ from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
 
+
 try:
     from discord.ext import voice_recv as _voice_recv
 except ImportError:

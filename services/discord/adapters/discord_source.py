@@ -17,6 +17,7 @@ from services.common.surfaces.interfaces import AudioSource
 from services.common.surfaces.media_gateway import MediaGateway
 from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
+
 logger = get_logger(__name__)
 
 

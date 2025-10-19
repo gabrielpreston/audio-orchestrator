@@ -11,6 +11,7 @@ from structlog.stdlib import BoundLogger
 
 from .logging import get_logger
 
+
 DEFAULT_BACKOFF_SECONDS = 0.5
 
 

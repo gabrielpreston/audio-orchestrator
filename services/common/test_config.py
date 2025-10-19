@@ -3,6 +3,7 @@
 import os
 from unittest import TestCase, mock
 
+
 try:
     import pytest
 except ImportError:  # pragma: no cover - fallback for static analysis environments

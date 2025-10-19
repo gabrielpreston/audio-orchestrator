@@ -23,6 +23,7 @@ from services.common.surfaces.interfaces import (
 )
 from services.common.surfaces.types import PCMFrame
 
+
 logger = logging.getLogger(__name__)
 
 
