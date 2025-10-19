@@ -16,7 +16,6 @@ class ServiceUnavailableError(Exception):
     """Raised when service is unavailable."""
 
 
-
 class ResilientHTTPClient:
     """HTTP client with circuit breaker and health checks."""
 
