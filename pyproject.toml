@@ -84,7 +84,6 @@ select = [
     "RSE", # flake8-raise - catches raise statements that should use 'from'
     "RUF", # ruff-specific rules - catches Ruff-specific issues
     "T20", # flake8-print - catches print statements (useful for scripts)
-    "WPS", # wemake-python-styleguide - catches various style issues
     "YTT", # flake8-2020 - catches Python 3.8+ specific issues
 ]
 ignore = [
