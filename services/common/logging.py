@@ -12,6 +12,7 @@ from typing import IO, Any
 
 import structlog
 
+
 _LEVELS: dict[str, int] = {
     "DEBUG": logging.DEBUG,
     "INFO": logging.INFO,

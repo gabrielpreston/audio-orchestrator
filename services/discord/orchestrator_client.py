@@ -9,6 +9,7 @@ import httpx
 
 from services.common.logging import get_logger
 
+
 logger = get_logger(__name__, service_name="discord")
 
 

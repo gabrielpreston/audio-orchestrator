@@ -38,6 +38,7 @@ from typing import Any, TypeVar, Union, get_args, get_origin
 
 from services.common.logging import get_logger
 
+
 logger = get_logger(__name__)
 
 T = TypeVar("T")

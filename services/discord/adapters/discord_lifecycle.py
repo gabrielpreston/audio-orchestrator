@@ -16,6 +16,7 @@ from services.common.surfaces.config import SurfaceConfig, SurfaceStatus, Surfac
 from services.common.surfaces.events import ConnectionEvent, ErrorEvent
 from services.common.surfaces.interfaces import SurfaceLifecycle
 
+
 logger = logging.getLogger(__name__)
 
 

@@ -14,6 +14,7 @@ from typing import Any
 from services.common.surfaces.tts_interface import TTSAdapter, TTSConfig, TTSResult
 from services.common.surfaces.types import AudioFormat
 
+
 logger = logging.getLogger(__name__)
 
 

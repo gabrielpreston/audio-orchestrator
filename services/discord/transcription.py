@@ -18,6 +18,7 @@ from services.common.circuit_breaker import CircuitBreakerConfig
 from services.common.logging import get_logger
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 
+
 # Prometheus metrics
 try:
     from prometheus_client import Counter, Histogram

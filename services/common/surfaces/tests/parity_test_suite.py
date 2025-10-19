@@ -15,6 +15,7 @@ from typing import Any
 from services.common.surfaces.events import WakeDetectedEvent
 from services.common.surfaces.types import PCMFrame
 
+
 logger = logging.getLogger(__name__)
 
 
