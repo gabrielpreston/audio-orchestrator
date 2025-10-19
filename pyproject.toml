@@ -153,6 +153,7 @@ ignore = [
     "ARG001",  # allow unused function argument in tests
     "ARG002",  # allow unused method argument in tests
     "PIE790",  # unnecessary pass in tests/mocks
+    "PIE796",  # duplicate Enum values allowed in test constants
     "A002",    # builtins shadowing in test helpers/mocks
     "PT022",   # yield fixtures without teardown
     "PLW1509", # preexec_fn warning in tests
@@ -160,6 +161,10 @@ ignore = [
     "PTH123",  # open() usage in tests
     "DTZ003",  # utcnow in tests
     "DTZ005",  # datetime.now() without tz in tests
+]
+"services/common/test_config.py" = [
+    "PT009",  # allow unittest-style asserts in this legacy test module
+    "PT027",  # allow unittest-style assertRaises in this legacy test module
 ]
 "**/conftest.py" = [
     "F401", # unused imports - pytest conftest files often import for fixtures
