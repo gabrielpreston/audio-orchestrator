@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy service-specific requirements
 COPY services/llm/requirements.txt /app/services/llm/requirements.txt
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/llm/requirements.txt

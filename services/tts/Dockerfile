@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy service-specific requirements
 COPY services/tts/requirements.txt /app/services/tts/requirements.txt
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 
 # Install Python dependencies
 # hadolint ignore=DL3013

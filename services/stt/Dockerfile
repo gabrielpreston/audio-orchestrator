@@ -5,6 +5,7 @@ WORKDIR /app
 
 # Copy service-specific requirements
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 
 # Install Python deps from the copied requirements
 # hadolint ignore=DL3013

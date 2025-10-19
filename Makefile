@@ -211,23 +211,23 @@ base-images: base-images-python-base base-images-python-audio base-images-python
 
 base-images-python-base: ## Build python-base image
 	@echo -e "$(COLOR_GREEN)→ Building python-base image$(COLOR_OFF)"
-	@docker buildx build --tag discord-voice-lab/python-base:latest --file services/base/Dockerfile.python-base --load .
+	@docker buildx build --tag ghcr.io/gabrielpreston/python-base:latest --file services/base/Dockerfile.python-base --load .
 
 base-images-python-audio: base-images-python-base ## Build python-audio image
 	@echo -e "$(COLOR_GREEN)→ Building python-audio image$(COLOR_OFF)"
-	@docker buildx build --tag discord-voice-lab/python-audio:latest --file services/base/Dockerfile.python-audio --load .
+	@docker buildx build --tag ghcr.io/gabrielpreston/python-audio:latest --file services/base/Dockerfile.python-audio --load .
 
 base-images-python-ml: base-images-python-base ## Build python-ml image
 	@echo -e "$(COLOR_GREEN)→ Building python-ml image$(COLOR_OFF)"
-	@docker buildx build --tag discord-voice-lab/python-ml:latest --file services/base/Dockerfile.python-ml --load .
+	@docker buildx build --tag ghcr.io/gabrielpreston/python-ml:latest --file services/base/Dockerfile.python-ml --load .
 
 base-images-tools: base-images-python-base ## Build tools image
 	@echo -e "$(COLOR_GREEN)→ Building tools image$(COLOR_OFF)"
-	@docker buildx build --tag discord-voice-lab/tools:latest --file services/base/Dockerfile.tools --load .
+	@docker buildx build --tag ghcr.io/gabrielpreston/tools:latest --file services/base/Dockerfile.tools --load .
 
 base-images-mcp-toolchain: base-images-python-base ## Build mcp-toolchain image
 	@echo -e "$(COLOR_GREEN)→ Building mcp-toolchain image$(COLOR_OFF)"
-	@docker buildx build --tag discord-voice-lab/mcp-toolchain:latest --file services/base/Dockerfile.mcp-toolchain --load .
+	@docker buildx build --tag ghcr.io/gabrielpreston/mcp-toolchain:latest --file services/base/Dockerfile.mcp-toolchain --load .
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@echo -e "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)"

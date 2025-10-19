@@ -11,6 +11,7 @@ WORKDIR /app
 # Copy requirements files
 COPY services/orchestrator/requirements.txt /app/services/orchestrator/requirements.txt
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/orchestrator/requirements.txt && \
