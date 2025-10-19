@@ -249,6 +249,8 @@ jobs:
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 20
+    env:
+      ACTIONS_CACHE_SERVICE_V2: true
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
@@ -262,65 +264,60 @@ jobs:
         with:
           context: .
           file: services/base/Dockerfile.python-base
-          tags: |
-            discord-voice-lab/python-base:latest
-            ghcr.io/${{ github.repository_owner }}/python-base:latest
+          tags: ghcr.io/${{ github.repository_owner }}/python-base:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Python Audio Base Image'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: services/base/Dockerfile.python-audio
           build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
-          tags: |
-            discord-voice-lab/python-audio:latest
-            ghcr.io/${{ github.repository_owner }}/python-audio:latest
+          tags: ghcr.io/${{ github.repository_owner }}/python-audio:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Python ML Base Image'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: services/base/Dockerfile.python-ml
           build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
-          tags: |
-            discord-voice-lab/python-ml:latest
-            ghcr.io/${{ github.repository_owner }}/python-ml:latest
+          tags: ghcr.io/${{ github.repository_owner }}/python-ml:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Tools Base Image'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: services/base/Dockerfile.tools
           build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
-          tags: |
-            discord-voice-lab/tools:latest
-            ghcr.io/${{ github.repository_owner }}/tools:latest
+          tags: ghcr.io/${{ github.repository_owner }}/tools:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push MCP Toolchain Base Image'
         uses: docker/build-push-action@v6
         with:
           context: .
           file: services/base/Dockerfile.mcp-toolchain
           build-args: BASE_IMAGE=discord-voice-lab/python-base:latest
-          tags: |
-            discord-voice-lab/mcp-toolchain:latest
-            ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
+          tags: ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
           cache-from: type=gha,scope=base-images
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   docker-smoke:
     name: 'Docker smoke'
@@ -334,6 +331,8 @@ jobs:
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 30
+    env:
+      ACTIONS_CACHE_SERVICE_V2: true
     strategy:
       matrix:
         service: [discord, stt, llm, orchestrator, tts]
@@ -367,15 +366,14 @@ jobs:
         with:
           context: .
           file: services/${{ matrix.service }}/Dockerfile
-          tags: |
-            discord-voice-lab/${{ matrix.service }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
           cache-from: |
             type=gha,scope=base-images
             type=gha,scope=docker-smoke-${{ matrix.service }}-buildx
           cache-to: type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Smoke test ${{ matrix.service }} service'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
@@ -402,6 +400,8 @@ jobs:
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 20
+    env:
+      ACTIONS_CACHE_SERVICE_V2: true
     strategy:
       matrix:
         tool: [linter, tester]
@@ -418,15 +418,14 @@ jobs:
         with:
           context: .
           file: services/${{ matrix.tool }}/Dockerfile
-          tags: |
-            discord-voice-lab/${{ matrix.tool }}:latest
-            ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest
+          tags: ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest
           cache-from: |
             type=gha,scope=base-images
             type=gha,scope=docker-tools-${{ matrix.tool }}-buildx
           cache-to: type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx
           push: true
           load: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Test ${{ matrix.tool }} tool'
         run: |
           echo "::group::Testing ${{ matrix.tool }} tool"
