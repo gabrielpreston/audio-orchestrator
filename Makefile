@@ -468,8 +468,13 @@ lint-sequential: lint-image ## Run linters sequentially (legacy behavior)
 		$(LINT_IMAGE) \
 		/usr/local/bin/run-lint.sh
 
-lint-ci: lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown ## Run linting with local tools (for CI)
+lint-ci: lint-ci-parallel ## Run linting with local tools in parallel (for CI)
 	@echo "✓ All linting checks passed"
+
+# Local parallel linting for CI
+lint-ci-parallel: ## Run all linters locally in parallel (for CI environments)
+	@echo "→ Running all linters in parallel..."
+	@$(MAKE) -j8 lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown
 
 # Docker-based linting
 lint-docker: lint-parallel ## Run linting via Docker container (now uses parallel execution)
