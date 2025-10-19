@@ -28,6 +28,7 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 ensure_newline_before_comments = true
+lines_after_imports = 2
 skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]
 
 [tool.ruff]
@@ -46,6 +47,34 @@ select = [
     "S",   # flake8-bandit
     "RET", # flake8-return
     "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "TID", # flake8-tidy-imports
+    "ARG", # flake8-unused-arguments
+    "PIE", # flake8-pie
+    "A",   # flake8-builtins
+    "COM", # flake8-commas
+    "C90", # mccabe
+    "DTZ", # flake8-datetimez
+    "EM",  # flake8-errmsg
+    "EXE", # flake8-executable
+    "FA",  # flake8-future-annotations
+    "ISC", # flake8-implicit-str-concat
+    "ICN", # flake8-import-conventions
+    "G",   # flake8-logging-format
+    "INP", # flake8-no-pep420
+    "PTH", # flake8-use-pathlib
+    "ERA", # eradicate
+    "PD",  # pandas-vet
+    "PGH", # pygrep-hooks
+    "PL",  # pylint
+    "PT",  # flake8-pytest-style
+    "Q",   # flake8-quotes
+    "RSE", # flake8-raise
+    "RUF", # ruff-specific rules
+    "T20", # flake8-print
+    "UP",  # pyupgrade
+    "WPS", # wemake-python-styleguide
+    "YTT", # flake8-2020
 ]
 ignore = [
     "E501",  # line too long, handled by black
@@ -65,11 +94,26 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # unused imports in __init__.py
+"tests/**/*.py" = ["S101", "S106", "S108", "PLR2004", "PLR0913", "PLR0912", "PLR0915"]  # test files
+"**/conftest.py" = ["F401", "F403", "F405"]  # pytest conftest files
+"**/migrations/**/*.py" = ["ALL"]  # database migrations
+"**/scripts/**/*.py" = ["T201"]  # script files
 
 [tool.ruff.lint.isort]
 known-first-party = ["services"]
 force-single-line = false
 force-sort-within-sections = true
+lines-after-imports = 2
+lines-between-types = 1
+force-single-line = false
+
+[tool.ruff.lint.flake8-quotes]
+docstring-quotes = "double"
+inline-quotes = "double"
+multiline-quotes = "double"
+
+[tool.ruff.lint.flake8-commas]
+trailing-comma = "always"
 
 [tool.mypy]
 python_version = "3.11"

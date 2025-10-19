@@ -488,7 +488,7 @@ lint-mypy: ## Type checking with mypy
 lint-yaml: ## Lint all YAML files
 	@echo "→ Linting YAML files..."
 	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
-	@yamllint $(YAML_FILES)
+	@yamllint -c .yamllint $(YAML_FILES)
 	@echo "✓ YAML linting passed"
 
 lint-dockerfiles: ## Lint all Dockerfiles
@@ -496,7 +496,7 @@ lint-dockerfiles: ## Lint all Dockerfiles
 	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
 	@for dockerfile in $(DOCKERFILES); do \
 		echo "  Checking $$dockerfile"; \
-		hadolint $$dockerfile || exit 1; \
+		hadolint --config .hadolint.yaml $$dockerfile || exit 1; \
 	done
 	@echo "✓ Dockerfile linting passed"
 
@@ -509,7 +509,7 @@ lint-makefile: ## Lint Makefile
 lint-markdown: ## Lint Markdown files
 	@echo "→ Linting Markdown files..."
 	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
-	@markdownlint $(MARKDOWN_FILES)
+	@markdownlint --config .markdownlint.yaml $(MARKDOWN_FILES)
 	@echo "✓ Markdown linting passed"
 
 # Code formatting

@@ -1,0 +1,86 @@
+# Markdownlint configuration
+# https://github.com/DavidAnson/markdownlint
+
+# All rules are enabled by default
+# Disable specific rules that conflict with our style
+
+# Line length (MD013) - disable for code blocks and tables
+MD013:
+  line_length: 120
+  code_blocks: false
+  tables: false
+  headings: false
+
+# First line heading (MD041) - disable for README files
+MD041: false
+
+# First line H1 (MD025) - disable for files that don't need H1
+MD025: false
+
+# Multiple H1 (MD003) - allow multiple H1s in some cases
+MD003: false
+
+# Inline HTML (MD033) - allow some inline HTML
+MD033: false
+
+# Emphasis used instead of heading (MD036) - disable for emphasis in lists
+MD036: false
+
+# No trailing punctuation (MD026) - disable for headings ending with punctuation
+MD026: false
+
+# List item indentation (MD007) - use 2 spaces
+MD007:
+  indent: 2
+
+# List marker style (MD004) - use consistent style
+MD004:
+  style: dash
+
+# Unordered list indentation (MD030) - use 2 spaces
+MD030:
+  ul_single: 2
+  ol_single: 2
+  ul_multi: 2
+  ol_multi: 2
+
+# Hard tabs (MD010) - disable for code blocks
+MD010:
+  spaces_per_tab: 2
+
+# Trailing spaces (MD009) - allow 2 trailing spaces for line breaks
+MD009:
+  br_spaces: 2
+
+# No blank lines around fenced code blocks (MD031) - disable
+MD031: false
+
+# Fenced code blocks should have language (MD040) - disable
+MD040: false
+
+# No bare URLs (MD034) - disable for documentation
+MD034: false
+
+# No emphasis as heading (MD036) - disable
+MD036: false
+
+# No space in emphasis (MD037) - disable
+MD037: false
+
+# No space in links (MD039) - disable
+MD039: false
+
+# No space in code (MD038) - disable
+MD038: false
+
+# No space in code spans (MD038) - disable
+MD038: false
+
+# No space in emphasis (MD037) - disable
+MD037: false
+
+# No space in links (MD039) - disable
+MD039: false
+
+# No space in code (MD038) - disable
+MD038: false

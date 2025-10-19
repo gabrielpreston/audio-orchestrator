@@ -1,0 +1,59 @@
+# Hadolint configuration
+# https://github.com/hadolint/hadolint
+
+# Ignore specific rules that are too strict for our use case
+ignore:
+  # Use specific tags instead of latest
+  - DL3006
+  # Use specific digest instead of tag
+  - DL3008
+  # Pin versions in apt-get install
+  - DL3009
+  # Use --no-cache flag with apk
+  - DL3018
+  # Use apk add --no-cache
+  - DL3019
+  # Pin versions in pip install
+  - DL3013
+  # Use --no-cache-dir flag with pip
+  - DL3059
+  # Use specific digest instead of tag
+  - DL3008
+  # Pin versions in apt-get install
+  - DL3009
+  # Use --no-cache flag with apk
+  - DL3018
+  # Use apk add --no-cache
+  - DL3019
+  # Pin versions in pip install
+  - DL3013
+  # Use --no-cache-dir flag with pip
+  - DL3059
+
+# Override specific rules
+override:
+  # Allow using latest for base images in some cases
+  - DL3006: error
+  # Allow using latest for specific packages
+  - DL3008: error
+  # Allow using latest for apt packages in some cases
+  - DL3009: error
+  # Allow using latest for apk packages in some cases
+  - DL3018: error
+  # Allow using latest for apk packages in some cases
+  - DL3019: error
+  # Allow using latest for pip packages in some cases
+  - DL3013: error
+  # Allow using latest for pip packages in some cases
+  - DL3059: error
+
+# Set severity levels
+override:
+  # Treat these as warnings instead of errors
+  - DL3006: warning
+  - DL3008: warning
+  - DL3009: warning
+  - DL3018: warning
+  - DL3019: warning
+  - DL3013: warning
+  - DL3059: warning

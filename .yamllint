@@ -1,11 +1,57 @@
-extends: relaxed
+extends: default
 
 rules:
+  # Line length
   line-length:
-    max: 200
+    max: 120
     level: warning
+  
+  # Indentation
+  indentation:
+    spaces: 2
+    indent-sequences: true
+    check-multi-line-strings: false
+  
+  # Comments
+  comments:
+    min-spaces-from-content: 1
+  
+  # Document start
+  document-start:
+    present: false
+  
+  # Truthy values
   truthy:
     allowed-values: ['true', 'false', 'on', 'off']
     check-keys: false
-  document-start: disable
-  quoted-strings: disable
+  
+  # Empty lines
+  empty-lines:
+    max: 2
+    max-start: 0
+    max-end: 1
+  
+  # Empty values
+  empty-values:
+    forbid-in-block-mappings: true
+    forbid-in-flow-mappings: true
+  
+  # Key ordering
+  key-ordering: disable
+  
+  # Octal values
+  octal-values:
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true
+  
+  # Quoted strings
+  quoted-strings:
+    quote-type: single
+    check-keys: false
+  
+  # Trailing spaces
+  trailing-spaces: enable
+  
+  # Hyphens
+  hyphens:
+    max-spaces-after: 1
