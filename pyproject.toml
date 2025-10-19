@@ -34,6 +34,7 @@ use_parentheses = true  # Use parentheses for multi-line imports (Black-compatib
 ensure_newline_before_comments = true  # Add blank line before import comments for readability
 lines_after_imports = 2  # Add 2 blank lines after imports (PEP 8 compliance)
 skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]  # Skip virtual environments and build directories
+known_first_party = ["services"]  # Align with Ruff's isort config to classify internal package
 
 [tool.ruff]
 # Ruff linter configuration
