@@ -259,6 +259,12 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
+      - name: 'Log in to GitHub Container Registry'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Python Base Image'
         uses: docker/build-push-action@v6
         with:
@@ -269,7 +275,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Python Audio Base Image'
         uses: docker/build-push-action@v6
         with:
@@ -281,7 +286,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Python ML Base Image'
         uses: docker/build-push-action@v6
         with:
@@ -293,7 +297,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push Tools Base Image'
         uses: docker/build-push-action@v6
         with:
@@ -305,7 +308,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push MCP Toolchain Base Image'
         uses: docker/build-push-action@v6
         with:
@@ -317,7 +319,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=base-images
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   docker-smoke:
     name: 'Docker smoke'
@@ -361,6 +362,12 @@ jobs:
             fi
           done
           echo "::endgroup::"
+      - name: 'Log in to GitHub Container Registry'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push ${{ matrix.service }} service'
         uses: docker/build-push-action@v6
         with:
@@ -373,7 +380,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Smoke test ${{ matrix.service }} service'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
@@ -413,6 +419,12 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
+      - name: 'Log in to GitHub Container Registry'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Build and push ${{ matrix.tool }} tool'
         uses: docker/build-push-action@v6
         with:
@@ -425,7 +437,6 @@ jobs:
           cache-to: type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx
           push: true
           load: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: 'Test ${{ matrix.tool }} tool'
         run: |
           echo "::group::Testing ${{ matrix.tool }} tool"
