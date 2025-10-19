@@ -36,6 +36,15 @@ jobs:
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
+      - name: 'Setup job context'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Job started:', context.job)
+            console.log('Repository:', context.repo.full_name)
+            console.log('Ref:', context.ref)
+            console.log('Workflow:', context.workflow)
+            console.log('Run ID:', context.runId)
 
       - name: 'Set up Docker Buildx'
         uses: 'docker/setup-buildx-action@v3'
@@ -50,64 +59,79 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 'Build and push Python Base Image'
-        uses: docker/build-push-action@v6
+      - name: 'Build and push Python Base Image with retry'
+        uses: nick-fields/retry@v2
         with:
-          context: .
-          file: services/base/Dockerfile.python-base
-          tags: ghcr.io/${{ github.repository_owner }}/python-base:latest
-          cache-from: type=gha,scope=base-images
-          cache-to: type=gha,mode=max,scope=base-images
-          push: true
-          load: true
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.python-base \
+              --tag ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/python-base:latest
 
-      - name: 'Build and push Python Audio Base Image'
-        uses: docker/build-push-action@v6
+      - name: 'Build and push Python Audio Base Image with retry'
+        uses: nick-fields/retry@v2
         with:
-          context: .
-          file: services/base/Dockerfile.python-audio
-          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
-          tags: ghcr.io/${{ github.repository_owner }}/python-audio:latest
-          cache-from: type=gha,scope=base-images
-          cache-to: type=gha,mode=max,scope=base-images
-          push: true
-          load: true
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.python-audio \
+              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --tag ghcr.io/${{ github.repository_owner }}/python-audio:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/python-audio:latest
 
-      - name: 'Build and push Python ML Base Image'
-        uses: docker/build-push-action@v6
+      - name: 'Build and push Python ML Base Image with retry'
+        uses: nick-fields/retry@v2
         with:
-          context: .
-          file: services/base/Dockerfile.python-ml
-          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
-          tags: ghcr.io/${{ github.repository_owner }}/python-ml:latest
-          cache-from: type=gha,scope=base-images
-          cache-to: type=gha,mode=max,scope=base-images
-          push: true
-          load: true
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.python-ml \
+              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --tag ghcr.io/${{ github.repository_owner }}/python-ml:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/python-ml:latest
 
-      - name: 'Build and push Tools Base Image'
-        uses: docker/build-push-action@v6
+      - name: 'Build and push Tools Base Image with retry'
+        uses: nick-fields/retry@v2
         with:
-          context: .
-          file: services/base/Dockerfile.tools
-          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
-          tags: ghcr.io/${{ github.repository_owner }}/tools:latest
-          cache-from: type=gha,scope=base-images
-          cache-to: type=gha,mode=max,scope=base-images
-          push: true
-          load: true
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.tools \
+              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --tag ghcr.io/${{ github.repository_owner }}/tools:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/tools:latest
 
-      - name: 'Build and push MCP Toolchain Base Image'
-        uses: docker/build-push-action@v6
+      - name: 'Build and push MCP Toolchain Base Image with retry'
+        uses: nick-fields/retry@v2
         with:
-          context: .
-          file: services/base/Dockerfile.mcp-toolchain
-          build-args: BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest
-          tags: ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
-          cache-from: type=gha,scope=base-images
-          cache-to: type=gha,mode=max,scope=base-images
-          push: true
-          load: true
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.mcp-toolchain \
+              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --tag ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
 
       - name: 'Build Summary'
         run: |
@@ -121,3 +145,38 @@ jobs:
           echo "| mcp-toolchain | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
+      - name: 'Cleanup resources with reporting'
+        if: always()
+        run: |
+          echo "::group::Resource Cleanup Report"
+
+          # Capture before cleanup
+          before_space=$(df -h / | awk 'NR==2{print $4}')
+          before_images=$(docker images -q | wc -l)
+
+          # Cleanup operations
+          echo "Cleaning Docker system..."
+          docker system prune -f --volumes
+
+          echo "Cleaning build cache..."
+          docker builder prune -f
+
+          # Capture after cleanup
+          after_space=$(df -h / | awk 'NR==2{print $4}')
+          after_images=$(docker images -q | wc -l)
+
+          echo "Cleanup Results:"
+          echo "  Disk space: $before_space to $after_space"
+          echo "  Images removed: $((before_images - after_images))"
+          echo "::endgroup::"
+      - name: 'Job Status Summary'
+        if: always()
+        run: |
+          echo "::group::Job Status Summary"
+          echo "Job: ${{ github.job }}"
+          echo "Runner: ${{ runner.os }} (${{ runner.arch }})"
+          echo "Available Space: $(df -h / | awk 'NR==2{print $4}')"
+          echo "Docker Images: $(docker images -q | wc -l)"
+          echo "Cache: GitHub Actions Cache v2 enabled"
+          echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
+          echo "::endgroup::"

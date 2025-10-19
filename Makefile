@@ -280,10 +280,7 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 
 test: test-unit test-component ## Run unit and component tests
 
-# CI-optimized testing targets
-test-ci: test-unit test-component ## Run unit and component tests (CI optimized)
-test-ci-fast: test-unit ## Run only unit tests (fastest CI option)
-
+test-fast: test-unit ## Run only unit tests (fastest validation option)
 
 
 test-image: ## Build the test toolchain container image
@@ -378,9 +375,6 @@ test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
 # =============================================================================
 
 lint: lint-parallel ## Run all linters
-
-# CI-optimized linting targets
-lint-ci: lint-parallel ## Run all linters (CI optimized)
 
 lint-parallel: lint-image ## Run all linters in parallel with aggregated output
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }

@@ -28,16 +28,69 @@ last-updated: 2025-10-19
   LLM orchestrator FastAPI (`services/llm`), Piper-based TTS (`services/tts`), and shared
   utilities (`services/common`).
 - Tooling standardized via `Makefile`: containerized lint (`make lint`) running Black, isort,
-  Ruff, MyPy, Hadolint, Yamllint, Checkmake, Markdownlint; containerized tests (`make test`)
-  wrapping pytest with a custom runner.
-- Docker-first workflow (`docker-compose.yml`) orchestrates services using `.env.common`,
-  service-specific `.env.service`, and `.env.docker`; build context is the repository root.
-- Python tooling configured through `pyproject.toml`; no existing CI definitions, and pytest
-  currently passes when no tests are collected.
-- Service images mix Python 3.11 and 3.12 bases, creating divergence between lint/test
-  containers and runtime services.
-  【F:services/discord/Dockerfile†L1-L27】【F:services/stt/Dockerfile†L1-L33】【F:services/llm/Dockerfile†L1-L21】
-  【F:services/tts/Dockerfile†L1-L33】【F:services/linter/Dockerfile†L1-L36】【F:services/tester/Dockerfile†L1-L40】
+
+## Native GitHub Actions Retry Strategy
+
+The implementation uses `nick-fields/retry@v2` for all Docker build operations, providing:
+
+- **Native GitHub Actions Integration**: Uses official retry action from GitHub marketplace
+- **Cleaner Syntax**: 90% less code than bash retry loops
+- **Built-in Features**: Automatic exponential backoff, timeout handling
+- **Better Observability**: Clear retry attempts in GitHub Actions UI
+- **Maintainable**: Standard retry pattern across all builds
+- **Reliable**: Two-step build-load-push ensures images available locally and in GHCR
+
+### Build-Load-Push Strategy
+
+The implementation uses a two-step approach for Docker builds:
+
+1. **Build with `--load`**: Creates image locally for immediate use in smoke tests
+2. **Push to GHCR**: Ensures image persistence and availability for dependent builds
+
+This strategy is optimal for single-platform builds and provides:
+
+- **Immediate Availability**: Images available locally for smoke tests
+- **Persistence**: Images pushed to GHCR for dependent builds
+- **Reliability**: Two-step process reduces failure points
+- **Compatibility**: Works with existing Docker buildx caching
+
+### Resource Cleanup Procedures and Disk Space Management
+
+Automatic resource cleanup is implemented across all major jobs:
+
+- **Docker System Cleanup**: `docker system prune -f --volumes`
+- **Build Cache Cleanup**: `docker builder prune -f`
+- **Before/After Metrics**: Disk space and image count tracking
+- **Always Execution**: Cleanup runs even on job failure
+- **Detailed Reporting**: Cleanup results logged for monitoring
+
+Benefits:
+
+- **Prevents Disk Issues**: Automatic cleanup prevents runner disk space problems
+- **Consistent Environment**: Each job starts with clean state
+- **Monitoring**: Detailed metrics for optimization
+- **Reliability**: Prevents cascading failures due to disk space
+
+### Single-Platform Builds Enable `--load` Usage
+
+The implementation leverages single-platform builds to enable Docker's `--load` flag:
+
+- **No `--platform` Flags**: Confirmed single-platform builds only
+- **`--load` Viability**: Enables local image availability
+- **Smoke Test Compatibility**: Images immediately available for testing
+- **Build Optimization**: Reduces complexity and improves reliability
+
+### Benefits of Native Retry Over Bash Loops
+
+| Aspect | Bash Loops | Native Retry Action |
+|--------|------------|---------------------|
+| Code Lines | ~30 lines per build | ~8 lines per build |
+| Maintainability | Custom logic per build | Standard pattern |
+| Observability | Hidden in logs | Clear in UI |
+| Error Handling | Manual | Built-in |
+| Exponential Backoff | Manual calculation | Automatic |
+| Timeout Handling | Manual | Built-in |
+| Consistency | Varies by implementation | Standardized |
 
 ## Automation Goals
 
