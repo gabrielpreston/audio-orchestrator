@@ -147,6 +147,7 @@ ignore = [
     "PLR0913", # too many arguments - test fixtures often have many parameters
     "PLR0912", # too many branches - test cases often have complex branching
     "PLR0915", # too many statements - test functions can be long
+    "PT009",   # allow unittest-style asserts in legacy tests
     "PT001",   # prefer @pytest.fixture() over @pytest.fixture - allow existing style
     "PT004",   # fixture returns nothing - allow without leading underscore rename
     "ARG001",  # allow unused function argument in tests
@@ -158,6 +159,7 @@ ignore = [
     "PLR1711", # useless return in test mocks
     "PTH123",  # open() usage in tests
     "DTZ003",  # utcnow in tests
+    "DTZ005",  # datetime.now() without tz in tests
 ]
 "**/conftest.py" = [
     "F401", # unused imports - pytest conftest files often import for fixtures
