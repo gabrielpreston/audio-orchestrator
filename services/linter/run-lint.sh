@@ -28,7 +28,7 @@ echo "Linting Dockerfiles..."
 find services -type f -name 'Dockerfile' -exec hadolint --config .hadolint.yaml {} \;
 
 echo "Linting Makefile..."
-checkmake Makefile
+checkmake --config .checkmake.yaml Makefile
 
 echo "Linting Markdown files..."
 # Auto-discover all Markdown files

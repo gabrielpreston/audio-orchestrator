@@ -1,29 +1,45 @@
 # Hadolint configuration
 # https://github.com/hadolint/hadolint
+# Purpose: Ensures Docker best practices while allowing flexibility for development environments
 
-# Ignore specific rules that are too strict for our use case
+# Ignore specific rules that are too strict for our development use case
+# These rules are important for production but can be overly restrictive during development
 ignore:
-  # Use specific tags instead of latest
+  # Use specific tags instead of latest (DL3006)
+  # Reason: Development images often use 'latest' for convenience and faster iteration
   - DL3006
-  # Use specific digest instead of tag
+  
+  # Use specific digest instead of tag (DL3008)
+  # Reason: Tags are more readable and manageable in development
   - DL3008
-  # Pin versions in apt-get install
+  
+  # Pin versions in apt-get install (DL3009)
+  # Reason: Development environments benefit from latest package versions
   - DL3009
-  # Use --no-cache flag with apk
+  
+  # Use --no-cache flag with apk (DL3018)
+  # Reason: Development images often need caching for faster builds
   - DL3018
-  # Use apk add --no-cache
+  
+  # Use apk add --no-cache (DL3019)
+  # Reason: Development images often need caching for faster builds
   - DL3019
-  # Pin versions in pip install
+  
+  # Pin versions in pip install (DL3013)
+  # Reason: Development environments benefit from latest package versions
   - DL3013
-  # Use --no-cache-dir flag with pip
+  
+  # Use --no-cache-dir flag with pip (DL3059)
+  # Reason: Development images often need caching for faster builds
   - DL3059
 
 # Override specific rules - treat as warnings instead of errors
+# This allows us to see potential issues without failing the build
 override:
-  - DL3006: warning
-  - DL3008: warning
-  - DL3009: warning
-  - DL3018: warning
-  - DL3019: warning
-  - DL3013: warning
-  - DL3059: warning
+  - DL3006: warning  # Use specific tags instead of latest
+  - DL3008: warning  # Use specific digest instead of tag
+  - DL3009: warning  # Pin versions in apt-get install
+  - DL3018: warning  # Use --no-cache flag with apk
+  - DL3019: warning  # Use apk add --no-cache
+  - DL3013: warning  # Pin versions in pip install
+  - DL3059: warning  # Use --no-cache-dir flag with pip

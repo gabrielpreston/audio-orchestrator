@@ -503,7 +503,7 @@ lint-dockerfiles: ## Lint all Dockerfiles
 lint-makefile: ## Lint Makefile
 	@echo "→ Linting Makefile..."
 	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
-	@checkmake Makefile
+	@checkmake --config .checkmake.yaml Makefile
 	@echo "✓ Makefile linting passed"
 
 lint-markdown: ## Lint Markdown files

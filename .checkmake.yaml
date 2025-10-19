@@ -1,0 +1,46 @@
+# checkmake configuration
+# https://github.com/checkmake/checkmake
+# Purpose: Ensures Makefiles follow best practices and are properly formatted
+
+# Rule configuration
+rules:
+  # Require help target
+  help:
+    enabled: true
+    message: "Makefile should have a help target"
+  
+  # Require phony targets
+  phony:
+    enabled: true
+    message: "Makefile should use .PHONY for non-file targets"
+  
+  # Check for tab usage
+  tabs:
+    enabled: true
+    message: "Makefile should use tabs for indentation"
+  
+  # Check for line length
+  line_length:
+    enabled: true
+    max_length: 120
+    message: "Makefile lines should not exceed 120 characters"
+  
+  # Check for variable usage
+  variables:
+    enabled: true
+    message: "Makefile should use variables for repeated values"
+  
+  # Check for target naming
+  target_names:
+    enabled: true
+    message: "Makefile targets should use lowercase with hyphens"
+
+# Ignore specific rules for our use case
+ignore:
+  - "help"  # Our Makefile has a help target but it's implemented differently
+  - "line_length"  # Some lines need to be long for readability
+
+# Override specific rules
+override:
+  - "help": warning  # Treat missing help as warning, not error
+  - "line_length": warning  # Treat long lines as warning, not error

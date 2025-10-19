@@ -1,47 +1,55 @@
 # EditorConfig is awesome: https://EditorConfig.org
+# Purpose: Ensures consistent coding styles across different editors and IDEs
 
 # top-most EditorConfig file
 root = true
 
-# All files
+# Global settings for all files
 [*]
-charset = utf-8
-end_of_line = lf
-insert_final_newline = true
-trim_trailing_whitespace = true
+charset = utf-8  # Use UTF-8 encoding for all files (prevents encoding issues)
+end_of_line = lf  # Use Unix line endings (LF) for consistency across platforms
+insert_final_newline = true  # Ensure files end with a newline (POSIX compliance)
+trim_trailing_whitespace = true  # Remove trailing whitespace (cleaner diffs)
 
-# Python files
+# Python files configuration
+# Purpose: Match Black formatter settings and PEP 8 recommendations
 [*.py]
-indent_style = space
-indent_size = 4
-max_line_length = 88
+indent_style = space  # Use spaces instead of tabs (PEP 8 requirement)
+indent_size = 4  # Use 4 spaces per indentation level (PEP 8 standard)
+max_line_length = 88  # Match Black's default line length (more practical than PEP 8's 79)
 
-# YAML files
+# YAML files configuration
+# Purpose: Follow YAML best practices and yamllint recommendations
 [*.{yml,yaml}]
-indent_style = space
-indent_size = 2
+indent_style = space  # Use spaces for YAML indentation (more reliable than tabs)
+indent_size = 2  # Use 2 spaces per indentation level (YAML standard)
 
-# JSON files
+# JSON files configuration
+# Purpose: Ensure consistent JSON formatting
 [*.json]
-indent_style = space
-indent_size = 2
+indent_style = space  # Use spaces for JSON indentation
+indent_size = 2  # Use 2 spaces per indentation level (common JSON practice)
 
-# Markdown files
+# Markdown files configuration
+# Purpose: Preserve Markdown formatting while ensuring consistency
 [*.md]
-trim_trailing_whitespace = false
-max_line_length = off
+trim_trailing_whitespace = false  # Preserve trailing spaces (used for line breaks in Markdown)
+max_line_length = off  # No line length limit (Markdown is often read in different contexts)
 
-# Makefile
+# Makefile configuration
+# Purpose: Follow Makefile conventions
 [Makefile]
-indent_style = tab
-indent_size = 4
+indent_style = tab  # Use tabs for Makefile indentation (Make requirement)
+indent_size = 4  # Use 4-space equivalent tabs
 
-# Dockerfile
+# Dockerfile configuration
+# Purpose: Follow Docker best practices
 [Dockerfile*]
-indent_style = space
-indent_size = 4
+indent_style = space  # Use spaces for Dockerfile indentation (more readable)
+indent_size = 4  # Use 4 spaces per indentation level (consistent with Python)
 
-# Shell scripts
+# Shell scripts configuration
+# Purpose: Follow shell scripting best practices
 [*.{sh,bash}]
-indent_style = space
-indent_size = 4
+indent_style = space  # Use spaces for shell script indentation (more portable)
+indent_size = 4  # Use 4 spaces per indentation level (consistent with Python)
