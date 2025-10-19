@@ -20,13 +20,14 @@ local workflows before touching production infrastructure.
 - [Runtime quickstart](runtime.md) — Build, run, and monitor the Docker Compose stack.
 - [Local development workflows](local-development.md) — Make targets, linting, testing, and
   Docker routines.
+- [Taskfile migration guide](taskfile-migration.md) — Makefile vs Taskfile, command mapping, and parallel usage.
 - [Troubleshooting](troubleshooting.md) — Common issues and remediation steps for audio,
   Docker, and permissions.
 
 ## Prerequisites
 
 - Docker Engine with `docker-compose` support.
-- `make` for invoking repository workflows.
+- `make` or `task` for invoking repository workflows (both supported).
 - Access to Discord, STT, LLM, and TTS credentials as required by your deployment plan.
 
 ## Next Steps

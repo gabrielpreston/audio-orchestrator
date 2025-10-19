@@ -1,0 +1,1015 @@
+version: '3'
+
+vars:
+  # Docker BuildKit configuration
+  DOCKER_BUILDKIT: '1'
+  COMPOSE_DOCKER_CLI_BUILD: '1'
+  
+  # Source paths and file discovery
+  PYTHON_SOURCES: 'services'
+  MYPY_PATHS: 'services'
+  
+  # Container images and paths
+  LINT_IMAGE: 'discord-voice-lab/lint:latest'
+  LINT_DOCKERFILE: 'services/linter/Dockerfile'
+  LINT_WORKDIR: '/workspace'
+  TEST_IMAGE: 'discord-voice-lab/test:latest'
+  TEST_DOCKERFILE: 'services/tester/Dockerfile'
+  TEST_WORKDIR: '/workspace'
+  
+  # Test configuration
+  PYTEST_ARGS: ''
+  RUN_SCRIPT: 'scripts/run-compose.sh'
+
+tasks:
+  # =============================================================================
+  # DEFAULT TARGETS
+  # =============================================================================
+  
+  default:
+    desc: "Show this help (default)"
+    cmds:
+      - task: help
+
+  help:
+    desc: "Show this help"
+    cmds:
+      - |
+        printf "\033[36mdiscord-voice-lab Taskfile — handy targets\033[0m\n"
+        echo
+        echo "Usage: task <target>"
+        echo
+        echo "Available targets:"
+        echo "  run              - Start docker-compose stack (Discord bot + STT + LLM + orchestrator)"
+        echo "  stop             - Stop and remove containers for the compose stack"
+        echo "  logs             - Tail logs for compose services (set SERVICE=name to filter)"
+        echo "  logs-dump        - Capture docker logs to ./docker.logs"
+        echo "  docker-status    - Show status of docker-compose services"
+        echo "  docker-build     - Build or rebuild images for the compose stack"
+        echo "  docker-build-nocache - Force rebuild all images without using cache"
+        echo "  docker-build-service - Build a specific service (set SERVICE=name)"
+        echo "  docker-restart   - Restart compose services (set SERVICE=name to limit scope)"
+        echo "  docker-shell     - Open an interactive shell inside a running service (SERVICE=name)"
+        echo "  docker-config    - Render the effective docker-compose configuration"
+        echo "  docker-smoke     - Build images and validate docker-compose configuration for CI parity"
+        echo "  docker-validate  - Validate Dockerfiles with hadolint"
+        echo "  docker-prune-cache - Clear BuildKit cache and unused Docker resources"
+        echo "  test             - Run unit and component tests in containers (default)"
+        echo "  test-ci          - Run tests using locally installed tooling (for CI)"
+        echo "  test-local       - Run tests using locally installed tooling"
+        echo "  test-unit        - Run unit tests only (fast, isolated)"
+        echo "  test-component   - Run component tests (with mocked external dependencies)"
+        echo "  test-integration - Run integration tests (requires Docker Compose)"
+        echo "  test-e2e         - Run end-to-end tests (manual trigger only)"
+        echo "  test-coverage    - Generate coverage report"
+        echo "  test-watch       - Run tests in watch mode (requires pytest-watch)"
+        echo "  test-debug       - Run tests in debug mode with verbose output"
+        echo "  test-specific    - Run specific tests (use PYTEST_ARGS='-k pattern')"
+        echo "  lint             - Run all linters in Docker container (default for local dev)"
+        echo "  lint-parallel    - Run all linters in parallel with aggregated output"
+        echo "  lint-sequential  - Run linters sequentially (legacy behavior)"
+        echo "  lint-ci          - Run linting with local tools (for CI)"
+        echo "  lint-python      - Python formatting and linting (black, isort, ruff)"
+        echo "  lint-mypy        - Type checking with mypy"
+        echo "  lint-yaml        - Lint all YAML files"
+        echo "  lint-dockerfiles - Lint all Dockerfiles"
+        echo "  lint-makefile    - Lint Makefile"
+        echo "  lint-markdown    - Lint Markdown files"
+        echo "  lint-fix         - Format sources using the lint container toolchain"
+        echo "  security         - Run security scanning with pip-audit"
+        echo "  clean            - Remove logs, cached audio artifacts, and debug files"
+        echo "  docker-clean     - Bring down compose stack and prune unused docker resources"
+        echo "  install-dev-deps - Install development dependencies for CI"
+        echo "  install-ci-tools - Install CI-specific tools (hadolint, checkmake, markdownlint)"
+        echo "  ci-setup         - Complete CI environment setup"
+        echo "  docs-verify      - Validate documentation last-updated metadata and indexes"
+        echo "  rotate-tokens    - Rotate AUTH_TOKEN values across all environment files"
+        echo "  rotate-tokens-dry-run - Show what token rotation would change without modifying files"
+        echo "  validate-tokens  - Validate AUTH_TOKEN consistency across environment files"
+        echo "  models-download  - Download required models to ./services/models/ subdirectories"
+        echo "  models-clean     - Remove downloaded models from ./services/models/"
+        echo "  eval-stt         - Evaluate a single provider on specified phrase files"
+        echo "  eval-wake        - Evaluate wake phrases with default provider"
+        echo "  eval-stt-all     - Evaluate across all configured providers"
+        echo "  clean-eval       - Remove eval outputs and generated audio"
+
+  # =============================================================================
+  # APPLICATION LIFECYCLE
+  # =============================================================================
+
+  run:
+    desc: "Start docker-compose stack (Discord bot + STT + LLM + orchestrator)"
+    deps: [stop]
+    cmds:
+      - '{{.RUN_SCRIPT}}'
+
+  stop:
+    desc: "Stop and remove containers for the compose stack"
+    cmds:
+      - |
+        echo -e "\033[34m→ Bringing down containers\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        $DOCKER_COMPOSE down --remove-orphans
+
+  logs:
+    desc: "Tail logs for compose services (set SERVICE=name to filter)"
+    cmds:
+      - |
+        echo -e "\033[36m→ Tailing logs for docker services (Ctrl+C to stop)\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        if [ -z "${SERVICE:-}" ]; then
+          $DOCKER_COMPOSE logs -f --tail=100
+        else
+          $DOCKER_COMPOSE logs -f --tail=100 ${SERVICE}
+        fi
+
+  logs-dump:
+    desc: "Capture docker logs to ./docker.logs"
+    cmds:
+      - |
+        echo -e "\033[36m→ Dumping all logs for docker services\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        mkdir -p debug
+        $DOCKER_COMPOSE logs > ./debug/docker.logs
+
+  docker-status:
+    desc: "Show status of docker-compose services"
+    cmds:
+      - |
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        $DOCKER_COMPOSE ps
+
+  # =============================================================================
+  # DOCKER BUILD & MANAGEMENT
+  # =============================================================================
+
+  docker-build:
+    desc: "Build or rebuild images for the compose stack"
+    cmds:
+      - |
+        echo -e "\033[32m→ Building docker images\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        DOCKER_BUILDKIT={{.DOCKER_BUILDKIT}} COMPOSE_DOCKER_CLI_BUILD={{.COMPOSE_DOCKER_CLI_BUILD}} $DOCKER_COMPOSE build --parallel
+
+  docker-build-nocache:
+    desc: "Force rebuild all images without using cache"
+    cmds:
+      - |
+        echo -e "\033[32m→ Building docker images (no cache)\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        DOCKER_BUILDKIT={{.DOCKER_BUILDKIT}} COMPOSE_DOCKER_CLI_BUILD={{.COMPOSE_DOCKER_CLI_BUILD}} $DOCKER_COMPOSE build --no-cache --parallel
+
+  docker-build-service:
+    desc: "Build a specific service (set SERVICE=name)"
+    cmds:
+      - |
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        if [ -z "${SERVICE:-}" ]; then
+          SERVICES=$(find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort | tr '\n' ' ')
+          echo "Set SERVICE=<service-name> ($SERVICES)"
+          exit 1
+        fi
+        SERVICES=$(find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort | tr '\n' ' ')
+        if ! echo "$SERVICES" | grep -q "\b${SERVICE}\b"; then
+          echo "Invalid service: ${SERVICE}. Valid services: $SERVICES"
+          exit 1
+        fi
+        echo -e "\033[32m→ Building ${SERVICE} service\033[0m"
+        DOCKER_BUILDKIT={{.DOCKER_BUILDKIT}} COMPOSE_DOCKER_CLI_BUILD={{.COMPOSE_DOCKER_CLI_BUILD}} $DOCKER_COMPOSE build ${SERVICE}
+
+  docker-restart:
+    desc: "Restart compose services (set SERVICE=name to limit scope)"
+    cmds:
+      - |
+        echo -e "\033[34m→ Restarting docker services\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        if [ -z "${SERVICE:-}" ]; then
+          $DOCKER_COMPOSE restart
+        else
+          $DOCKER_COMPOSE restart ${SERVICE}
+        fi
+
+  docker-shell:
+    desc: "Open an interactive shell inside a running service (SERVICE=name)"
+    cmds:
+      - |
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        if [ -z "${SERVICE:-}" ]; then
+          SERVICES=$(find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort | tr '\n' ' ')
+          echo "Set SERVICE=<service-name> ($SERVICES)"
+          exit 1
+        fi
+        SERVICES=$(find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort | tr '\n' ' ')
+        if ! echo "$SERVICES" | grep -q "\b${SERVICE}\b"; then
+          echo "Invalid service: ${SERVICE}. Valid services: $SERVICES"
+          exit 1
+        fi
+        $DOCKER_COMPOSE exec ${SERVICE} /bin/bash
+
+  docker-config:
+    desc: "Render the effective docker-compose configuration"
+    cmds:
+      - |
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        $DOCKER_COMPOSE config
+
+  docker-smoke:
+    desc: "Build images and validate docker-compose configuration for CI parity"
+    cmds:
+      - |
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        echo -e "\033[32m→ Validating docker-compose stack\033[0m"
+        DOCKER_BUILDKIT={{.DOCKER_BUILDKIT}} COMPOSE_DOCKER_CLI_BUILD={{.COMPOSE_DOCKER_CLI_BUILD}} $DOCKER_COMPOSE config >/dev/null
+        $DOCKER_COMPOSE config --services
+        DOCKER_BUILDKIT={{.DOCKER_BUILDKIT}} COMPOSE_DOCKER_CLI_BUILD={{.COMPOSE_DOCKER_CLI_BUILD}} $DOCKER_COMPOSE build --pull --progress=plain
+
+  docker-validate:
+    desc: "Validate Dockerfiles with hadolint"
+    cmds:
+      - |
+        command -v hadolint >/dev/null 2>&1 || {
+          echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2
+          exit 1
+        }
+        echo -e "\033[36m→ Validating Dockerfiles\033[0m"
+        find services -type f -name 'Dockerfile' 2>/dev/null | xargs hadolint
+        echo -e "\033[32m→ Dockerfile validation complete\033[0m"
+
+  docker-prune-cache:
+    desc: "Clear BuildKit cache and unused Docker resources"
+    cmds:
+      - |
+        echo -e "\033[33m→ Pruning Docker BuildKit cache\033[0m"
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
+        docker buildx prune -f || true
+        echo -e "\033[32m→ BuildKit cache pruned\033[0m"
+
+  # =============================================================================
+  # TESTING
+  # =============================================================================
+
+  test:
+    desc: "Run unit and component tests in containers (default)"
+    deps: [test-unit-container, test-component-container]
+
+  test-ci:
+    desc: "Run tests using locally installed tooling (for CI)"
+    cmds:
+      - task: test-local
+
+  test-container:
+    desc: "Build test container (if needed) and run the test suite"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}}
+
+  test-image:
+    desc: "Build the test toolchain container image"
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
+        docker build --pull --tag {{.TEST_IMAGE}} -f {{.TEST_DOCKERFILE}} .
+
+  test-local:
+    desc: "Run tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo "→ Running tests with pytest"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest {{.PYTEST_ARGS}}
+
+  test-unit:
+    desc: "Run unit tests only (fast, isolated)"
+    cmds:
+      - task: test-unit-local
+
+  test-unit-local:
+    desc: "Run unit tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo "→ Running unit tests (local)"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -m unit {{.PYTEST_ARGS}}
+
+  test-unit-container:
+    desc: "Run unit tests in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[36m→ Running unit tests (container)\033[0m"
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          pytest -m unit {{.PYTEST_ARGS}}
+
+  test-component:
+    desc: "Run component tests (with mocked external dependencies)"
+    cmds:
+      - task: test-component-local
+
+  test-component-local:
+    desc: "Run component tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo "→ Running component tests (local)"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -m component {{.PYTEST_ARGS}}
+
+  test-component-container:
+    desc: "Run component tests in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[36m→ Running component tests (container)\033[0m"
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          pytest -m component {{.PYTEST_ARGS}}
+
+  test-integration:
+    desc: "Run integration tests (requires Docker Compose)"
+    cmds:
+      - task: test-integration-local
+
+  test-integration-local:
+    desc: "Run integration tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run integration tests." >&2; exit 1; }
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        echo -e "\033[36m→ Running integration tests (local)\033[0m"
+        echo -e "\033[33m→ Starting Docker Compose services for integration tests\033[0m"
+        timeout 300 $DOCKER_COMPOSE up -d --build || {
+          echo "Error: Services failed to start within 5 minutes" >&2
+          $DOCKER_COMPOSE down
+          exit 1
+        }
+        echo -e "\033[33m→ Waiting for services to be ready\033[0m"
+        for i in $(seq 1 30); do
+          if $DOCKER_COMPOSE ps --services --filter "status=running" | grep -q "discord\|stt\|llm"; then
+            echo "→ Services are ready"
+            break
+          fi
+          echo "→ Waiting... ($i/30)"
+          sleep 1
+        done
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -m integration {{.PYTEST_ARGS}} || {
+          echo -e "\033[33m→ Stopping Docker Compose services\033[0m"
+          $DOCKER_COMPOSE down
+          exit 1
+        }
+        echo -e "\033[33m→ Stopping Docker Compose services\033[0m"
+        $DOCKER_COMPOSE down
+
+  test-integration-container:
+    desc: "Run integration tests in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose."
+          exit 1
+        fi
+        echo -e "\033[36m→ Running integration tests (container)\033[0m"
+        echo -e "\033[33m→ Starting Docker Compose services for integration tests\033[0m"
+        $DOCKER_COMPOSE up -d --build
+        echo -e "\033[33m→ Waiting for services to be ready\033[0m"
+        sleep 10
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          --network host \
+          {{.TEST_IMAGE}} \
+          pytest -m integration {{.PYTEST_ARGS}} || {
+            status=$?
+            echo -e "\033[33m→ Stopping Docker Compose services\033[0m"
+            $DOCKER_COMPOSE down
+            exit $status
+          }
+        echo -e "\033[33m→ Stopping Docker Compose services\033[0m"
+        $DOCKER_COMPOSE down
+
+  test-e2e:
+    desc: "Run end-to-end tests (manual trigger only)"
+    cmds:
+      - task: test-e2e-local
+
+  test-e2e-local:
+    desc: "Run end-to-end tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo -e "\033[31m→ Running end-to-end tests (requires real Discord API)\033[0m"
+        echo -e "\033[33m→ WARNING: This will make real API calls and may incur costs\033[0m"
+        read -p "Are you sure you want to continue? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+          PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -m e2e {{.PYTEST_ARGS}} || {
+            status=$?
+            exit $status
+          }
+        else
+          echo -e "\033[33m→ E2E tests cancelled\033[0m"
+          exit 0
+        fi
+
+  test-e2e-container:
+    desc: "Run end-to-end tests in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[31m→ Running end-to-end tests (requires real Discord API)\033[0m"
+        echo -e "\033[33m→ WARNING: This will make real API calls and may incur costs\033[0m"
+        read -p "Are you sure you want to continue? [y/N] " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+          docker run --rm \
+            -u $(id -u):$(id -g) \
+            -e HOME={{.TEST_WORKDIR}} \
+            -e USER=$(id -un 2>/dev/null || echo tester) \
+            {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+            -v "$(pwd)":{{.TEST_WORKDIR}} \
+            {{.TEST_IMAGE}} \
+            pytest -m e2e {{.PYTEST_ARGS}}
+        else
+          echo -e "\033[33m→ E2E tests cancelled\033[0m"
+          exit 0
+        fi
+
+  test-coverage:
+    desc: "Generate coverage report"
+    cmds:
+      - task: test-coverage-local
+
+  test-coverage-local:
+    desc: "Generate coverage report using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests with coverage (local)\033[0m"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml {{.PYTEST_ARGS}}
+        echo -e "\033[32m→ Coverage report generated in htmlcov/index.html\033[0m"
+
+  test-coverage-container:
+    desc: "Generate coverage report in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests with coverage (container)\033[0m"
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml {{.PYTEST_ARGS}}
+        echo -e "\033[32m→ Coverage report generated in htmlcov/index.html\033[0m"
+
+  test-watch:
+    desc: "Run tests in watch mode (requires pytest-watch)"
+    cmds:
+      - task: test-watch-local
+
+  test-watch-local:
+    desc: "Run tests in watch mode using locally installed tooling"
+    cmds:
+      - |
+        command -v ptw >/dev/null 2>&1 || { echo "pytest-watch not found; install it (e.g. pip install pytest-watch)." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests in watch mode (local)\033[0m"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} ptw --runner "pytest -xvs" {{.PYTEST_ARGS}}
+
+  test-watch-container:
+    desc: "Run tests in watch mode in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests in watch mode (container)\033[0m"
+        docker run --rm -it \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          ptw --runner "pytest -xvs" {{.PYTEST_ARGS}}
+
+  test-debug:
+    desc: "Run tests in debug mode with verbose output"
+    cmds:
+      - task: test-debug-local
+
+  test-debug-local:
+    desc: "Run tests in debug mode using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests in debug mode (local)\033[0m"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -xvs --tb=long --capture=no {{.PYTEST_ARGS}}
+
+  test-debug-container:
+    desc: "Run tests in debug mode in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        echo -e "\033[36m→ Running tests in debug mode (container)\033[0m"
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          pytest -xvs --tb=long --capture=no {{.PYTEST_ARGS}}
+
+  test-specific:
+    desc: "Run specific tests (use PYTEST_ARGS='-k pattern')"
+    cmds:
+      - task: test-specific-local
+
+  test-specific-local:
+    desc: "Run specific tests using locally installed tooling"
+    cmds:
+      - |
+        command -v pytest >/dev/null 2>&1 || { echo "pytest not found; install it (e.g. pip install pytest)." >&2; exit 1; }
+        if [ -z "{{.PYTEST_ARGS}}" ]; then
+          echo -e "\033[31m→ Error: PYTEST_ARGS must be specified for test-specific\033[0m"
+          echo -e "\033[33m→ Example: task test-specific PYTEST_ARGS='-k test_audio'\033[0m"
+          exit 1
+        fi
+        echo -e "\033[36m→ Running specific tests (local): {{.PYTEST_ARGS}}\033[0m"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} pytest -xvs {{.PYTEST_ARGS}}
+
+  test-specific-container:
+    desc: "Run specific tests in Docker container"
+    deps: [test-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized tests." >&2; exit 1; }
+        if [ -z "{{.PYTEST_ARGS}}" ]; then
+          echo -e "\033[31m→ Error: PYTEST_ARGS must be specified for test-specific\033[0m"
+          echo -e "\033[33m→ Example: task test-specific-container PYTEST_ARGS='-k test_audio'\033[0m"
+          exit 1
+        fi
+        echo -e "\033[36m→ Running specific tests (container): {{.PYTEST_ARGS}}\033[0m"
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.TEST_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo tester) \
+          {{if .PYTEST_ARGS}}-e PYTEST_ARGS="{{.PYTEST_ARGS}}"{{end}} \
+          -v "$(pwd)":{{.TEST_WORKDIR}} \
+          {{.TEST_IMAGE}} \
+          pytest -xvs {{.PYTEST_ARGS}}
+
+  # =============================================================================
+  # LINTING & CODE QUALITY
+  # =============================================================================
+
+  lint:
+    desc: "Run all linters in Docker container (default for local dev)"
+    cmds:
+      - task: lint-docker
+
+  lint-parallel:
+    desc: "Run all linters in parallel with aggregated output"
+    deps: [lint-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.LINT_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo lint) \
+          -v "$(pwd)":{{.LINT_WORKDIR}} \
+          {{.LINT_IMAGE}}
+
+  lint-sequential:
+    desc: "Run linters sequentially (legacy behavior)"
+    deps: [lint-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.LINT_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo lint) \
+          -v "$(pwd)":{{.LINT_WORKDIR}} \
+          {{.LINT_IMAGE}} \
+          /usr/local/bin/run-lint.sh
+
+  lint-ci:
+    desc: "Run linting with local tools (for CI)"
+    deps: [lint-python, lint-mypy, lint-yaml, lint-dockerfiles, lint-makefile, lint-markdown]
+    cmds:
+      - echo "✓ All linting checks passed"
+
+  lint-docker:
+    desc: "Run linting via Docker container (now uses parallel execution)"
+    cmds:
+      - task: lint-parallel
+
+  lint-image:
+    desc: "Build the lint toolchain container image"
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+        docker build --pull --tag {{.LINT_IMAGE}} -f {{.LINT_DOCKERFILE}} .
+
+  lint-python:
+    desc: "Python formatting and linting (black, isort, ruff)"
+    cmds:
+      - |
+        echo "→ Checking Python code formatting with black..."
+        command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
+        black --check {{.PYTHON_SOURCES}}
+        echo "→ Checking Python import sorting with isort..."
+        command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
+        isort --check-only {{.PYTHON_SOURCES}}
+        echo "→ Running Python linting with ruff..."
+        command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
+        ruff check {{.PYTHON_SOURCES}}
+        echo "✓ Python linting passed"
+
+  lint-mypy:
+    desc: "Type checking with mypy"
+    cmds:
+      - |
+        echo "→ Running type checking with mypy..."
+        command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
+        mypy {{.MYPY_PATHS}}
+        echo "✓ Type checking passed"
+
+  lint-yaml:
+    desc: "Lint all YAML files"
+    cmds:
+      - |
+        echo "→ Linting YAML files..."
+        command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
+        yamllint docker-compose.yml $(find .github/workflows -type f -name '*.yaml' -o -name '*.yml' 2>/dev/null)
+        echo "✓ YAML linting passed"
+
+  lint-dockerfiles:
+    desc: "Lint all Dockerfiles"
+    cmds:
+      - |
+        echo "→ Linting Dockerfiles..."
+        command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
+        for dockerfile in $(find services -type f -name 'Dockerfile' 2>/dev/null); do
+          echo "  Checking $dockerfile"
+          hadolint $dockerfile || exit 1
+        done
+        echo "✓ Dockerfile linting passed"
+
+  lint-makefile:
+    desc: "Lint Makefile"
+    cmds:
+      - |
+        echo "→ Linting Makefile..."
+        command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
+        checkmake Makefile
+        echo "✓ Makefile linting passed"
+
+  lint-markdown:
+    desc: "Lint Markdown files"
+    cmds:
+      - |
+        echo "→ Linting Markdown files..."
+        command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
+        markdownlint README.md AGENTS.md $(find docs -type f -name '*.md' 2>/dev/null)
+        echo "✓ Markdown linting passed"
+
+  lint-fix:
+    desc: "Format sources using the lint container toolchain"
+    deps: [lint-image]
+    cmds:
+      - |
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
+        docker run --rm \
+          -u $(id -u):$(id -g) \
+          -e HOME={{.LINT_WORKDIR}} \
+          -e USER=$(id -un 2>/dev/null || echo lint) \
+          -v "$(pwd)":{{.LINT_WORKDIR}} \
+          {{.LINT_IMAGE}} \
+          bash -c "black {{.PYTHON_SOURCES}} && isort {{.PYTHON_SOURCES}} && ruff check --fix {{.PYTHON_SOURCES}} && yamllint docker-compose.yml $(find .github/workflows -type f -name '*.yaml' -o -name '*.yml' 2>/dev/null) && markdownlint --fix README.md AGENTS.md $(find docs -type f -name '*.md' 2>/dev/null)"
+
+  # =============================================================================
+  # SECURITY & QUALITY GATES
+  # =============================================================================
+
+  security:
+    desc: "Run security scanning with pip-audit"
+    cmds:
+      - |
+        command -v pip-audit >/dev/null 2>&1 || { echo "pip-audit not found; install it (e.g. pip install pip-audit)." >&2; exit 1; }
+        echo -e "\033[36m→ Running security scan\033[0m"
+        mkdir -p security-reports
+        audit_status=0
+        for req in services/*/requirements.txt; do
+          report="security-reports/$(basename $(dirname "$req"))-requirements.json"
+          echo "Auditing $req"
+          pip-audit --progress-spinner off --format json --requirement "$req" > "$report" || audit_status=$?
+        done
+        if [ "$audit_status" -ne 0 ]; then
+          echo -e "\033[31m→ pip-audit reported vulnerabilities\033[0m"
+          exit $audit_status
+        fi
+        echo -e "\033[32m→ Security scan completed\033[0m"
+
+  # =============================================================================
+  # CLEANUP & MAINTENANCE
+  # =============================================================================
+
+  clean:
+    desc: "Remove logs, cached audio artifacts, and debug files"
+    cmds:
+      - |
+        echo -e "\033[34m→ Cleaning...\033[0m"
+        if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi
+        if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi
+        if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi
+        if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
+
+  docker-clean:
+    desc: "Bring down compose stack and prune unused docker resources"
+    cmds:
+      - |
+        echo -e "\033[31m→ Cleaning Docker: compose down, prune images/containers/volumes/networks\033[0m"
+        DOCKER_COMPOSE=$(./scripts/docker-compose-detect.sh)
+        if [ -z "$DOCKER_COMPOSE" ]; then
+          echo "Docker Compose was not found. Skipping compose down."
+        else
+          $DOCKER_COMPOSE down --rmi all -v --remove-orphans || true
+        fi
+        command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
+        echo "Pruning stopped containers..."
+        docker container prune -f || true
+        echo "Pruning unused images (this will remove dangling and unused images)..."
+        docker image prune -a -f || true
+        echo "Pruning unused volumes..."
+        docker volume prune -f || true
+        echo "Pruning unused networks..."
+        docker network prune -f || true
+
+  # =============================================================================
+  # CI SETUP & DEPENDENCIES
+  # =============================================================================
+
+  install-dev-deps:
+    desc: "Install development dependencies for CI"
+    cmds:
+      - |
+        echo "→ Installing development dependencies"
+        python -m pip install --upgrade pip
+        pip install -r requirements-base.txt
+        pip install -r requirements-dev.txt
+        pip install -r requirements-test.txt
+        echo "→ Installing service-specific dependencies"
+        for req_file in services/*/requirements.txt; do
+          if [ -f "$req_file" ]; then
+            echo "  Installing from $req_file"
+            pip install -r "$req_file"
+          fi
+        done
+
+  install-ci-tools:
+    desc: "Install CI-specific tools (hadolint, checkmake, markdownlint)"
+    cmds:
+      - |
+        echo "→ Installing CI tools"
+        command -v hadolint >/dev/null 2>&1 || {
+          echo "Installing Hadolint..."
+          curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 \
+            -o /usr/local/bin/hadolint && chmod +x /usr/local/bin/hadolint
+        }
+        command -v checkmake >/dev/null 2>&1 || {
+          echo "Installing Checkmake..."
+          go install github.com/checkmake/checkmake/cmd/checkmake@latest
+          echo "${HOME}/go/bin" >> $GITHUB_PATH
+        }
+        command -v markdownlint >/dev/null 2>&1 || {
+          echo "Installing Markdownlint..."
+          npm install -g markdownlint-cli@0.39.0
+        }
+        echo "✓ CI tools installed"
+
+  ci-setup:
+    desc: "Complete CI environment setup"
+    deps: [install-dev-deps, install-ci-tools]
+    cmds:
+      - echo "✓ CI environment ready"
+
+  # =============================================================================
+  # DOCUMENTATION & UTILITIES
+  # =============================================================================
+
+  docs-verify:
+    desc: "Validate documentation last-updated metadata and indexes"
+    cmds:
+      - './scripts/verify_last_updated.py {{.ARGS}}'
+
+  rotate-tokens:
+    desc: "Rotate AUTH_TOKEN values across all environment files"
+    cmds:
+      - |
+        echo -e "\033[36m→ Rotating AUTH_TOKEN values\033[0m"
+        ./scripts/rotate_auth_tokens.py
+
+  rotate-tokens-dry-run:
+    desc: "Show what token rotation would change without modifying files"
+    cmds:
+      - |
+        echo -e "\033[36m→ Dry run: AUTH_TOKEN rotation preview\033[0m"
+        ./scripts/rotate_auth_tokens.py --dry-run
+
+  validate-tokens:
+    desc: "Validate AUTH_TOKEN consistency across environment files"
+    cmds:
+      - |
+        echo -e "\033[36m→ Validating AUTH_TOKEN consistency\033[0m"
+        ./scripts/rotate_auth_tokens.py --validate-only
+
+  # =============================================================================
+  # MODEL MANAGEMENT
+  # =============================================================================
+
+  models-download:
+    desc: "Download required models to ./services/models/ subdirectories"
+    cmds:
+      - |
+        echo -e "\033[32m→ Downloading models to ./services/models/\033[0m"
+        mkdir -p ./services/models/llm ./services/models/tts ./services/models/stt
+        echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
+        if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then
+          wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
+          "https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" || \
+          echo "Failed to download LLM model. You may need to download it manually."
+        else
+          echo "LLM model already exists, skipping download."
+        fi
+        echo "Downloading TTS model (en_US-amy-medium)..."
+        if [ ! -f "./services/models/tts/en_US-amy-medium.onnx" ]; then
+          wget -O ./services/models/tts/en_US-amy-medium.onnx \
+          "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx" || \
+          echo "Failed to download TTS model. You may need to download it manually."
+        else
+          echo "TTS model already exists, skipping download."
+        fi
+        if [ ! -f "./services/models/tts/en_US-amy-medium.onnx.json" ]; then
+          wget -O ./services/models/tts/en_US-amy-medium.onnx.json \
+          "https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || \
+          echo "Failed to download TTS model config. You may need to download it manually."
+        else
+          echo "TTS model config already exists, skipping download."
+        fi
+        echo "Downloading STT model (faster-whisper medium.en)..."
+        if [ ! -d "./services/models/stt/medium.en" ]; then
+          mkdir -p ./services/models/stt/medium.en
+          wget -O ./services/models/stt/medium.en/config.json \
+          "https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/config.json" || \
+          echo "Failed to download STT model config."
+          wget -O ./services/models/stt/medium.en/model.bin \
+          "https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/model.bin" || \
+          echo "Failed to download STT model weights."
+          wget -O ./services/models/stt/medium.en/tokenizer.json \
+          "https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/tokenizer.json" || \
+          echo "Failed to download STT tokenizer."
+          wget -O ./services/models/stt/medium.en/vocabulary.txt \
+          "https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/vocabulary.txt" || \
+          echo "Failed to download STT vocabulary."
+        else
+          echo "STT model already exists, skipping download."
+        fi
+        echo -e "\033[32m→ Model download complete\033[0m"
+        echo "Models downloaded to:"
+        echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
+        echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
+        echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
+        echo "  - STT: ./services/models/stt/medium.en/"
+
+  models-clean:
+    desc: "Remove downloaded models from ./services/models/"
+    cmds:
+      - |
+        echo -e "\033[31m→ Cleaning downloaded models\033[0m"
+        if [ -d "./services/models" ]; then
+          echo "Removing models from ./services/models/"
+          rm -rf ./services/models/* || true
+          echo "Models cleaned."
+        else
+          echo "No models directory found."
+        fi
+
+  # =============================================================================
+  # EVALUATION
+  # =============================================================================
+
+  eval-stt:
+    desc: "Evaluate a single provider on specified phrase files (PROVIDER=stt PHRASES=path1 path2)"
+    cmds:
+      - |
+        echo -e "\033[36m→ Evaluating STT provider ${PROVIDER:-stt} on ${PHRASES}\033[0m"
+        PYTHONPATH=$(pwd)${PYTHONPATH:+:$PYTHONPATH} \
+        python3 scripts/eval_stt.py --provider "${PROVIDER:-stt}" --phrases ${PHRASES}
+
+  eval-wake:
+    desc: "Evaluate wake phrases with default provider"
+    cmds:
+      - task: eval-stt
+        vars:
+          PROVIDER: '${PROVIDER:-stt}'
+          PHRASES: 'tests/fixtures/phrases/en/wake.txt'
+
+  eval-stt-all:
+    desc: "Evaluate across all configured providers"
+    cmds:
+      - |
+        set -e
+        providers="stt"
+        for p in $providers; do
+          echo -e "\033[36m→ Provider: $p\033[0m"
+          task eval-stt PROVIDER=$p PHRASES="tests/fixtures/phrases/en/wake.txt tests/fixtures/phrases/en/core.txt" || echo "Skipped $p"
+        done
+
+  clean-eval:
+    desc: "Remove eval outputs and generated audio"
+    cmds:
+      - |
+        echo -e "\033[34m→ Cleaning evaluation artifacts\033[0m"
+        rm -rf .artifacts/eval_wavs || true
+        rm -rf debug/eval || true

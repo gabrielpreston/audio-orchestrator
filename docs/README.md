@@ -20,6 +20,7 @@ and reference content aligned with the current repository layout.
 | --- | --- | --- |
 | Evaluate the project | [Project overview](../README.md) | Goals, stack summary, quickstart. |
 | Onboard & configure | [Getting started index](getting-started/README.md) | Environment setup, local workflows, troubleshooting. |
+| Task automation | [Taskfile migration guide](getting-started/taskfile-migration.md) | Makefile vs Taskfile, command mapping, parallel usage. |
 | Understand the system | [Architecture overview](architecture/system-overview.md) | Service relationships, audio and transcript flows. |
 | Shared utilities | [Shared utilities](architecture/shared-utilities.md) | Common libraries, configuration, debug management. |
 | Operate the stack | [Operations landing page](operations/README.md) | Runbooks, observability, security posture. |

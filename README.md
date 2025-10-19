@@ -7,7 +7,7 @@ A voice-first Discord assistant with speech-to-text, language orchestration, and
 ## Quickstart
 
 1. **Set up environment files** using the [environment configuration guide](docs/getting-started/environment.md)
-2. **Launch the stack** with `make run`
+2. **Launch the stack** with `make run` or `task run`
 3. **Configure Discord** following the [runtime quickstart](docs/getting-started/runtime.md)
 4. **Explore development workflows** via [local development guide](docs/getting-started/local-development.md)
 
@@ -37,10 +37,19 @@ The system consists of five core services working together to process voice inpu
 
 ## Development
 
-- **Linting & Testing**: Run `make lint` and `make test` for code quality checks
-- **Local Development**: Use `make run` to start services, `make logs` to follow output
+- **Linting & Testing**: Run `make lint` and `make test` (or `task lint` and `task test`) for code quality checks
+- **Local Development**: Use `make run` or `task run` to start services, `make logs` or `task logs` to follow output
 - **CI/CD**: Automated testing, linting, and security scanning on every push
 - **Documentation**: Comprehensive guides in the [documentation hub](docs/README.md)
+
+### Task Runner
+
+This project supports both Makefile and Taskfile for task automation. Both provide identical functionality:
+
+- **Makefile**: Traditional make-based commands (`make run`, `make test`, etc.)
+- **Taskfile**: Modern task runner with better cross-platform support (`task run`, `task test`, etc.)
+
+Choose whichever you prefer - both are maintained in parallel for validation and migration flexibility.
 
 ## Documentation
 
