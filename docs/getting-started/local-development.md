@@ -2,7 +2,7 @@
 title: Local Development Workflows
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-18
+last-updated: 2025-10-20
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -24,6 +24,10 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 | `make lint-local` | Run lint tools installed on the host machine. |
 | `make test` | Execute `pytest` inside the tester container. |
 | `make test-local` | Run `pytest` on the host; set `PYTEST_ARGS` for filtering. |
+| `make workflows-validate` | Validate GitHub Actions workflows with yamllint and actionlint (containerized). |
+| `make workflows-validate-syntax` | Validate workflow YAML syntax only (containerized yamllint). |
+| `make workflows-validate-actionlint` | Validate workflows with actionlint (containerized actionlint). |
+| `make validate-all` | Run all validation checks (lint, test, security, docs, workflows). |
 
 ## Development Loop
 
@@ -39,3 +43,38 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 - For debugging outside Docker, export `PYTHONPATH=$PWD` so Python resolves the monorepo modules.
 - Use feature branches and small commits to keep diffs reviewable; reference affected docs in your PR summary.
 - Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/README.md).
+
+## Workflow Validation
+
+Validate GitHub Actions workflows locally before committing:
+
+- **`make workflows-validate`** — Runs yamllint and actionlint validation (containerized, no local installation required)
+- **`make workflows-validate-syntax`** — YAML syntax only (containerized yamllint)
+- **`make workflows-validate-actionlint`** — GitHub Actions static analysis (containerized actionlint)
+
+### How It Works
+
+All workflow validation uses the containerized linting infrastructure:
+
+- **yamllint** validates YAML syntax and formatting
+- **actionlint** validates GitHub Actions semantics, expressions, and action versions
+
+No local tool installation required - everything runs in Docker containers.
+
+### Manual Tool Installation (Optional)
+
+If you want to run validation tools directly on your host:
+
+**actionlint**:
+
+```bash
+go install github.com/rhysd/actionlint/cmd/actionlint@latest
+```
+
+**yamllint**:
+
+```bash
+pip install yamllint
+```
+
+The containerized approach (`make workflows-validate`) is recommended as it ensures consistency with CI.

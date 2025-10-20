@@ -103,7 +103,7 @@ jobs:
 
   lint:
     name: 'Lint'
-    needs: ['changes']
+    needs: ['changes', 'build-base-images']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
@@ -111,7 +111,8 @@ jobs:
        needs.changes.outputs.default-ci-workflow == 'true' ||
        needs.changes.outputs.base-images-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success'
+      needs.changes.result == 'success' &&
+      (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 15
@@ -142,18 +143,6 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Validate workflow syntax'
-        run: |
-          yamllint .github/workflows/ci.yaml
-          yamllint .github/workflows/base-images.yaml
-      - name: 'Validate Docker buildx'
-        run: |
-          docker buildx version
-          docker buildx ls
-      - name: 'Validate Makefile targets'
-        run: |
-          make lint --dry-run
-          make test --dry-run
       - name: 'Run unified lint suite'
         run: |
           echo "::group::Lint Execution"
@@ -163,41 +152,13 @@ jobs:
           duration=$((end_time - start_time))
           echo "::endgroup::"
           echo "Lint completed in ${duration}s"
-      - name: 'Cleanup resources with reporting'
+      - name: 'Cleanup resources'
         if: always()
         run: |
-          echo "::group::Resource Cleanup Report"
-
-          # Capture before cleanup
-          before_space=$(df -h / | awk 'NR==2{print $4}')
-          before_images=$(docker images -q | wc -l)
-
-          # Cleanup operations
-          echo "Cleaning Docker system..."
+          echo "Cleaning Docker resources..."
           docker system prune -f --volumes
-
-          echo "Cleaning build cache..."
           docker builder prune -f
-
-          # Capture after cleanup
-          after_space=$(df -h / | awk 'NR==2{print $4}')
-          after_images=$(docker images -q | wc -l)
-
-          echo "Cleanup Results:"
-          echo "  Disk space: $before_space to $after_space"
-          echo "  Images removed: $((before_images - after_images))"
-          echo "::endgroup::"
-      - name: 'Job Status Summary'
-        if: always()
-        run: |
-          echo "::group::Job Status Summary"
-          echo "Job: ${{ github.job }}"
-          echo "Runner: ${{ runner.os }} (${{ runner.arch }})"
-          echo "Available Space: $(df -h / | awk 'NR==2{print $4}')"
-          echo "Docker Images: $(docker images -q | wc -l)"
-          echo "Cache: GitHub Actions Cache v2 enabled"
-          echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
-          echo "::endgroup::"
+          echo "Cleanup complete"
 
   security-scan:
     name: 'Security scan'
