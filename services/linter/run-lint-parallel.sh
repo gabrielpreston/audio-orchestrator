@@ -87,7 +87,7 @@ RUFF_PID=$!
 MYPY_PID=$!
 
 (
-    run_linter "yamllint" yamllint docker-compose.yml .github/workflows/*.y*ml 2>/dev/null
+    run_linter "yamllint" yamllint -c .yamllint docker-compose.yml .github/workflows/*.y*ml
 ) &
 YAMLLINT_PID=$!
 
@@ -105,6 +105,11 @@ CHECKMAKE_PID=$!
     run_linter "markdownlint" markdownlint README.md AGENTS.md 'docs/**/*.md'
 ) &
 MARKDOWNLINT_PID=$!
+
+(
+    run_linter "actionlint" actionlint .github/workflows/*.y*ml
+) &
+ACTIONLINT_PID=$!
 
 # Wait for all linters to complete and collect their exit codes
 wait $BLACK_PID
@@ -131,9 +136,12 @@ CHECKMAKE_EXIT=$?
 wait $MARKDOWNLINT_PID
 MARKDOWNLINT_EXIT=$?
 
+wait $ACTIONLINT_PID
+ACTIONLINT_EXIT=$?
+
 # Calculate overall exit code
 OVERALL_EXIT=0
-if [ $BLACK_EXIT -ne 0 ] || [ $ISORT_EXIT -ne 0 ] || [ $RUFF_EXIT -ne 0 ] || [ $MYPY_EXIT -ne 0 ] || [ $YAMLLINT_EXIT -ne 0 ] || [ $HADOLINT_EXIT -ne 0 ] || [ $CHECKMAKE_EXIT -ne 0 ] || [ $MARKDOWNLINT_EXIT -ne 0 ]; then
+if [ $BLACK_EXIT -ne 0 ] || [ $ISORT_EXIT -ne 0 ] || [ $RUFF_EXIT -ne 0 ] || [ $MYPY_EXIT -ne 0 ] || [ $YAMLLINT_EXIT -ne 0 ] || [ $HADOLINT_EXIT -ne 0 ] || [ $CHECKMAKE_EXIT -ne 0 ] || [ $MARKDOWNLINT_EXIT -ne 0 ] || [ $ACTIONLINT_EXIT -ne 0 ]; then
     OVERALL_EXIT=1
 fi
 
@@ -187,6 +195,12 @@ if [ $MARKDOWNLINT_EXIT -eq 0 ]; then
     print_status "$GREEN" "✓ markdownlint: passed"
 else
     print_status "$RED" "✗ markdownlint: failed"
+fi
+
+if [ $ACTIONLINT_EXIT -eq 0 ]; then
+    print_status "$GREEN" "✓ actionlint: passed"
+else
+    print_status "$RED" "✗ actionlint: failed"
 fi
 
 # Show aggregated output if there were failures (as a final summary)

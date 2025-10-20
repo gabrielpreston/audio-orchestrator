@@ -24,7 +24,7 @@ SHELL := /bin/bash
 .PHONY: clean
 
 # Documentation & Utilities
-.PHONY: docs-verify rotate-tokens rotate-tokens-dry-run validate-tokens models-download models-clean
+.PHONY: docs-verify rotate-tokens rotate-tokens-dry-run validate-tokens workflows-validate workflows-validate-syntax workflows-validate-actionlint validate-all models-download models-clean
 
 # Evaluation
 .PHONY: eval-stt eval-wake eval-stt-all clean-eval
@@ -147,17 +147,17 @@ run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
 	@$(RUN_SCRIPT)
 
 stop: ## Stop and remove containers for the compose stack
-	@echo -e "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)"
+	@printf "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
-	@echo -e "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)"; \
+	@printf "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)\n"; \
 	if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi; \
 	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs -f --tail=100; else $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); fi
 
 logs-dump: ## Capture docker logs to ./docker.logs
-	@echo -e "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) logs > ./debug/docker.logs
 
@@ -170,26 +170,26 @@ docker-status: ## Show status of docker-compose services
 # =============================================================================
 
 docker-build: ## Build or rebuild images for the compose stack
-	@echo -e "$(COLOR_GREEN)→ Building docker images$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building docker images$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
 # CI-optimized build targets
 docker-build-ci: ## Build images with CI optimizations (GitHub Actions cache)
-	@echo -e "$(COLOR_GREEN)→ Building docker images (CI optimized)$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building docker images (CI optimized)$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
 
 docker-smoke-ci: ## Use CI compose profile for smoke tests
-	@echo -e "$(COLOR_GREEN)→ Running Docker smoke tests (CI optimized)$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Running Docker smoke tests (CI optimized)$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null
 	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config --services
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml build --pull --progress=plain
 
 docker-build-nocache: ## Force rebuild all images without using cache
-	@echo -e "$(COLOR_GREEN)→ Building docker images (no cache)$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building docker images (no cache)$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --no-cache --parallel
 
@@ -203,34 +203,34 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
 		exit 1; \
 	fi
-	@echo -e "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
 # Base image build targets
 base-images: base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain ## Build all base images
 
 base-images-python-base: ## Build python-base image
-	@echo -e "$(COLOR_GREEN)→ Building python-base image$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building python-base image$(COLOR_OFF)\n"
 	@docker buildx build --tag ghcr.io/gabrielpreston/python-base:latest --file services/base/Dockerfile.python-base --load .
 
 base-images-python-audio: base-images-python-base ## Build python-audio image
-	@echo -e "$(COLOR_GREEN)→ Building python-audio image$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building python-audio image$(COLOR_OFF)\n"
 	@docker buildx build --tag ghcr.io/gabrielpreston/python-audio:latest --file services/base/Dockerfile.python-audio --load .
 
 base-images-python-ml: base-images-python-base ## Build python-ml image
-	@echo -e "$(COLOR_GREEN)→ Building python-ml image$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building python-ml image$(COLOR_OFF)\n"
 	@docker buildx build --tag ghcr.io/gabrielpreston/python-ml:latest --file services/base/Dockerfile.python-ml --load .
 
 base-images-tools: base-images-python-base ## Build tools image
-	@echo -e "$(COLOR_GREEN)→ Building tools image$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building tools image$(COLOR_OFF)\n"
 	@docker buildx build --tag ghcr.io/gabrielpreston/tools:latest --file services/base/Dockerfile.tools --load .
 
 base-images-mcp-toolchain: base-images-python-base ## Build mcp-toolchain image
-	@echo -e "$(COLOR_GREEN)→ Building mcp-toolchain image$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Building mcp-toolchain image$(COLOR_OFF)\n"
 	@docker buildx build --tag ghcr.io/gabrielpreston/mcp-toolchain:latest --file services/base/Dockerfile.mcp-toolchain --load .
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
-	@echo -e "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)"
+	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
 	$(DOCKER_COMPOSE) restart; \
@@ -256,7 +256,7 @@ docker-config: ## Render the effective docker-compose configuration
 
 docker-smoke: ## Build images and validate docker-compose configuration for CI parity
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@echo -e "$(COLOR_GREEN)→ Validating docker-compose stack$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Validating docker-compose stack$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) config >/dev/null
 	@$(DOCKER_COMPOSE) config --services
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --pull --progress=plain
@@ -264,15 +264,66 @@ docker-smoke: ## Build images and validate docker-compose configuration for CI p
 docker-validate: ## Validate Dockerfiles with hadolint
 	@command -v hadolint >/dev/null 2>&1 || { \
 		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
-	@echo -e "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)\n"
 	@hadolint $(DOCKERFILES)
-	@echo -e "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)\n"
+
+workflows-validate: ## Validate GitHub Actions workflows with all available tools (local only)
+	@printf "$(COLOR_CYAN)→ Validating GitHub Actions workflows$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Running YAML syntax validation$(COLOR_OFF)\n"
+	@$(MAKE) lint-image
+	@docker run --rm -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) yamllint -c .yamllint $(YAML_FILES)
+	@printf "$(COLOR_GREEN)→ YAML syntax validation passed$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Running actionlint validation$(COLOR_OFF)\n"
+	@docker run --rm --entrypoint="" -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) actionlint .github/workflows/*.y*ml
+	@printf "$(COLOR_GREEN)→ actionlint validation passed$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_GREEN)→ Workflow validation complete$(COLOR_OFF)\n"
+
+workflows-validate-syntax: ## Validate workflow YAML syntax only (uses containerized yamllint)
+	@printf "$(COLOR_CYAN)→ Validating workflow YAML syntax$(COLOR_OFF)\n"
+	@$(MAKE) lint-image
+	@docker run --rm -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) yamllint -c .yamllint $(YAML_FILES)
+	@printf "$(COLOR_GREEN)→ YAML syntax validation passed$(COLOR_OFF)\n"
+
+workflows-validate-actionlint: ## Validate workflows with actionlint (uses containerized actionlint)
+	@printf "$(COLOR_CYAN)→ Validating workflows with actionlint$(COLOR_OFF)\n"
+	@$(MAKE) lint-image
+	@docker run --rm --entrypoint="" -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) actionlint .github/workflows/*.y*ml
+	@printf "$(COLOR_GREEN)→ actionlint validation passed$(COLOR_OFF)\n"
+
+validate-all: ## Run all validation checks (lint, test, security, docs, workflows)
+	@printf "$(COLOR_CYAN)→ Running comprehensive validation$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Step 1: Building lint image$(COLOR_OFF)\n"
+	@$(MAKE) lint-image
+	@printf "$(COLOR_GREEN)→ Lint image ready$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Step 2: Running linters$(COLOR_OFF)\n"
+	@$(MAKE) lint
+	@printf "$(COLOR_GREEN)→ All linters passed$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Step 3: Validating documentation$(COLOR_OFF)\n"
+	@$(MAKE) docs-verify
+	@printf "$(COLOR_GREEN)→ Documentation validation passed$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Step 4: Building test image$(COLOR_OFF)\n"
+	@$(MAKE) test-image
+	@printf "$(COLOR_GREEN)→ Test image ready$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_CYAN)→ Step 5: Running tests$(COLOR_OFF)\n"
+	@$(MAKE) test
+	@printf "$(COLOR_GREEN)→ All tests passed$(COLOR_OFF)\n"
+	@echo ""
+	@printf "$(COLOR_GREEN)→ ✓ All validation checks passed!$(COLOR_OFF)\n"
 
 docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
-	@echo -e "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)"
+	@printf "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)\n"
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
 	@docker buildx prune -f || true
-	@echo -e "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)\n"
 
 # =============================================================================
 # TESTING
@@ -290,19 +341,19 @@ test-image: ## Build the test toolchain container image
 
 # Test categories
 test-unit: test-image ## Run unit tests (fast, isolated)
-	@echo -e "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m unit $(PYTEST_ARGS))
 
 test-component: test-image ## Run component tests (with mocked external dependencies)
-	@echo -e "$(COLOR_CYAN)→ Running component tests$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running component tests$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m component $(PYTEST_ARGS))
 
 test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@echo -e "$(COLOR_CYAN)→ Running integration tests$(COLOR_OFF)"
-	@echo -e "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running integration tests$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) up -d --build
-	@echo -e "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)"
+	@printf "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)\n"
 	@sleep 10
 	@docker run --rm \
 		-u $$(id -u):$$(id -g) \
@@ -314,16 +365,16 @@ test-integration: test-image ## Run integration tests (requires Docker Compose)
 		$(TEST_IMAGE) \
 		pytest -m integration $(PYTEST_ARGS) || { \
 			status=$$?; \
-			echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"; \
+			printf "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)\n"; \
 			$(DOCKER_COMPOSE) down; \
 			exit $$status; \
 		}
-	@echo -e "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)"
+	@printf "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) down
 
 test-e2e: test-image ## Run end-to-end tests (manual trigger only)
-	@echo -e "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)"
-	@echo -e "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)"
+	@printf "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)\n"
 	@read -p "Are you sure you want to continue? [y/N] " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
@@ -336,18 +387,18 @@ test-e2e: test-image ## Run end-to-end tests (manual trigger only)
 			$(TEST_IMAGE) \
 			pytest -m e2e $(PYTEST_ARGS); \
 	else \
-		echo -e "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)"; \
+		printf "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)\n"; \
 		exit 0; \
 	fi
 
 # Test utilities
 test-coverage: test-image ## Generate coverage report
-	@echo -e "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS))
-	@echo -e "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)\n"
 
 test-watch: test-image ## Run tests in watch mode (requires pytest-watch)
-	@echo -e "$(COLOR_CYAN)→ Running tests in watch mode$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running tests in watch mode$(COLOR_OFF)\n"
 	@docker run --rm -it \
 		-u $$(id -u):$$(id -g) \
 		-e HOME=$(TEST_WORKDIR) \
@@ -358,16 +409,16 @@ test-watch: test-image ## Run tests in watch mode (requires pytest-watch)
 		ptw --runner "pytest -xvs" $(PYTEST_ARGS)
 
 test-debug: test-image ## Run tests in debug mode with verbose output
-	@echo -e "$(COLOR_CYAN)→ Running tests in debug mode$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running tests in debug mode$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs --tb=long --capture=no $(PYTEST_ARGS))
 
 test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
 	@if [ -z "$(PYTEST_ARGS)" ]; then \
-		echo -e "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)"; \
-		echo -e "$(COLOR_YELLOW)→ Example: make test-specific PYTEST_ARGS='-k test_audio'$(COLOR_OFF)"; \
+		printf "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)\n"; \
+		printf "$(COLOR_YELLOW)→ Example: make test-specific PYTEST_ARGS='-k test_audio'$(COLOR_OFF)\n"; \
 		exit 1; \
 	fi
-	@echo -e "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs $(PYTEST_ARGS))
 
 # =============================================================================
@@ -455,7 +506,7 @@ lint-fix: lint-image ## Format sources using the lint container toolchain
 # =============================================================================
 
 security: security-image ## Run security scanning with pip-audit
-	@echo -e "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)\n"
 	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
 security-image: ## Build the security scanning container image
@@ -486,14 +537,14 @@ security-reports: ## Show security scan report summary
 # =============================================================================
 
 clean: ## Remove logs, cached audio artifacts, and debug files
-	@echo -e "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)"; \
+	@printf "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)\n"; \
 	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
 	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
 	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
 	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
 
 docker-clean: ## Bring down compose stack and prune unused docker resources
-	@echo -e "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)"
+	@printf "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then \
 		echo "$(COMPOSE_MISSING_MESSAGE) Skipping compose down."; \
 	else \
@@ -523,20 +574,20 @@ docs-verify: ## Validate documentation last-updated metadata and indexes
 
 # Token management
 rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files
-	@echo -e "$(COLOR_CYAN)→ Rotating AUTH_TOKEN values$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Rotating AUTH_TOKEN values$(COLOR_OFF)\n"
 	@./scripts/rotate_auth_tokens.py
 
 rotate-tokens-dry-run: ## Show what token rotation would change without modifying files
-	@echo -e "$(COLOR_CYAN)→ Dry run: AUTH_TOKEN rotation preview$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Dry run: AUTH_TOKEN rotation preview$(COLOR_OFF)\n"
 	@./scripts/rotate_auth_tokens.py --dry-run
 
 validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
-	@echo -e "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)"
+	@printf "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)\n"
 	@./scripts/rotate_auth_tokens.py --validate-only
 
 # Model management
 models-download: ## Download required models to ./services/models/ subdirectories
-	@echo -e "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)\n"
 	@mkdir -p ./services/models/llm ./services/models/tts ./services/models/stt
 	@echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
 	@if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then \
@@ -579,7 +630,7 @@ models-download: ## Download required models to ./services/models/ subdirectorie
 	else \
 		echo "STT model already exists, skipping download."; \
 	fi
-	@echo -e "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)"
+	@printf "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)\n"
 	@echo "Models downloaded to:"
 	@echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
 	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
@@ -587,7 +638,7 @@ models-download: ## Download required models to ./services/models/ subdirectorie
 	@echo "  - STT: ./services/models/stt/medium.en/"
 
 models-clean: ## Remove downloaded models from ./services/models/
-	@echo -e "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)"
+	@printf "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)\n"
 	@if [ -d "./services/models" ]; then \
 		echo "Removing models from ./services/models/"; \
 		rm -rf ./services/models/* || true; \
@@ -603,7 +654,7 @@ models-clean: ## Remove downloaded models from ./services/models/
 .PHONY: eval-stt eval-stt-all clean-eval
 
 eval-stt: ## Evaluate a single provider on specified phrase files (PROVIDER=stt PHRASES=path1 path2)
-	@echo -e "$(COLOR_CYAN)→ Evaluating STT provider $(PROVIDER) on $(PHRASES)$(COLOR_OFF)"; \
+	@printf "$(COLOR_CYAN)→ Evaluating STT provider $(PROVIDER) on $(PHRASES)$(COLOR_OFF)"; \
 	PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
 	python3 scripts/eval_stt.py --provider "$${PROVIDER:-stt}" --phrases $(PHRASES)
 
@@ -614,11 +665,11 @@ eval-stt-all: ## Evaluate across all configured providers
 	@set -e; \
 	providers="stt"; \
 	for p in $$providers; do \
-		echo -e "$(COLOR_CYAN)→ Provider: $$p$(COLOR_OFF)"; \
+		printf "$(COLOR_CYAN)→ Provider: $$p$(COLOR_OFF)"; \
 		$(MAKE) eval-stt PROVIDER=$$p PHRASES="tests/fixtures/phrases/en/wake.txt tests/fixtures/phrases/en/core.txt" || echo "Skipped $$p"; \
 	done
 
 clean-eval: ## Remove eval outputs and generated audio
-	@echo -e "$(COLOR_BLUE)→ Cleaning evaluation artifacts$(COLOR_OFF)"; \
+	@printf "$(COLOR_BLUE)→ Cleaning evaluation artifacts$(COLOR_OFF)\n"; \
 	rm -rf .artifacts/eval_wavs || true; \
 	rm -rf debug/eval || true

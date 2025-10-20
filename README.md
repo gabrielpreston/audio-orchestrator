@@ -39,6 +39,7 @@ The system consists of five core services working together to process voice inpu
 ## Development
 
 - **Linting & Testing**: Run `make lint` and `make test` for code quality checks
+- **Workflow Validation**: Run `make workflows-validate` to validate GitHub Actions workflows with yamllint and actionlint
 - **Local Development**: Use `make run` to start services, `make logs` to follow output
 - **CI/CD**: Automated testing, linting, and security scanning on every push
 - **Documentation**: Comprehensive guides in the [documentation hub](docs/README.md)

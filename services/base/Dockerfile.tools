@@ -89,6 +89,9 @@ RUN curl -sSL https://github.com/hadolint/hadolint/releases/download/v2.12.0/had
 # Install checkmake
 RUN go install github.com/checkmake/checkmake/cmd/checkmake@latest
 
+# Install actionlint for GitHub Actions workflow validation
+RUN go install github.com/rhysd/actionlint/cmd/actionlint@latest
+
 # Copy tool scripts
 COPY services/linter/run-lint.sh /usr/local/bin/run-lint.sh
 COPY services/linter/run-lint-parallel.sh /usr/local/bin/run-lint-parallel.sh
