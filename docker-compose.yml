@@ -6,7 +6,7 @@ services:
       dockerfile: 'services/discord/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
-    image: 'discord-voice-bot:latest'
+    image: 'ghcr.io/gabrielpreston/discord:latest'
     ports:
       - '8009:8001'
     env_file:
@@ -39,7 +39,7 @@ services:
       dockerfile: 'services/stt/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
-    image: 'discord-voice-stt:latest'
+    image: 'ghcr.io/gabrielpreston/stt:latest'
     ports:
       - '8011:9000'
     env_file:
@@ -68,7 +68,7 @@ services:
       dockerfile: 'services/llm/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
-    image: 'discord-voice-llm:latest'
+    image: 'ghcr.io/gabrielpreston/llm:latest'
     env_file:
       - './.env.common'
       - './.env.docker'
@@ -97,7 +97,7 @@ services:
       dockerfile: 'services/orchestrator/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
-    image: 'discord-voice-orchestrator:latest'
+    image: 'ghcr.io/gabrielpreston/orchestrator:latest'
     env_file:
       - './.env.common'
       - './.env.docker'
@@ -132,7 +132,7 @@ services:
       dockerfile: 'services/tts/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
-    image: 'discord-voice-tts:latest'
+    image: 'ghcr.io/gabrielpreston/tts:latest'
     env_file:
       - './.env.common'
       - './.env.docker'

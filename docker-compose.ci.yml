@@ -9,6 +9,7 @@ services:
       dockerfile: 'services/discord/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
+    image: 'ghcr.io/gabrielpreston/discord:latest'
     # Disable unnecessary ports in CI
     ports: []
     # Use minimal environment for CI
@@ -35,6 +36,7 @@ services:
       dockerfile: 'services/stt/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
+    image: 'ghcr.io/gabrielpreston/stt:latest'
     ports: []
     environment:
       - PYTHONPATH=/app
@@ -56,6 +58,7 @@ services:
       dockerfile: 'services/llm/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
+    image: 'ghcr.io/gabrielpreston/llm:latest'
     ports: []
     environment:
       - PYTHONPATH=/app
@@ -77,6 +80,7 @@ services:
       dockerfile: 'services/orchestrator/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
+    image: 'ghcr.io/gabrielpreston/orchestrator:latest'
     ports: []
     environment:
       - PYTHONPATH=/app
@@ -98,6 +102,7 @@ services:
       dockerfile: 'services/tts/Dockerfile'
       args:
         BUILDKIT_INLINE_CACHE: '1'
+    image: 'ghcr.io/gabrielpreston/tts:latest'
     ports: []
     environment:
       - PYTHONPATH=/app
