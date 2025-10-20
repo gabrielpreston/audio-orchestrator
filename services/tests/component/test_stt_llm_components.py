@@ -12,7 +12,7 @@ from services.tests.utils.audio_quality_helpers import (
     create_wav_file,
     generate_test_audio,
 )
-from services.tests.utils.service_helpers import test_services_context
+from services.tests.utils.service_helpers import docker_compose_test_context
 
 
 @pytest.fixture
@@ -30,10 +30,10 @@ def sample_wav_file(sample_audio_data):
 class TestSTTLLMIntegration:
     """Test STT-LLM integration."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_stt_transcription_to_llm_processing(self, sample_wav_file):
         """Test STT transcription → LLM processing."""
-        async with test_services_context(["stt", "llm"]):
+        async with docker_compose_test_context(["stt", "llm"]):
             # Mock STT service
             with patch(
                 "services.discord.discord_voice.TranscriptionClient"
@@ -70,7 +70,7 @@ class TestSTTLLMIntegration:
                     assert _llm_result.text == "Hello! How can I help you today?"
                     assert _llm_result.correlation_id == "test-123"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_correlation_id_handoff(self, sample_wav_file):
         """Test correlation ID handoff between STT and LLM."""
         correlation_id = "integration-test-456"
@@ -102,7 +102,7 @@ class TestSTTLLMIntegration:
                 )
                 assert _llm_result.correlation_id == correlation_id
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_transcript_format_compatibility(self, sample_wav_file):
         """Test transcript format compatibility between STT and LLM."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -133,7 +133,7 @@ class TestSTTLLMIntegration:
                 assert isinstance(_llm_result.text, str)
                 assert len(_llm_result.text) > 0
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_language_detection_to_llm_context(self, sample_wav_file):
         """Test language detection → LLM context."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -163,7 +163,7 @@ class TestSTTLLMIntegration:
                 # LLM should respond in the same language
                 assert "Hola" in _llm_result.text or "gracias" in _llm_result.text
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_concurrent_requests_handling(self, sample_wav_file):
         """Test concurrent requests handling."""
 
@@ -220,7 +220,7 @@ class TestSTTLLMIntegration:
 class TestSTTLLMErrorHandling:
     """Test STT-LLM error handling."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_stt_service_failure(self, sample_wav_file):
         """Test STT service failure handling."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -232,7 +232,7 @@ class TestSTTLLMErrorHandling:
             with pytest.raises(RuntimeError):
                 await mock_stt.return_value.transcribe(sample_wav_file)
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_llm_service_failure(self, sample_wav_file):
         """Test LLM service failure handling."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -259,7 +259,7 @@ class TestSTTLLMErrorHandling:
                         transcript=stt_result.text,
                     )
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_network_timeout_handling(self, sample_wav_file):
         """Test network timeout handling."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -271,7 +271,7 @@ class TestSTTLLMErrorHandling:
             with pytest.raises(asyncio.TimeoutError):
                 await mock_stt.return_value.transcribe(sample_wav_file)
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_circuit_breaker_integration(self, sample_wav_file):
         """Test circuit breaker integration."""
         with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
@@ -302,7 +302,7 @@ class TestSTTLLMErrorHandling:
 class TestSTTLLMPerformance:
     """Test STT-LLM performance."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_latency_measurement(self, sample_wav_file):
         """Test latency measurement for STT-LLM integration."""
         import time
@@ -338,7 +338,7 @@ class TestSTTLLMPerformance:
                 # Check latency is reasonable
                 assert latency < 2.0  # Should be fast for mocked services
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_throughput_measurement(self, sample_wav_file):
         """Test throughput measurement for STT-LLM integration."""
 
@@ -383,7 +383,7 @@ class TestSTTLLMPerformance:
         # Check throughput is reasonable
         assert throughput > 0.1  # At least 0.1 requests per second
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_memory_usage_measurement(self, sample_wav_file):
         """Test memory usage measurement for STT-LLM integration."""
         # psutil not available in container, using alternative

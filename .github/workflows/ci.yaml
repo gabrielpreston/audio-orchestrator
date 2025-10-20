@@ -254,12 +254,27 @@ jobs:
           duration=$((end_time - start_time))
           echo "::endgroup::"
           echo "Tests completed in ${duration}s"
+      - name: 'Run integration tests'
+        run: |
+          echo "::group::Integration Test Execution"
+          start_time=$(date +%s)
+          make test-integration | tee integration.log
+          end_time=$(date +%s)
+          duration=$((end_time - start_time))
+          echo "::endgroup::"
+          echo "Integration tests completed in ${duration}s"
       - name: 'Upload pytest log'
         if: 'always()'
         uses: 'actions/upload-artifact@v4'
         with:
           name: 'pytest-log'
           path: 'pytest.log'
+      - name: 'Upload integration test log'
+        if: 'always()'
+        uses: 'actions/upload-artifact@v4'
+        with:
+          name: 'integration-log'
+          path: 'integration.log'
       - name: 'Upload coverage report'
         if: 'always()'
         uses: 'actions/upload-artifact@v4'

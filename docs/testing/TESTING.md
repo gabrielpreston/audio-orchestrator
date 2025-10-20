@@ -12,31 +12,67 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 
 ### Unit Tests
 
-- **Location**: `services/*/tests/test_*.py`
-- **Purpose**: Test individual components in isolation
+- **Location**: `services/tests/unit/`
+- **Purpose**: Test individual functions and classes in isolation
 - **Scope**: Single functions, classes, or modules
-- **Execution**: `pytest -m unit`
+- **Execution**: `make test-unit` or `pytest -m unit`
+- **Mocking**: All external dependencies mocked
 
 ### Component Tests
 
-- **Location**: `services/*/tests/test_*.py`
-- **Purpose**: Test component interactions and interfaces
-- **Scope**: Multiple related components
-- **Execution**: `pytest -m component`
+- **Location**: `services/tests/component/`
+- **Purpose**: Test internal service components and adapters
+- **Scope**: Internal logic with mocked external dependencies
+- **Execution**: `make test-component` or `pytest -m component`
+- **Mocking**: External HTTP clients, Discord API, external services
 
 ### Integration Tests
 
-- **Location**: `services/tests/integration/test_*.py`
-- **Purpose**: Test service-to-service interactions
-- **Scope**: Multiple services working together
-- **Execution**: `pytest -m integration`
+- **Location**: `services/tests/integration/`
+- **Purpose**: Test service-to-service HTTP boundaries
+- **Scope**: Real HTTP communication via Docker Compose
+- **Execution**: `make test-integration` or `pytest -m integration`
+- **Mocking**: None - real services via Docker Compose
+- **Network**: Tests run inside `discord-voice-lab-test` Docker network
+- **Service URLs**: Use service names (e.g., `http://stt:9000`)
+
+### End-to-End Tests
+
+- **Location**: `services/tests/e2e/`
+- **Purpose**: Full system validation
+- **Scope**: Complete workflows from Discord to response
+- **Execution**: `pytest -m e2e`
+- **Note**: Manual trigger only
 
 ### Quality Tests
 
-- **Location**: `services/tests/quality/test_*.py`
-- **Purpose**: Test audio quality, performance, and regression
-- **Scope**: End-to-end quality validation
+- **Location**: `services/tests/quality/`
+- **Purpose**: Audio quality and performance regression
+- **Scope**: Quality metrics and benchmarks
 - **Execution**: `pytest -m quality`
+
+## Migration from Old Test Structure
+
+### Changes from Previous Structure
+
+**Old approach** (DEPRECATED):
+- Integration tests used `test_services_context()` with subprocess
+- Integration tests mocked internal classes
+- Tests ran from host connecting to localhost ports
+
+**New approach** (CURRENT):
+- Integration tests use `docker_compose_test_context()` with Docker Compose
+- Integration tests test real HTTP boundaries
+- Tests run inside Docker network using service names
+- Component tests handle internal logic with mocking
+
+### Migration Guide
+
+1. **Identify test type**: Does it test HTTP boundaries or internal logic?
+2. **HTTP boundaries** → Move to `integration/`, use `docker_compose_test_context()`
+3. **Internal logic** → Move to `component/`, use mocks
+4. **Update service URLs**: `localhost:PORT` → `service_name:PORT`
+5. **Update markers**: Add appropriate `@pytest.mark.component` or `@pytest.mark.integration`
 
 ## Test Organization
 
@@ -282,11 +318,15 @@ markers = [
 
 - **Location**: `services/tests/utils/service_helpers.py`
 - **Functions**:
-  - `start_test_services()`: Start test services
-  - `wait_for_service_ready()`: Wait for service readiness
-  - `stop_test_services()`: Stop test services
+  - `docker_compose_test_context()`: Context manager for Docker Compose test services
+  - `DockerComposeManager`: Manages Docker Compose test services
   - `get_service_health()`: Get service health status
-  - `test_services_context()`: Context manager for test services
+  - `is_service_running()`: Check if a service is running
+  - **Legacy functions** (DEPRECATED):
+    - `test_services_context()`: Legacy context manager (use `docker_compose_test_context()` instead)
+    - `start_test_services()`: Legacy function (use `docker_compose_test_context()` instead)
+    - `wait_for_service_ready()`: Legacy function (use `docker_compose_test_context()` instead)
+    - `stop_test_services()`: Legacy function (use `docker_compose_test_context()` instead)
 
 ### TTS Test Helpers
 

@@ -1,0 +1,82 @@
+# Test-specific Docker Compose configuration
+# Optimized for integration testing with fast startup and isolated network
+version: '3.8'
+
+networks:
+  test-network:
+    driver: bridge
+    name: discord-voice-lab-test
+
+services:
+  stt:
+    extends:
+      file: docker-compose.yml
+      service: stt
+    networks:
+      - test-network
+    environment:
+      - FW_MODEL=tiny  # Fast model for tests
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:9000/health/ready", "--timeout", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - ./services/tests/fixtures:/app/test-fixtures:ro
+
+  tts:
+    extends:
+      file: docker-compose.yml
+      service: tts
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    volumes:
+      - ./services/tests/fixtures:/app/test-fixtures:ro
+
+  llm:
+    extends:
+      file: docker-compose.yml
+      service: llm
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+      - LLM_AUTH_TOKEN=test-token
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  orchestrator:
+    extends:
+      file: docker-compose.yml
+      service: orchestrator
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+      - LLM_AUTH_TOKEN=test-token
+      - TTS_AUTH_TOKEN=test-token
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      llm:
+        condition: service_healthy
+      tts:
+        condition: service_healthy

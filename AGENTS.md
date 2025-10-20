@@ -300,6 +300,51 @@ async def health_ready() -> dict[str, Any]:
 - When changing APIs, provide example requests/responses in docs or PR notes so reviewers can
   verify behavior quickly.
 
+## 11.1 Microservices Testing Best Practices
+
+### Test Categories
+
+- **Unit Tests**: Fast, isolated, mocked dependencies (`services/tests/unit/`)
+- **Component Tests**: Internal logic with mocked external dependencies (`services/tests/component/`)
+- **Integration Tests**: Service HTTP boundaries via Docker Compose (`services/tests/integration/`)
+- **E2E Tests**: Full system tests (`services/tests/e2e/`)
+- **Quality Tests**: Audio quality and performance regression (`services/tests/quality/`)
+
+### Integration Test Pattern
+
+Integration tests must:
+- Use `docker_compose_test_context()` to start real services
+- Test actual HTTP communication between services
+- Use service names (e.g., `http://stt:9000`) - tests run inside Docker network
+- Verify request/response formats and contracts
+- Test error handling and timeouts
+- NOT mock internal service classes
+
+Example:
+```python
+@pytest.mark.integration
+async def test_service_boundary():
+    async with docker_compose_test_context(["stt"]):
+        async with httpx.AsyncClient() as client:
+            response = await client.post("http://stt:9000/transcribe", json={...})
+            assert response.status_code == 200
+```
+
+### Component Test Pattern
+
+Component tests must:
+- Mock external dependencies (HTTP clients, Discord API)
+- Test internal service logic and adapters
+- NOT start real services or make HTTP calls
+
+Example:
+```python
+@pytest.mark.component
+def test_internal_logic():
+    with patch("external.dependency") as mock:
+        # Test internal logic
+```
+
 ## 12. Citations for final summaries
 
 When preparing final responses, cite files and terminal output using the house format:

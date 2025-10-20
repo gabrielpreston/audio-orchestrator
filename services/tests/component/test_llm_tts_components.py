@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from services.tests.utils.service_helpers import test_services_context
+from services.tests.utils.service_helpers import docker_compose_test_context
 
 
 @pytest.fixture
@@ -24,14 +24,14 @@ def sample_ssml():
 class TestLLMTTSIntegration:
     """Test LLM-TTS integration."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_llm_response_to_tts_synthesis(self, sample_text):
         """Test LLM response → TTS synthesis."""
         with (
             patch("services.discord.discord_voice.OrchestratorClient") as mock_llm,
             patch("services.discord.discord_voice.TTSClient") as mock_tts,
         ):
-            async with test_services_context(["llm", "tts"]):
+            async with docker_compose_test_context(["llm", "tts"]):
                 # Mock LLM service
                 mock_llm.return_value.process_transcript.return_value = Mock(
                     text="Hello! How can I help you today?", correlation_id="test-123"
@@ -55,7 +55,7 @@ class TestLLMTTSIntegration:
                 _tts_result = await mock_tts.return_value.synthesize(llm_result.text)
                 assert _tts_result == b"synthesized audio data"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_correlation_id_handoff(self, sample_text):
         """Test correlation ID handoff between LLM and TTS."""
         correlation_id = "integration-test-789"
@@ -80,7 +80,7 @@ class TestLLMTTSIntegration:
                 _tts_result = await mock_tts.return_value.synthesize(llm_result.text)
                 assert _tts_result == b"test audio"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_text_format_compatibility(self, sample_text):
         """Test text format compatibility between LLM and TTS."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -105,7 +105,7 @@ class TestLLMTTSIntegration:
                 assert isinstance(_tts_result, bytes)
                 assert len(_tts_result) > 0
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_ssml_generation_from_llm(self, sample_ssml):
         """Test SSML generation from LLM."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -129,7 +129,7 @@ class TestLLMTTSIntegration:
                 _tts_result = await mock_tts.return_value.synthesize(llm_result.text)
                 assert _tts_result == b"ssml audio data"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_voice_selection_based_on_context(self, sample_text):
         """Test voice selection based on context."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -159,7 +159,7 @@ class TestLLMTTSIntegration:
                 )
                 assert tts_result == b"formal voice audio"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_concurrent_requests_handling(self, sample_text):
         """Test concurrent requests handling."""
 
@@ -208,7 +208,7 @@ class TestLLMTTSIntegration:
 class TestLLMTTSErrorHandling:
     """Test LLM-TTS error handling."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_llm_service_failure(self, sample_text):
         """Test LLM service failure handling."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -225,7 +225,7 @@ class TestLLMTTSErrorHandling:
                     transcript=sample_text,
                 )
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_tts_service_failure(self, sample_text):
         """Test TTS service failure handling."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -248,7 +248,7 @@ class TestLLMTTSErrorHandling:
                 with pytest.raises(RuntimeError):
                     await mock_tts.return_value.synthesize(llm_result.text)
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_network_timeout_handling(self, sample_text):
         """Test network timeout handling."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -265,7 +265,7 @@ class TestLLMTTSErrorHandling:
                     transcript=sample_text,
                 )
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_invalid_text_format_handling(self, sample_text):
         """Test invalid text format handling."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -288,7 +288,7 @@ class TestLLMTTSErrorHandling:
                 with pytest.raises(ValueError):
                     await mock_tts.return_value.synthesize(llm_result.text)
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_circuit_breaker_integration(self, sample_text):
         """Test circuit breaker integration."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -323,7 +323,7 @@ class TestLLMTTSErrorHandling:
 class TestLLMTTSPerformance:
     """Test LLM-TTS performance."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_latency_measurement(self, sample_text):
         """Test latency measurement for LLM-TTS integration."""
         import time
@@ -353,7 +353,7 @@ class TestLLMTTSPerformance:
                 # Check latency is reasonable
                 assert latency < 2.0  # Should be fast for mocked services
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_throughput_measurement(self, sample_text):
         """Test throughput measurement for LLM-TTS integration."""
 
@@ -392,7 +392,7 @@ class TestLLMTTSPerformance:
         # Check throughput is reasonable
         assert throughput > 0.1  # At least 0.1 requests per second
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_memory_usage_measurement(self, sample_text):
         """Test memory usage measurement for LLM-TTS integration."""
         import os
@@ -429,7 +429,7 @@ class TestLLMTTSPerformance:
 class TestLLMTTSQuality:
     """Test LLM-TTS quality."""
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_response_quality_consistency(self, sample_text):
         """Test response quality consistency."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -457,7 +457,7 @@ class TestLLMTTSQuality:
                     assert llm_result.text == "Consistent quality response"
                     assert _tts_result == b"consistent quality audio"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_voice_quality_consistency(self, sample_text):
         """Test voice quality consistency."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:
@@ -484,7 +484,7 @@ class TestLLMTTSQuality:
                 assert llm_result.voice_preference == "consistent"
                 assert tts_result == b"consistent voice audio"
 
-    @pytest.mark.integration
+    @pytest.mark.component
     async def test_language_consistency(self, sample_text):
         """Test language consistency."""
         with patch("services.discord.discord_voice.OrchestratorClient") as mock_llm:

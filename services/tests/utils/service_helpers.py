@@ -1,274 +1,185 @@
-"""Service orchestration helpers for integration testing."""
+"""Service orchestration helpers for integration testing via Docker Compose."""
 
 import asyncio
-import os
-import signal
 import subprocess
-import time
 from contextlib import asynccontextmanager
-from subprocess import Popen
 from typing import Any
 
 import httpx
 
 
-class ServiceManager:
-    """Manages test services for integration testing."""
+class DockerComposeManager:
+    """Manages Docker Compose test services."""
 
-    def __init__(self):
-        self.services: dict[str, Popen[bytes]] = {}
-        self.service_configs: dict[str, dict[str, Any]] = {}
-        self.base_urls: dict[str, str] = {}
+    def __init__(self, compose_file: str = "docker-compose.test.yml"):
+        self.compose_file = compose_file
+        self.compose_cmd = self._detect_docker_compose()
 
-    def register_service(
-        self,
-        name: str,
-        command: list[str],
-        base_url: str,
-        health_endpoint: str = "/health/ready",
-        env_vars: dict[str, str] | None = None,
-    ):
-        """Register a service for testing."""
-        self.service_configs[name] = {
-            "command": command,
-            "health_endpoint": health_endpoint,
-            "env_vars": env_vars or {},
-        }
-        self.base_urls[name] = base_url
-
-    async def start_services(
-        self, services_list: list[str], timeout: float = 30.0
-    ) -> bool:
-        """Start specified services."""
+    def _detect_docker_compose(self) -> list[str]:
+        """Detect docker-compose or docker compose command."""
         try:
-            for service_name in services_list:
-                if service_name not in self.service_configs:
-                    raise ValueError(f"Service {service_name} not registered")
+            subprocess.run(
+                ["docker-compose", "version"], capture_output=True, check=True
+            )
+            return ["docker-compose"]
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return ["docker", "compose"]
 
-                config = self.service_configs[service_name]
+    async def start_services(self, services: list[str], timeout: float = 60.0) -> bool:
+        """Start specified services using Docker Compose."""
+        cmd = (
+            self.compose_cmd
+            + ["-f", self.compose_file, "up", "-d", "--build"]
+            + services
+        )
 
-                # Prepare environment
-                env = os.environ.copy()
-                env.update(config["env_vars"])
-
-                # Start service
-                process = subprocess.Popen(
-                    config["command"],
-                    env=env,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    preexec_fn=os.setsid if os.name != "nt" else None,
-                )
-
-                self.services[service_name] = process
-
-                # Wait for service to be ready
-                if not await self.wait_for_service_ready(service_name, timeout):
-                    await self.stop_services()
-                    return False
-
-            return True
-
-        except Exception as e:
-            print(f"Error starting services: {e}")
-            await self.stop_services()
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            print(f"Failed to start services: {result.stderr}")
             return False
 
-    async def wait_for_service_ready(
-        self, service_name: str, timeout: float = 30.0
+        # Wait for all services to be healthy
+        for service in services:
+            if not await self.wait_for_service_healthy(service, timeout):
+                return False
+
+        return True
+
+    async def wait_for_service_healthy(
+        self, service: str, timeout: float = 60.0
     ) -> bool:
-        """Wait for a service to be ready with response validation."""
-        if service_name not in self.service_configs:
+        """Wait for service health check to pass."""
+        service_ports = {
+            "stt": 9000,
+            "tts": 7000,
+            "llm": 8000,
+            "orchestrator": 8000,  # Note: Same as LLM, different containers
+        }
+
+        if service not in service_ports:
             return False
 
-        config = self.service_configs[service_name]
-        base_url = self.base_urls[service_name]
-        health_endpoint = config["health_endpoint"]
+        port = service_ports[service]
+        url = f"http://{service}:{port}/health/ready"
 
-        start_time = time.time()
-
-        while time.time() - start_time < timeout:
-            try:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(
-                        f"{base_url}{health_endpoint}", timeout=5.0
-                    )
+        async with httpx.AsyncClient() as client:
+            for _ in range(int(timeout)):
+                try:
+                    response = await client.get(url, timeout=5.0)
                     if response.status_code == 200:
                         data = response.json()
-                        # Validate response structure
-                        if self._validate_health_response(data, service_name):
+                        if data.get("status") == "ready":
                             return True
-                    elif response.status_code == 503:
-                        # Service is not ready, continue waiting
-                        pass
-                    else:
-                        # Unexpected status code
-                        print(
-                            f"Health check for {service_name} returned unexpected status: {response.status_code}"
-                        )
-
-            except Exception as e:
-                print(f"Health check failed for {service_name}: {e}")
-
-            await asyncio.sleep(1.0)
+                except Exception:
+                    pass
+                await asyncio.sleep(1.0)
 
         return False
 
-    def _validate_health_response(self, data: dict, service_name: str) -> bool:
-        """Validate health check response structure."""
-        required_fields = ["status", "service", "components", "health_details"]
-        return (
-            all(field in data for field in required_fields)
-            and data["service"] == service_name
-            and data["status"] in ["ready", "not_ready", "degraded"]
-        )
+    async def stop_services(self, services: list[str] | None = None):
+        """Stop services using Docker Compose."""
+        if services:
+            cmd = self.compose_cmd + ["-f", self.compose_file, "stop"] + services
+        else:
+            cmd = self.compose_cmd + ["-f", self.compose_file, "down", "-v"]
 
-    async def stop_services(self):
-        """Stop all running services."""
-        for service_name, process in self.services.items():
-            try:
-                if process.poll() is None:  # Process is still running
-                    if os.name != "nt":
-                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-                    else:
-                        process.terminate()
+        subprocess.run(cmd, capture_output=True, check=False)
 
-                    # Wait for graceful shutdown
-                    try:
-                        process.wait(timeout=5.0)
-                    except subprocess.TimeoutExpired:
-                        # Force kill if graceful shutdown fails
-                        if os.name != "nt":
-                            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-                        else:
-                            process.kill()
 
-            except Exception as e:
-                print(f"Error stopping service {service_name}: {e}")
+# Global manager instance
+_manager = DockerComposeManager()
 
-        self.services.clear()
 
-    async def get_service_health(self, service_name: str) -> dict[str, Any] | None:
-        """Get health status of a service."""
-        if service_name not in self.base_urls:
-            return None
+@asynccontextmanager
+async def docker_compose_test_context(services: list[str], timeout: float = 60.0):
+    """Context manager for Docker Compose test services.
 
-        try:
-            base_url = self.base_urls[service_name]
+    Example:
+        async with docker_compose_test_context(["stt", "tts"]):
             async with httpx.AsyncClient() as client:
-                response = await client.get(f"{base_url}/health/ready", timeout=5.0)
-                if response.status_code == 200:
-                    return response.json()
-        except Exception as e:
-            # Log the exception for debugging
-            print(f"Service metrics check failed for {service_name}: {e}")
-            pass
-
-        return None
-
-    async def is_service_running(self, service_name: str) -> bool:
-        """Check if a service is running."""
-        if service_name not in self.services:
-            return False
-
-        process = self.services[service_name]
-        return process.poll() is None
+                response = await client.get("http://stt:9000/health/ready")
+    """
+    try:
+        success = await _manager.start_services(services, timeout)
+        if not success:
+            raise RuntimeError(f"Failed to start services: {services}")
+        yield
+    finally:
+        await _manager.stop_services(services)
 
 
-# Global service manager instance
-_service_manager = ServiceManager()
+# Legacy functions for backward compatibility during migration
+# These will be removed once all tests are migrated
 
 
 async def start_test_services(services_list: list[str], timeout: float = 30.0) -> bool:
-    """Start test services for integration testing."""
-    return await _service_manager.start_services(services_list, timeout)
+    """Legacy function - use docker_compose_test_context instead."""
+    print(
+        "WARNING: start_test_services is deprecated. Use docker_compose_test_context instead."
+    )
+    return await _manager.start_services(services_list, timeout)
 
 
 async def wait_for_service_ready(service_name: str, timeout: float = 30.0) -> bool:
-    """Wait for a specific service to be ready."""
-    return await _service_manager.wait_for_service_ready(service_name, timeout)
+    """Legacy function - use docker_compose_test_context instead."""
+    print(
+        "WARNING: wait_for_service_ready is deprecated. Use docker_compose_test_context instead."
+    )
+    return await _manager.wait_for_service_healthy(service_name, timeout)
 
 
 async def stop_test_services():
-    """Stop all test services."""
-    await _service_manager.stop_services()
+    """Legacy function - use docker_compose_test_context instead."""
+    print(
+        "WARNING: stop_test_services is deprecated. Use docker_compose_test_context instead."
+    )
+    await _manager.stop_services()
 
 
 async def get_service_health(service_name: str) -> dict[str, Any] | None:
     """Get health status of a service."""
-    return await _service_manager.get_service_health(service_name)
+    service_ports = {
+        "stt": 9000,
+        "tts": 7000,
+        "llm": 8000,
+        "orchestrator": 8000,
+    }
+
+    if service_name not in service_ports:
+        return None
+
+    port = service_ports[service_name]
+    url = f"http://{service_name}:{port}/health/ready"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, timeout=5.0)
+            if response.status_code == 200:
+                return response.json()
+    except Exception as e:
+        print(f"Service health check failed for {service_name}: {e}")
+        pass
+
+    return None
 
 
 async def is_service_running(service_name: str) -> bool:
     """Check if a service is running."""
-    return await _service_manager.is_service_running(service_name)
+    health = await get_service_health(service_name)
+    return health is not None and health.get("status") == "ready"
 
 
-def register_test_service(
-    name: str,
-    command: list[str],
-    base_url: str,
-    health_endpoint: str = "/health/ready",
-    env_vars: dict[str, str] | None = None,
-):
-    """Register a test service."""
-    _service_manager.register_service(
-        name, command, base_url, health_endpoint, env_vars
-    )
-
-
+# Legacy test_services_context for migration period
 @asynccontextmanager
 async def test_services_context(services_list: list[str], timeout: float = 30.0):
-    """Context manager for test services."""
+    """Legacy context manager - use docker_compose_test_context instead."""
+    print(
+        "WARNING: test_services_context is deprecated. Use docker_compose_test_context instead."
+    )
     try:
-        success = await start_test_services(services_list, timeout)
+        success = await _manager.start_services(services_list, timeout)
         if not success:
             raise RuntimeError("Failed to start test services")
         yield
     finally:
-        await stop_test_services()
-
-
-# Default service configurations
-def setup_default_services():
-    """Setup default service configurations for testing."""
-
-    # STT Service
-    register_test_service(
-        name="stt",
-        command=["python", "-m", "services.stt.app"],
-        base_url="http://localhost:9000",
-        health_endpoint="/health/ready",
-        env_vars={"FW_MODEL": "tiny", "FW_DEVICE": "cpu", "LOG_LEVEL": "INFO"},
-    )
-
-    # TTS Service
-    register_test_service(
-        name="tts",
-        command=["python", "-m", "services.tts.app"],
-        base_url="http://localhost:7000",
-        health_endpoint="/health/ready",
-        env_vars={"LOG_LEVEL": "INFO"},
-    )
-
-    # LLM Service (if available)
-    register_test_service(
-        name="llm",
-        command=["python", "-m", "services.llm.app"],
-        base_url="http://localhost:8000",
-        health_endpoint="/health/ready",
-        env_vars={"LOG_LEVEL": "INFO"},
-    )
-
-    # Orchestrator Service
-    register_test_service(
-        name="orchestrator",
-        command=["python", "-m", "services.orchestrator.app"],
-        base_url="http://localhost:8001",
-        health_endpoint="/health/ready",
-        env_vars={"LOG_LEVEL": "INFO"},
-    )
-
-
-# Initialize default services
-setup_default_services()
+        await _manager.stop_services(services_list)
