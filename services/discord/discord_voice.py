@@ -177,6 +177,7 @@ class VoiceBot(discord.Client):
             user=str(self.user),
             guilds=[guild.id for guild in self.guilds],
         )
+        self._health_manager.mark_startup_complete()  # ADD THIS
         if self.config.discord.auto_join:  # type: ignore[attr-defined]
             try:
                 await self.join_voice_channel(

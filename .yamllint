@@ -65,9 +65,12 @@ rules:
     quote-type: single  # Prefer single quotes for strings
     check-keys: false  # Don't enforce quoting on keys
     # Disable for GitHub workflow files to allow GitHub Actions expressions
+    # and docker-compose files with complex healthcheck commands
     ignore: |
       .github/workflows/*.yaml
       .github/workflows/*.yml
+      docker-compose.yml
+      docker-compose.*.yml
   
   # Trailing spaces configuration
   # Purpose: Remove trailing spaces for cleaner files

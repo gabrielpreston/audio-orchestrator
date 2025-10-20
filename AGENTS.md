@@ -135,7 +135,91 @@ manifests; document and test them when introduced.
 - Update `requirements.txt` files when you add or upgrade dependencies; pin versions where
   appropriate for reproducible deployments.
 
-## 8. Service-specific notes
+## 8. Health Check Implementation Requirements
+
+### Mandatory Health Check Standards
+
+All services must implement standardized health checks following these requirements:
+
+#### Startup State Management
+
+- **Call `mark_startup_complete()`** after initialization is complete
+- **Register dependencies** using `_health_manager.register_dependency()`
+- **Handle startup failures gracefully** without crashing the service
+
+#### Health Endpoint Implementation
+
+- **GET /health/live**: Always returns 200 if process is alive
+- **GET /health/ready**: Returns structured JSON with component status
+- **Response format**: Must include `status`, `service`, `components`, `dependencies`, `health_details`
+- **Status values**: Support "ready", "degraded", "not_ready"
+
+#### Dependency Registration
+
+- **Register critical dependencies** in startup event handlers
+- **Use async health check functions** for external service dependencies
+- **Handle optional dependencies** gracefully (return True if not configured)
+
+#### Prometheus Metrics
+
+- **Expose health check metrics** via `/metrics` endpoint
+- **Required metrics**: `health_check_duration_seconds`, `service_health_status`, `service_dependency_health`
+- **Use prometheus_client** for metric collection
+
+#### Status Transitions
+
+- **Healthy → Degraded**: When non-critical dependencies become unhealthy
+- **Degraded → Unhealthy**: When critical dependencies become unhealthy
+- **Unhealthy → Healthy**: When all dependencies become healthy
+
+### Implementation Pattern
+
+```python
+@app.on_event("startup")
+async def _startup():
+    try:
+        # Initialize core components
+        await _initialize_core_components()
+        
+        # Register dependencies
+        _health_manager.register_dependency("dependency_name", _check_dependency_health)
+        
+        # Mark startup complete
+        _health_manager.mark_startup_complete()
+        
+        logger.info("service.startup_complete", service=service_name)
+    except Exception as exc:
+        logger.error("service.startup_failed", error=str(exc))
+        # Continue without crashing - service will report not_ready
+
+@app.get("/health/ready")
+async def health_ready() -> dict[str, Any]:
+    """Readiness check with component status."""
+    if _critical_component is None:
+        raise HTTPException(status_code=503, detail="Critical component not loaded")
+    
+    health_status = await _health_manager.get_health_status()
+    
+    # Determine status string
+    if not health_status.ready:
+        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
+    else:
+        status_str = "ready"
+    
+    return {
+        "status": status_str,
+        "service": "service-name",
+        "components": {
+            "component_loaded": _critical_component is not None,
+            "startup_complete": _health_manager._startup_complete,
+            # Add service-specific components
+        },
+        "dependencies": health_status.details.get("dependencies", {}),
+        "health_details": health_status.details
+    }
+```
+
+## 9. Service-specific notes
 
 ### Discord voice bot (`services/discord`)
 

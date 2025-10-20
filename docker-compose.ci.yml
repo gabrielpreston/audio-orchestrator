@@ -23,11 +23,11 @@ services:
       driver: 'none'
     # CI-specific health checks for faster startup detection
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8001/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
       interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
 
   stt:
     build:
@@ -44,11 +44,11 @@ services:
     logging:
       driver: 'none'
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:9000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
       interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
 
   llm:
     build:
@@ -65,11 +65,11 @@ services:
     logging:
       driver: 'none'
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
       interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
 
   orchestrator:
     build:
@@ -86,11 +86,11 @@ services:
     logging:
       driver: 'none'
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
       interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s
 
   tts:
     build:
@@ -107,8 +107,8 @@ services:
     logging:
       driver: 'none'
     healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:7000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
       interval: 5s
       timeout: 3s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 20s

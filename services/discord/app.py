@@ -3,12 +3,14 @@ Discord service HTTP API for MCP tool integration.
 """
 
 import asyncio
+import os
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from services.common.health import HealthManager
+from services.common.health import HealthManager, HealthStatus
 
 # Configure logging
 from services.common.logging import get_logger
@@ -49,6 +51,10 @@ async def startup_event() -> None:
     try:
         # Load configuration
         config = load_config()
+
+        # Register dependencies
+        _health_manager.register_dependency("stt", _check_stt_health)
+        _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
 
         # Check if we should run the full Discord bot
         run_full_bot = config.runtime.full_bot  # type: ignore[attr-defined]
@@ -96,6 +102,7 @@ async def startup_event() -> None:
             logger.info("discord.full_bot_started")
         else:
             _bot = {"status": "ready", "mode": "http"}
+            _health_manager.mark_startup_complete()  # For HTTP-only mode
             logger.info("discord.http_api_started")
 
     except Exception as exc:
@@ -106,6 +113,28 @@ async def startup_event() -> None:
         # Don't raise the exception to prevent the service from crashing
         _bot = {"status": "error", "mode": "http", "error": str(exc)}
         logger.info("discord.http_api_started_with_error")
+
+
+async def _check_stt_health() -> bool:
+    """Check STT service health."""
+    stt_url = os.getenv("STT_BASE_URL", "http://stt:9000")
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{stt_url}/health/ready", timeout=5.0)
+            return bool(response.status_code == 200)
+    except Exception:
+        return False
+
+
+async def _check_orchestrator_health() -> bool:
+    """Check Orchestrator service health."""
+    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8000")
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{orch_url}/health/ready", timeout=5.0)
+            return bool(response.status_code == 200)
+    except Exception:
+        return False
 
 
 @app.on_event("shutdown")  # type: ignore[misc]
@@ -131,11 +160,24 @@ async def health_ready() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Bot not connected")
 
     health_status = await _health_manager.get_health_status()
+
+    # Determine status string
+    if not health_status.ready:
+        status_str = (
+            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
+        )
+    else:
+        status_str = "ready"
+
     return {
-        "status": "ready",
+        "status": status_str,
         "service": "discord",
-        "bot_connected": _bot is not None,
-        "mode": "http",
+        "components": {
+            "bot_connected": _bot is not None,
+            "mode": "http",
+            "startup_complete": _health_manager._startup_complete,
+        },
+        "dependencies": health_status.details.get("dependencies", {}),
         "health_details": health_status.details,
     }
 

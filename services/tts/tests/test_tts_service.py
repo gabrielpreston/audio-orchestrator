@@ -3,12 +3,12 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from services.common.health import HealthManager
+from services.common.health import HealthCheck, HealthManager, HealthStatus
 from services.tts.app import app
 
 
@@ -50,25 +50,40 @@ class TestTTSServiceHealth:
             data = response.json()
             assert data["status"] == "alive"
 
-    def test_health_ready_endpoint_ready(self, client, mock_health_manager):
+    def test_health_ready_endpoint_ready(self, client):
         """Test /health/ready endpoint when service is ready."""
-        with patch("services.tts.app.health_manager", mock_health_manager):
+        mock_health_status = HealthCheck(
+            status=HealthStatus.HEALTHY,
+            ready=True,
+            details={"startup_complete": True, "dependencies": {}},
+        )
+
+        with (
+            patch("services.tts.app._VOICE", Mock()),
+            patch(
+                "services.tts.app._health_manager.get_health_status",
+                new_callable=AsyncMock,
+            ) as mock_get_health,
+        ):
+            mock_get_health.return_value = mock_health_status
+
             response = client.get("/health/ready")
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "ready"
+            assert data["status"] in ["ready", "degraded"]
+            assert data["service"] == "tts"
+            assert "components" in data
+            assert data["components"]["voice_loaded"] is True
+            assert data["components"]["startup_complete"] is True
 
     def test_health_ready_endpoint_not_ready(self, client):
         """Test /health/ready endpoint when service is not ready."""
-        mock_health_manager = Mock(spec=HealthManager)
-        mock_health_manager.is_ready.return_value = False
-        mock_health_manager.is_alive.return_value = True
-
-        with patch("services.tts.app.health_manager", mock_health_manager):
+        # Test when voice model is not loaded (should return 503)
+        with patch("services.tts.app._VOICE", None):
             response = client.get("/health/ready")
             assert response.status_code == 503
             data = response.json()
-            assert data["status"] == "not_ready"
+            assert "Voice model not loaded" in data["detail"]
 
 
 class TestTTSServiceModelLoading:

@@ -13,35 +13,55 @@ class TestServiceHealth:
 
     @pytest.mark.integration
     async def test_all_services_health_endpoints_accessible(self):
-        """Test all services health endpoints accessible."""
+        """Test all services health endpoints accessible with new format."""
         async with (
             test_services_context(["stt", "tts", "llm", "orchestrator"]),
             httpx.AsyncClient() as client,
         ):
             # Test STT service health
             response = await client.get("http://localhost:9000/health/ready")
-            assert response.status_code in [200, 503]  # Ready or not ready
+            assert response.status_code in [200, 503]
+            if response.status_code == 200:
+                data = response.json()
+                assert data["service"] == "stt"
+                assert "components" in data
+                assert "health_details" in data
 
             response = await client.get("http://localhost:9000/health/live")
             assert response.status_code == 200
 
             # Test TTS service health
             response = await client.get("http://localhost:7000/health/ready")
-            assert response.status_code in [200, 503]  # Ready or not ready
+            assert response.status_code in [200, 503]
+            if response.status_code == 200:
+                data = response.json()
+                assert data["service"] == "tts"
+                assert "components" in data
+                assert "health_details" in data
 
             response = await client.get("http://localhost:7000/health/live")
             assert response.status_code == 200
 
             # Test LLM service health
             response = await client.get("http://localhost:8000/health/ready")
-            assert response.status_code in [200, 503]  # Ready or not ready
+            assert response.status_code in [200, 503]
+            if response.status_code == 200:
+                data = response.json()
+                assert data["service"] == "llm"
+                assert "components" in data
+                assert "health_details" in data
 
             response = await client.get("http://localhost:8000/health/live")
             assert response.status_code == 200
 
             # Test Orchestrator service health
             response = await client.get("http://localhost:8001/health/ready")
-            assert response.status_code in [200, 503]  # Ready or not ready
+            assert response.status_code in [200, 503]
+            if response.status_code == 200:
+                data = response.json()
+                assert data["service"] == "orchestrator"
+                assert "components" in data
+                assert "health_details" in data
 
             response = await client.get("http://localhost:8001/health/live")
             assert response.status_code == 200

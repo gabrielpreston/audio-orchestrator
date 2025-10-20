@@ -13,3 +13,6 @@ soundfile>=0.12,<1.0
 
 # HTTP client
 httpx>=0.26,<1.0
+
+# Metrics and monitoring
+prometheus_client>=0.20,<1.0

@@ -77,7 +77,7 @@ class ServiceManager:
     async def wait_for_service_ready(
         self, service_name: str, timeout: float = 30.0
     ) -> bool:
-        """Wait for a service to be ready."""
+        """Wait for a service to be ready with response validation."""
         if service_name not in self.service_configs:
             return False
 
@@ -94,15 +94,34 @@ class ServiceManager:
                         f"{base_url}{health_endpoint}", timeout=5.0
                     )
                     if response.status_code == 200:
-                        return True
+                        data = response.json()
+                        # Validate response structure
+                        if self._validate_health_response(data, service_name):
+                            return True
+                    elif response.status_code == 503:
+                        # Service is not ready, continue waiting
+                        pass
+                    else:
+                        # Unexpected status code
+                        print(
+                            f"Health check for {service_name} returned unexpected status: {response.status_code}"
+                        )
+
             except Exception as e:
-                # Log the exception for debugging
                 print(f"Health check failed for {service_name}: {e}")
-                pass
 
             await asyncio.sleep(1.0)
 
         return False
+
+    def _validate_health_response(self, data: dict, service_name: str) -> bool:
+        """Validate health check response structure."""
+        required_fields = ["status", "service", "components", "health_details"]
+        return (
+            all(field in data for field in required_fields)
+            and data["service"] == service_name
+            and data["status"] in ["ready", "not_ready", "degraded"]
+        )
 
     async def stop_services(self):
         """Stop all running services."""

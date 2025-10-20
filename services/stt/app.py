@@ -11,7 +11,7 @@ from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
-from services.common.health import HealthManager
+from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 from services.common.service_configs import (
     FasterWhisperConfig,
@@ -114,11 +114,24 @@ async def health_ready() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     health_status = await _health_manager.get_health_status()
+
+    # Determine status string
+    if not health_status.ready:
+        status_str = (
+            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
+        )
+    else:
+        status_str = "ready"
+
     return {
-        "status": "ready",
+        "status": status_str,
         "service": "stt",
-        "model": MODEL_NAME,
-        "startup_complete": _health_manager._startup_complete,
+        "components": {
+            "model_loaded": _model is not None,
+            "model_name": MODEL_NAME,
+            "startup_complete": _health_manager._startup_complete,
+        },
+        "dependencies": health_status.details.get("dependencies", {}),
         "health_details": health_status.details,
     }
 

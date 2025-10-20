@@ -16,7 +16,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
-from services.common.health import HealthManager
+from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 from services.common.service_configs import (
     HttpConfig,
@@ -349,6 +349,7 @@ def _synthesize_audio(
 @app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     await asyncio.to_thread(_load_voice)
+    _health_manager.mark_startup_complete()  # ADD THIS
     logger.info(
         "tts.startup_complete",
         max_concurrency=_MAX_CONCURRENCY,
@@ -370,11 +371,25 @@ async def health_ready() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Voice model not loaded")
 
     health_status = await _health_manager.get_health_status()
+
+    # Determine status string
+    if not health_status.ready:
+        status_str = (
+            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
+        )
+    else:
+        status_str = "ready"
+
     return {
-        "status": "ready",
+        "status": status_str,
         "service": "tts",
-        "sample_rate": _VOICE_SAMPLE_RATE,
-        "max_concurrency": _MAX_CONCURRENCY,
+        "components": {
+            "voice_loaded": _VOICE is not None,
+            "sample_rate": _VOICE_SAMPLE_RATE,
+            "max_concurrency": _MAX_CONCURRENCY,
+            "startup_complete": _health_manager._startup_complete,
+        },
+        "dependencies": health_status.details.get("dependencies", {}),
         "health_details": health_status.details,
     }
 

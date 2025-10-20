@@ -13,7 +13,7 @@ from llama_cpp import Llama
 from pydantic import BaseModel
 
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
-from services.common.health import HealthManager
+from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 from services.common.service_configs import (
     HttpConfig,
@@ -166,8 +166,13 @@ async def _synthesize_tts(text: str) -> dict[str, Any] | None:
 async def _startup_event() -> None:
     """Initialize LLM model on startup."""
     try:
+        # Register TTS dependency
+        if _TTS_BASE_URL:
+            _health_manager.register_dependency("tts", _check_tts_health)
+
         llama = _load_llama()
         if llama:
+            _health_manager.mark_startup_complete()  # ADD THIS
             logger.info("llm.initialized")
         else:
             logger.warning("llm.model_unavailable")
@@ -175,6 +180,18 @@ async def _startup_event() -> None:
     except Exception as exc:
         logger.error("llm.startup_failed", error=str(exc))
         # Continue without model for compatibility
+
+
+async def _check_tts_health() -> bool:
+    """Check TTS service health."""
+    if not _TTS_BASE_URL:
+        return True  # Optional dependency
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{_TTS_BASE_URL}/health/ready", timeout=5.0)
+            return bool(response.status_code == 200)
+    except Exception:
+        return False
 
 
 @app.on_event("shutdown")  # type: ignore[misc]
@@ -350,11 +367,24 @@ async def health_ready() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="LLM model not loaded")
 
     health_status = await _health_manager.get_health_status()
+
+    # Determine status string
+    if not health_status.ready:
+        status_str = (
+            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
+        )
+    else:
+        status_str = "ready"
+
     return {
-        "status": "ready",
+        "status": status_str,
         "service": "llm",
-        "llm_loaded": _LLAMA is not None,
-        "tts_available": _TTS_BASE_URL is not None,
+        "components": {
+            "llm_loaded": _LLAMA is not None,
+            "tts_available": _TTS_BASE_URL is not None,
+            "startup_complete": _health_manager._startup_complete,
+        },
+        "dependencies": health_status.details.get("dependencies", {}),
         "health_details": health_status.details,
     }
 
