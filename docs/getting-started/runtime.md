@@ -2,7 +2,7 @@
 title: Runtime Quickstart
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-18
+last-updated: 2025-10-20
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -34,7 +34,8 @@ make run
 ## Shutdown & Cleanup
 
 - `make stop` — Gracefully stop containers.
-- `make docker-clean` — Remove containers, networks, and volumes when resetting the environment.
+- `make docker-clean` — Remove unused Docker resources (safe, preserves active images/volumes).
+- `make docker-clean-all` — Nuclear option: stop compose stack and remove ALL images and volumes.
 
 ## Next Steps
 

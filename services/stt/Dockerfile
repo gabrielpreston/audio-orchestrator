@@ -23,6 +23,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY services/common /app/services/common
 COPY services/stt /app/services/stt
+COPY scripts/health_check.py /app/scripts/health_check.py
 
 # Create models directory (faster-whisper models will be mounted via volume)
 RUN mkdir -p /app/models

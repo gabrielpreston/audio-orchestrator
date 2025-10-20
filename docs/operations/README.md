@@ -2,7 +2,7 @@
 title: Operations Index
 author: Discord Voice Lab Team
 status: active
-last-updated: 2024-07-05
+last-updated: 2025-10-20
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -26,6 +26,7 @@ observability practices, and security considerations.
 
 - `make logs` — Stream structured logs for one or more services.
 - `make docker-restart` — Restart the Compose stack while preserving volumes.
-- `make docker-clean` — Remove stopped containers, networks, and volumes.
+- `make docker-clean` — Remove unused Docker resources (stopped containers, dangling images, build cache).
+- `make docker-clean-all` — Aggressive cleanup: stop compose and remove all images/volumes/networks.
 
 Update this index when introducing new operational guides (e.g., incident response, deployment playbooks).

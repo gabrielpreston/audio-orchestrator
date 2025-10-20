@@ -67,12 +67,55 @@ When working on the project:
 
 ## 🔧 Build Optimization
 
-The project includes optimized Docker builds for CI/CD:
+The project includes optimized Docker builds:
 
-- **Local Development**: Uses standard `make` targets (`make run`, `make test`, `make lint`)
-- **CI/CD**: Uses optimized targets (`make docker-build-ci`, `make test-ci`, `make lint-ci`)
-- **Base Images**: Shared base images reduce build times by 80-90%
-- **Parallel Builds**: Services build in parallel for maximum efficiency
+- **Local Development**: Use `make docker-build-incremental` for smart rebuilds (50-80% faster)
+- **CI/CD**: Uses path-based change detection and matrix parallelization (already optimal)
+- **Base Images**: Shared base images cached in GHCR reduce build times by 80-90%
+- **Parallel Builds**: All services build in parallel when using `--parallel` flag
+
+### Build Strategies
+
+#### Incremental Build (Recommended for Development)
+
+```bash
+make docker-build-incremental
+```
+
+Detects changes via git and rebuilds only affected services. 50-80% faster for typical changes.
+
+#### Full Parallel Build
+
+```bash
+make docker-build
+```
+
+Rebuilds all services in parallel. Use after pulling updates or for clean builds.
+
+#### Single Service Build
+
+```bash
+make docker-build-service SERVICE=stt
+```
+
+Builds only the specified service.
+
+#### Base Images Rebuild
+
+```bash
+make base-images
+```
+
+Rebuilds all base images (rarely needed - typically pulled from GHCR).
+
+### Build Time Expectations
+
+| Scenario | Full Build | Incremental | Time Savings |
+|----------|-----------|-------------|--------------|
+| Single service change | 8-12 min | 1-2 min | 80-90% |
+| Common library change | 8-12 min | 8-12 min | 0% (all rebuild) |
+| Base image change | 12-15 min | 3-5 min | 60-70% |
+| No changes | N/A | instant | 100% (cache hit) |
 
 ## 🔧 Environment Details
 

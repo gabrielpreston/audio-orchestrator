@@ -47,6 +47,7 @@ COPY --from=python-builder /usr/local/bin /usr/local/bin
 
 COPY services/common /app/services/common
 COPY services/orchestrator /app/services/orchestrator
+COPY scripts/health_check.py /app/scripts/health_check.py
 
 # Create debug directory
 RUN mkdir -p /app/debug

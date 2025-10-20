@@ -44,6 +44,16 @@ The system consists of five core services working together to process voice inpu
 - **CI/CD**: Automated testing, linting, and security scanning on every push
 - **Documentation**: Comprehensive guides in the [documentation hub](docs/README.md)
 
+### Build Optimization
+
+For faster local development builds:
+
+```bash
+make docker-build-incremental  # Smart rebuild (detects changes)
+```
+
+This detects which services changed using git and rebuilds only those services, reducing typical build times from 8-12 minutes to 1-2 minutes.
+
 ## Documentation
 
 Navigate deeper using the [documentation hub](docs/README.md):

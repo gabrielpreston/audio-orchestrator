@@ -16,7 +16,7 @@ services:
     volumes:
       - './debug:/app/debug'
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8001/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8001/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -50,7 +50,7 @@ services:
       - './services/models/stt:/app/models:ro'
       - './debug:/app/debug'
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:9000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:9000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -79,7 +79,7 @@ services:
       - './services/models/llm:/app/models:ro'
       - './debug:/app/debug'
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -109,7 +109,7 @@ services:
       - './services/discord:/app/services/discord:ro'
       - './debug:/app/debug'
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:8000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -143,7 +143,7 @@ services:
       - './services/models/tts:/app/models:ro'
       - './debug:/app/debug'
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; import sys; try: response = httpx.get('http://localhost:7000/health/ready', timeout=5.0); sys.exit(0 if response.status_code == 200 else 1) except Exception: sys.exit(1)"]
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -96,8 +96,9 @@ manifests; document and test them when introduced.
   - `services/**/.env.service`
 - `Makefile` provides the supported workflows (`make run`, `make stop`, `make logs`,
   `make docker-build`, `make docker-restart`, `make docker-shell`, `make docker-config`,
-  `make docker-clean`, etc.). When a new workflow emerges, add or refine a Makefile target
+  `make docker-clean`, `make docker-clean-all`, etc.). When a new workflow emerges, add or refine a Makefile target
   rather than relying on copy-pasted commands.
+  Use `make docker-clean` for routine cleanup, `make docker-clean-all` for complete reset.
 - `docs/` stores onboarding, architecture, manifest, and roadmap content. Update the relevant
   page whenever you change behavior, workflows, or configuration names.
 
@@ -123,7 +124,7 @@ manifests; document and test them when introduced.
   on `docker-compose`.
 - Mount paths introduced in Compose must work with the existing `.env.*` structure and repository
   directories mounted into the containers (e.g., `./logs`, `./.wavs`).
-- **CI/CD Optimization**: Use `make docker-build-ci`, `make test-ci`, and `make lint-ci` for GitHub Actions workflows. Local development uses standard targets (`make run`, `make test`, `make lint`).
+- **CI/CD Optimization**: CI workflows use path-based change detection (dorny/paths-filter) and matrix parallelization for optimal performance. Local development uses `make docker-build-incremental` for fast rebuilds based on git changes.
 
 ## 7. Python coding guidelines
 

@@ -139,7 +139,7 @@ Runs on `pull_request` and `push` to the default branch with change-based filter
 #### Job: lint
 
 - Needs tooling artifact from `bootstrap` (or repeats installation if you keep jobs self-contained).
-- Run `make lint-local` (or a dedicated `lint-ci` target) to mirror local Makefile behavior and ensure Docker, YAML, Markdown, and Python linters stay consistent.
+- Run `make lint` directly (CI uses the same targets as local development) to ensure Docker, YAML, Markdown, and Python linters stay consistent.
 - Fail fast on formatting issues and upload linter logs as artifacts when available.
 
 #### Job: test

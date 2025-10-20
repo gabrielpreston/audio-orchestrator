@@ -2,7 +2,7 @@
 title: GitHub Actions Migration — Implementation Notes
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-11
+last-updated: 2025-10-20
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -12,6 +12,7 @@ last-updated: 2025-10-11
 
 ## Version History
 
+- **2025-10-20** — Updated documentation references to correct CI optimization descriptions and remove misleading docker-build-ci target references.
 - **2025-10-11** — Added YAML front matter, breadcrumbs, and metadata validation references for
   the CI migration notes.
 
@@ -91,7 +92,7 @@ All jobs inherit the default GitHub-hosted Ubuntu runner with Docker enabled.
   the workflow, especially Hadolint and Checkmake paths.
 - **Docker smoke build flakes:** rerun with `DOCKER_BUILDKIT=0 make docker-smoke`
   locally to compare BuildKit vs. legacy builds, then clear dangling images via
-  `make docker-clean`.
+  `make docker-clean-all`.
 - **pip-audit reports vulnerabilities:** check whether a patched version exists
   and update the relevant `requirements.txt`. If no fix is available, document
   the rationale in the PR description before merging.

@@ -12,5 +12,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 
 COPY services/common /app/services/common
 COPY services/discord /app/services/discord
+COPY scripts/health_check.py /app/scripts/health_check.py
 
 CMD ["python", "-m", "services.discord.main"]

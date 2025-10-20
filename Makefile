@@ -171,15 +171,9 @@ docker-status: ## Show status of docker-compose services
 
 docker-build: ## Build or rebuild images for the compose stack
 	@printf "$(COLOR_GREEN)→ Building docker images$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)💡 Tip: Use 'make docker-build-incremental' for faster rebuilds$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
-
-# CI-optimized build targets
-docker-build-ci: ## Build images with CI optimizations (GitHub Actions cache)
-	@printf "$(COLOR_GREEN)→ Building docker images (CI optimized)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
-
 
 docker-smoke-ci: ## Use CI compose profile for smoke tests
 	@printf "$(COLOR_GREEN)→ Running Docker smoke tests (CI optimized)$(COLOR_OFF)\n"
@@ -205,6 +199,20 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	fi
 	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
+
+# Incremental build targets
+docker-build-incremental: ## Smart rebuild based on git changes (recommended for development)
+	@printf "$(COLOR_CYAN)→ Incremental build (git-aware)$(COLOR_OFF)\n"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@bash scripts/build-incremental.sh
+
+docker-build-smart: docker-build-incremental ## Alias for incremental build
+
+docker-build-services: ## Build all services in parallel (skip base images)
+	@printf "$(COLOR_GREEN)→ Building all services in parallel$(COLOR_OFF)\n"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) \
+		$(DOCKER_COMPOSE) build --parallel discord stt llm orchestrator tts
 
 # Base image build targets
 base-images: base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain ## Build all base images
@@ -496,8 +504,14 @@ clean: ## Remove logs, cached audio artifacts, and debug files
 	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
 	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
 
-docker-clean: ## Bring down compose stack and prune unused docker resources
-	@printf "$(COLOR_RED)→ Cleaning Docker: compose down, prune images/containers/volumes/networks$(COLOR_OFF)\n"
+docker-clean: ## Clean unused Docker resources (safe - preserves images/volumes in use)
+	@printf "$(COLOR_BLUE)→ Cleaning unused Docker resources (safe mode)...$(COLOR_OFF)\n"
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune."; exit 0; }
+	@echo "Removing stopped containers, dangling images, unused networks, and build cache..."
+	@docker system prune -f
+
+docker-clean-all: ## Nuclear cleanup: stop compose stack, remove ALL images/volumes/networks
+	@printf "$(COLOR_RED)⚠️  WARNING: Aggressive cleanup - removes ALL images and volumes$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then \
 		echo "$(COMPOSE_MISSING_MESSAGE) Skipping compose down."; \
 	else \
@@ -506,9 +520,9 @@ docker-clean: ## Bring down compose stack and prune unused docker resources
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
 	@echo "Pruning stopped containers..."
 	@docker container prune -f || true
-	@echo "Pruning unused images (this will remove dangling and unused images)..."
+	@echo "Pruning ALL unused images (including tagged)..."
 	@docker image prune -a -f || true
-	@echo "Pruning unused volumes..."
+	@echo "Pruning ALL unused volumes..."
 	@docker volume prune -f || true
 	@echo "Pruning unused networks..."
 	@docker network prune -f || true

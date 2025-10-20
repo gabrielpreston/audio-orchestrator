@@ -23,6 +23,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 COPY services/common /app/services/common
 COPY services/tts /app/services/tts
+COPY scripts/health_check.py /app/scripts/health_check.py
 
 # Create models directory (Piper models will be mounted via volume)
 RUN mkdir -p /app/models
