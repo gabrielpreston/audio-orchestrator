@@ -804,9 +804,7 @@ jobs:
         uses: 'actions/upload-artifact@v4'
         with:
           name: 'docker-smoke-artifacts'
-          path: |
-            'docker-smoke.log'
-            'docker-compose.config.yaml'
+          path: 'docker-compose.config.yaml'
 
 
   workflow-status:
