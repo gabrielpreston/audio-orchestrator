@@ -774,6 +774,8 @@ jobs:
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
+      - name: 'Prepare environment defaults'
+        run: 'python3 scripts/prepare_env_files.py --force'
       - name: 'Download all build artifacts'
         uses: 'actions/download-artifact@v4'
         with:
