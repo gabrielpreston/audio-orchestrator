@@ -765,106 +765,10 @@ jobs:
           echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
           echo "::endgroup::"
 
-  docker-tools:
-    name: 'Docker tools'
-    needs: ['changes', 'lint', 'build-base-images']
-    if: |
-      (needs.changes.outputs.docker == 'true' ||
-       needs.changes.outputs.base-images-workflow == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success' &&
-      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
-      needs.build-base-images.result == 'success'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
-    timeout-minutes: 20
-    env:
-      ACTIONS_CACHE_SERVICE_V2: true
-    strategy:
-      matrix:
-        tool: [linter, tester]
-    steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Setup job context'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            console.log('Job started:', context.job)
-            console.log('Repository:', context.repo.full_name)
-            console.log('Ref:', context.ref)
-            console.log('Workflow:', context.workflow)
-            console.log('Run ID:', context.runId)
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
-        with:
-          driver-opts: |
-            image=moby/buildkit:latest
-      - name: 'Log in to GitHub Container Registry'
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 'Build and push ${{ matrix.tool }} tool with retry'
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file services/${{ matrix.tool }}/Dockerfile \
-              --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest \
-              --cache-from type=gha,scope=base-images \
-              --cache-from type=gha,scope=docker-tools-${{ matrix.tool }}-buildx \
-              --cache-to type=gha,mode=max,scope=docker-tools-${{ matrix.tool }}-buildx \
-              --load . && \
-            docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest
-      - name: 'Test ${{ matrix.tool }} tool'
-        run: |
-          echo "::group::Testing ${{ matrix.tool }} tool"
-          # Basic test - verify the tool can start
-          docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.tool }}:latest --help || echo "Tool ${{ matrix.tool }} test completed"
-          echo "::endgroup::"
-      - name: 'Cleanup resources with reporting'
-        if: always()
-        run: |
-          echo "::group::Resource Cleanup Report"
-
-          # Capture before cleanup
-          before_space=$(df -h / | awk 'NR==2{print $4}')
-          before_images=$(docker images -q | wc -l)
-
-          # Cleanup operations
-          echo "Cleaning Docker system..."
-          docker system prune -f --volumes
-
-          echo "Cleaning build cache..."
-          docker builder prune -f
-
-          # Capture after cleanup
-          after_space=$(df -h / | awk 'NR==2{print $4}')
-          after_images=$(docker images -q | wc -l)
-
-          echo "Cleanup Results:"
-          echo "  Disk space: $before_space to $after_space"
-          echo "  Images removed: $((before_images - after_images))"
-          echo "::endgroup::"
-      - name: 'Job Status Summary'
-        if: always()
-        run: |
-          echo "::group::Job Status Summary"
-          echo "Job: ${{ github.job }}"
-          echo "Runner: ${{ runner.os }} (${{ runner.arch }})"
-          echo "Available Space: $(df -h / | awk 'NR==2{print $4}')"
-          echo "Docker Images: $(docker images -q | wc -l)"
-          echo "Cache: GitHub Actions Cache v2 enabled"
-          echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
-          echo "::endgroup::"
 
   docker-smoke-aggregate:
     name: 'Docker smoke aggregate'
-    needs: ['docker-smoke', 'docker-tools']
+    needs: ['docker-smoke']
     if: always()
     runs-on: 'ubuntu-latest'
     steps:
@@ -933,7 +837,7 @@ jobs:
 
   workflow-status:
     name: 'Workflow Status Dashboard'
-    needs: [changes, lint, test, security-scan, docs-verify, build-base-images, docker-smoke, docker-tools, docker-smoke-aggregate]
+    needs: [changes, lint, test, security-scan, docs-verify, build-base-images, docker-smoke, docker-smoke-aggregate]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -1001,13 +905,6 @@ jobs:
             echo "| docker-smoke | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ needs.docker-tools.result }}" = "success" ]; then
-            echo "| docker-tools | ✅ Success |" >> $GITHUB_STEP_SUMMARY
-          elif [ "${{ needs.docker-tools.result }}" = "skipped" ]; then
-            echo "| docker-tools | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| docker-tools | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
-          fi
 
           if [ "${{ needs.docker-smoke-aggregate.result }}" = "success" ]; then
             echo "| docker-smoke-aggregate | ✅ Success |" >> $GITHUB_STEP_SUMMARY
