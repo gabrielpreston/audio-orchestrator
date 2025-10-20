@@ -15,7 +15,7 @@ SHELL := /bin/bash
 .PHONY: test test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific test-image
 
 # Linting (Docker-based)
-.PHONY: lint lint-parallel lint-image lint-python lint-mypy lint-yaml lint-dockerfiles lint-makefile lint-markdown lint-fix
+.PHONY: lint lint-image lint-fix
 
 # Security (Docker-based)
 .PHONY: security security-image security-clean security-reports
@@ -425,81 +425,34 @@ test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
 # LINTING & CODE QUALITY
 # =============================================================================
 
-lint: lint-parallel ## Run all linters
+# =============================================================================
+# LINTING TARGETS
+# =============================================================================
 
-lint-parallel: lint-image ## Run all linters in parallel with aggregated output
+lint: lint-image ## Run all linters (validation only)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(LINT_WORKDIR) \
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) \
-		$(LINT_IMAGE)
-
-
-
-# Docker-based linting
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-parallel.sh
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@docker build --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
 
-# Local linting tools
-lint-python: ## Python formatting and linting (black, isort, ruff)
-	@echo "→ Checking Python code formatting with black..."
-	@command -v black >/dev/null 2>&1 || { echo "black not found" >&2; exit 1; }
-	@black --check $(PYTHON_SOURCES)
-	@echo "→ Checking Python import sorting with isort..."
-	@command -v isort >/dev/null 2>&1 || { echo "isort not found" >&2; exit 1; }
-	@isort --check-only $(PYTHON_SOURCES)
-	@echo "→ Running Python linting with ruff..."
-	@command -v ruff >/dev/null 2>&1 || { echo "ruff not found" >&2; exit 1; }
-	@ruff check $(PYTHON_SOURCES)
-	@echo "✓ Python linting passed"
-
-lint-mypy: ## Type checking with mypy
-	@echo "→ Running type checking with mypy..."
-	@command -v mypy >/dev/null 2>&1 || { echo "mypy not found" >&2; exit 1; }
-	@mypy $(MYPY_PATHS)
-	@echo "✓ Type checking passed"
-
-lint-yaml: ## Lint all YAML files
-	@echo "→ Linting YAML files..."
-	@command -v yamllint >/dev/null 2>&1 || { echo "yamllint not found" >&2; exit 1; }
-	@yamllint -c .yamllint $(YAML_FILES)
-	@echo "✓ YAML linting passed"
-
-lint-dockerfiles: ## Lint all Dockerfiles
-	@echo "→ Linting Dockerfiles..."
-	@command -v hadolint >/dev/null 2>&1 || { echo "hadolint not found" >&2; exit 1; }
-	@for dockerfile in $(DOCKERFILES); do \
-		echo "  Checking $$dockerfile"; \
-		hadolint --config .hadolint.yaml $$dockerfile || exit 1; \
-	done
-	@echo "✓ Dockerfile linting passed"
-
-lint-makefile: ## Lint Makefile
-	@echo "→ Linting Makefile..."
-	@command -v checkmake >/dev/null 2>&1 || { echo "checkmake not found" >&2; exit 1; }
-	@checkmake --config .checkmake.yaml Makefile
-	@echo "✓ Makefile linting passed"
-
-lint-markdown: ## Lint Markdown files
-	@echo "→ Linting Markdown files..."
-	@command -v markdownlint >/dev/null 2>&1 || { echo "markdownlint not found" >&2; exit 1; }
-	@markdownlint --config .markdownlint.yaml $(MARKDOWN_FILES)
-	@echo "✓ Markdown linting passed"
-
-# Code formatting
-lint-fix: lint-image ## Format sources using the lint container toolchain
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to run containerized linting." >&2; exit 1; }
-	@docker run --rm \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(LINT_WORKDIR) \
+lint-fix: lint-image ## Apply all automatic fixes
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) \
-		$(LINT_IMAGE) \
-		bash -c "black $(PYTHON_SOURCES) && isort $(PYTHON_SOURCES) && ruff check --fix $(PYTHON_SOURCES) && yamllint $(YAML_FILES) && markdownlint --fix $(MARKDOWN_FILES)"
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-fix.sh
+
+lint-%: lint-image ## Run specific linter (e.g., make lint-black, make lint-yamllint)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-single.sh $*
 
 # =============================================================================
 # SECURITY & QUALITY GATES

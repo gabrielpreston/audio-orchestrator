@@ -510,27 +510,54 @@ jobs:
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Validate Base Images Exist'
-        run: |
-          echo "::group::Base Image Validation"
-          docker images | grep discord-voice-lab || echo "No base images found"
-          # Verify all required base images exist
-          required_images=("ghcr.io/${{ github.repository_owner }}/python-base:latest" "ghcr.io/${{ github.repository_owner }}/python-audio:latest" "ghcr.io/${{ github.repository_owner }}/python-ml:latest" "ghcr.io/${{ github.repository_owner }}/tools:latest" "ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest")
-          for image in "${required_images[@]}"; do
-            if ! docker image inspect "$image" >/dev/null 2>&1; then
-              echo "❌ Base image $image not found"
-              exit 1
-            else
-              echo "✅ Base image $image found"
-            fi
-          done
-          echo "::endgroup::"
       - name: 'Log in to GitHub Container Registry'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Validate Base Images Exist'
+        run: |
+          echo "::group::Base Image Validation for ${{ matrix.service }}"
+          # Show available GHCR images (optional debugging)
+          docker images | grep ghcr.io || echo "No GHCR images found locally"
+
+          # Define service-specific base image requirements (based on actual Dockerfiles)
+          case "${{ matrix.service }}" in
+            discord|tts)
+              # Uses python-audio base image
+              required_images=("ghcr.io/${{ github.repository_owner }}/python-audio:latest")
+              ;;
+            stt|llm)
+              # Uses python-ml base image
+              required_images=("ghcr.io/${{ github.repository_owner }}/python-ml:latest")
+              ;;
+            orchestrator)
+              # Uses both mcp-toolchain and python-ml base images
+              required_images=("ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest" "ghcr.io/${{ github.repository_owner }}/python-ml:latest")
+              ;;
+          esac
+
+          # Pull only required images
+          for image in "${required_images[@]}"; do
+            echo "Pulling $image..."
+            docker pull "$image" || {
+              echo "❌ Failed to pull base image $image"
+              exit 1
+            }
+            echo "✅ Base image $image pulled successfully"
+          done
+
+          # Verify all required base images exist locally
+          for image in "${required_images[@]}"; do
+            if ! docker image inspect "$image" >/dev/null 2>&1; then
+              echo "❌ Base image $image not found locally"
+              exit 1
+            else
+              echo "✅ Base image $image found locally"
+            fi
+          done
+          echo "::endgroup::"
       - name: 'Check if service needs build'
         id: check_service
         run: |
@@ -612,8 +639,66 @@ jobs:
         if: steps.check_service.outputs.build == 'true'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
-          # Basic smoke test - verify the image can start
-          docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python --version || echo "Service ${{ matrix.service }} smoke test completed"
+
+          # Test basic Python functionality
+          echo "Testing Python availability..."
+          docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python --version
+
+          # Test service-specific imports and functionality
+          case "${{ matrix.service }}" in
+            discord)
+              echo "Testing Discord service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Discord FastAPI app imported successfully')
+              "
+              ;;
+            stt)
+              echo "Testing STT service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ STT FastAPI app imported successfully')
+                try:
+                  from faster_whisper import WhisperModel
+                  print('✅ faster-whisper import successful')
+                except Exception as e:
+                  print('⚠️ faster-whisper import failed (expected without model):', str(e))
+              "
+              ;;
+            llm)
+              echo "Testing LLM service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ LLM FastAPI app imported successfully')
+                try:
+                  from llama_cpp import Llama
+                  print('✅ llama-cpp import successful')
+                except Exception as e:
+                  print('⚠️ llama-cpp import failed (expected without model):', str(e))
+              "
+              ;;
+            orchestrator)
+              echo "Testing Orchestrator service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Orchestrator FastAPI app imported successfully')
+              "
+              ;;
+            tts)
+              echo "Testing TTS service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ TTS FastAPI app imported successfully')
+                try:
+                  from piper import PiperVoice
+                  print('✅ Piper import successful')
+                except Exception as e:
+                  print('⚠️ Piper import failed (expected without model):', str(e))
+              "
+              ;;
+          esac
+
+          echo "✅ Smoke test passed for ${{ matrix.service }}"
           echo "::endgroup::"
       - name: 'Service build skipped'
         if: steps.check_service.outputs.build == 'false'
@@ -659,34 +744,17 @@ jobs:
           - **Commit**: ${{ github.sha }}
           - **Branch**: ${{ github.ref_name }}
           EOF
-      - name: 'Cleanup resources with reporting'
+      - name: 'Cleanup resources'
         if: always()
         run: |
-          echo "::group::Resource Cleanup Report"
-
-          # Capture before cleanup
-          before_space=$(df -h / | awk 'NR==2{print $4}')
-          before_images=$(docker images -q | wc -l)
-
-          # Cleanup operations
-          echo "Cleaning Docker system..."
+          echo "Cleaning Docker resources..."
           docker system prune -f --volumes
-
-          echo "Cleaning build cache..."
           docker builder prune -f
-
-          # Capture after cleanup
-          after_space=$(df -h / | awk 'NR==2{print $4}')
-          after_images=$(docker images -q | wc -l)
-
-          echo "Cleanup Results:"
-          echo "  Disk space: $before_space to $after_space"
-          echo "  Images removed: $((before_images - after_images))"
-          echo "::endgroup::"
-      - name: 'Job Status Summary'
+          echo "Cleanup complete"
+      - name: 'Docker Smoke Job Status Summary'
         if: always()
         run: |
-          echo "::group::Job Status Summary"
+          echo "::group::Docker Smoke Job Status Summary"
           echo "Job: ${{ github.job }}"
           echo "Service: ${{ matrix.service }}"
           echo "Build Status: $([ "${{ steps.check_service.outputs.build }}" = "true" ] && echo "Built" || echo "Skipped")"
