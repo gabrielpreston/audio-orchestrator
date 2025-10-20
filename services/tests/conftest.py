@@ -193,3 +193,11 @@ def pytest_collection_modifyitems(
         # Add audio marker for audio-related tests
         if "audio" in str(item.fspath) or "audio" in item.name:
             item.add_marker(pytest.mark.audio)
+
+
+@pytest.fixture
+def tts_artifacts_dir(test_artifacts_dir: Path) -> Path:
+    """Get TTS test artifacts directory."""
+    tts_dir = test_artifacts_dir / "tts"
+    tts_dir.mkdir(parents=True, exist_ok=True)
+    return tts_dir

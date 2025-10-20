@@ -1,7 +1,7 @@
 ---
 title: Testing Troubleshooting Guide
 description: Guide for diagnosing and resolving common testing issues in the discord-voice-lab audio pipeline
-last-updated: 2025-10-17
+last-updated: 2025-10-20
 ---
 
 # Testing Troubleshooting Guide
@@ -480,6 +480,58 @@ ldd $(which python)
 6. **Apply Solutions**: Apply appropriate solutions
 7. **Verify Fix**: Verify the fix resolves the problem
 8. **Document Solution**: Document the solution for future reference
+
+### Async Tests Being Skipped
+
+#### Async Test Symptoms
+
+- Tests with `async def` are skipped with warning "async def functions are not natively supported"
+- Integration tests show "SKIPPED" status instead of running
+- Coverage collection fails due to skipped tests
+
+#### Async Test Diagnosis
+
+```bash
+# Check pytest configuration
+grep -A 5 -B 5 "asyncio" pyproject.toml
+
+# Run tests with verbose output
+pytest -v -m integration
+
+# Check for async test warnings
+pytest --tb=short -m integration 2>&1 | grep -i "async"
+```
+
+#### Solutions
+
+1. **Verify pytest-asyncio Configuration**: Ensure `pyproject.toml` has:
+
+   ```toml
+   [tool.pytest.ini_options]
+   asyncio_mode = "auto"
+   asyncio_default_fixture_loop_scope = "function"
+   ```
+
+2. **Check pytest-asyncio Installation**: Verify pytest-asyncio is installed:
+
+   ```bash
+   pip list | grep pytest-asyncio
+   ```
+
+3. **Restart Test Environment**: Sometimes configuration changes require restart:
+
+   ```bash
+   make stop
+   make run
+   ```
+
+4. **Check Test Markers**: Ensure integration tests have proper markers:
+
+   ```python
+   @pytest.mark.integration
+   async def test_example():
+       pass
+   ```
 
 #### Prevention
 

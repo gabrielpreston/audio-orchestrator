@@ -1,7 +1,7 @@
 ---
 title: Testing Guide
 description: Comprehensive guidance for testing the discord-voice-lab audio pipeline
-last-updated: 2025-10-17
+last-updated: 2025-10-20
 ---
 
 # Testing Guide
@@ -401,3 +401,7 @@ TTS (Text-to-Speech) testing covers audio format validation, quality metrics, pe
 2. **Quality Thresholds**: All quality tests must pass
 3. **Performance Benchmarks**: Performance tests must pass
 4. **Regression Tests**: No quality regressions allowed
+
+## Current Status
+
+**Note**: Coverage threshold temporarily lowered to 20% while resolving async test configuration issues. Will be restored to 25% once all integration tests pass consistently.

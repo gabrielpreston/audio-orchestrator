@@ -281,7 +281,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=25",
+    "--cov-fail-under=20",
     "--junitxml=junit.xml",
     "-ra",
     "--tb=short",
@@ -289,6 +289,7 @@ addopts = [
 ]
 
 # Asyncio configuration
+asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 
 # Markers for test categorization

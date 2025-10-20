@@ -85,10 +85,10 @@ class TestSurfaceAdapterContractTester:
         return adapter
 
     @pytest.mark.component
-    async def test_audio_source_contract_success(self):
+    async def test_audio_source_contract_success(
+        self, contract_tester, mock_audio_source
+    ):
         """Test successful AudioSource contract validation."""
-        contract_tester = self.contract_tester()
-        mock_audio_source = self.mock_audio_source()
         results = await contract_tester.test_audio_source_contract(mock_audio_source)
 
         assert results["adapter_type"] == "AudioSource"
