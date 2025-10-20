@@ -169,9 +169,13 @@ docker-status: ## Show status of docker-compose services
 # DOCKER BUILD & MANAGEMENT
 # =============================================================================
 
-docker-build: ## Build or rebuild images for the compose stack
-	@printf "$(COLOR_GREEN)→ Building docker images$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)💡 Tip: Use 'make docker-build-incremental' for faster rebuilds$(COLOR_OFF)\n"
+docker-build: ## Build or rebuild images for the compose stack (smart incremental by default)
+	@printf "$(COLOR_GREEN)→ Building docker images (smart incremental)$(COLOR_OFF)\n"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@bash scripts/build-incremental.sh
+
+docker-build-full: ## Build all images in parallel (traditional full rebuild)
+	@printf "$(COLOR_GREEN)→ Building docker images (full rebuild)$(COLOR_OFF)\n"
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
