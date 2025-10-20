@@ -782,8 +782,8 @@ jobs:
           path: './artifacts'
       - name: 'Aggregate build results'
         run: |
-          echo "::group::Build Results Summary"
-          echo "## Docker Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "## Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
 
@@ -791,18 +791,12 @@ jobs:
             if [ -d "./artifacts/$service-build-artifacts" ]; then
               echo "| $service | ✅ Built |" >> $GITHUB_STEP_SUMMARY
             else
-              echo "| $service | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+              echo "| $service | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY
             fi
           done
 
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Docker Tools Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Tool | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| linter | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| tester | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-
-          echo "::endgroup::"
+          echo "**Note**: Services are only built when changes are detected in their respective directories."
       - name: 'Capture rendered Compose config'
         run: 'docker compose config > docker-compose.config.yaml'
       - name: 'Upload diagnostics'
@@ -814,30 +808,6 @@ jobs:
             'docker-smoke.log'
             'docker-compose.config.yaml'
 
-      - name: 'Advanced Build Performance Analytics'
-        if: 'always()'
-        run: |
-          echo "## Advanced Build Performance Analytics" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "### Cache Performance" >> $GITHUB_STEP_SUMMARY
-          echo "- GitHub Actions Cache: Enabled with scoped caching" >> $GITHUB_STEP_SUMMARY
-          echo "- BuildKit Cache: Inline cache with max mode" >> $GITHUB_STEP_SUMMARY
-          echo "- Base Image Strategy: Shared base images" >> $GITHUB_STEP_SUMMARY
-          echo "- Retry Logic: Native GitHub Actions retry with exponential backoff" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "### Resource Optimization" >> $GITHUB_STEP_SUMMARY
-          echo "- Automatic Cleanup: Docker system cleanup after each job" >> $GITHUB_STEP_SUMMARY
-          echo "- Parallel Execution: Matrix strategies for independent builds" >> $GITHUB_STEP_SUMMARY
-          echo "- Conditional Execution: Path-based change detection" >> $GITHUB_STEP_SUMMARY
-          echo "- Build Strategy: Build-load-push with native retry" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          echo "### Optimizations Implemented" >> $GITHUB_STEP_SUMMARY
-          echo "- Cache integration and shared base images" >> $GITHUB_STEP_SUMMARY
-          echo "- Parallel builds with native retry logic" >> $GITHUB_STEP_SUMMARY
-          echo "- Automatic cleanup and resource management" >> $GITHUB_STEP_SUMMARY
 
   workflow-status:
     name: 'Workflow Status Dashboard'
