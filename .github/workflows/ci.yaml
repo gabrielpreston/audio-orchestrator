@@ -103,14 +103,15 @@ jobs:
 
   lint:
     name: 'Lint'
-    needs: 'changes'
+    needs: ['changes', 'build-base-images']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.docs == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success'
+      needs.changes.result == 'success' &&
+      (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 15
@@ -190,13 +191,13 @@ jobs:
 
   security-scan:
     name: 'Security scan'
-    needs: 'changes'
+    needs: ['changes', 'lint']
     if: |
       (needs.changes.outputs.security == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped')
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 15
@@ -235,13 +236,14 @@ jobs:
 
   test:
     name: 'Tests'
-    needs: ['changes', 'lint']
+    needs: ['changes', 'lint', 'build-base-images']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
+      needs.lint.result == 'success' &&
+      (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 20
@@ -487,7 +489,11 @@ jobs:
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
-      needs.lint.result == 'success'
+      needs.lint.result == 'success' &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped') &&
+      (needs.docs-verify.result == 'success' || needs.docs-verify.result == 'skipped') &&
+      needs.build-base-images.result == 'success'
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 30
@@ -602,12 +608,14 @@ jobs:
 
   docker-tools:
     name: 'Docker tools'
-    needs: ['changes', 'build-base-images']
+    needs: ['changes', 'lint', 'build-base-images']
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.workflows == 'true' ||
        github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success'
+      needs.changes.result == 'success' &&
+      (needs.lint.result == 'success' || needs.lint.result == 'skipped') &&
+      needs.build-base-images.result == 'success'
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 20
