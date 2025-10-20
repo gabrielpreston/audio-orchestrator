@@ -1,8 +1,6 @@
 # Workflow: Build Base Images
 # Purpose: Build shared base images weekly and on base Dockerfile changes
 name: 'Build Base Images'
-description: |
-  Build shared base images for Docker optimization
 on:
   schedule:
     - cron: '0 2 * * 0'  # Weekly on Sunday at 2 AM

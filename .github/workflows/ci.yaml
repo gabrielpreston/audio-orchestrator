@@ -2,8 +2,6 @@
 # Purpose: Run linting, testing, security scanning, and Docker smoke tests
 # when code changes are detected.
 name: 'CI'
-description: |
-  CI workflow validation steps
 on:
   push:
     branches: ['main']
@@ -347,7 +345,7 @@ jobs:
 
   docs-verify:
     name: 'Documentation verification'
-    needs: 'changes'
+    needs: ['changes']
     if: |
       (needs.changes.outputs.docs == 'true' ||
        github.event_name == 'workflow_dispatch') &&
@@ -363,7 +361,7 @@ jobs:
 
   build-base-images:
     name: 'Build Base Images'
-    needs: 'changes'
+    needs: ['changes']
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.base == 'true' ||
@@ -627,28 +625,28 @@ jobs:
         with:
           timeout_minutes: 15
           max_attempts: 3
-        command: |
-          echo "::group::Building ${{ matrix.service }}"
-          echo "Context: services/${{ matrix.service }}"
-          echo "Dockerfile: services/${{ matrix.service }}/Dockerfile"
-          echo "Tag: ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest"
-          echo "::endgroup::"
+          command: |
+            echo "::group::Building ${{ matrix.service }}"
+            echo "Context: services/${{ matrix.service }}"
+            echo "Dockerfile: services/${{ matrix.service }}/Dockerfile"
+            echo "Tag: ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest"
+            echo "::endgroup::"
 
-          if ! docker buildx build \
-            --file services/${{ matrix.service }}/Dockerfile \
-            --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
-            --cache-from type=gha,scope=base-images \
-            --cache-from type=gha,scope=docker-smoke-${{ matrix.service }}-buildx \
-            --cache-to type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx \
-            --load .; then
-            echo "::error::Build failed for ${{ matrix.service }}"
-            echo "::error::Context: services/${{ matrix.service }}"
-            echo "::error::Dockerfile: services/${{ matrix.service }}/Dockerfile"
-            echo "::error::Reproduction: docker build -f services/${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:test ."
-            exit 1
-          fi
+            if ! docker buildx build \
+              --file services/${{ matrix.service }}/Dockerfile \
+              --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-from type=gha,scope=docker-smoke-${{ matrix.service }}-buildx \
+              --cache-to type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx \
+              --load .; then
+              echo "::error::Build failed for ${{ matrix.service }}"
+              echo "::error::Context: services/${{ matrix.service }}"
+              echo "::error::Dockerfile: services/${{ matrix.service }}/Dockerfile"
+              echo "::error::Reproduction: docker build -f services/${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:test ."
+              exit 1
+            fi
 
-          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+            docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
       - name: 'Smoke test ${{ matrix.service }} service'
         if: steps.check_service.outputs.build == 'true'
         run: |
