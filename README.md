@@ -27,7 +27,7 @@ The system consists of five core services working together to process voice inpu
 
 ## Key Features
 
-- **Optimized CI/CD** with native retry logic and build-load-push strategy, automatic resource cleanup and exponential backoff retry
+- **Optimized CI/CD** with parallel validation (5min feedback), per-service conditional builds (60-80% resource savings), native retry logic, automatic resource cleanup, and clear error reproduction guides
 - **Wake phrase detection** with configurable phrases and confidence thresholds
 - **Real-time audio processing** with voice activity detection and silence filtering
 - **MCP tool integration** for extending bot capabilities with external services

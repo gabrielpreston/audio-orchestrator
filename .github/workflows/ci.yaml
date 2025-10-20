@@ -105,7 +105,7 @@ jobs:
 
   lint:
     name: 'Lint'
-    needs: ['changes', 'build-base-images']
+    needs: ['changes']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
@@ -113,14 +113,23 @@ jobs:
        needs.changes.outputs.default-ci-workflow == 'true' ||
        needs.changes.outputs.base-images-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
-      needs.changes.result == 'success' &&
-      (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
+      needs.changes.result == 'success'
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 15
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
+      - name: 'Cache Python dependencies'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: ${{ runner.os }}-python-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-
       - name: 'Setup job context'
         uses: actions/github-script@v7
         with:
@@ -239,21 +248,30 @@ jobs:
 
   test:
     name: 'Tests'
-    needs: ['changes', 'lint', 'build-base-images']
+    needs: ['changes', 'lint']
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.default-ci-workflow == 'true' ||
        needs.changes.outputs.base-images-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
-      needs.lint.result == 'success' &&
-      (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
+      needs.lint.result == 'success'
     runs-on: 'ubuntu-latest'
     environment: 'discord-voice-lab'
     timeout-minutes: 20
     steps:
       - name: 'Checkout repository'
         uses: 'actions/checkout@v4.2.2'
+      - name: 'Cache Python dependencies'
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/pypoetry
+          key: ${{ runner.os }}-python-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-
       - name: 'Setup job context'
         uses: actions/github-script@v7
         with:
@@ -386,12 +404,23 @@ jobs:
           timeout_minutes: 15
           max_attempts: 3
           command: |
-            docker buildx build \
+            echo "::group::Building python-base"
+            echo "Dockerfile: services/base/Dockerfile.python-base"
+            echo "Tag: ghcr.io/${{ github.repository_owner }}/python-base:latest"
+            echo "::endgroup::"
+
+            if ! docker buildx build \
               --file services/base/Dockerfile.python-base \
               --tag ghcr.io/${{ github.repository_owner }}/python-base:latest \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
-              --load . && \
+              --load .; then
+              echo "::error::Build failed for python-base"
+              echo "::error::Dockerfile: services/base/Dockerfile.python-base"
+              echo "::error::Reproduction: docker build -f services/base/Dockerfile.python-base -t python-base:test ."
+              exit 1
+            fi
+
             docker push ghcr.io/${{ github.repository_owner }}/python-base:latest
       - name: 'Build and push Python Audio Base Image with retry'
         uses: nick-fields/retry@v2
@@ -489,9 +518,6 @@ jobs:
     name: 'Docker smoke'
     needs: ['changes', 'lint', 'test', 'security-scan', 'docs-verify', 'build-base-images']
     if: |
-      (needs.changes.outputs.docker == 'true' ||
-       needs.changes.outputs.base-images-workflow == 'true' ||
-       github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       needs.lint.result == 'success' &&
       (needs.test.result == 'success' || needs.test.result == 'skipped') &&
@@ -546,34 +572,134 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: 'Check if service needs build'
+        id: check_service
+        run: |
+          SERVICE="${{ matrix.service }}"
+          SHOULD_BUILD="false"
+
+          # Check service-specific changes
+          case "$SERVICE" in
+            discord)
+              if [ "${{ needs.changes.outputs.discord }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            stt)
+              if [ "${{ needs.changes.outputs.stt }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            llm)
+              if [ "${{ needs.changes.outputs.llm }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            orchestrator)
+              if [ "${{ needs.changes.outputs.orchestrator }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            tts)
+              if [ "${{ needs.changes.outputs.tts }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+          esac
+
+          # Check common triggers
+          if [ "${{ needs.changes.outputs.docker }}" = "true" ] || \
+             [ "${{ needs.changes.outputs.base }}" = "true" ] || \
+             [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            SHOULD_BUILD="true"
+          fi
+
+          echo "build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
+
+          if [ "$SHOULD_BUILD" = "true" ]; then
+            echo "Building $SERVICE (changes detected)"
+          else
+            echo "Skipping $SERVICE (no changes detected)"
+          fi
       - name: 'Build and push ${{ matrix.service }} service with retry'
+        if: steps.check_service.outputs.build == 'true'
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
           max_attempts: 3
-          command: |
-            docker buildx build \
-              --file services/${{ matrix.service }}/Dockerfile \
-              --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
-              --cache-from type=gha,scope=base-images \
-              --cache-from type=gha,scope=docker-smoke-${{ matrix.service }}-buildx \
-              --cache-to type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx \
-              --load . && \
-            docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+        command: |
+          echo "::group::Building ${{ matrix.service }}"
+          echo "Context: services/${{ matrix.service }}"
+          echo "Dockerfile: services/${{ matrix.service }}/Dockerfile"
+          echo "Tag: ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest"
+          echo "::endgroup::"
+
+          if ! docker buildx build \
+            --file services/${{ matrix.service }}/Dockerfile \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
+            --cache-from type=gha,scope=base-images \
+            --cache-from type=gha,scope=docker-smoke-${{ matrix.service }}-buildx \
+            --cache-to type=gha,mode=max,scope=docker-smoke-${{ matrix.service }}-buildx \
+            --load .; then
+            echo "::error::Build failed for ${{ matrix.service }}"
+            echo "::error::Context: services/${{ matrix.service }}"
+            echo "::error::Dockerfile: services/${{ matrix.service }}/Dockerfile"
+            echo "::error::Reproduction: docker build -f services/${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:test ."
+            exit 1
+          fi
+
+          docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
       - name: 'Smoke test ${{ matrix.service }} service'
+        if: steps.check_service.outputs.build == 'true'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
           # Basic smoke test - verify the image can start
           docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python --version || echo "Service ${{ matrix.service }} smoke test completed"
           echo "::endgroup::"
+      - name: 'Service build skipped'
+        if: steps.check_service.outputs.build == 'false'
+        run: |
+          echo "::notice::Skipped building ${{ matrix.service }} (no changes detected)"
       - name: 'Upload ${{ matrix.service }} build artifacts'
         uses: 'actions/upload-artifact@v4'
-        if: always()
+        if: always() && steps.check_service.outputs.build == 'true'
         with:
           name: '${{ matrix.service }}-build-artifacts'
           path: |
             docker-smoke.log
           retention-days: 7
+      - name: 'Generate reproduction guide'
+        if: failure() && steps.check_service.outputs.build == 'true'
+        run: |
+          cat << EOF >> $GITHUB_STEP_SUMMARY
+          ## Build Failure: ${{ matrix.service }}
+
+          ### Local Reproduction Steps
+          \`\`\`bash
+          # Clone repository
+          git clone https://github.com/${{ github.repository }}
+          cd \$(basename ${{ github.repository }})
+
+          # Checkout exact commit
+          git checkout ${{ github.sha }}
+
+          # Build locally
+          docker build -f services/${{ matrix.service }}/Dockerfile -t ${{ matrix.service }}:test .
+          \`\`\`
+
+          ### Quick Debug Checklist
+          - [ ] Check Dockerfile: \`services/${{ matrix.service }}/Dockerfile\`
+          - [ ] Check requirements: \`services/${{ matrix.service }}/requirements.txt\`
+          - [ ] Verify base image: \`docker pull ghcr.io/${{ github.repository_owner }}/python-base:latest\`
+          - [ ] Check common files: \`services/common/\`
+
+          ### Environment Details
+          - **Runner**: ${{ runner.os }} (${{ runner.arch }})
+          - **Docker**: \$(docker --version)
+          - **Buildx**: \$(docker buildx version)
+          - **Commit**: ${{ github.sha }}
+          - **Branch**: ${{ github.ref_name }}
+          EOF
       - name: 'Cleanup resources with reporting'
         if: always()
         run: |
@@ -603,6 +729,8 @@ jobs:
         run: |
           echo "::group::Job Status Summary"
           echo "Job: ${{ github.job }}"
+          echo "Service: ${{ matrix.service }}"
+          echo "Build Status: $([ "${{ steps.check_service.outputs.build }}" = "true" ] && echo "Built" || echo "Skipped")"
           echo "Runner: ${{ runner.os }} (${{ runner.arch }})"
           echo "Available Space: $(df -h / | awk 'NR==2{print $4}')"
           echo "Docker Images: $(docker images -q | wc -l)"
