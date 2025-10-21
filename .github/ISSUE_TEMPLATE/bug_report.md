@@ -21,9 +21,11 @@ labels: bug
 
 ## Local verification
 
-- [ ] `make lint-local`
-- [ ] `make test-local`
-- [ ] `make docker-smoke`
+- [ ] `make lint` (unified linting via Docker)
+- [ ] `make test-unit` (fast unit tests)
+- [ ] `make test-component` (component tests)
+- [ ] `make test-integration` (integration tests)
+- [ ] `make docker-smoke` (Docker smoke tests)
 - Notes:
 
 ## Additional details

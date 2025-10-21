@@ -636,7 +636,8 @@ class VoiceBot(discord.Client):
                             guild_id=context.guild_id,
                             channel_id=context.channel_id,
                         )
-                        # TODO: Future enhancement - send pre-canned text response
+                        # NOTE: Future enhancement - send pre-canned text response when orchestrator unavailable
+                        # Requires implementing text message sending capability in Discord bot
                         # await self._send_fallback_response(context, "Voice processing unavailable")
                         continue
 
@@ -743,8 +744,10 @@ class VoiceBot(discord.Client):
 
             # Save debug data for orchestrator communication
 
-            # TODO: Handle orchestrator response (TTS audio, tool calls, etc.)
-            # For now, just log the result
+            # NOTE: Orchestrator response handling is intentionally deferred.
+            # Current implementation focuses on transcript forwarding to orchestrator.
+            # Future work: Handle TTS audio playback, tool execution responses, and
+            # bidirectional communication flows. Track in roadmap or create issue if needed.
 
         except Exception as exc:
             transcript_logger.error(
