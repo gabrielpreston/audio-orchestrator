@@ -1,83 +1,151 @@
-# Discord Voice Lab
+# Audio-First AI Orchestrator Platform
 
-[![CI][ci-badge]][ci-workflow]
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Linting: flake8](https://img.shields.io/badge/linting-flake8-yellow.svg)](https://flake8.pycqa.org/)
+[![Type checking: mypy](https://img.shields.io/badge/type%20checking-mypy-blue.svg)](https://mypy.readthedocs.io/)
+[![Tests: pytest](https://img.shields.io/badge/tests-pytest-green.svg)](https://pytest.org/)
 
-A voice-first Discord assistant with speech-to-text, language orchestration, and text-to-speech services. The bot captures voice from Discord, streams audio to faster-whisper, coordinates Model Context Protocol (MCP) tools, and plays back synthesized responses.
+A modular, audio-first AI orchestration platform designed for real-time voice interactions with pluggable I/O adapters and intelligent agent routing.
 
-## Quickstart
+## Architecture Overview
 
-1. **Set up environment files** using the [environment configuration guide](docs/getting-started/environment.md)
-2. **Launch the stack** with `make run`
-3. **Configure Discord** following the [runtime quickstart](docs/getting-started/runtime.md)
-4. **Explore development workflows** via [local development guide](docs/getting-started/local-development.md)
+The platform consists of several key components:
 
-## Architecture
+- **I/O Adapters**: Pluggable interfaces for audio input/output (Discord, WebRTC, etc.)
+- **Audio Pipeline**: Real-time audio processing, conversion, and transcription
+- **Orchestrator Engine**: Core coordination between input, processing, and output
+- **Agent System**: Modular AI agents for different conversation contexts
+- **Persistence Layer**: Session management and conversation history storage
 
-The system consists of five core services working together to process voice input and generate intelligent responses:
+### Directory Structure
 
-**Discord Service** (`services/discord`) - Captures Discord voice, detects wake phrases, forwards audio to STT, plays TTS output, and exposes MCP tools for automation.
+```
+audio-orchestrator/
+├── bot/                    # Main application entry points
+├── config/                 # Configuration management
+├── io_adapters/           # Audio I/O adapter implementations
+├── audio_pipeline/        # Audio processing and conversion
+├── orchestrator/          # Core orchestration engine
+├── agents/                # AI agent implementations
+├── services/              # External service integrations (STT, TTS)
+├── persistence/           # Data storage interfaces
+├── monitoring/            # Metrics and observability
+├── tests/                 # Test suites
+└── docs/                  # Documentation
+```
 
-**Speech-to-Text Service** (`services/stt`) - Provides HTTP transcription with streaming-friendly latencies using faster-whisper for the Discord bot and other clients.
+## Quick Start
 
-**Orchestrator Service** (`services/orchestrator`) - Coordinates transcript processing, MCP tool calls, and response planning. Routes reasoning requests to the LLM service.
+### Prerequisites
 
-**Language Model Service** (`services/llm`) - Presents an OpenAI-compatible endpoint that can broker MCP tool invocations and return reasoning output to the orchestrator.
+- Python 3.11+
+- FFmpeg (for audio processing)
+- Discord Bot Token (for Discord adapter)
 
-**Text-to-Speech Service** (`services/tts`) - Streams Piper-generated audio for orchestrator responses with authentication and rate limits.
+### Installation
 
-## Key Features
+1. Clone the repository:
+```bash
+git clone https://github.com/audio-orchestrator/platform.git
+cd audio-orchestrator
+```
 
-- **Optimized CI/CD** with parallel validation (5min feedback), per-service conditional builds (60-80% resource savings), native retry logic, automatic resource cleanup, and clear error reproduction guides
-- **Wake phrase detection** with configurable phrases and confidence thresholds
-- **Real-time audio processing** with voice activity detection and silence filtering
-- **MCP tool integration** for extending bot capabilities with external services
-- **Streaming audio pipeline** for low-latency voice interactions
-- **Modular architecture** with independent, containerized services
-- **Structured logging** with JSON output and correlation IDs
-- **Health checks** and circuit breakers for service resilience
+2. Create a virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+3. Install dependencies:
+```bash
+pip install -e .
+pip install -e ".[dev]"  # For development dependencies
+```
+
+4. Create configuration:
+```bash
+cp .env.sample .env
+# Edit .env with your Discord token and other settings
+```
+
+5. Run the application:
+```bash
+python -m bot.main
+```
+
+## Configuration
+
+The platform uses environment variables for configuration. Copy `.env.sample` to `.env` and customize:
+
+```env
+# Discord Configuration
+DISCORD_TOKEN=your_discord_bot_token
+
+# Database
+DB_URL=sqlite+aiosqlite:///./audio_orchestrator.db
+
+# Audio Settings
+AUDIO_SAMPLE_RATE=16000
+AUDIO_CHANNELS=1
+FFMPEG_PATH=ffmpeg
+
+# Logging
+LOG_LEVEL=INFO
+```
 
 ## Development
 
-- **Linting & Testing**: Run `make lint` and `make test` for code quality checks
-- **Unit Tests**: `make test-unit` - Fast, isolated tests
-- **Component Tests**: `make test-component` - Internal logic with mocks
-- **Integration Tests**: `make test-integration` - Service HTTP boundaries via Docker Compose
-  - **Voice Pipeline Tests**: Complete end-to-end voice feedback loop validation
-  - **Audio Format Chain**: Format preservation and quality validation
-  - **Performance Tests**: Latency benchmarks and concurrent processing
-  - **Discord Integration**: MCP endpoints and service communication
-  - **Cross-Service Auth**: Authentication flow validation
-- **End-to-End Tests**: `pytest -m e2e` - Full system validation with real Discord (manual trigger)
-- **Workflow Validation**: Run `make workflows-validate` to validate GitHub Actions workflows with yamllint and actionlint
-- **Local Development**: Use `make run` to start services, `make logs` to follow output
-- **CI/CD**: Automated testing, linting, and security scanning on every push
-- **Documentation**: Comprehensive guides in the [documentation hub](docs/README.md)
+### Code Quality
 
-### Build Optimization
-
-For faster local development builds:
+The project enforces code quality through automated tools:
 
 ```bash
-make docker-build-incremental  # Smart rebuild (detects changes)
+# Format code
+black .
+
+# Lint code
+flake8 .
+
+# Type checking
+mypy .
+
+# Run tests
+pytest
 ```
 
-This detects which services changed using git and rebuilds only those services, reducing typical build times from 8-12 minutes to 1-2 minutes.
+### Adding New Adapters
 
-## Documentation
+See [docs/adding_adapter.md](docs/adding_adapter.md) for guidance on implementing new I/O adapters.
 
-Navigate deeper using the [documentation hub](docs/README.md):
+### Adding New Agents
 
-- **Getting Started** — Onboarding, environment management, troubleshooting
-- **Architecture** — System overview, service deep dives, MCP integrations  
-- **Operations** — Runbooks, observability, security practices
-- **Reference** — Configuration catalog and API appendices
-- **Roadmaps & Reports** — Strategic plans and implementation reviews
+See [docs/adding_agent.md](docs/adding_agent.md) for guidance on creating new AI agents.
 
 ## Contributing
 
-This project follows the [Contributor Playbook](AGENTS.md) for development workflows, code quality standards, and contribution guidelines. All changes must pass tests and linters before merging.
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and quality checks
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
 
----
+## License
 
-[ci-badge]: https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml/badge.svg
-[ci-workflow]: https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Roadmap
+
+- [ ] WebRTC adapter for browser-based audio
+- [ ] Advanced agent routing with ML-based selection
+- [ ] Distributed scaling support
+- [ ] Real-time audio quality metrics
+- [ ] Plugin system for custom agents
+
+## Support
+
+- Documentation: [audio-orchestrator.dev/docs](https://audio-orchestrator.dev/docs)
+- Issues: [GitHub Issues](https://github.com/audio-orchestrator/platform/issues)
+- Discussions: [GitHub Discussions](https://github.com/audio-orchestrator/platform/discussions)
