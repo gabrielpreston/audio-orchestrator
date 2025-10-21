@@ -242,9 +242,7 @@ async def chat_completions(
         logger.warning("llm.bad_request", reason="messages_missing")
         raise HTTPException(status_code=400, detail="messages required")
 
-    prompt_bytes = len(
-        "\n".join(message.content for message in req.messages).encode("utf-8")
-    )
+    prompt_bytes = len("\n".join(message.content for message in req.messages).encode("utf-8"))
     logger.debug(
         "llm.request_received",
         model=req.model,
@@ -370,9 +368,7 @@ async def health_ready() -> dict[str, Any]:
 
     # Determine status string
     if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
+        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
     else:
         status_str = "ready"
 

@@ -29,9 +29,7 @@ class ResilientHTTPClient:
     ):
         self._service_name = service_name
         self._base_url = base_url.rstrip("/")
-        self._circuit = CircuitBreaker(
-            service_name, circuit_config or CircuitBreakerConfig()
-        )
+        self._circuit = CircuitBreaker(service_name, circuit_config or CircuitBreakerConfig())
         self._client: httpx.AsyncClient | None = None
         self._timeout = timeout
         self._logger = get_logger(__name__)

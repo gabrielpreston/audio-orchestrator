@@ -70,9 +70,7 @@ class TestLoggerCreation:
         service_name = "test_service"
         captured_output = StringIO()
         configure_logging(level="INFO", json_logs=True, stream=captured_output)
-        logger = get_logger(
-            "test_logger", correlation_id=correlation_id, service_name=service_name
-        )
+        logger = get_logger("test_logger", correlation_id=correlation_id, service_name=service_name)
 
         logger.info("test message")
 

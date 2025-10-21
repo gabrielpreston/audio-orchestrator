@@ -38,31 +38,19 @@ def reference_audio_data():
     """Reference audio data for testing."""
     return {
         "sine_440hz": generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
-        "sine_1000hz": generate_test_audio(
-            duration=2.0, frequency=1000.0, amplitude=0.3
-        ),
-        "voice_range_300hz": generate_test_audio(
-            duration=1.5, frequency=300.0, amplitude=0.4
-        ),
-        "voice_range_3400hz": generate_test_audio(
-            duration=1.5, frequency=3400.0, amplitude=0.4
-        ),
+        "sine_1000hz": generate_test_audio(duration=2.0, frequency=1000.0, amplitude=0.3),
+        "voice_range_300hz": generate_test_audio(duration=1.5, frequency=300.0, amplitude=0.4),
+        "voice_range_3400hz": generate_test_audio(duration=1.5, frequency=3400.0, amplitude=0.4),
         "silence": generate_test_audio(duration=1.0, frequency=0.0, amplitude=0.0),
-        "low_amplitude": generate_test_audio(
-            duration=1.0, frequency=440.0, amplitude=0.01
-        ),
-        "high_amplitude": generate_test_audio(
-            duration=1.0, frequency=440.0, amplitude=0.9
-        ),
+        "low_amplitude": generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.01),
+        "high_amplitude": generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.9),
     }
 
 
 class TestReferenceAudioComparisons:
     """Test reference audio comparisons."""
 
-    def test_known_good_audio_samples_produce_consistent_results(
-        self, reference_audio_data
-    ):
+    def test_known_good_audio_samples_produce_consistent_results(self, reference_audio_data):
         """Test known-good audio samples produce consistent results."""
         for _sample_name, _audio_data in reference_audio_data.items():
             # Test consistency across multiple runs
@@ -71,12 +59,8 @@ class TestReferenceAudioComparisons:
             for _ in range(3):
                 # Calculate quality metrics
                 snr = calculate_snr(_audio_data, noise_floor=0.01)
-                thd = calculate_thd(
-                    _audio_data, fundamental_freq=440.0, sample_rate=16000
-                )
-                freq_response = measure_frequency_response(
-                    _audio_data, sample_rate=16000
-                )
+                thd = calculate_thd(_audio_data, fundamental_freq=440.0, sample_rate=16000)
+                freq_response = measure_frequency_response(_audio_data, sample_rate=16000)
 
                 results.append(
                     {
@@ -249,9 +233,7 @@ class TestQualityRegressionDetection:
         # Test regression detection
         for _sample_name, _audio_data in reference_audio_data.items():
             current_snr = calculate_snr(_audio_data, noise_floor=0.01)
-            current_thd = calculate_thd(
-                _audio_data, fundamental_freq=440.0, sample_rate=16000
-            )
+            current_thd = calculate_thd(_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
             baseline_snr = baseline_metrics[_sample_name]["snr"]
             baseline_thd = baseline_metrics[_sample_name]["thd"]
@@ -398,9 +380,7 @@ class TestQualityRegressionPrevention:
         for _sample_name, _audio_data in reference_audio_data.items():
             # Calculate current quality
             current_snr = calculate_snr(_audio_data, noise_floor=0.01)
-            current_thd = calculate_thd(
-                _audio_data, fundamental_freq=440.0, sample_rate=16000
-            )
+            current_thd = calculate_thd(_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
             # Simulate regression (lower SNR, higher THD)
             simulated_snr = current_snr - 10.0  # 10dB regression

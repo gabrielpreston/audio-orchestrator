@@ -223,9 +223,7 @@ def correlation_context(
     """
     if correlation_id:
         # Store the previous correlation_id to restore it later
-        previous_correlation_id = structlog.contextvars.get_contextvars().get(
-            "correlation_id"
-        )
+        previous_correlation_id = structlog.contextvars.get_contextvars().get("correlation_id")
         structlog.contextvars.bind_contextvars(correlation_id=correlation_id)
 
     logger = structlog.stdlib.get_logger()
@@ -236,9 +234,7 @@ def correlation_context(
         if correlation_id:
             # Restore the previous correlation_id or clear if there wasn't one
             if previous_correlation_id is not None:
-                structlog.contextvars.bind_contextvars(
-                    correlation_id=previous_correlation_id
-                )
+                structlog.contextvars.bind_contextvars(correlation_id=previous_correlation_id)
             else:
                 structlog.contextvars.unbind_contextvars("correlation_id")
 

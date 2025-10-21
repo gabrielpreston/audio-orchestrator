@@ -95,9 +95,7 @@ class HealthManager:
         self._startup_complete = True
         self._logger.info("health.startup_complete", service=self._service_name)
         # Update startup metric
-        self._health_status_gauge.labels(
-            service=self._service_name, component="startup"
-        ).set(1)
+        self._health_status_gauge.labels(service=self._service_name, component="startup").set(1)
 
     async def get_health_status(self) -> HealthCheck:
         """Get current health status with metrics."""
@@ -136,9 +134,7 @@ class HealthManager:
                     self._dependency_status_gauge.labels(
                         service=self._service_name, dependency=name
                     ).set(0)
-                    self._logger.warning(
-                        "health.dependency_error", dependency=name, error=str(exc)
-                    )
+                    self._logger.warning("health.dependency_error", dependency=name, error=str(exc))
 
             status = HealthStatus.HEALTHY if ready else HealthStatus.DEGRADED
 
@@ -148,9 +144,9 @@ class HealthManager:
                 if status == HealthStatus.HEALTHY
                 else 0.5 if status == HealthStatus.DEGRADED else 0
             )
-            self._health_status_gauge.labels(
-                service=self._service_name, component="overall"
-            ).set(status_value)
+            self._health_status_gauge.labels(service=self._service_name, component="overall").set(
+                status_value
+            )
 
             return HealthCheck(
                 status=status,

@@ -76,8 +76,7 @@ class TestPerformanceIntegration:
                 tts_latency < test_voice_performance_thresholds["max_tts_latency_s"]
             ), f"TTS latency {tts_latency:.3f}s exceeds {test_voice_performance_thresholds['max_tts_latency_s']}s threshold"
             assert (
-                total_latency
-                < test_voice_performance_thresholds["max_end_to_end_latency_s"]
+                total_latency < test_voice_performance_thresholds["max_end_to_end_latency_s"]
             ), f"Total latency {total_latency:.3f}s exceeds {test_voice_performance_thresholds['max_end_to_end_latency_s']}s threshold"
 
             # Log performance metrics
@@ -175,12 +174,8 @@ class TestPerformanceIntegration:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Analyze results
-        successful_results = [
-            r for r in results if isinstance(r, dict) and r.get("success")
-        ]
-        failed_results = [
-            r for r in results if isinstance(r, dict) and not r.get("success")
-        ]
+        successful_results = [r for r in results if isinstance(r, dict) and r.get("success")]
+        failed_results = [r for r in results if isinstance(r, dict) and not r.get("success")]
         exceptions = [r for r in results if isinstance(r, Exception)]
 
         print("Concurrent Processing Results:")
@@ -210,9 +205,7 @@ class TestPerformanceIntegration:
         async def health_check(service_url: str) -> dict:
             async with httpx.AsyncClient() as client:
                 try:
-                    response = await client.get(
-                        f"{service_url}/health/ready", timeout=5.0
-                    )
+                    response = await client.get(f"{service_url}/health/ready", timeout=5.0)
                     return {
                         "service": service_url,
                         "status_code": response.status_code,
@@ -235,9 +228,7 @@ class TestPerformanceIntegration:
             "http://discord:8001",
         ]
 
-        health_results = await asyncio.gather(
-            *[health_check(service) for service in services]
-        )
+        health_results = await asyncio.gather(*[health_check(service) for service in services])
 
         # All services should be healthy
         for result in health_results:
@@ -311,9 +302,7 @@ class TestPerformanceIntegration:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # All should complete successfully
-        successful_results = [
-            r for r in results if isinstance(r, dict) and r.get("success")
-        ]
+        successful_results = [r for r in results if isinstance(r, dict) and r.get("success")]
         assert (
             len(successful_results) >= 2
         ), f"Only {len(successful_results)} memory-intensive requests succeeded"
@@ -374,17 +363,13 @@ class TestPerformanceIntegration:
                 total_latency = time.time() - start_time
                 latencies.append(total_latency)
 
-        assert (
-            len(latencies) >= 3
-        ), f"Only {len(latencies)} requests succeeded, expected at least 3"
+        assert len(latencies) >= 3, f"Only {len(latencies)} requests succeeded, expected at least 3"
 
         # Calculate latency statistics
         avg_latency = sum(latencies) / len(latencies)
         max_latency = max(latencies)
         min_latency = min(latencies)
-        latency_variance = sum((lat - avg_latency) ** 2 for lat in latencies) / len(
-            latencies
-        )
+        latency_variance = sum((lat - avg_latency) ** 2 for lat in latencies) / len(latencies)
         latency_std = latency_variance**0.5
 
         print("Latency Consistency Results:")
@@ -397,6 +382,4 @@ class TestPerformanceIntegration:
         assert (
             latency_std < 1.0
         ), f"Latency standard deviation {latency_std:.3f}s is too high, indicates inconsistent performance"
-        assert (
-            max_latency < 3.0
-        ), f"Maximum latency {max_latency:.3f}s exceeds 3s threshold"
+        assert max_latency < 3.0, f"Maximum latency {max_latency:.3f}s exceeds 3s threshold"

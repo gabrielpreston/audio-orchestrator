@@ -169,9 +169,7 @@ def create_mock_transcription_result(
         "start_time": start_time,
         "end_time": end_time,
         "no_speech_probability": 0.1,
-        "segments": [
-            {"text": text, "start": start_time, "end": end_time, "no_speech_prob": 0.1}
-        ],
+        "segments": [{"text": text, "start": start_time, "end": end_time, "no_speech_prob": 0.1}],
     }
 
 

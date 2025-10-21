@@ -113,9 +113,7 @@ class TestFastWhisperAdapterTranscription:
             assert result.end_time == 1.0
             mock_model.transcribe.assert_called_once()
 
-    async def test_streaming_transcription(
-        self, mock_adapter_config, sample_audio_data
-    ):
+    async def test_streaming_transcription(self, mock_adapter_config, sample_audio_data):
         """Test streaming transcription."""
         with patch("services.stt.models.FastWhisperAdapter._load_model") as mock_load:
             mock_model = Mock()
@@ -348,9 +346,7 @@ class TestFastWhisperAdapterPerformance:
             # Memory usage should be tracked in telemetry
             assert "memory_usage" in telemetry or "model_size" in telemetry
 
-    async def test_concurrent_transcriptions(
-        self, mock_adapter_config, sample_audio_data
-    ):
+    async def test_concurrent_transcriptions(self, mock_adapter_config, sample_audio_data):
         """Test concurrent transcriptions."""
         with patch("services.stt.models.FastWhisperAdapter._load_model") as mock_load:
             mock_model = Mock()

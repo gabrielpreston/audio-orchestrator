@@ -82,9 +82,7 @@ class SurfaceAdapterChaosTester:
         Returns:
             Chaos test result
         """
-        logger.info(
-            "Starting network fault injection test for %s seconds", duration_seconds
-        )
+        logger.info("Starting network fault injection test for %s seconds", duration_seconds)
 
         test_name = "network_fault_injection"
         failure_count = 0
@@ -109,9 +107,7 @@ class SurfaceAdapterChaosTester:
                     await self._test_adapter_operation(adapter)
 
                     # Check for recovery
-                    if failure_count > 0 and await self._check_adapter_recovery(
-                        adapter
-                    ):
+                    if failure_count > 0 and await self._check_adapter_recovery(adapter):
                         recovery_count += 1
                         failure_count = 0  # Reset failure count on recovery
 
@@ -185,9 +181,7 @@ class SurfaceAdapterChaosTester:
 
             # Create memory pressure
             memory_blocks: list[bytes] = []
-            target_memory = int(
-                memory_pressure_level * 100 * 1024 * 1024
-            )  # MB to bytes
+            target_memory = int(memory_pressure_level * 100 * 1024 * 1024)  # MB to bytes
 
             # Run test with memory pressure
             while (datetime.now() - start_time).total_seconds() < duration_seconds:
@@ -200,18 +194,14 @@ class SurfaceAdapterChaosTester:
                     await self._test_adapter_operation(adapter)
 
                     # Check for recovery
-                    if failure_count > 0 and await self._check_adapter_recovery(
-                        adapter
-                    ):
+                    if failure_count > 0 and await self._check_adapter_recovery(adapter):
                         recovery_count += 1
                         failure_count = 0
 
                     await asyncio.sleep(0.1)  # 100ms loop
 
                 except (ValueError, TypeError, KeyError, RuntimeError) as e:
-                    error_messages.append(
-                        f"Operation failed under memory pressure: {e}"
-                    )
+                    error_messages.append(f"Operation failed under memory pressure: {e}")
                     failure_count += 1
                     await asyncio.sleep(0.5)
 
@@ -335,9 +325,7 @@ class SurfaceAdapterChaosTester:
         Returns:
             Chaos test result
         """
-        logger.info(
-            "Starting concurrent operations test with %s tasks", concurrent_tasks
-        )
+        logger.info("Starting concurrent operations test with %s tasks", concurrent_tasks)
 
         test_name = "concurrent_operations"
         failure_count = 0
@@ -366,9 +354,7 @@ class SurfaceAdapterChaosTester:
                 if isinstance(task_result, Exception):
                     error_messages.append(f"Concurrent task failed: {task_result}")
                     failure_count += 1
-                elif (
-                    isinstance(task_result, dict) and task_result.get("failures", 0) > 0
-                ):
+                elif isinstance(task_result, dict) and task_result.get("failures", 0) > 0:
                     failure_count += task_result["failures"]
                     error_messages.extend(task_result.get("errors", []))
 
@@ -403,9 +389,7 @@ class SurfaceAdapterChaosTester:
 
         return result
 
-    async def run_comprehensive_chaos_tests(
-        self, adapters: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def run_comprehensive_chaos_tests(self, adapters: dict[str, Any]) -> dict[str, Any]:
         """
         Run comprehensive chaos tests on all adapters.
 

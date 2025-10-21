@@ -41,15 +41,13 @@ dev = [
     "black>=23.0.0",
     "flake8>=6.0.0",
     "mypy>=1.5.0",
-    "types-soundfile>=0.12.0",
-    "types-requests>=2.31.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/audio-orchestrator/platform"
-Repository = "https://github.com/audio-orchestrator/platform"
-Documentation = "https://audio-orchestrator.dev/docs"
-Issues = "https://github.com/audio-orchestrator/platform/issues"
+Homepage = "https://github.com/gabrielpreston/audio-orchestrator"
+Repository = "https://github.com/gabrielpreston/audio-orchestrator"
+Documentation = "https://github.com/gabrielpreston/audio-orchestrator/docs"
+Issues = "https://github.com/gabrielpreston/audio-orchestrator/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

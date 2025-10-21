@@ -182,9 +182,7 @@ class TestMCPIntegration:
         for response in responses:
             if isinstance(response, Exception):
                 # Timeout or connection errors are acceptable
-                assert isinstance(
-                    response, (httpx.TimeoutException, httpx.ConnectError)
-                )
+                assert isinstance(response, (httpx.TimeoutException, httpx.ConnectError))
             else:
                 assert hasattr(response, "status_code")
                 assert response.status_code == 200

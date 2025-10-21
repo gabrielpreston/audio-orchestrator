@@ -22,9 +22,7 @@ class TestTTSServiceAudioValidation:
         """Mock TTS adapter for testing."""
         return MockTTSAdapter()
 
-    def test_tts_service_returns_valid_wav(
-        self, mock_tts_adapter, tts_artifacts_dir: Path
-    ):
+    def test_tts_service_returns_valid_wav(self, mock_tts_adapter, tts_artifacts_dir: Path):
         """Test TTS service returns valid WAV format."""
         # Mock the TTS service response
         mock_audio_data = mock_tts_adapter.synthesize("Hello world")

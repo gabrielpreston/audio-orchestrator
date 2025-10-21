@@ -96,9 +96,7 @@ class TestCorrelationIDParsing:
     @pytest.mark.unit
     def test_parse_mcp_full_format(self):
         """Test parsing MCP correlation ID."""
-        correlation_id = (
-            "mcp-weather_client-get_weather-orchestrator-123456-1704067200000-12345678"
-        )
+        correlation_id = "mcp-weather_client-get_weather-orchestrator-123456-1704067200000-12345678"
         parsed = parse_correlation_id(correlation_id)
 
         assert parsed["service"] == "mcp"
@@ -149,23 +147,15 @@ class TestCorrelationIDParsing:
     @pytest.mark.unit
     def test_get_service_from_correlation_id(self):
         """Test getting service name from correlation ID."""
-        assert (
-            get_service_from_correlation_id("discord-123456-1704067200000-12345678")
-            == "discord"
-        )
+        assert get_service_from_correlation_id("discord-123456-1704067200000-12345678") == "discord"
         assert get_service_from_correlation_id("stt-1704067200000-12345678") == "stt"
         assert get_service_from_correlation_id("tts-1704067200000-12345678") == "tts"
         assert (
-            get_service_from_correlation_id(
-                "orchestrator-123456-1704067200000-12345678"
-            )
+            get_service_from_correlation_id("orchestrator-123456-1704067200000-12345678")
             == "orchestrator"
         )
         assert get_service_from_correlation_id("mcp-client-tool-source") == "mcp"
-        assert (
-            get_service_from_correlation_id("manual-service-1704067200000-12345678")
-            == "manual"
-        )
+        assert get_service_from_correlation_id("manual-service-1704067200000-12345678") == "manual"
 
         assert get_service_from_correlation_id("unknown-service-12345") == "unknown"
 

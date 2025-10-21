@@ -226,9 +226,7 @@ class FastWhisperAdapter(STTAdapter):
             result = STTResult(
                 text=transcript_text.strip(),
                 confidence=confidence,
-                language=(
-                    info.language if hasattr(info, "language") else self.config.language
-                ),
+                language=(info.language if hasattr(info, "language") else self.config.language),
                 start_time=0.0,
                 end_time=duration,
                 duration=duration,

@@ -59,9 +59,7 @@ class TestRealTTSSynthesisIntegration:
         mock_client.post.side_effect = mock_synthesize
         return mock_client
 
-    def test_real_tts_text_to_audio_conversion(
-        self, tts_client, tts_artifacts_dir: Path
-    ):
+    def test_real_tts_text_to_audio_conversion(self, tts_client, tts_artifacts_dir: Path):
         """Test actual text-to-audio conversion."""
         # Make real TTS request
         response = tts_client.post(
@@ -79,9 +77,7 @@ class TestRealTTSSynthesisIntegration:
     def test_real_tts_wav_format_validation(self, tts_client, tts_artifacts_dir: Path):
         """Test real TTS output format validation."""
         # Make TTS request
-        response = tts_client.post(
-            "/synthesize", json={"text": "Format validation test"}
-        )
+        response = tts_client.post("/synthesize", json={"text": "Format validation test"})
 
         # Validate WAV format
         wav_info = validate_tts_audio_format(response.content)
@@ -97,16 +93,12 @@ class TestRealTTSSynthesisIntegration:
         output_file = tts_artifacts_dir / "real_tts_format.wav"
         output_file.write_bytes(response.content)
 
-    def test_real_tts_audio_quality_thresholds(
-        self, tts_client, tts_artifacts_dir: Path
-    ):
+    def test_real_tts_audio_quality_thresholds(self, tts_client, tts_artifacts_dir: Path):
         """Test real TTS audio quality meets thresholds."""
         # Make TTS request
         response = tts_client.post(
             "/synthesize",
-            json={
-                "text": "Quality threshold test with longer text for better analysis"
-            },
+            json={"text": "Quality threshold test with longer text for better analysis"},
         )
 
         # Validate audio quality

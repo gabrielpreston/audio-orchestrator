@@ -66,9 +66,7 @@ class TestDebugWAV:
         )
 
     @pytest.mark.component
-    def test_save_debug_wav_creates_file(
-        self, voice_bot, sample_audio_segment, temp_debug_dir
-    ):
+    def test_save_debug_wav_creates_file(self, voice_bot, sample_audio_segment, temp_debug_dir):
         """Test that _save_debug_wav creates a playable WAV file."""
 
         # Mock the _save_debug_wav method
@@ -155,9 +153,7 @@ class TestDebugWAV:
         assert filename.endswith(".wav")
 
     @pytest.mark.component
-    def test_save_debug_wav_skips_when_dir_not_set(
-        self, voice_bot, sample_audio_segment
-    ):
+    def test_save_debug_wav_skips_when_dir_not_set(self, voice_bot, sample_audio_segment):
         """Test that _save_debug_wav skips when debug directory is not set."""
         # Set debug directory to None
         voice_bot.config.telemetry.waveform_debug_dir = None
@@ -178,9 +174,7 @@ class TestDebugWAV:
         voice_bot._logger.warning.assert_not_called()
 
     @pytest.mark.component
-    def test_save_debug_wav_logs_success(
-        self, voice_bot, sample_audio_segment, temp_debug_dir
-    ):
+    def test_save_debug_wav_logs_success(self, voice_bot, sample_audio_segment, temp_debug_dir):
         """Test that _save_debug_wav logs success with filepath and size."""
 
         # Mock the _save_debug_wav method
@@ -305,9 +299,7 @@ class TestDebugWAV:
         assert len(wav_files) == 1
 
     @pytest.mark.component
-    def test_wake_detected_saves_debug_wav(
-        self, voice_bot, sample_audio_segment, temp_debug_dir
-    ):
+    def test_wake_detected_saves_debug_wav(self, voice_bot, sample_audio_segment, temp_debug_dir):
         """Test that wake detected segments save debug WAV files."""
 
         # Mock the _save_debug_wav method
@@ -332,15 +324,11 @@ class TestDebugWAV:
         mock_save_debug_wav(sample_audio_segment, prefix="wake_detected")
 
         # Check that file was created with wake_detected prefix
-        wav_files = list(
-            temp_debug_dir.glob("wake_detected_test-correlation-123_*.wav")
-        )
+        wav_files = list(temp_debug_dir.glob("wake_detected_test-correlation-123_*.wav"))
         assert len(wav_files) == 1
 
     @pytest.mark.component
-    def test_debug_wav_file_format(
-        self, voice_bot, sample_audio_segment, temp_debug_dir
-    ):
+    def test_debug_wav_file_format(self, voice_bot, sample_audio_segment, temp_debug_dir):
         """Test that debug WAV files have correct format."""
 
         # Mock the _save_debug_wav method
@@ -382,9 +370,7 @@ class TestDebugWAV:
             assert len(frames) == len(sample_audio_segment.pcm)
 
     @pytest.mark.component
-    def test_debug_wav_timestamp_uniqueness(
-        self, voice_bot, sample_audio_segment, temp_debug_dir
-    ):
+    def test_debug_wav_timestamp_uniqueness(self, voice_bot, sample_audio_segment, temp_debug_dir):
         """Test that debug WAV files have unique timestamps."""
 
         # Mock the _save_debug_wav method

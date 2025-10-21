@@ -55,7 +55,10 @@ def main() -> None:
                 event_counts[event] += 1
                 per_service_counts[service][event] += 1
                 # Keep a small timeline of key lifecycle events
-                if re.search(r"(ready|connected|segment_ready|segment_processing_start|response_received|wake\.detected)", event):
+                if re.search(
+                    r"(ready|connected|segment_ready|segment_processing_start|response_received|wake\.detected)",
+                    event,
+                ):
                     timeline.append(f"{ts or ''} {service} {event}")
 
             # Track journeys by correlation_id
@@ -103,6 +106,7 @@ def main() -> None:
 
     # Correlation journeys
     lines.append("\n## Correlation Journeys\n")
+
     # Sort correlation IDs by first observed timestamp (fallback: lexical id)
     def _first_ts_of(cid: str) -> str:
         items = journeys.get(cid, [])
@@ -113,9 +117,7 @@ def main() -> None:
         return min(ts_values) if any(ts_values) else ""
 
     for cid in sorted(journeys.keys(), key=_first_ts_of):
-        events = sorted(
-            journeys[cid], key=lambda it: ((it.get("ts") or ""), it.get("seq", 0))
-        )
+        events = sorted(journeys[cid], key=lambda it: ((it.get("ts") or ""), it.get("seq", 0)))
         lines.append(f"\n### {cid} ({len(events)} events)\n")
         limit = 200
         for idx, it in enumerate(events):
@@ -152,5 +154,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

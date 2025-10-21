@@ -25,9 +25,7 @@ def generate_sine_wave(
     return struct.pack("<" + "h" * len(audio_data), *audio_data)
 
 
-def create_wav_file(
-    pcm_data: bytes, sample_rate: int = 16000, channels: int = 1
-) -> bytes:
+def create_wav_file(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> bytes:
     """Create WAV file from PCM data."""
     # WAV header
     data_size = len(pcm_data)

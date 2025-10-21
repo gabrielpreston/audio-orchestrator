@@ -52,9 +52,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
         self._max_reconnect_attempts = 5
 
         # Event handlers
-        self._lifecycle_handlers: dict[
-            str, Callable[[dict[str, Any]], Awaitable[None]]
-        ] = {}
+        self._lifecycle_handlers: dict[str, Callable[[dict[str, Any]], Awaitable[None]]] = {}
 
         # Health monitoring
         self._health_check_interval = 30.0  # seconds
@@ -103,9 +101,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             )
             await self._emit_lifecycle_event(connection_event.to_dict())
 
-            logger.info(
-                "Successfully connected to Discord voice channel %s", self.channel_id
-            )
+            logger.info("Successfully connected to Discord voice channel %s", self.channel_id)
             return True
 
         except (ValueError, TypeError, OSError) as e:
@@ -163,9 +159,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             True if reconnection successful, False otherwise
         """
         if self._reconnect_attempts >= self._max_reconnect_attempts:
-            logger.error(
-                "Max reconnection attempts (%s) exceeded", self._max_reconnect_attempts
-            )
+            logger.error("Max reconnection attempts (%s) exceeded", self._max_reconnect_attempts)
             return False
 
         self._reconnect_attempts += 1
@@ -202,13 +196,9 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             "user_id": self.user_id,
             "is_connected": self._is_connected,
             "connection_start_time": (
-                self._connection_start_time.isoformat()
-                if self._connection_start_time
-                else None
+                self._connection_start_time.isoformat() if self._connection_start_time else None
             ),
-            "last_heartbeat": (
-                self._last_heartbeat.isoformat() if self._last_heartbeat else None
-            ),
+            "last_heartbeat": (self._last_heartbeat.isoformat() if self._last_heartbeat else None),
             "reconnect_attempts": self._reconnect_attempts,
             "status": self._surface_config.status.value,
         }
@@ -226,13 +216,9 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             "user_id": self.user_id,
             "is_connected": self._is_connected,
             "connection_start_time": (
-                self._connection_start_time.isoformat()
-                if self._connection_start_time
-                else None
+                self._connection_start_time.isoformat() if self._connection_start_time else None
             ),
-            "last_heartbeat": (
-                self._last_heartbeat.isoformat() if self._last_heartbeat else None
-            ),
+            "last_heartbeat": (self._last_heartbeat.isoformat() if self._last_heartbeat else None),
             "reconnect_attempts": self._reconnect_attempts,
             "status": self._surface_config.status.value,
         }
@@ -285,13 +271,9 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
 
                 # Check if heartbeat is recent
                 if self._last_heartbeat:
-                    time_since_heartbeat = (
-                        datetime.now(tz=timezone.utc) - self._last_heartbeat
-                    )
+                    time_since_heartbeat = datetime.now(tz=timezone.utc) - self._last_heartbeat
                     if time_since_heartbeat.total_seconds() > self._connection_timeout:
-                        logger.warning(
-                            "Connection timeout detected, attempting reconnection"
-                        )
+                        logger.warning("Connection timeout detected, attempting reconnection")
                         await self.reconnect()
                         break
 
@@ -317,17 +299,13 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
         """
         uptime = None
         if self._connection_start_time:
-            uptime = (
-                datetime.now(tz=timezone.utc) - self._connection_start_time
-            ).total_seconds()
+            uptime = (datetime.now(tz=timezone.utc) - self._connection_start_time).total_seconds()
 
         return {
             "is_connected": self._is_connected,
             "uptime_seconds": uptime,
             "reconnect_attempts": self._reconnect_attempts,
-            "last_heartbeat": (
-                self._last_heartbeat.isoformat() if self._last_heartbeat else None
-            ),
+            "last_heartbeat": (self._last_heartbeat.isoformat() if self._last_heartbeat else None),
             "health_check_interval": self._health_check_interval,
             "connection_timeout": self._connection_timeout,
         }

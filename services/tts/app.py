@@ -222,9 +222,7 @@ def _load_voice() -> None:
     _VOICE_SAMPLE_RATE = int(sample_rate)
 
     language = _read_voice_language(config_data)
-    speaker_map = (
-        config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
-    )
+    speaker_map = config_data.get("speaker_id_map") or config_data.get("speakerIdMap") or {}
 
     _VOICE_OPTIONS = []
     _VOICE_LOOKUP = {}
@@ -243,9 +241,7 @@ def _load_voice() -> None:
         _VOICE_LOOKUP[""] = option
 
     if _DEFAULT_VOICE and _DEFAULT_VOICE.lower() not in _VOICE_LOOKUP:
-        raise RuntimeError(
-            f"Configured default voice {_DEFAULT_VOICE!r} is not present in model"
-        )
+        raise RuntimeError(f"Configured default voice {_DEFAULT_VOICE!r} is not present in model")
 
     logger.info(
         "tts.voice_loaded",
@@ -264,9 +260,7 @@ def _resolve_voice(preferred: str | None) -> VoiceOption:
         return _VOICE_OPTIONS[0]
     option = _VOICE_LOOKUP.get(candidate.lower())
     if option is None:
-        raise HTTPException(
-            status_code=400, detail=f"voice {candidate!r} not available"
-        )
+        raise HTTPException(status_code=400, detail=f"voice {candidate!r} not available")
     return option
 
 
@@ -374,9 +368,7 @@ async def health_ready() -> dict[str, Any]:
 
     # Determine status string
     if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
+        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
     else:
         status_str = "ready"
 
@@ -446,9 +438,7 @@ async def synthesize(
             except Exception as exc:
                 request_logger.exception("tts.synthesize_failed", error=str(exc))
                 _SYNTHESIS_COUNTER.labels(status="error").inc()
-                raise HTTPException(
-                    status_code=500, detail="unable to synthesize audio"
-                ) from exc
+                raise HTTPException(status_code=500, detail="unable to synthesize audio") from exc
 
         size_bytes = len(audio_bytes)
         duration = time.perf_counter() - start_time

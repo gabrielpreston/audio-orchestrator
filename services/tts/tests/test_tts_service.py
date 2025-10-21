@@ -281,10 +281,7 @@ class TestTTSServiceSynthesis:
 
             assert response.status_code == 200
             # Check for audio headers
-            assert (
-                "X-Audio-Id" in response.headers
-                or "X-Audio-Sample-Rate" in response.headers
-            )
+            assert "X-Audio-Id" in response.headers or "X-Audio-Sample-Rate" in response.headers
 
 
 class TestTTSServiceVoiceSelection:
@@ -296,9 +293,7 @@ class TestTTSServiceVoiceSelection:
             mock_audio_data = b"mock audio data"
             _mock_adapter.synthesize.return_value = mock_audio_data
 
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "voice": "voice1"}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "voice": "voice1"})
 
             assert response.status_code == 200
             _mock_adapter.synthesize.assert_called_once()
@@ -335,9 +330,7 @@ class TestTTSServiceSynthesisParameters:
             mock_audio_data = b"mock audio data"
             _mock_adapter.synthesize.return_value = mock_audio_data
 
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "length_scale": 1.5}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "length_scale": 1.5})
 
             assert response.status_code == 200
             _mock_adapter.synthesize.assert_called_once()
@@ -348,9 +341,7 @@ class TestTTSServiceSynthesisParameters:
             mock_audio_data = b"mock audio data"
             _mock_adapter.synthesize.return_value = mock_audio_data
 
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "noise_scale": 0.5}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "noise_scale": 0.5})
 
             assert response.status_code == 200
             _mock_adapter.synthesize.assert_called_once()
@@ -361,9 +352,7 @@ class TestTTSServiceSynthesisParameters:
             mock_audio_data = b"mock audio data"
             _mock_adapter.synthesize.return_value = mock_audio_data
 
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "noise_w": 0.3}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "noise_w": 0.3})
 
             assert response.status_code == 200
             _mock_adapter.synthesize.assert_called_once()
@@ -375,9 +364,7 @@ class TestTTSServiceInputValidation:
     def test_text_ssml_mutual_exclusivity(self, client, sample_text, sample_ssml):
         """Test text/SSML mutual exclusivity."""
         with patch("services.tts.app.tts_adapter") as _mock_adapter:
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "ssml": sample_ssml}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "ssml": sample_ssml})
 
             assert response.status_code == 400
 
@@ -556,6 +543,5 @@ class TestTTSServiceMetrics:
             assert metrics_response.status_code == 200
             # Should contain audio size histogram
             assert (
-                "audio_size" in metrics_response.text
-                or "tts_audio_size" in metrics_response.text
+                "audio_size" in metrics_response.text or "tts_audio_size" in metrics_response.text
             )

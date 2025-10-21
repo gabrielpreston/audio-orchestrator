@@ -115,9 +115,7 @@ class TestLoggingConfiguration:
     def test_configure_logging_no_service_name(self, isolated_structlog):
         """Test logging without service name."""
         captured_output = StringIO()
-        configure_logging(
-            level="INFO", json_logs=True, service_name=None, stream=captured_output
-        )
+        configure_logging(level="INFO", json_logs=True, service_name=None, stream=captured_output)
 
         logger = get_logger("test_logger")
         logger.info("test message")

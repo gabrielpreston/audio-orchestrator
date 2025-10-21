@@ -107,10 +107,7 @@ class TestBasicSynthesis:
 
             assert response.status_code == 200
             # Check for audio headers
-            assert (
-                "X-Audio-Id" in response.headers
-                or "X-Audio-Sample-Rate" in response.headers
-            )
+            assert "X-Audio-Id" in response.headers or "X-Audio-Sample-Rate" in response.headers
 
 
 class TestVoiceSelection:
@@ -122,9 +119,7 @@ class TestVoiceSelection:
             mock_audio_data = b"mock audio data"
             _mock_adapter.synthesize.return_value = mock_audio_data
 
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "voice": "voice1"}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "voice": "voice1"})
 
             assert response.status_code == 200
             _mock_adapter.synthesize.assert_called_once()
@@ -189,9 +184,7 @@ class TestSynthesisParameters:
 
             # Test valid range
             for scale in [0.0, 1.0, 2.0]:
-                response = client.post(
-                    "/synthesize", json={"text": sample_text, "noise_w": scale}
-                )
+                response = client.post("/synthesize", json={"text": sample_text, "noise_w": scale})
                 assert response.status_code == 200
 
     def test_parameter_validation_out_of_range(self, client, sample_text):
@@ -200,9 +193,7 @@ class TestSynthesisParameters:
             _mock_adapter.synthesize.side_effect = ValueError("Parameter out of range")
 
             # Test out of range values
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "length_scale": 5.0}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "length_scale": 5.0})
             assert response.status_code == 400
 
 
@@ -212,9 +203,7 @@ class TestInputValidation:
     def test_text_ssml_mutual_exclusivity(self, client, sample_text, sample_ssml):
         """Test text/SSML mutual exclusivity."""
         with patch("services.tts.app.tts_adapter") as _mock_adapter:
-            response = client.post(
-                "/synthesize", json={"text": sample_text, "ssml": sample_ssml}
-            )
+            response = client.post("/synthesize", json={"text": sample_text, "ssml": sample_ssml})
 
             assert response.status_code == 400
 
@@ -411,9 +400,7 @@ class TestSynthesisQuality:
 
             # Test with same voice
             for _ in range(3):
-                response = client.post(
-                    "/synthesize", json={"text": sample_text, "voice": "voice1"}
-                )
+                response = client.post("/synthesize", json={"text": sample_text, "voice": "voice1"})
                 assert response.status_code == 200
                 assert response.content == mock_audio_data
 

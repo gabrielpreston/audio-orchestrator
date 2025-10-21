@@ -229,9 +229,7 @@ def create_mock_error_response(
     Returns:
         Mock error response
     """
-    json_data = {
-        "error": {"message": error_message, "type": "server_error", "code": status_code}
-    }
+    json_data = {"error": {"message": error_message, "type": "server_error", "code": status_code}}
 
     return MockHttpResponse(
         status_code=status_code,

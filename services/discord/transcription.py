@@ -25,9 +25,7 @@ try:
 
     PROMETHEUS_AVAILABLE = True
 
-    stt_requests = Counter(
-        "stt_requests_total", "Total STT requests", ["service", "status"]
-    )
+    stt_requests = Counter("stt_requests_total", "Total STT requests", ["service", "status"])
 
     stt_latency = Histogram(
         "stt_latency_seconds",
@@ -82,9 +80,7 @@ class TranscriptResult:
 class TranscriptionClient:
     """Async client that sends audio segments to the STT service with resilience."""
 
-    def __init__(
-        self, config: STTConfig, *, session: httpx.AsyncClient | None = None
-    ) -> None:
+    def __init__(self, config: STTConfig, *, session: httpx.AsyncClient | None = None) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
@@ -119,9 +115,7 @@ class TranscriptionClient:
 
     async def transcribe(self, segment: AudioSegment) -> TranscriptResult | None:
         if not self._session:
-            raise RuntimeError(
-                "TranscriptionClient must be used as an async context manager"
-            )
+            raise RuntimeError("TranscriptionClient must be used as an async context manager")
 
         from services.common.logging import bind_correlation_id
 
@@ -163,9 +157,7 @@ class TranscriptionClient:
                     segment, logger, start_time, wav_bytes, encode_ms
                 )
         else:
-            result = await self._do_transcribe(
-                segment, logger, start_time, wav_bytes, encode_ms
-            )
+            result = await self._do_transcribe(segment, logger, start_time, wav_bytes, encode_ms)
 
         # Record request metrics
         if PROMETHEUS_AVAILABLE and stt_requests:
@@ -332,9 +324,7 @@ def _pcm_to_wav(
             try:
                 from services.common.audio import resample_audio
 
-                pcm = resample_audio(
-                    pcm, sample_rate, target_sample_rate, sample_width=2
-                )
+                pcm = resample_audio(pcm, sample_rate, target_sample_rate, sample_width=2)
                 sample_rate = target_sample_rate
             except Exception as e:
                 # Fall back to the original sample rate if resampling fails.

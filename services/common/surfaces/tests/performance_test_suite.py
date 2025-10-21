@@ -86,9 +86,7 @@ class SurfaceAdapterPerformanceTester:
         Returns:
             Performance metrics
         """
-        logger.info(
-            "Starting AudioSource performance test for %s seconds", duration_seconds
-        )
+        logger.info("Starting AudioSource performance test for %s seconds", duration_seconds)
 
         # Start capture for audio source
         if hasattr(adapter, "start_capture"):
@@ -173,9 +171,7 @@ class SurfaceAdapterPerformanceTester:
         Returns:
             Performance metrics
         """
-        logger.info(
-            "Starting AudioSink performance test for %s seconds", duration_seconds
-        )
+        logger.info("Starting AudioSink performance test for %s seconds", duration_seconds)
 
         # Start capture for audio source
         if hasattr(adapter, "start_capture"):
@@ -270,9 +266,7 @@ class SurfaceAdapterPerformanceTester:
         Returns:
             Performance metrics
         """
-        logger.info(
-            "Starting ControlChannel performance test for %s seconds", duration_seconds
-        )
+        logger.info("Starting ControlChannel performance test for %s seconds", duration_seconds)
 
         # Start capture for audio source
         if hasattr(adapter, "start_capture"):
@@ -457,17 +451,11 @@ class SurfaceAdapterPerformanceTester:
             try:
                 # Determine adapter type and run appropriate tests
                 if isinstance(adapter, AudioSource):
-                    metrics = await self.test_audio_source_performance(
-                        adapter, duration_seconds
-                    )
+                    metrics = await self.test_audio_source_performance(adapter, duration_seconds)
                 elif isinstance(adapter, AudioSink):
-                    metrics = await self.test_audio_sink_performance(
-                        adapter, duration_seconds
-                    )
+                    metrics = await self.test_audio_sink_performance(adapter, duration_seconds)
                 elif isinstance(adapter, ControlChannel):
-                    metrics = await self.test_control_channel_performance(
-                        adapter, duration_seconds
-                    )
+                    metrics = await self.test_control_channel_performance(adapter, duration_seconds)
                 elif isinstance(adapter, SurfaceLifecycle):
                     metrics = await self.test_surface_lifecycle_performance(
                         adapter, duration_seconds
@@ -495,9 +483,7 @@ class SurfaceAdapterPerformanceTester:
                 results["adapter_results"][adapter_name] = metrics
 
             except (ValueError, TypeError, KeyError, RuntimeError) as e:
-                logger.error(
-                    "Performance test failed for adapter %s: %s", adapter_name, e
-                )
+                logger.error("Performance test failed for adapter %s: %s", adapter_name, e)
                 # Create error metrics
                 error_metrics = PerformanceMetrics(
                     avg_latency_ms=0.0,
@@ -519,9 +505,7 @@ class SurfaceAdapterPerformanceTester:
                 results["adapter_results"][adapter_name] = error_metrics
 
         # Generate summary
-        results["summary"] = self._generate_performance_summary(
-            results["adapter_results"]
-        )
+        results["summary"] = self._generate_performance_summary(results["adapter_results"])
 
         return results
 
@@ -593,9 +577,7 @@ class SurfaceAdapterPerformanceTester:
         p99_latency = latencies_sorted[int(len(latencies_sorted) * 0.99)]
 
         # Calculate throughput
-        operations_per_second = (
-            operation_count / test_duration if test_duration > 0 else 0.0
-        )
+        operations_per_second = operation_count / test_duration if test_duration > 0 else 0.0
 
         # Calculate resource metrics (simplified without psutil)
         avg_cpu = max_cpu = avg_memory = max_memory = 0.0
@@ -629,9 +611,7 @@ class SurfaceAdapterPerformanceTester:
             return {"error": "No adapter results available"}
 
         # Aggregate metrics
-        total_operations = sum(
-            metrics.total_operations for metrics in adapter_results.values()
-        )
+        total_operations = sum(metrics.total_operations for metrics in adapter_results.values())
         total_errors = sum(metrics.error_count for metrics in adapter_results.values())
         avg_latencies = [
             metrics.avg_latency_ms
@@ -649,16 +629,12 @@ class SurfaceAdapterPerformanceTester:
             "total_operations": total_operations,
             "total_errors": total_errors,
             "overall_error_rate": total_errors / max(total_operations, 1),
-            "avg_latency_ms": (
-                sum(avg_latencies) / len(avg_latencies) if avg_latencies else 0.0
-            ),
+            "avg_latency_ms": (sum(avg_latencies) / len(avg_latencies) if avg_latencies else 0.0),
             "avg_throughput_ops_per_sec": (
                 sum(throughputs) / len(throughputs) if throughputs else 0.0
             ),
             "best_performing_adapter": (
-                max(adapter_results.items(), key=lambda x: x[1].operations_per_second)[
-                    0
-                ]
+                max(adapter_results.items(), key=lambda x: x[1].operations_per_second)[0]
                 if adapter_results
                 else None
             ),

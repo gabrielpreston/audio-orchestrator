@@ -56,9 +56,7 @@ class TestOrchestratorLLMIntegration:
                 assert data["service"] == "llm"
                 assert "status" in data
 
-    async def test_llm_correlation_id_propagation(
-        self, test_auth_token, test_correlation_id
-    ):
+    async def test_llm_correlation_id_propagation(self, test_auth_token, test_correlation_id):
         """Test correlation ID propagation through LLM."""
         async with httpx.AsyncClient() as client:
             response = await client.post(

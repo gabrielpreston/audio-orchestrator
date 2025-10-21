@@ -70,9 +70,7 @@ class TestTTSServiceIntegration:
         mock_client.post.side_effect = mock_synthesize
         return mock_client
 
-    def test_tts_service_with_real_models(
-        self, tts_service_client, tts_artifacts_dir: Path
-    ):
+    def test_tts_service_with_real_models(self, tts_service_client, tts_artifacts_dir: Path):
         """Test TTS service with real audio processing."""
         # Make TTS service request
         response = tts_service_client.post(
@@ -121,9 +119,7 @@ class TestTTSServiceIntegration:
     def test_tts_ssml_processing(self, tts_service_client, tts_artifacts_dir: Path):
         """Test TTS service SSML input processing."""
         # Test SSML input
-        ssml_text = (
-            "<speak>This is SSML text with <break time='0.5s'/> a pause.</speak>"
-        )
+        ssml_text = "<speak>This is SSML text with <break time='0.5s'/> a pause.</speak>"
 
         response = tts_service_client.post("/synthesize", json={"text": ssml_text})
 
@@ -193,14 +189,10 @@ class TestTTSServiceIntegration:
             output_file = tts_artifacts_dir / f"tts_service_performance_{i}.wav"
             output_file.write_bytes(response.content)
 
-    def test_tts_service_error_handling(
-        self, tts_service_client, tts_artifacts_dir: Path
-    ):
+    def test_tts_service_error_handling(self, tts_service_client, tts_artifacts_dir: Path):
         """Test TTS service error handling."""
         # Test with invalid input
-        response = tts_service_client.post(
-            "/synthesize", json={"text": None}  # Invalid input
-        )
+        response = tts_service_client.post("/synthesize", json={"text": None})  # Invalid input
 
         # Should handle gracefully
         if response.status_code == 200:
@@ -215,9 +207,7 @@ class TestTTSServiceIntegration:
             # Should return appropriate error
             assert response.status_code in [400, 422]
 
-    def test_tts_service_concurrent_requests(
-        self, tts_service_client, tts_artifacts_dir: Path
-    ):
+    def test_tts_service_concurrent_requests(self, tts_service_client, tts_artifacts_dir: Path):
         """Test TTS service with concurrent requests."""
         import queue
         import threading
@@ -232,9 +222,7 @@ class TestTTSServiceIntegration:
         # Start multiple threads
         threads = []
         for i in range(3):
-            thread = threading.Thread(
-                target=make_request, args=(f"Concurrent test {i}", i)
-            )
+            thread = threading.Thread(target=make_request, args=(f"Concurrent test {i}", i))
             threads.append(thread)
             thread.start()
 

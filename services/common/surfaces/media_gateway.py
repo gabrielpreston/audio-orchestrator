@@ -139,13 +139,9 @@ class MediaGateway:
             if transport_codec == "opus":
                 # Opus to PCM conversion would go here
                 # For now, assume data is already PCM
-                return await self.normalize_audio(
-                    transport_data, transport_metadata, "pcm"
-                )
+                return await self.normalize_audio(transport_data, transport_metadata, "pcm")
             elif transport_codec == "pcm":
-                return await self.normalize_audio(
-                    transport_data, transport_metadata, "pcm"
-                )
+                return await self.normalize_audio(transport_data, transport_metadata, "pcm")
             else:
                 self._logger.warning(
                     "media_gateway.unsupported_transport_codec",
@@ -154,9 +150,7 @@ class MediaGateway:
                 return transport_data, transport_metadata
 
         except (ValueError, TypeError, OSError) as e:
-            self._logger.error(
-                "media_gateway.transport_conversion_failed", error=str(e)
-            )
+            self._logger.error("media_gateway.transport_conversion_failed", error=str(e))
             return transport_data, transport_metadata
 
     async def convert_to_transport(
@@ -188,9 +182,7 @@ class MediaGateway:
                 return canonical_data, canonical_metadata
 
         except (ValueError, TypeError, OSError) as e:
-            self._logger.error(
-                "media_gateway.transport_conversion_failed", error=str(e)
-            )
+            self._logger.error("media_gateway.transport_conversion_failed", error=str(e))
             return canonical_data, canonical_metadata
 
     def add_to_jitter_buffer(self, audio_data: bytes, timestamp: float) -> None:
@@ -255,9 +247,7 @@ class MediaGateway:
                     return self._speed_up_audio(audio_data, min(drift_ms / 1000.0, 0.1))
                 else:
                     # Audio is early, slow down slightly
-                    return self._slow_down_audio(
-                        audio_data, min(abs(drift_ms) / 1000.0, 0.1)
-                    )
+                    return self._slow_down_audio(audio_data, min(abs(drift_ms) / 1000.0, 0.1))
 
             return audio_data
 

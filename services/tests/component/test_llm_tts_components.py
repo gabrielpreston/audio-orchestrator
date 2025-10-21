@@ -37,18 +37,14 @@ class TestLLMTTSIntegration:
         mock_text_processor.format_for_tts.return_value = "Hello! How can I help you?"
 
         # Test text format compatibility logic
-        formatted_text = mock_text_processor.format_for_tts(
-            "Hello! How can I help you?"
-        )
+        formatted_text = mock_text_processor.format_for_tts("Hello! How can I help you?")
         assert formatted_text == "Hello! How can I help you?"
 
     def test_ssml_generation_from_llm(self):
         """Test SSML generation from LLM response."""
         # Mock SSML generation component
         mock_ssml_generator = Mock()
-        mock_ssml_generator.generate_ssml.return_value = (
-            "<speak>Hello! How can I help you?</speak>"
-        )
+        mock_ssml_generator.generate_ssml.return_value = "<speak>Hello! How can I help you?</speak>"
 
         # Test SSML generation logic
         ssml = mock_ssml_generator.generate_ssml("Hello! How can I help you?")

@@ -25,9 +25,7 @@ class TestDiscordSTTIntegration:
             assert "language" in data
             assert isinstance(data["text"], str)
 
-    async def test_stt_correlation_id_propagation(
-        self, base64_audio, test_correlation_id
-    ):
+    async def test_stt_correlation_id_propagation(self, base64_audio, test_correlation_id):
         """Test correlation ID propagation through STT service."""
         async with httpx.AsyncClient() as client:
             response = await client.post(

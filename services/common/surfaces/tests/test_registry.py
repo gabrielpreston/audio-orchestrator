@@ -215,9 +215,7 @@ class TestSurfaceRegistry:
         # Get available surfaces
         available_surfaces = registry.get_available_surfaces()
         assert len(available_surfaces) == 1
-        assert available_surface.surface_id in [
-            s.surface_id for s in available_surfaces
-        ]
+        assert available_surface.surface_id in [s.surface_id for s in available_surfaces]
 
     def test_get_healthy_surfaces(self):
         """Test getting healthy surfaces."""
@@ -295,9 +293,7 @@ class TestSurfaceRegistry:
         # Get surfaces with priority >= 5
         high_priority_surfaces = registry.get_surfaces_by_priority(5)
         assert len(high_priority_surfaces) == 1
-        assert high_priority_surface.surface_id in [
-            s.surface_id for s in high_priority_surfaces
-        ]
+        assert high_priority_surface.surface_id in [s.surface_id for s in high_priority_surfaces]
 
     def test_update_surface_status(self):
         """Test updating surface status."""

@@ -80,9 +80,7 @@ class TestTTSAudioProcessingPipeline:
         invalid_file = tts_artifacts_dir / "invalid_audio.wav"
         invalid_file.write_bytes(invalid_audio)
 
-    def test_audio_quality_preservation(
-        self, mock_tts_adapter, tts_artifacts_dir: Path
-    ):
+    def test_audio_quality_preservation(self, mock_tts_adapter, tts_artifacts_dir: Path):
         """Test audio quality preservation through pipeline."""
         # Generate high-quality audio
         high_quality_adapter = MockTTSAdapter(
@@ -134,9 +132,7 @@ class TestTTSAudioProcessingPipeline:
             sample_file = tts_artifacts_dir / f"pipeline_sample_{i}.wav"
             sample_file.write_bytes(audio)
 
-    def test_audio_metadata_preservation(
-        self, mock_tts_adapter, tts_artifacts_dir: Path
-    ):
+    def test_audio_metadata_preservation(self, mock_tts_adapter, tts_artifacts_dir: Path):
         """Test audio metadata preservation through pipeline."""
         # Generate audio with known characteristics
         audio = mock_tts_adapter.synthesize("Metadata preservation test")

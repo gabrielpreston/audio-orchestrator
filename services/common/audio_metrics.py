@@ -38,9 +38,7 @@ class AudioPipelineMetrics:
     start_time: float = field(default_factory=time.monotonic)
     last_stats_time: float = field(default_factory=time.monotonic)
 
-    def record_frame(
-        self, is_speech: bool, rms: float, processing_time: float = 0.0
-    ) -> None:
+    def record_frame(self, is_speech: bool, rms: float, processing_time: float = 0.0) -> None:
         """Record a processed audio frame."""
         self.total_frames += 1
         if is_speech:
@@ -49,9 +47,7 @@ class AudioPipelineMetrics:
             self.silence_frames += 1
 
         # Update RMS statistics
-        self.avg_rms = (
-            self.avg_rms * (self.total_frames - 1) + rms
-        ) / self.total_frames
+        self.avg_rms = (self.avg_rms * (self.total_frames - 1) + rms) / self.total_frames
         self.max_rms = max(self.max_rms, rms)
         self.min_rms = min(self.min_rms, rms)
 
@@ -90,11 +86,8 @@ class AudioPipelineMetrics:
             "avg_rms": self.avg_rms,
             "max_rms": self.max_rms,
             "min_rms": self.min_rms if self.min_rms != float("inf") else 0.0,
-            "avg_vad_time_ms": (self.vad_processing_time / max(self.total_frames, 1))
-            * 1000,
-            "avg_normalization_time_ms": (
-                self.normalization_time / max(self.total_frames, 1)
-            )
+            "avg_vad_time_ms": (self.vad_processing_time / max(self.total_frames, 1)) * 1000,
+            "avg_normalization_time_ms": (self.normalization_time / max(self.total_frames, 1))
             * 1000,
             "frames_per_second": self.total_frames / max(uptime, 0.001),
         }
@@ -129,14 +122,10 @@ class AudioMetricsReporter:
     def __init__(self, service_name: str, correlation_id: str | None = None):
         self.service_name = service_name
         self.correlation_id = correlation_id
-        self.logger = get_logger(
-            __name__, service_name=service_name, correlation_id=correlation_id
-        )
+        self.logger = get_logger(__name__, service_name=service_name, correlation_id=correlation_id)
         self.metrics = AudioPipelineMetrics()
 
-    def record_frame(
-        self, is_speech: bool, rms: float, processing_time: float = 0.0
-    ) -> None:
+    def record_frame(self, is_speech: bool, rms: float, processing_time: float = 0.0) -> None:
         """Record a processed frame and check if stats should be reported."""
         self.metrics.record_frame(is_speech, rms, processing_time)
 

@@ -269,9 +269,7 @@ class TestSessionBroker:
         session_config = SessionConfig()
         session_config.max_duration_ms = 100.0  # 100ms
 
-        session = broker.create_session(
-            "user123", "discord", session_config=session_config
-        )
+        session = broker.create_session("user123", "discord", session_config=session_config)
         session_id = session.session_id
 
         # Wait for expiration

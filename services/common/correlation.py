@@ -58,9 +58,7 @@ class CorrelationIDGenerator:
     """Standardized correlation ID generator for voice pipeline services."""
 
     @staticmethod
-    def generate_discord_correlation_id(
-        user_id: int, guild_id: int | None = None
-    ) -> str:
+    def generate_discord_correlation_id(user_id: int, guild_id: int | None = None) -> str:
         """
         Generate a correlation ID for Discord voice interactions.
 

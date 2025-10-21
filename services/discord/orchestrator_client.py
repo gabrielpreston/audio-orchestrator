@@ -97,9 +97,7 @@ class OrchestratorClient:
             )
             return {"error": str(exc)}
 
-    async def send_message(
-        self, guild_id: str, channel_id: str, message: str
-    ) -> dict[str, Any]:
+    async def send_message(self, guild_id: str, channel_id: str, message: str) -> dict[str, Any]:
         """Send text message via orchestrator."""
         try:
             client = await self._get_http_client()

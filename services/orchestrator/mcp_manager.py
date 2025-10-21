@@ -21,9 +21,9 @@ class MCPManager:
         self.config = MCPConfig(config_path)
         self.clients: dict[str, Any] = {}
         self._logger = get_logger(__name__, service_name="orchestrator")
-        self._notification_handlers: list[
-            Callable[[str, str, dict[str, Any]], Awaitable[None]]
-        ] = []
+        self._notification_handlers: list[Callable[[str, str, dict[str, Any]], Awaitable[None]]] = (
+            []
+        )
 
     async def initialize(self) -> None:
         """Initialize the MCP manager and connect to all configured servers."""
@@ -61,9 +61,7 @@ class MCPManager:
         """Connect to Discord service via HTTP (no MCP subprocess needed)."""
         # Discord service runs as separate container, we'll communicate via HTTP
         # No need to spawn subprocess - Discord service handles its own MCP server
-        self._logger.info(
-            "mcp.discord_http_mode", note="Discord runs as separate container"
-        )
+        self._logger.info("mcp.discord_http_mode", note="Discord runs as separate container")
 
         # Create HTTP-based Discord client for inter-container communication
         class HTTPDiscordClient:
@@ -100,9 +98,7 @@ class MCPManager:
                     },
                 ]
 
-            async def call_tool(
-                self, name: str, arguments: dict[str, Any]
-            ) -> dict[str, Any]:
+            async def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                 """Call Discord tool via HTTP."""
                 try:
                     client = await self._get_http_client()
@@ -169,9 +165,7 @@ class MCPManager:
                 )
                 # Continue with other servers even if one fails
 
-    async def _handle_discord_notification(
-        self, method: str, params: dict[str, Any]
-    ) -> None:
+    async def _handle_discord_notification(self, method: str, params: dict[str, Any]) -> None:
         """Handle notifications from Discord service."""
         self._logger.debug(
             "mcp.discord_notification_received",
@@ -254,9 +248,7 @@ class MCPManager:
             )
             raise
 
-    async def call_discord_tool(
-        self, tool_name: str, arguments: dict[str, Any]
-    ) -> dict[str, Any]:
+    async def call_discord_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Convenience method to call Discord tools."""
         return await self.call_tool("discord", tool_name, arguments)
 

@@ -183,9 +183,7 @@ class SurfaceConfig:
                 supports_wake_detection=caps_data.get("supports_wake_detection", True),
                 supports_vad=caps_data.get("supports_vad", True),
                 supports_barge_in=caps_data.get("supports_barge_in", True),
-                supports_playback_control=caps_data.get(
-                    "supports_playback_control", True
-                ),
+                supports_playback_control=caps_data.get("supports_playback_control", True),
                 supports_opus=caps_data.get("supports_opus", True),
                 supports_pcm=caps_data.get("supports_pcm", True),
                 supports_webrtc=caps_data.get("supports_webrtc", False),

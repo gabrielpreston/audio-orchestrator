@@ -65,9 +65,7 @@ class TestContextManager:
         logger.info("outside context")
 
         log_output = captured_output.getvalue()
-        log_lines = [
-            line.strip() for line in log_output.strip().split("\n") if line.strip()
-        ]
+        log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
         # Parse each log line
         log_data_1 = json.loads(log_lines[0])
@@ -94,9 +92,7 @@ class TestContextManager:
         logger.info("outside context")
 
         log_output = captured_output.getvalue()
-        log_lines = [
-            line.strip() for line in log_output.strip().split("\n") if line.strip()
-        ]
+        log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
         # Parse each log line
         log_data_1 = json.loads(log_lines[0])
@@ -122,9 +118,7 @@ class TestContextManager:
             outer_logger.info("back to outer context")
 
         log_output = captured_output.getvalue()
-        log_lines = [
-            line.strip() for line in log_output.strip().split("\n") if line.strip()
-        ]
+        log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
         # Parse each log line
         log_data_1 = json.loads(log_lines[0])
@@ -145,9 +139,7 @@ class TestContextManager:
                 logger.info("thread %s message", thread_id)
 
         threads = []
-        correlation_ids = [
-            f"thread-{i}-correlation-1234567890abcdef" for i in range(10)
-        ]
+        correlation_ids = [f"thread-{i}-correlation-1234567890abcdef" for i in range(10)]
 
         for i, correlation_id in enumerate(correlation_ids):
             thread = threading.Thread(target=log_with_context, args=(correlation_id, i))
@@ -174,9 +166,7 @@ class TestContextManager:
             await async_log_with_context(correlation_id)
 
             log_output = captured_output.getvalue()
-            log_lines = [
-                line.strip() for line in log_output.strip().split("\n") if line.strip()
-            ]
+            log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
             assert len(log_lines) == 2
             log_data_1 = json.loads(log_lines[0])
@@ -199,9 +189,7 @@ class TestContextManager:
             logger.error("third message")
 
         log_output = captured_output.getvalue()
-        log_lines = [
-            line.strip() for line in log_output.strip().split("\n") if line.strip()
-        ]
+        log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
         assert len(log_lines) == 3
         for line in log_lines:
@@ -220,9 +208,7 @@ class TestContextManager:
                 logger.info("message %s", i)
 
         log_output = captured_output.getvalue()
-        log_lines = [
-            line.strip() for line in log_output.strip().split("\n") if line.strip()
-        ]
+        log_lines = [line.strip() for line in log_output.strip().split("\n") if line.strip()]
 
         assert len(log_lines) == 10
         for line in log_lines:

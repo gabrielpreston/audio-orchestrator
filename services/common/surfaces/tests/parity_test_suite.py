@@ -109,9 +109,7 @@ class CrossSurfaceParityTester:
             adapters: Dictionary of adapters (audio_source, audio_sink, control_channel, surface_lifecycle)
         """
         self.surface_adapters[surface_id] = adapters
-        logger.info(
-            "Registered surface %s with adapters: %s", surface_id, list(adapters.keys())
-        )
+        logger.info("Registered surface %s with adapters: %s", surface_id, list(adapters.keys()))
 
     async def run_audio_capture_parity_tests(self) -> list[ParityTestResult]:
         """
@@ -366,9 +364,7 @@ class CrossSurfaceParityTester:
         for surface_id, adapters in self.surface_adapters.items():
             surface_lifecycle = adapters.get("surface_lifecycle")
             if not surface_lifecycle:
-                logger.warning(
-                    "No surface lifecycle adapter for surface %s", surface_id
-                )
+                logger.warning("No surface lifecycle adapter for surface %s", surface_id)
                 continue
 
             try:
@@ -452,9 +448,7 @@ class CrossSurfaceParityTester:
         for surface_id, adapters in self.surface_adapters.items():
             surface_lifecycle = adapters.get("surface_lifecycle")
             if not surface_lifecycle:
-                logger.warning(
-                    "No surface lifecycle adapter for surface %s", surface_id
-                )
+                logger.warning("No surface lifecycle adapter for surface %s", surface_id)
                 continue
 
             try:
@@ -560,8 +554,7 @@ class CrossSurfaceParityTester:
                         "avg_latency_ms": sum(latencies) / len(latencies),
                         "min_latency_ms": min(latencies),
                         "max_latency_ms": max(latencies),
-                        "success_rate": sum(1 for r in results if r.success)
-                        / len(results),
+                        "success_rate": sum(1 for r in results if r.success) / len(results),
                         "target_meeting_rate": sum(1 for r in results if r.meets_target)
                         / len(results),
                     }

@@ -60,9 +60,7 @@ class TestSampleRatePreservation:
         )
 
         # Test conversion preserves audio quality
-        fidelity_result = validate_audio_fidelity(
-            discord_audio, stt_audio, tolerance=0.1
-        )
+        fidelity_result = validate_audio_fidelity(discord_audio, stt_audio, tolerance=0.1)
         assert fidelity_result["fidelity_score"] > 0.8
         assert fidelity_result["within_tolerance"]
 
@@ -79,9 +77,7 @@ class TestSampleRatePreservation:
         )
 
         # Test conversion preserves audio quality
-        fidelity_result = validate_audio_fidelity(
-            tts_audio, discord_audio, tolerance=0.1
-        )
+        fidelity_result = validate_audio_fidelity(tts_audio, discord_audio, tolerance=0.1)
         assert fidelity_result["fidelity_score"] > 0.8
         assert fidelity_result["within_tolerance"]
 
@@ -98,9 +94,7 @@ class TestSampleRatePreservation:
         )
 
         # Test no artifacts introduced
-        fidelity_result = validate_audio_fidelity(
-            original_audio, processed_audio, tolerance=0.05
-        )
+        fidelity_result = validate_audio_fidelity(original_audio, processed_audio, tolerance=0.05)
         assert fidelity_result["fidelity_score"] > 0.95
         assert fidelity_result["within_tolerance"]
 
@@ -137,9 +131,7 @@ class TestBitDepthPreservation:
         )
 
         # Test no quantization noise
-        fidelity_result = validate_audio_fidelity(
-            original_audio, processed_audio, tolerance=0.01
-        )
+        fidelity_result = validate_audio_fidelity(original_audio, processed_audio, tolerance=0.01)
         assert fidelity_result["fidelity_score"] > 0.99
         assert fidelity_result["within_tolerance"]
 
@@ -194,15 +186,11 @@ class TestRMSLevelConsistency:
 
         # Test normalization
         # Low amplitude should be normalized up
-        low_fidelity = validate_audio_fidelity(
-            low_amplitude, low_amplitude, tolerance=0.1
-        )
+        low_fidelity = validate_audio_fidelity(low_amplitude, low_amplitude, tolerance=0.1)
         assert low_fidelity["fidelity_score"] > 0.9
 
         # High amplitude should be normalized down
-        high_fidelity = validate_audio_fidelity(
-            high_amplitude, high_amplitude, tolerance=0.1
-        )
+        high_fidelity = validate_audio_fidelity(high_amplitude, high_amplitude, tolerance=0.1)
         assert high_fidelity["fidelity_score"] > 0.9
 
     def test_no_clipping_introduced(self, sample_audio_data):
@@ -223,9 +211,7 @@ class TestRMSLevelConsistency:
     def test_silence_detection_accuracy(self, sample_audio_data):
         """Test silence detection accuracy."""
         # Generate silence
-        silence = generate_test_audio(
-            duration=1.0, sample_rate=16000, frequency=0.0, amplitude=0.0
-        )
+        silence = generate_test_audio(duration=1.0, sample_rate=16000, frequency=0.0, amplitude=0.0)
 
         # Generate speech
         speech = generate_test_audio(
@@ -337,9 +323,7 @@ class TestAudioQualityMetrics:
         )
 
         # Test fidelity validation
-        fidelity_result = validate_audio_fidelity(
-            original_audio, processed_audio, tolerance=0.1
-        )
+        fidelity_result = validate_audio_fidelity(original_audio, processed_audio, tolerance=0.1)
 
         assert fidelity_result["fidelity_score"] > 0.9
         assert fidelity_result["within_tolerance"]
@@ -438,9 +422,7 @@ class TestAudioQualityRegression:
         wav_data = create_wav_file(sample_audio_data, sample_rate=16000, channels=1)
         _wav_info = validate_wav_format(wav_data)
         _snr = calculate_snr(sample_audio_data, noise_floor=0.01)
-        _thd = calculate_thd(
-            sample_audio_data, fundamental_freq=440.0, sample_rate=16000
-        )
+        _thd = calculate_thd(sample_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
         final_memory = process.memory_info().rss
         memory_increase = final_memory - initial_memory

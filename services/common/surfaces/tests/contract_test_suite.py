@@ -161,9 +161,7 @@ class SurfaceAdapterContractTester:
 
         return results
 
-    async def test_control_channel_contract(
-        self, adapter: ControlChannel
-    ) -> dict[str, Any]:
+    async def test_control_channel_contract(self, adapter: ControlChannel) -> dict[str, Any]:
         """
         Test ControlChannel adapter contract compliance.
 
@@ -235,9 +233,7 @@ class SurfaceAdapterContractTester:
 
         return results
 
-    async def test_surface_lifecycle_contract(
-        self, adapter: SurfaceLifecycle
-    ) -> dict[str, Any]:
+    async def test_surface_lifecycle_contract(self, adapter: SurfaceLifecycle) -> dict[str, Any]:
         """
         Test SurfaceLifecycle adapter contract compliance.
 
@@ -485,9 +481,7 @@ class SurfaceAdapterContractTester:
                 "details": f"Event receiving failed: {e}",
             }
 
-    async def _test_lifecycle_management(
-        self, adapter: SurfaceLifecycle
-    ) -> dict[str, Any]:
+    async def _test_lifecycle_management(self, adapter: SurfaceLifecycle) -> dict[str, Any]:
         """Test lifecycle management."""
         try:
             if hasattr(adapter, "is_connected"):
@@ -561,9 +555,7 @@ class SurfaceAdapterContractTester:
                 elif isinstance(adapter, ControlChannel):
                     adapter_results = await self.test_control_channel_contract(adapter)
                 elif isinstance(adapter, SurfaceLifecycle):
-                    adapter_results = await self.test_surface_lifecycle_contract(
-                        adapter
-                    )
+                    adapter_results = await self.test_surface_lifecycle_contract(adapter)
                 else:
                     adapter_results = {
                         "adapter_type": "Unknown",
@@ -598,17 +590,12 @@ class SurfaceAdapterContractTester:
                 if (results["total_tests_passed"] + results["total_tests_failed"]) > 0
                 else 0
             ),
-            "total_tests": results["total_tests_passed"]
-            + results["total_tests_failed"],
+            "total_tests": results["total_tests_passed"] + results["total_tests_failed"],
             "passed_adapters": sum(
-                1
-                for r in results["adapter_results"].values()
-                if r.get("tests_failed", 0) == 0
+                1 for r in results["adapter_results"].values() if r.get("tests_failed", 0) == 0
             ),
             "failed_adapters": sum(
-                1
-                for r in results["adapter_results"].values()
-                if r.get("tests_failed", 0) > 0
+                1 for r in results["adapter_results"].values() if r.get("tests_failed", 0) > 0
             ),
         }
 

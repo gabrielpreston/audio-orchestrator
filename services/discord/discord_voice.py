@@ -104,9 +104,7 @@ class VoiceBot(discord.Client):
                 "voice.recv_extension_missing",
                 message="discord-ext-voice-recv not available; voice receive disabled",
             )
-            raise RuntimeError(
-                "discord-ext-voice-recv not available; voice receive disabled"
-            )
+            raise RuntimeError("discord-ext-voice-recv not available; voice receive disabled")
 
     async def setup_hook(self) -> None:
         self._loop = asyncio.get_running_loop()
@@ -196,9 +194,7 @@ class VoiceBot(discord.Client):
                     reason="auto_join_failed",
                 )
 
-    async def join_voice_channel(
-        self, guild_id: int, channel_id: int
-    ) -> dict[str, object]:
+    async def join_voice_channel(self, guild_id: int, channel_id: int) -> dict[str, object]:
         await self.wait_until_ready()
         guild = self.get_guild(guild_id)
         if not guild:
@@ -217,11 +213,7 @@ class VoiceBot(discord.Client):
             else:
                 desired_cls = discord.VoiceClient
 
-            if (
-                voice_client
-                and voice_client.channel
-                and voice_client.channel.id == channel_id
-            ):
+            if voice_client and voice_client.channel and voice_client.channel.id == channel_id:
                 if isinstance(recv_client_cls, type) and not isinstance(
                     voice_client, recv_client_cls
                 ):
@@ -268,13 +260,9 @@ class VoiceBot(discord.Client):
                     else:
                         voice_client = await channel.connect(**connect_kwargs)
                     if voice_client is None:
-                        raise RuntimeError(
-                            "Voice client unavailable after connect attempt"
-                        )
+                        raise RuntimeError("Voice client unavailable after connect attempt")
                     if not voice_client.is_connected():
-                        raise RuntimeError(
-                            "Voice client reported disconnected immediately"
-                        )
+                        raise RuntimeError("Voice client reported disconnected immediately")
                     self._ensure_voice_receiver(voice_client)
                     self._logger.info(
                         "discord.voice_connected",
@@ -381,9 +369,7 @@ class VoiceBot(discord.Client):
             reason="voice_state_disconnected",
         )
 
-    async def send_text_message(
-        self, channel_id: int, content: str
-    ) -> dict[str, object]:
+    async def send_text_message(self, channel_id: int, content: str) -> dict[str, object]:
         await self.wait_until_ready()
         channel = self.get_channel(channel_id)
         if channel is None:
@@ -452,9 +438,7 @@ class VoiceBot(discord.Client):
             rms = float(audioop.rms(pcm, 2))
         except Exception:
             rms = rms_from_pcm(pcm)
-        segment = self.audio_pipeline.register_frame(
-            user_id, pcm, rms, frame_duration, sample_rate
-        )
+        segment = self.audio_pipeline.register_frame(user_id, pcm, rms, frame_duration, sample_rate)
         if not segment:
             return
         await self._enqueue_segment(segment, context=(guild_id, channel_id))
@@ -575,13 +559,9 @@ class VoiceBot(discord.Client):
             while asyncio.get_event_loop().time() - start < timeout:
                 try:
                     async with httpx.AsyncClient() as client:
-                        response = await client.get(
-                            f"{base_url}/health/ready", timeout=5.0
-                        )
+                        response = await client.get(f"{base_url}/health/ready", timeout=5.0)
                         if response.status_code == 200:
-                            self._logger.info(
-                                "service.dependency_ready", dependency=service_name
-                            )
+                            self._logger.info("service.dependency_ready", dependency=service_name)
                             break
                 except Exception:
                     await asyncio.sleep(5.0)
@@ -781,9 +761,7 @@ class VoiceBot(discord.Client):
         self._voice_reconnect_tasks.pop(guild_id, None)
         task.cancel()
 
-    def _schedule_voice_reconnect(
-        self, guild_id: int, channel_id: int, *, reason: str
-    ) -> None:
+    def _schedule_voice_reconnect(self, guild_id: int, channel_id: int, *, reason: str) -> None:
         if self._shutdown.is_set():
             return
         if guild_id in self._voice_reconnect_tasks:
@@ -799,9 +777,7 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
             reason=reason,
         )
-        task = self._loop.create_task(
-            self._voice_reconnect_worker(guild_id, channel_id, reason)
-        )
+        task = self._loop.create_task(self._voice_reconnect_worker(guild_id, channel_id, reason))
         self._voice_reconnect_tasks[guild_id] = task
 
         def _finalizer(completed: asyncio.Task[None], gid: int = guild_id) -> None:
@@ -811,9 +787,7 @@ class VoiceBot(discord.Client):
 
         task.add_done_callback(_finalizer)
 
-    async def _voice_reconnect_worker(
-        self, guild_id: int, channel_id: int, reason: str
-    ) -> None:
+    async def _voice_reconnect_worker(self, guild_id: int, channel_id: int, reason: str) -> None:
         base_backoff = max(
             0.5, self.config.discord.voice_reconnect_initial_backoff_seconds  # type: ignore[attr-defined]
         )
@@ -906,11 +880,7 @@ class VoiceBot(discord.Client):
         self._logger.info(
             "voice.receiver_stopped",
             guild_id=guild_id,
-            channel_id=(
-                voice_client.channel.id
-                if voice_client and voice_client.channel
-                else None
-            ),
+            channel_id=(voice_client.channel.id if voice_client and voice_client.channel else None),
         )
 
     async def _disconnect_voice_client(self, voice_client: discord.VoiceClient) -> None:

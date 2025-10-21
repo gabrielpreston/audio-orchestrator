@@ -281,32 +281,22 @@ class TestEnvironmentLoader(TestCase):
         self.assertEqual(self.loader.load_field(field), "test")
         # int
         with mock.patch.dict(os.environ, {"TEST_INT": "42"}):
-            field = FieldDefinition(
-                name="int", field_type=int, default=0, env_var="TEST_INT"
-            )
+            field = FieldDefinition(name="int", field_type=int, default=0, env_var="TEST_INT")
             self.assertEqual(self.loader.load_field(field), 42)
         # float
         with mock.patch.dict(os.environ, {"TEST_FLOAT": "3.14"}):
-            field = FieldDefinition(
-                name="flt", field_type=float, default=0.0, env_var="TEST_FLOAT"
-            )
+            field = FieldDefinition(name="flt", field_type=float, default=0.0, env_var="TEST_FLOAT")
             self.assertEqual(self.loader.load_field(field), 3.14)
         # bool
         with mock.patch.dict(os.environ, {"TEST_BOOL": "true"}):
-            field = FieldDefinition(
-                name="b", field_type=bool, default=False, env_var="TEST_BOOL"
-            )
+            field = FieldDefinition(name="b", field_type=bool, default=False, env_var="TEST_BOOL")
             self.assertTrue(self.loader.load_field(field))
         with mock.patch.dict(os.environ, {"TEST_BOOL": "0"}):
-            field = FieldDefinition(
-                name="b", field_type=bool, default=True, env_var="TEST_BOOL"
-            )
+            field = FieldDefinition(name="b", field_type=bool, default=True, env_var="TEST_BOOL")
             self.assertFalse(self.loader.load_field(field))
         # list
         with mock.patch.dict(os.environ, {"TEST_LIST": "a,b,c"}):
-            field = FieldDefinition(
-                name="l", field_type=list, default=[], env_var="TEST_LIST"
-            )
+            field = FieldDefinition(name="l", field_type=list, default=[], env_var="TEST_LIST")
             self.assertEqual(self.loader.load_field(field), ["a", "b", "c"])
 
     @pytest.mark.unit
@@ -326,9 +316,7 @@ class TestEnvironmentLoader(TestCase):
                     FieldDefinition("field2", int, 42, env_var="TEST_FIELD2"),
                 ]
 
-        with mock.patch.dict(
-            os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}
-        ):
+        with mock.patch.dict(os.environ, {"TEST_FIELD1": "env_value1", "TEST_FIELD2": "100"}):
             config = self.loader.load_config(TestConfig)
             self.assertEqual(config.field1, "env_value1")
             self.assertEqual(config.field2, 100)

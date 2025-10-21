@@ -111,9 +111,7 @@ class TestAudioSegments:
         assert segment.user_id == 12345
 
     @pytest.mark.component
-    def test_segment_ready_logs_all_metadata(
-        self, audio_pipeline, sample_accumulator, mock_logger
-    ):
+    def test_segment_ready_logs_all_metadata(self, audio_pipeline, sample_accumulator, mock_logger):
         """Test that segment ready logs all comprehensive metadata."""
         # Add frames to accumulator
         sample_accumulator.append(
@@ -143,9 +141,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             audio_pipeline._flush_accumulator(
@@ -165,9 +161,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -268,9 +262,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             segment = audio_pipeline._flush_accumulator(
@@ -289,9 +281,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -299,9 +289,7 @@ class TestAudioSegments:
         assert call_args[1]["silence_age"] == 0.75
 
     @pytest.mark.component
-    def test_segment_flush_on_max_duration(
-        self, audio_pipeline, sample_accumulator, mock_logger
-    ):
+    def test_segment_flush_on_max_duration(self, audio_pipeline, sample_accumulator, mock_logger):
         """Test that segment flushes on max duration."""
         # Add frames to accumulator
         sample_accumulator.append(
@@ -325,9 +313,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             segment = audio_pipeline._flush_accumulator(
@@ -346,9 +332,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -356,9 +340,7 @@ class TestAudioSegments:
         assert call_args[1]["total_duration"] == 15.0
 
     @pytest.mark.component
-    def test_segment_flush_on_idle_timeout(
-        self, audio_pipeline, sample_accumulator, mock_logger
-    ):
+    def test_segment_flush_on_idle_timeout(self, audio_pipeline, sample_accumulator, mock_logger):
         """Test that segment flushes on idle timeout."""
         # Add frames to accumulator
         sample_accumulator.append(
@@ -382,9 +364,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             segment = audio_pipeline._flush_accumulator(
@@ -403,9 +383,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -434,9 +412,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             audio_pipeline._flush_accumulator(
@@ -457,9 +433,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -487,9 +461,7 @@ class TestAudioSegments:
                 "services.common.correlation.generate_discord_correlation_id",
                 return_value="test-correlation-123",
             ),
-            patch(
-                "services.common.logging.bind_correlation_id", return_value=mock_logger
-            ),
+            patch("services.common.logging.bind_correlation_id", return_value=mock_logger),
         ):
 
             segment = audio_pipeline._flush_accumulator(
@@ -508,9 +480,7 @@ class TestAudioSegments:
 
         # Find the segment_ready call
         segment_ready_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_ready_calls) == 1
         call_args = segment_ready_calls[0]
@@ -550,9 +520,7 @@ class TestAudioSegments:
         assert call_args[0][0] == "voice.vad_configured"
 
     @pytest.mark.component
-    def test_segment_metadata_accuracy(
-        self, audio_pipeline, sample_accumulator, mock_logger
-    ):
+    def test_segment_metadata_accuracy(self, audio_pipeline, sample_accumulator, mock_logger):
         """Test that segment metadata is accurate."""
         # Add multiple frames to accumulator
         frame1 = Mock(

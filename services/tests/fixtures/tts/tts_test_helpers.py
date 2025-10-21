@@ -15,9 +15,7 @@ from services.tests.utils.audio_quality_helpers import (
 )
 
 
-def generate_tts_baseline_samples(
-    samples_dir: Path, text_samples: list[dict[str, Any]]
-) -> None:
+def generate_tts_baseline_samples(samples_dir: Path, text_samples: list[dict[str, Any]]) -> None:
     """
     Generate baseline TTS samples with metadata.
 
@@ -37,9 +35,7 @@ def generate_tts_baseline_samples(
             amplitude=sample.get("amplitude", 0.5),
             noise_level=sample.get("noise_level", 0.0),
         )
-        wav_data = create_wav_file(
-            pcm_data, sample.get("sample_rate", 22050), channels=1
-        )
+        wav_data = create_wav_file(pcm_data, sample.get("sample_rate", 22050), channels=1)
 
         # Save audio file
         audio_file = samples_dir / f"{sample['name']}.wav"
@@ -49,9 +45,7 @@ def generate_tts_baseline_samples(
         wav_info = validate_wav_format(wav_data)
         snr = calculate_snr(wav_data)
         thd = calculate_thd(wav_data)
-        freq_response = measure_frequency_response(
-            wav_data, sample.get("sample_rate", 22050)
-        )
+        freq_response = measure_frequency_response(wav_data, sample.get("sample_rate", 22050))
 
         # Create metadata
         metadata = {

@@ -74,9 +74,7 @@ class TestCircuitBreakerLogging:
             assert stats["available"] is True
 
     @pytest.mark.component
-    async def test_stt_health_check_logs_circuit_state(
-        self, stt_config, mock_http_client
-    ):
+    async def test_stt_health_check_logs_circuit_state(self, stt_config, mock_http_client):
         """Test that STT health check returns False when circuit is open."""
         # Mock circuit breaker in open state
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
@@ -98,9 +96,7 @@ class TestCircuitBreakerLogging:
     def test_segment_consumer_logs_circuit_state(self, stt_config, mock_http_client):
         """Test that segment consumer logs circuit state at processing start."""
         # Mock circuit breaker in half-open state
-        mock_http_client._circuit_breaker.get_state.return_value = Mock(
-            value="half-open"
-        )
+        mock_http_client._circuit_breaker.get_state.return_value = Mock(value="half-open")
         mock_http_client._circuit_breaker.get_stats.return_value = {
             "state": "half-open",
             "available": True,
@@ -166,9 +162,7 @@ class TestCircuitBreakerLogging:
             assert stats["available"] is False
 
         # Test half-open state
-        mock_http_client._circuit_breaker.get_state.return_value = Mock(
-            value="half-open"
-        )
+        mock_http_client._circuit_breaker.get_state.return_value = Mock(value="half-open")
         mock_http_client._circuit_breaker.get_stats.return_value = {
             "state": "half-open",
             "available": True,
@@ -187,9 +181,7 @@ class TestCircuitBreakerLogging:
             assert stats["available"] is True
 
     @pytest.mark.component
-    async def test_circuit_breaker_unavailable_fallback(
-        self, stt_config, mock_http_client
-    ):
+    async def test_circuit_breaker_unavailable_fallback(self, stt_config, mock_http_client):
         """Test that circuit breaker unavailable fallback works correctly."""
         # Mock circuit breaker in open state (unavailable)
         mock_http_client._circuit_breaker.get_state.return_value = Mock(value="open")
@@ -242,9 +234,7 @@ class TestCircuitBreakerLogging:
     def test_circuit_breaker_error_handling(self, stt_config, mock_http_client):
         """Test that circuit breaker error handling works correctly."""
         # Mock circuit breaker that raises exception
-        mock_http_client._circuit_breaker.get_stats.side_effect = Exception(
-            "Circuit breaker error"
-        )
+        mock_http_client._circuit_breaker.get_stats.side_effect = Exception("Circuit breaker error")
 
         with patch(
             "services.discord.transcription.ResilientHTTPClient",

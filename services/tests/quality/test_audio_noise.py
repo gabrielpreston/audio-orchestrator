@@ -21,17 +21,13 @@ def sample_audio_data():
 @pytest.fixture
 def noisy_audio_data():
     """Noisy audio data for testing."""
-    return generate_test_audio(
-        duration=1.0, frequency=440.0, amplitude=0.5, noise_level=0.1
-    )
+    return generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5, noise_level=0.1)
 
 
 @pytest.fixture
 def clean_audio_data():
     """Clean audio data for testing."""
-    return generate_test_audio(
-        duration=1.0, frequency=440.0, amplitude=0.5, noise_level=0.0
-    )
+    return generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5, noise_level=0.0)
 
 
 class TestSignalToNoiseRatio:
@@ -153,9 +149,7 @@ class TestSilenceDetectionAccuracy:
     def test_vad_correctly_identifies_speech_vs_silence(self, sample_audio_data):
         """Test VAD correctly identifies speech vs silence."""
         # Generate silence
-        silence = generate_test_audio(
-            duration=1.0, sample_rate=16000, frequency=0.0, amplitude=0.0
-        )
+        silence = generate_test_audio(duration=1.0, sample_rate=16000, frequency=0.0, amplitude=0.0)
 
         # Generate speech
         speech = generate_test_audio(
@@ -297,9 +291,7 @@ class TestNoiseAndDistortionRegression:
         """Test noise quality hasn't regressed."""
         # Calculate noise metrics
         snr = calculate_snr(sample_audio_data, noise_floor=0.01)
-        thd = calculate_thd(
-            sample_audio_data, fundamental_freq=440.0, sample_rate=16000
-        )
+        thd = calculate_thd(sample_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
         # Quality should be maintained
         assert snr > 20.0  # Good SNR
@@ -314,9 +306,7 @@ class TestNoiseAndDistortionRegression:
 
         # Process noise metrics
         _snr = calculate_snr(sample_audio_data, noise_floor=0.01)
-        _thd = calculate_thd(
-            sample_audio_data, fundamental_freq=440.0, sample_rate=16000
-        )
+        _thd = calculate_thd(sample_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
         end_time = time.time()
         processing_time = end_time - start_time
@@ -338,9 +328,7 @@ class TestNoiseAndDistortionRegression:
 
         # Process noise metrics
         _snr = calculate_snr(sample_audio_data, noise_floor=0.01)
-        _thd = calculate_thd(
-            sample_audio_data, fundamental_freq=440.0, sample_rate=16000
-        )
+        _thd = calculate_thd(sample_audio_data, fundamental_freq=440.0, sample_rate=16000)
 
         final_memory = process.memory_info().rss
         memory_increase = final_memory - initial_memory

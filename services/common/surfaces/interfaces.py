@@ -74,9 +74,7 @@ class ControlChannel(ABC):
         """Receive a single control event."""
 
     @abstractmethod
-    def register_event_handler(
-        self, event_type: str, handler: Callable[[Any], None]
-    ) -> None:
+    def register_event_handler(self, event_type: str, handler: Callable[[Any], None]) -> None:
         """Set handler for specific event type."""
 
     @abstractmethod

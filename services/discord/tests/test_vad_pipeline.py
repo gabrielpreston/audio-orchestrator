@@ -68,9 +68,7 @@ class TestVADPipeline:
         return b"\x00" * (samples * 2)  # 2 bytes per int16 sample
 
     @pytest.mark.component
-    def test_vad_initialization_logs_config(
-        self, audio_config, telemetry_config, mock_logger
-    ):
+    def test_vad_initialization_logs_config(self, audio_config, telemetry_config, mock_logger):
         """Test that VAD initialization logs configuration."""
         with patch("services.discord.audio.get_logger", return_value=mock_logger):
             AudioPipeline(audio_config, telemetry_config)
@@ -143,9 +141,7 @@ class TestVADPipeline:
         assert warning_call[1]["applied"] == 10  # Should be clamped to 10ms
 
     @pytest.mark.component
-    def test_vad_decision_logs_speech_frame(
-        self, audio_pipeline, sample_pcm_frame, mock_logger
-    ):
+    def test_vad_decision_logs_speech_frame(self, audio_pipeline, sample_pcm_frame, mock_logger):
         """Test that VAD decision logging works for speech frames."""
         user_id = 12345
         rms = 1000.0
@@ -170,9 +166,7 @@ class TestVADPipeline:
 
         # Find the VAD decision log call
         vad_log_calls = [
-            call
-            for call in mock_logger.debug.call_args_list
-            if call[0][0] == "voice.vad_decision"
+            call for call in mock_logger.debug.call_args_list if call[0][0] == "voice.vad_decision"
         ]
         assert len(vad_log_calls) > 0
 
@@ -187,9 +181,7 @@ class TestVADPipeline:
         assert kwargs["sample_rate"] == sample_rate
 
     @pytest.mark.component
-    def test_vad_decision_logs_silence_frame(
-        self, audio_pipeline, silence_frame, mock_logger
-    ):
+    def test_vad_decision_logs_silence_frame(self, audio_pipeline, silence_frame, mock_logger):
         """Test that VAD decision logging works for silence frames."""
         user_id = 12345
         rms = 10.0  # Low RMS for silence
@@ -214,9 +206,7 @@ class TestVADPipeline:
 
         # Find the VAD decision log call
         vad_log_calls = [
-            call
-            for call in mock_logger.debug.call_args_list
-            if call[0][0] == "voice.vad_decision"
+            call for call in mock_logger.debug.call_args_list if call[0][0] == "voice.vad_decision"
         ]
         assert len(vad_log_calls) > 0
 
@@ -226,16 +216,12 @@ class TestVADPipeline:
         assert kwargs["user_id"] == user_id
         assert kwargs["is_speech"] is False
         # RMS may be normalized, so check it's close to expected value (allow more tolerance for silence)
-        assert (
-            abs(kwargs["rms"] - rms) < 20.0
-        )  # Allow more tolerance for silence normalization
+        assert abs(kwargs["rms"] - rms) < 20.0  # Allow more tolerance for silence normalization
         assert kwargs["frame_bytes"] == len(silence_frame)
         assert kwargs["sample_rate"] == sample_rate
 
     @pytest.mark.component
-    def test_vad_handles_rate_conversion(
-        self, audio_pipeline, sample_pcm_frame, mock_logger
-    ):
+    def test_vad_handles_rate_conversion(self, audio_pipeline, sample_pcm_frame, mock_logger):
         """Test that VAD handles sample rate conversion correctly."""
         user_id = 12345
         rms = 1000.0
@@ -260,9 +246,7 @@ class TestVADPipeline:
 
         # Find the VAD decision log call
         vad_log_calls = [
-            call
-            for call in mock_logger.debug.call_args_list
-            if call[0][0] == "voice.vad_decision"
+            call for call in mock_logger.debug.call_args_list if call[0][0] == "voice.vad_decision"
         ]
         assert len(vad_log_calls) > 0
 
@@ -275,9 +259,7 @@ class TestVADPipeline:
         assert kwargs["is_speech"] is True
 
     @pytest.mark.component
-    def test_vad_sequence_numbering(
-        self, audio_pipeline, sample_pcm_frame, mock_logger
-    ):
+    def test_vad_sequence_numbering(self, audio_pipeline, sample_pcm_frame, mock_logger):
         """Test that VAD logs include sequence numbers."""
         user_id = 12345
         rms = 1000.0
@@ -301,9 +283,7 @@ class TestVADPipeline:
 
         # Check that debug logs were called with sequence numbers
         vad_log_calls = [
-            call
-            for call in mock_logger.debug.call_args_list
-            if call[0][0] == "voice.vad_decision"
+            call for call in mock_logger.debug.call_args_list if call[0][0] == "voice.vad_decision"
         ]
         assert len(vad_log_calls) == 3
 
@@ -312,9 +292,7 @@ class TestVADPipeline:
         assert sequences == [1, 2, 3]
 
     @pytest.mark.component
-    def test_vad_logs_frame_buffering(
-        self, audio_pipeline, sample_pcm_frame, mock_logger
-    ):
+    def test_vad_logs_frame_buffering(self, audio_pipeline, sample_pcm_frame, mock_logger):
         """Test that VAD logs frame buffering for speech frames."""
         user_id = 12345
         rms = 1000.0
@@ -352,9 +330,7 @@ class TestVADPipeline:
         assert abs(kwargs["rms"] - rms) < 10.0  # Allow some tolerance for normalization
 
     @pytest.mark.component
-    def test_segment_ready_counts_frames(
-        self, audio_pipeline, sample_pcm_frame, mock_logger
-    ):
+    def test_segment_ready_counts_frames(self, audio_pipeline, sample_pcm_frame, mock_logger):
         """Ensure speech/silence frame counts are computed before clearing frames."""
         user_id = 12345
         rms = 1000.0
@@ -381,17 +357,12 @@ class TestVADPipeline:
 
         # Find the segment_ready log call
         segment_calls = [
-            call
-            for call in mock_logger.info.call_args_list
-            if call[0][0] == "voice.segment_ready"
+            call for call in mock_logger.info.call_args_list if call[0][0] == "voice.segment_ready"
         ]
         assert len(segment_calls) >= 1
         seg_kwargs = segment_calls[-1][1]
 
         assert seg_kwargs["frames"] > 0
         # At least one speech frame expected, and counts should be consistent
-        assert (
-            seg_kwargs["speech_frames"] + seg_kwargs["silence_frames"]
-            == seg_kwargs["frames"]
-        )
+        assert seg_kwargs["speech_frames"] + seg_kwargs["silence_frames"] == seg_kwargs["frames"]
         assert seg_kwargs["speech_frames"] > 0

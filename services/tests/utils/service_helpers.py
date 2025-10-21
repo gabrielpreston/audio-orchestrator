@@ -18,9 +18,7 @@ class DockerComposeManager:
     def _detect_docker_compose(self) -> list[str]:
         """Detect docker-compose or docker compose command."""
         try:
-            subprocess.run(
-                ["docker-compose", "version"], capture_output=True, check=True
-            )
+            subprocess.run(["docker-compose", "version"], capture_output=True, check=True)
             return ["docker-compose"]
         except (subprocess.CalledProcessError, FileNotFoundError):
             return ["docker", "compose"]
@@ -49,9 +47,7 @@ class DockerComposeManager:
 
         return True
 
-    async def wait_for_service_healthy(
-        self, service: str, timeout: float = 60.0
-    ) -> bool:
+    async def wait_for_service_healthy(self, service: str, timeout: float = 60.0) -> bool:
         """Wait for service health check to pass."""
         service_ports = {
             "stt": 9000,
@@ -120,25 +116,19 @@ async def docker_compose_test_context(services: list[str], timeout: float = 60.0
 
 async def start_test_services(services_list: list[str], timeout: float = 30.0) -> bool:
     """Legacy function - use docker_compose_test_context instead."""
-    print(
-        "WARNING: start_test_services is deprecated. Use docker_compose_test_context instead."
-    )
+    print("WARNING: start_test_services is deprecated. Use docker_compose_test_context instead.")
     return await _manager.start_services(services_list, timeout)
 
 
 async def wait_for_service_ready(service_name: str, timeout: float = 30.0) -> bool:
     """Legacy function - use docker_compose_test_context instead."""
-    print(
-        "WARNING: wait_for_service_ready is deprecated. Use docker_compose_test_context instead."
-    )
+    print("WARNING: wait_for_service_ready is deprecated. Use docker_compose_test_context instead.")
     return await _manager.wait_for_service_healthy(service_name, timeout)
 
 
 async def stop_test_services():
     """Legacy function - use docker_compose_test_context instead."""
-    print(
-        "WARNING: stop_test_services is deprecated. Use docker_compose_test_context instead."
-    )
+    print("WARNING: stop_test_services is deprecated. Use docker_compose_test_context instead.")
     await _manager.stop_services()
 
 
@@ -179,9 +169,7 @@ async def is_service_running(service_name: str) -> bool:
 @asynccontextmanager
 async def test_services_context(services_list: list[str], timeout: float = 30.0):
     """Legacy context manager - use docker_compose_test_context instead."""
-    print(
-        "WARNING: test_services_context is deprecated. Use docker_compose_test_context instead."
-    )
+    print("WARNING: test_services_context is deprecated. Use docker_compose_test_context instead.")
     try:
         success = await _manager.start_services(services_list, timeout)
         if not success:

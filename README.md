@@ -47,7 +47,7 @@ audio-orchestrator/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/audio-orchestrator/platform.git
+git clone https://github.com/gabrielpreston/audio-orchestrator.git
 cd audio-orchestrator
 ```
 
@@ -146,6 +146,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- Documentation: [audio-orchestrator.dev/docs](https://audio-orchestrator.dev/docs)
-- Issues: [GitHub Issues](https://github.com/audio-orchestrator/platform/issues)
-- Discussions: [GitHub Discussions](https://github.com/audio-orchestrator/platform/discussions)
+- Documentation: [GitHub Docs](https://github.com/gabrielpreston/audio-orchestrator/docs)
+- Issues: [GitHub Issues](https://github.com/gabrielpreston/audio-orchestrator/issues)
+- Discussions: [GitHub Discussions](https://github.com/gabrielpreston/audio-orchestrator/discussions)

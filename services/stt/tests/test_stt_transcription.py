@@ -136,9 +136,7 @@ class TestBasicTranscription:
             assert "correlation_id" in data
             assert data["correlation_id"] is not None
 
-    def test_correlation_id_validation_reject_invalid_formats(
-        self, client, sample_wav_file
-    ):
+    def test_correlation_id_validation_reject_invalid_formats(self, client, sample_wav_file):
         """Test correlation ID validation (reject invalid formats)."""
         with patch("services.stt.app.transcription_adapter") as mock_adapter:
             mock_adapter.transcribe.return_value = Mock(
@@ -199,10 +197,7 @@ class TestBasicTranscription:
 
             assert response.status_code == 200
             # Check for processing time headers
-            assert (
-                "X-Processing-Time" in response.headers
-                or "X-Response-Time" in response.headers
-            )
+            assert "X-Processing-Time" in response.headers or "X-Response-Time" in response.headers
 
 
 class TestLanguageHandling:
@@ -293,9 +288,7 @@ class TestAudioFormatValidation:
         # Create invalid audio data (8-bit)
         invalid_audio = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")})
 
         assert response.status_code == 400
 
@@ -303,9 +296,7 @@ class TestAudioFormatValidation:
         """Test invalid WAV header rejection."""
         invalid_audio = b"invalid wav data"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")})
 
         assert response.status_code == 400
 
@@ -388,9 +379,7 @@ class TestErrorHandling:
         """Test malformed audio data handling."""
         malformed_audio = b"not audio data at all"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", malformed_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", malformed_audio, "audio/wav")})
 
         assert response.status_code == 400
 

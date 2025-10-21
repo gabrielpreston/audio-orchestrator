@@ -80,17 +80,11 @@ class TestVoicePipelineIntegration:
 
             # Step 6: Validate end-to-end latency < 2s
             total_latency = time.time() - start_time
-            assert (
-                total_latency < 2.0
-            ), f"Total latency {total_latency:.2f}s exceeds 2s threshold"
+            assert total_latency < 2.0, f"Total latency {total_latency:.2f}s exceeds 2s threshold"
 
             # Validate individual service latencies
-            assert (
-                stt_latency < 0.3
-            ), f"STT latency {stt_latency:.2f}s exceeds 0.3s threshold"
-            assert (
-                tts_latency < 1.0
-            ), f"TTS latency {tts_latency:.2f}s exceeds 1.0s threshold"
+            assert stt_latency < 0.3, f"STT latency {stt_latency:.2f}s exceeds 0.3s threshold"
+            assert tts_latency < 1.0, f"TTS latency {tts_latency:.2f}s exceeds 1.0s threshold"
 
     async def test_voice_pipeline_with_real_audio_file(
         self,
@@ -101,9 +95,7 @@ class TestVoicePipelineIntegration:
     ):
         """Test voice pipeline with real audio file data."""
         # Create multipart form data from real audio
-        files = {
-            "file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")
-        }
+        files = {"file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")}
 
         async with httpx.AsyncClient() as client:
             # Complete pipeline test
@@ -347,12 +339,6 @@ class TestVoicePipelineIntegration:
             print(f"Total Latency: {total_latency:.3f}s")
 
             # Validate performance thresholds
-            assert (
-                stt_latency < 0.3
-            ), f"STT latency {stt_latency:.3f}s exceeds 0.3s threshold"
-            assert (
-                tts_latency < 1.0
-            ), f"TTS latency {tts_latency:.3f}s exceeds 1.0s threshold"
-            assert (
-                total_latency < 2.0
-            ), f"Total latency {total_latency:.3f}s exceeds 2.0s threshold"
+            assert stt_latency < 0.3, f"STT latency {stt_latency:.3f}s exceeds 0.3s threshold"
+            assert tts_latency < 1.0, f"TTS latency {tts_latency:.3f}s exceeds 1.0s threshold"
+            assert total_latency < 2.0, f"Total latency {total_latency:.3f}s exceeds 2.0s threshold"

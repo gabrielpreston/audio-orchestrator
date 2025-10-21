@@ -59,9 +59,7 @@ class BufferedVoiceSink:
         """Remove expired buffers for SSRCs that never got user mapping."""
         current_time = time.monotonic()
         expired_ssrcs = [
-            ssrc
-            for ssrc, expiry in self._buffer_expiry.items()
-            if current_time > expiry
+            ssrc for ssrc, expiry in self._buffer_expiry.items() if current_time > expiry
         ]
         for ssrc in expired_ssrcs:
             buffer_size = len(self._unknown_ssrc_buffers.get(ssrc, []))
@@ -70,8 +68,7 @@ class BufferedVoiceSink:
                     "voice.buffer_expired",
                     ssrc=ssrc,
                     buffered_packets=buffer_size,
-                    duration=current_time
-                    - self._ssrc_first_seen.get(ssrc, current_time),
+                    duration=current_time - self._ssrc_first_seen.get(ssrc, current_time),
                 )
             self._unknown_ssrc_buffers.pop(ssrc, None)
             self._buffer_expiry.pop(ssrc, None)
@@ -187,9 +184,7 @@ class BufferedVoiceSink:
             return
 
         sample_rate = (
-            getattr(data, "sample_rate", None)
-            or getattr(data, "sampling_rate", None)
-            or 48000
+            getattr(data, "sample_rate", None) or getattr(data, "sampling_rate", None) or 48000
         )
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
@@ -219,9 +214,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
     """Return a BasicSink that forwards decoded PCM frames to the pipeline."""
 
     if voice_recv is None:  # pragma: no cover - safety net for missing dependency
-        message = (
-            "discord-ext-voice-recv is not available; install to enable voice receive"
-        )
+        message = "discord-ext-voice-recv is not available; install to enable voice receive"
         if _IMPORT_ERROR:
             message = f"{message}: {type(_IMPORT_ERROR).__name__}: {_IMPORT_ERROR}"
         raise RuntimeError(message)

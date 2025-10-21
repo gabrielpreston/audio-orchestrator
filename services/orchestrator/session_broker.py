@@ -107,9 +107,7 @@ class SessionBroker:
             self._logger.error("session_broker.end_session_failed", error=str(e))
             return False
 
-    def update_session_metadata(
-        self, session_id: str, metadata: dict[str, Any]
-    ) -> bool:
+    def update_session_metadata(self, session_id: str, metadata: dict[str, Any]) -> bool:
         """Update session metadata."""
         try:
             if session_id in self._sessions:
@@ -208,9 +206,7 @@ class SessionBroker:
         """Update session state."""
         session = self._sessions.get(session_id)
         if not session:
-            self._logger.warning(
-                "session_broker.session_not_found", session_id=session_id
-            )
+            self._logger.warning("session_broker.session_not_found", session_id=session_id)
             return False
 
         try:
@@ -235,9 +231,7 @@ class SessionBroker:
             return True
 
         except (ValueError, TypeError, KeyError) as e:
-            self._logger.error(
-                "session_broker.session_state_update_failed", error=str(e)
-            )
+            self._logger.error("session_broker.session_state_update_failed", error=str(e))
             return False
 
     def update_session_activity(self, session_id: str, is_audio: bool = False) -> bool:
@@ -255,9 +249,7 @@ class SessionBroker:
             return True
 
         except (ValueError, TypeError, KeyError) as e:
-            self._logger.error(
-                "session_broker.session_activity_update_failed", error=str(e)
-            )
+            self._logger.error("session_broker.session_activity_update_failed", error=str(e))
             return False
 
     def record_session_error(self, session_id: str, error_message: str) -> bool:
@@ -273,9 +265,7 @@ class SessionBroker:
             return True
 
         except (ValueError, TypeError, KeyError) as e:
-            self._logger.error(
-                "session_broker.session_error_record_failed", error=str(e)
-            )
+            self._logger.error("session_broker.session_error_record_failed", error=str(e))
             return False
 
     def get_active_sessions(self) -> list[Session]:
@@ -295,9 +285,7 @@ class SessionBroker:
     def get_session_by_user(self, user_id: str) -> list[Session]:
         """Get sessions for a specific user."""
         return [
-            session
-            for session in self._sessions.values()
-            if session.metadata.user_id == user_id
+            session for session in self._sessions.values() if session.metadata.user_id == user_id
         ]
 
     def get_session_by_surface(self, surface_id: str) -> list[Session]:
@@ -336,10 +324,7 @@ class SessionBroker:
 
         for session_id, session in self._sessions.items():
             # Check if session has been inactive for too long
-            if (
-                time.time() - session.last_activity_time
-                > self.config.session_timeout_ms / 1000.0
-            ):
+            if time.time() - session.last_activity_time > self.config.session_timeout_ms / 1000.0:
                 inactive_sessions.append(session_id)
 
         # Remove inactive sessions
@@ -421,16 +406,12 @@ class SessionBroker:
     def should_cleanup(self) -> bool:
         """Check if cleanup should be performed."""
         current_time = time.time()
-        return (current_time - self._last_cleanup) > (
-            self.config.cleanup_interval_ms / 1000.0
-        )
+        return (current_time - self._last_cleanup) > (self.config.cleanup_interval_ms / 1000.0)
 
     def should_emit_telemetry(self) -> bool:
         """Check if telemetry should be emitted."""
         current_time = time.time()
-        return (current_time - self._last_telemetry) > (
-            self.config.telemetry_interval_ms / 1000.0
-        )
+        return (current_time - self._last_telemetry) > (self.config.telemetry_interval_ms / 1000.0)
 
     def emit_telemetry(self) -> dict[str, Any]:
         """Emit telemetry data."""

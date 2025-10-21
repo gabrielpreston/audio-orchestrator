@@ -257,9 +257,7 @@ class SchemaValidator:
             self._logger.error("schema_validation.error", error=str(e))
             return False
 
-    def _validate_against_schema(
-        self, data: dict[str, Any], schema: dict[str, Any]
-    ) -> bool:
+    def _validate_against_schema(self, data: dict[str, Any], schema: dict[str, Any]) -> bool:
         """Validate data against a JSON schema."""
         try:
             # Basic validation - check required fields
@@ -305,10 +303,7 @@ class SchemaValidator:
                 if field in properties:
                     field_schema = properties[field]
                     if isinstance(value, (int, float)):
-                        if (
-                            "minimum" in field_schema
-                            and value < field_schema["minimum"]
-                        ):
+                        if "minimum" in field_schema and value < field_schema["minimum"]:
                             self._logger.warning(
                                 "schema_validation.value_below_minimum",
                                 field=field,
@@ -316,10 +311,7 @@ class SchemaValidator:
                                 minimum=field_schema["minimum"],
                             )
                             return False
-                        if (
-                            "maximum" in field_schema
-                            and value > field_schema["maximum"]
-                        ):
+                        if "maximum" in field_schema and value > field_schema["maximum"]:
                             self._logger.warning(
                                 "schema_validation.value_above_maximum",
                                 field=field,

@@ -215,9 +215,7 @@ class TestDiscordSurfaceLifecycle:
 
         # Disconnect to stop health monitoring
         await lifecycle.disconnect()
-        assert (
-            lifecycle._health_check_task is None or lifecycle._health_check_task.done()
-        )
+        assert lifecycle._health_check_task is None or lifecycle._health_check_task.done()
 
     @pytest.mark.asyncio
     async def test_update_heartbeat(self):
@@ -282,9 +280,7 @@ class TestDiscordSurfaceLifecycle:
         async def event_handler(event: dict[str, Any]) -> None:
             events_received.append(event)
 
-        await lifecycle.register_lifecycle_handler(
-            "connection.established", event_handler
-        )
+        await lifecycle.register_lifecycle_handler("connection.established", event_handler)
         await lifecycle.register_lifecycle_handler("connection.closed", event_handler)
 
         # Connect and disconnect
@@ -293,13 +289,8 @@ class TestDiscordSurfaceLifecycle:
 
         # Should have received connection events
         assert len(events_received) >= 2
-        assert any(
-            event.get("event_type") == "connection.established"
-            for event in events_received
-        )
-        assert any(
-            event.get("event_type") == "connection.closed" for event in events_received
-        )
+        assert any(event.get("event_type") == "connection.established" for event in events_received)
+        assert any(event.get("event_type") == "connection.closed" for event in events_received)
 
     @pytest.mark.asyncio
     async def test_error_event_handling(self):

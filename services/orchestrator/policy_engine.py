@@ -129,9 +129,7 @@ class PolicyEngine:
             "current_time": time.time(),
         }
 
-    def evaluate_vad(
-        self, audio_data: bytes, rms: float, metadata: dict[str, Any]
-    ) -> VADDecision:
+    def evaluate_vad(self, audio_data: bytes, rms: float, metadata: dict[str, Any]) -> VADDecision:
         """Evaluate voice activity detection."""
         start_time = time.time()
 
@@ -242,10 +240,7 @@ class PolicyEngine:
                 reason = f"Speech duration too short: {duration_ms}ms < {self.config.endpointing.min_speech_duration_ms}ms"
 
             # Check silence timeout
-            elif (
-                not is_speech
-                and silence_duration_ms > self.config.endpointing.silence_timeout_ms
-            ):
+            elif not is_speech and silence_duration_ms > self.config.endpointing.silence_timeout_ms:
                 should_endpoint = True
                 reason = f"Silence timeout exceeded: {silence_duration_ms}ms > {self.config.endpointing.silence_timeout_ms}ms"
 
@@ -285,9 +280,7 @@ class PolicyEngine:
             )
 
         except Exception as e:
-            self._logger.error(
-                "policy_engine.endpointing_evaluation_failed", error=str(e)
-            )
+            self._logger.error("policy_engine.endpointing_evaluation_failed", error=str(e))
             return EndpointingDecision(
                 should_endpoint=False,
                 reason=f"Endpointing evaluation failed: {str(e)}",
@@ -496,9 +489,7 @@ class PolicyEngine:
     def get_performance_stats(self) -> dict[str, Any]:
         """Get performance statistics."""
         avg_decision_time = (
-            self._total_decision_time / self._decision_count
-            if self._decision_count > 0
-            else 0.0
+            self._total_decision_time / self._decision_count if self._decision_count > 0 else 0.0
         )
 
         return {
@@ -524,10 +515,7 @@ class PolicyEngine:
                 limit_ms=self.config.latency.max_e2e_latency_ms,
             )
             return False
-        elif (
-            operation == "barge_in"
-            and latency_ms > self.config.latency.max_barge_in_delay_ms
-        ):
+        elif operation == "barge_in" and latency_ms > self.config.latency.max_barge_in_delay_ms:
             self._logger.warning(
                 "policy_engine.latency_exceeded",
                 operation=operation,

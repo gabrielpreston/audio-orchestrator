@@ -466,9 +466,7 @@ class TestDiscordControlChannel:
         control = DiscordControlChannel(123456789, 987654321)
 
         await control.connect()
-        await control.send_barge_in_request(
-            reason="user_interruption", ts_device=1234567890.0
-        )
+        await control.send_barge_in_request(reason="user_interruption", ts_device=1234567890.0)
 
         assert control._total_events_sent == 2  # Connection + barge-in event
 
@@ -503,9 +501,7 @@ class TestDiscordControlChannel:
         control = DiscordControlChannel(123456789, 987654321)
 
         await control.connect()
-        await control.send_route_change(
-            input_route="microphone", output_route="speakers"
-        )
+        await control.send_route_change(input_route="microphone", output_route="speakers")
 
         assert control._total_events_sent == 2  # Connection + route event
 
@@ -523,9 +519,7 @@ class TestDiscordControlChannel:
         control = DiscordControlChannel(123456789, 987654321)
 
         await control.connect()
-        await control.send_playback_control(
-            PlaybackAction.PAUSE, reason="user_interruption"
-        )
+        await control.send_playback_control(PlaybackAction.PAUSE, reason="user_interruption")
 
         assert control._total_events_sent == 2  # Connection + playback event
 

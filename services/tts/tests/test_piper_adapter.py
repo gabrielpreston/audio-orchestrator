@@ -117,9 +117,7 @@ class TestPiperAdapterSynthesis:
             # Mock the async methods using patch.object
             with (
                 patch.object(adapter, "connect", return_value=True),
-                patch.object(
-                    adapter, "synthesize", return_value=b"streaming audio data"
-                ),
+                patch.object(adapter, "synthesize", return_value=b"streaming audio data"),
             ):
                 await adapter.connect()
 
@@ -141,16 +139,12 @@ class TestPiperAdapterSynthesis:
             # Mock the async methods using patch.object
             with (
                 patch.object(adapter, "connect", return_value=True),
-                patch.object(
-                    adapter, "synthesize", return_value=b"voice selected audio"
-                ),
+                patch.object(adapter, "synthesize", return_value=b"voice selected audio"),
             ):
                 await adapter.connect()
 
                 # Test voice and language selection
-                result = await adapter.synthesize(
-                    sample_text, voice="voice1", language="en"
-                )
+                result = await adapter.synthesize(sample_text, voice="voice1", language="en")
 
                 assert result == b"voice selected audio"
                 mock_model.synthesize.assert_called_once()
@@ -167,9 +161,7 @@ class TestPiperAdapterSynthesis:
             # Mock the async methods using patch.object
             with (
                 patch.object(adapter, "connect", return_value=True),
-                patch.object(
-                    adapter, "synthesize", return_value=b"telemetry test audio"
-                ),
+                patch.object(adapter, "synthesize", return_value=b"telemetry test audio"),
             ):
                 await adapter.connect()
 
@@ -454,9 +446,7 @@ class TestPiperAdapterPerformance:
             for result in results:
                 assert result == b"concurrent test audio"
 
-    async def test_synthesis_quality_consistency(
-        self, mock_adapter_config, sample_text
-    ):
+    async def test_synthesis_quality_consistency(self, mock_adapter_config, sample_text):
         """Test synthesis quality consistency."""
         with patch("services.tts.models.PiperAdapter._load_model") as mock_load:
             mock_model = Mock()

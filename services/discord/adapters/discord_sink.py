@@ -86,9 +86,7 @@ class DiscordAudioSink(AudioSink):
             )
 
             # Notify handlers
-            self._notify_handlers(
-                "playback_started", {"timestamp": self._playback_start_time}
-            )
+            self._notify_handlers("playback_started", {"timestamp": self._playback_start_time})
 
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.playback_start_failed", error=str(e))
@@ -293,9 +291,7 @@ class DiscordAudioSink(AudioSink):
         """Update surface-specific policies."""
         # This is a stub implementation
         # In a real implementation, this would update playback policies
-        self._logger.debug(
-            "discord_sink.policy_updated", config_keys=list(policy_config.keys())
-        )
+        self._logger.debug("discord_sink.policy_updated", config_keys=list(policy_config.keys()))
 
     def __repr__(self) -> str:
         """String representation of the audio sink."""

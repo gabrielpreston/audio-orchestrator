@@ -69,9 +69,7 @@ class TestOrchestratorTTSIntegration:
 
     async def test_tts_ssml_processing(self, test_auth_token):
         """Test TTS SSML input processing."""
-        ssml_text = (
-            "<speak>This is SSML text with <break time='0.5s'/> a pause.</speak>"
-        )
+        ssml_text = "<speak>This is SSML text with <break time='0.5s'/> a pause.</speak>"
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -85,9 +83,7 @@ class TestOrchestratorTTSIntegration:
             assert response.headers["content-type"] == "audio/wav"
             assert len(response.content) > 0
 
-    async def test_tts_correlation_id_propagation(
-        self, test_auth_token, test_correlation_id
-    ):
+    async def test_tts_correlation_id_propagation(self, test_auth_token, test_correlation_id):
         """Test correlation ID propagation through TTS."""
         async with httpx.AsyncClient() as client:
             response = await client.post(

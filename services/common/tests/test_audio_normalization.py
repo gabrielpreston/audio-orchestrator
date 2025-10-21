@@ -54,9 +54,7 @@ class TestAudioNormalization:
         return audio_int16.tobytes()
 
     @pytest.mark.unit
-    def test_normalize_audio_scales_to_target_rms(
-        self, audio_processor, sample_pcm_audio
-    ):
+    def test_normalize_audio_scales_to_target_rms(self, audio_processor, sample_pcm_audio):
         """Test that normalize_audio correctly scales audio to target RMS."""
         target_rms = 2000.0
 
@@ -86,9 +84,7 @@ class TestAudioNormalization:
         """Test that normalize_audio clips values within sample width bounds."""
         target_rms = 10000.0  # Very high target to force clipping
 
-        normalized_audio, _ = audio_processor.normalize_audio(
-            loud_audio, target_rms=target_rms
-        )
+        normalized_audio, _ = audio_processor.normalize_audio(loud_audio, target_rms=target_rms)
 
         # Convert back to numpy array to check bounds
         audio_array = np.frombuffer(normalized_audio, dtype=np.int16)
@@ -191,9 +187,7 @@ class TestAudioNormalization:
         assert len(normalized_audio) == len(invalid_audio)
 
     @pytest.mark.unit
-    def test_normalize_audio_preserves_audio_structure(
-        self, audio_processor, sample_pcm_audio
-    ):
+    def test_normalize_audio_preserves_audio_structure(self, audio_processor, sample_pcm_audio):
         """Test that normalize_audio preserves the basic structure of audio."""
         target_rms = 1000.0
 
@@ -209,9 +203,7 @@ class TestAudioNormalization:
         assert normalized_audio != sample_pcm_audio
 
     @pytest.mark.unit
-    def test_normalize_audio_scaling_factor_calculation(
-        self, audio_processor, sample_pcm_audio
-    ):
+    def test_normalize_audio_scaling_factor_calculation(self, audio_processor, sample_pcm_audio):
         """Test that scaling factor is calculated correctly."""
         target_rms = 2000.0
 

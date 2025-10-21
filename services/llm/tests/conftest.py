@@ -90,9 +90,7 @@ def test_completion_request() -> dict[str, Any]:
 def test_completion_response() -> dict[str, Any]:
     """Provide test completion response data."""
     return {
-        "choices": [
-            {"text": "sunny with a temperature of 75°F.", "finish_reason": "stop"}
-        ],
+        "choices": [{"text": "sunny with a temperature of 75°F.", "finish_reason": "stop"}],
         "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
         "model": "llama-2-7b",
     }

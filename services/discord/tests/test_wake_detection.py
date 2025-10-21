@@ -79,9 +79,7 @@ class TestWakeDetection:
         assert wake_config_enabled.enabled is True
 
     @pytest.mark.component
-    def test_wake_detection_logs_results(
-        self, wake_detector_enabled, sample_audio_segment
-    ):
+    def test_wake_detection_logs_results(self, wake_detector_enabled, sample_audio_segment):
         """Test that wake detection logs results with all metadata."""
         transcript = "hey atlas, how are you?"
 
@@ -91,9 +89,7 @@ class TestWakeDetection:
         # Mock the detection methods to return a result
         with (
             patch.object(wake_detector_enabled, "_detect_audio", return_value=None),
-            patch.object(
-                wake_detector_enabled, "_detect_transcript"
-            ) as mock_transcript,
+            patch.object(wake_detector_enabled, "_detect_transcript") as mock_transcript,
         ):
 
             mock_result = Mock()
@@ -153,9 +149,7 @@ class TestWakeDetection:
             assert config.wake.enabled is True  # type: ignore[attr-defined]
 
     @pytest.mark.component
-    def test_wake_detection_audio_priority(
-        self, wake_detector_enabled, sample_audio_segment
-    ):
+    def test_wake_detection_audio_priority(self, wake_detector_enabled, sample_audio_segment):
         """Test that wake detection prioritizes audio over transcript."""
         transcript = "some other text"
 
@@ -176,18 +170,14 @@ class TestWakeDetection:
         assert result.source == "audio"
 
     @pytest.mark.component
-    def test_wake_detection_transcript_fallback(
-        self, wake_detector_enabled, sample_audio_segment
-    ):
+    def test_wake_detection_transcript_fallback(self, wake_detector_enabled, sample_audio_segment):
         """Test that wake detection falls back to transcript when audio fails."""
         transcript = "hey atlas, how are you?"
 
         # Mock audio detection to return None, transcript to return result
         with (
             patch.object(wake_detector_enabled, "_detect_audio", return_value=None),
-            patch.object(
-                wake_detector_enabled, "_detect_transcript"
-            ) as mock_transcript,
+            patch.object(wake_detector_enabled, "_detect_transcript") as mock_transcript,
         ):
 
             mock_result = Mock()
@@ -205,18 +195,14 @@ class TestWakeDetection:
         assert result.source == "transcript"
 
     @pytest.mark.component
-    def test_wake_detection_no_result(
-        self, wake_detector_enabled, sample_audio_segment
-    ):
+    def test_wake_detection_no_result(self, wake_detector_enabled, sample_audio_segment):
         """Test that wake detection returns None when no wake phrase is detected."""
         transcript = "just some regular conversation"
 
         # Mock both audio and transcript detection to return None
         with (
             patch.object(wake_detector_enabled, "_detect_audio", return_value=None),
-            patch.object(
-                wake_detector_enabled, "_detect_transcript", return_value=None
-            ),
+            patch.object(wake_detector_enabled, "_detect_transcript", return_value=None),
         ):
 
             result = wake_detector_enabled.detect(sample_audio_segment, transcript)

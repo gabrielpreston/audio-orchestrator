@@ -28,9 +28,7 @@ def analyze_audio_quality(audio_data: bytes) -> dict:
         }
 
     # Use real WAV data for format info
-    freq_info = measure_frequency_response(
-        audio_data, wav_info.get("sample_rate", 16000)
-    )
+    freq_info = measure_frequency_response(audio_data, wav_info.get("sample_rate", 16000))
 
     # Calculate real quality metrics
     # Note: calculate_snr and calculate_thd expect PCM data, not WAV
@@ -134,13 +132,8 @@ class TestAudioFormatChain:
             assert output_quality["bit_depth"] == 16
 
             # Step 6: Validate quality thresholds
-            assert (
-                output_quality["snr_db"] >= test_voice_quality_thresholds["min_snr_db"]
-            )
-            assert (
-                output_quality["thd_percent"]
-                <= test_voice_quality_thresholds["max_thd_percent"]
-            )
+            assert output_quality["snr_db"] >= test_voice_quality_thresholds["min_snr_db"]
+            assert output_quality["thd_percent"] <= test_voice_quality_thresholds["max_thd_percent"]
 
     async def test_audio_format_conversion_chain(
         self,
@@ -270,13 +263,8 @@ class TestAudioFormatChain:
             output_quality = analyze_audio_quality(output_audio)
 
             # Validate quality metrics
-            assert (
-                output_quality["snr_db"] >= test_voice_quality_thresholds["min_snr_db"]
-            )
-            assert (
-                output_quality["thd_percent"]
-                <= test_voice_quality_thresholds["max_thd_percent"]
-            )
+            assert output_quality["snr_db"] >= test_voice_quality_thresholds["min_snr_db"]
+            assert output_quality["thd_percent"] <= test_voice_quality_thresholds["max_thd_percent"]
             assert (
                 output_quality["voice_range_ratio"]
                 >= test_voice_quality_thresholds["min_voice_range_ratio"]
@@ -363,9 +351,7 @@ class TestAudioFormatChain:
         async with httpx.AsyncClient() as client:
             # Test with invalid audio format
             invalid_audio = b"not audio data"
-            invalid_files = {
-                "file": ("invalid.wav", io.BytesIO(invalid_audio), "audio/wav")
-            }
+            invalid_files = {"file": ("invalid.wav", io.BytesIO(invalid_audio), "audio/wav")}
 
             stt_response = await client.post(
                 "http://stt:9000/transcribe",
@@ -467,7 +453,4 @@ class TestAudioFormatChain:
             # Validate performance thresholds
             assert stt_latency < test_voice_performance_thresholds["max_stt_latency_s"]
             assert tts_latency < test_voice_performance_thresholds["max_tts_latency_s"]
-            assert (
-                total_latency
-                < test_voice_performance_thresholds["max_end_to_end_latency_s"]
-            )
+            assert total_latency < test_voice_performance_thresholds["max_end_to_end_latency_s"]

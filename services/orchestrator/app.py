@@ -262,9 +262,7 @@ async def health_ready() -> dict[str, Any]:
 
     # Determine status string
     if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
+        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
     else:
         status_str = "ready"
 

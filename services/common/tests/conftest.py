@@ -125,17 +125,11 @@ def audio_validation_helpers():
 
     def validate_rms_range(rms: float, min_rms: float = 0.0, max_rms: float = 32768.0):
         """Validate RMS value is in expected range."""
-        assert (
-            min_rms <= rms <= max_rms
-        ), f"RMS {rms} not in range [{min_rms}, {max_rms}]"
+        assert min_rms <= rms <= max_rms, f"RMS {rms} not in range [{min_rms}, {max_rms}]"
 
-    def validate_audio_array(
-        audio_array: np.ndarray, dtype: np.dtype = np.dtype(np.int16)
-    ):
+    def validate_audio_array(audio_array: np.ndarray, dtype: np.dtype = np.dtype(np.int16)):
         """Validate audio array properties."""
-        assert (
-            audio_array.dtype == dtype
-        ), f"Expected dtype {dtype}, got {audio_array.dtype}"
+        assert audio_array.dtype == dtype, f"Expected dtype {dtype}, got {audio_array.dtype}"
         assert len(audio_array) > 0, "Audio array should not be empty"
 
     return {

@@ -153,16 +153,12 @@ class SurfaceRegistry:
     def get_surfaces_by_type(self, surface_type: SurfaceType) -> list[SurfaceConfig]:
         """Get surfaces by type."""
         return [
-            surface
-            for surface in self._surfaces.values()
-            if surface.surface_type == surface_type
+            surface for surface in self._surfaces.values() if surface.surface_type == surface_type
         ]
 
     def get_available_surfaces(self) -> list[SurfaceConfig]:
         """Get all available surfaces."""
-        return [
-            surface for surface in self._surfaces.values() if surface.is_available()
-        ]
+        return [surface for surface in self._surfaces.values() if surface.is_available()]
 
     def get_healthy_surfaces(self) -> list[SurfaceConfig]:
         """Get all healthy surfaces."""
@@ -171,18 +167,12 @@ class SurfaceRegistry:
     def get_surfaces_by_capability(self, capability: str) -> list[SurfaceConfig]:
         """Get surfaces that support a specific capability."""
         return [
-            surface
-            for surface in self._surfaces.values()
-            if surface.supports_feature(capability)
+            surface for surface in self._surfaces.values() if surface.supports_feature(capability)
         ]
 
     def get_surfaces_by_priority(self, min_priority: int = 0) -> list[SurfaceConfig]:
         """Get surfaces with minimum priority."""
-        return [
-            surface
-            for surface in self._surfaces.values()
-            if surface.priority >= min_priority
-        ]
+        return [surface for surface in self._surfaces.values() if surface.priority >= min_priority]
 
     def update_surface_status(self, surface_id: str, status: SurfaceStatus) -> bool:
         """Update surface status."""
@@ -426,11 +416,7 @@ class SurfaceRegistry:
         )
 
         self._stats.busy_surfaces = len(
-            [
-                surface
-                for surface in self._surfaces.values()
-                if surface.status == SurfaceStatus.BUSY
-            ]
+            [surface for surface in self._surfaces.values() if surface.status == SurfaceStatus.BUSY]
         )
 
         self._stats.unavailable_surfaces = len(

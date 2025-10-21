@@ -265,9 +265,7 @@ class TestServiceResilience:
                 # Test retry mechanism
                 for attempt in range(3):
                     try:
-                        response = await client.get(
-                            f"{base_url}/health/live", timeout=5.0
-                        )
+                        response = await client.get(f"{base_url}/health/live", timeout=5.0)
                         if response.status_code == 200:
                             break
                     except httpx.ConnectError:

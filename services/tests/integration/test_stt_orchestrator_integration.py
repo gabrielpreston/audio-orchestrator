@@ -50,15 +50,11 @@ class TestSTTOrchestratorIntegration:
         """Test orchestrator health endpoint accessibility."""
         async with httpx.AsyncClient() as client:
             # Test live endpoint
-            response = await client.get(
-                "http://orchestrator:8000/health/live", timeout=5.0
-            )
+            response = await client.get("http://orchestrator:8000/health/live", timeout=5.0)
             assert response.status_code == 200
 
             # Test ready endpoint
-            response = await client.get(
-                "http://orchestrator:8000/health/ready", timeout=5.0
-            )
+            response = await client.get("http://orchestrator:8000/health/ready", timeout=5.0)
             assert response.status_code in [200, 503]  # May be ready or not ready
 
             if response.status_code == 200:

@@ -33,17 +33,13 @@ class TestE2EVoicePipeline:
 
         async with httpx.AsyncClient() as client:
             # Step 1: Verify Discord bot is running and healthy
-            discord_response = await client.get(
-                "http://discord:8001/health/ready", timeout=10.0
-            )
+            discord_response = await client.get("http://discord:8001/health/ready", timeout=10.0)
             assert discord_response.status_code == 200
             discord_health = discord_response.json()
             assert discord_health["service"] == "discord"
 
             # Step 2: Test Discord MCP endpoints are accessible
-            tools_response = await client.get(
-                "http://discord:8001/mcp/tools", timeout=10.0
-            )
+            tools_response = await client.get("http://discord:8001/mcp/tools", timeout=10.0)
             assert tools_response.status_code == 200
             tools_data = tools_response.json()
             assert "tools" in tools_data
@@ -53,9 +49,7 @@ class TestE2EVoicePipeline:
             start_time = time.time()
 
             # STT transcription
-            stt_files = {
-                "file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")
-            }
+            stt_files = {"file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")}
             stt_response = await client.post(
                 "http://stt:9000/transcribe",
                 files=stt_files,
@@ -112,9 +106,7 @@ class TestE2EVoicePipeline:
 
             # Step 5: Validate end-to-end performance
             total_latency = time.time() - start_time
-            assert (
-                total_latency < 5.0
-            ), f"E2E latency {total_latency:.3f}s exceeds 5s threshold"
+            assert total_latency < 5.0, f"E2E latency {total_latency:.3f}s exceeds 5s threshold"
 
             print("E2E Voice Pipeline Test Results:")
             print(f"  Transcript: {transcript}")
@@ -283,9 +275,7 @@ class TestE2EVoicePipeline:
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # At least 2 should succeed
-        successful_results = [
-            r for r in results if isinstance(r, dict) and r.get("success")
-        ]
+        successful_results = [r for r in results if isinstance(r, dict) and r.get("success")]
         assert (
             len(successful_results) >= 2
         ), f"Only {len(successful_results)} concurrent E2E requests succeeded"
@@ -297,9 +287,7 @@ class TestE2EVoicePipeline:
             health_checks = []
 
             for i in range(5):
-                health_response = await client.get(
-                    "http://discord:8001/health/ready", timeout=5.0
-                )
+                health_response = await client.get("http://discord:8001/health/ready", timeout=5.0)
                 health_checks.append(
                     {
                         "check": i,
@@ -311,9 +299,7 @@ class TestE2EVoicePipeline:
 
             # All health checks should pass
             healthy_checks = [h for h in health_checks if h["healthy"]]
-            assert (
-                len(healthy_checks) >= 4
-            ), f"Only {len(healthy_checks)}/5 health checks passed"
+            assert len(healthy_checks) >= 4, f"Only {len(healthy_checks)}/5 health checks passed"
 
             print("Discord Bot Health Monitoring:")
             for check in health_checks:
@@ -329,9 +315,7 @@ class TestE2EVoicePipeline:
         """Test correlation ID tracking through E2E Discord bot operations."""
         async with httpx.AsyncClient() as client:
             # Process voice request with specific correlation ID
-            stt_files = {
-                "file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")
-            }
+            stt_files = {"file": ("test_voice.wav", BytesIO(realistic_voice_audio), "audio/wav")}
 
             # STT with correlation ID
             stt_response = await client.post(

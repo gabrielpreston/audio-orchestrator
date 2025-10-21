@@ -350,9 +350,7 @@ class TestSTTServiceTranscription:
         # Create invalid audio data (8-bit)
         invalid_audio = b"RIFF\x00\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00\x00\x00\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")})
 
         assert response.status_code == 400
 
@@ -360,9 +358,7 @@ class TestSTTServiceTranscription:
         """Test invalid WAV header rejection."""
         invalid_audio = b"invalid wav data"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", invalid_audio, "audio/wav")})
 
         assert response.status_code == 400
 
@@ -441,9 +437,7 @@ class TestSTTServiceErrorHandling:
         """Test malformed audio data handling."""
         malformed_audio = b"not audio data at all"
 
-        response = client.post(
-            "/asr", files={"audio": ("test.wav", malformed_audio, "audio/wav")}
-        )
+        response = client.post("/asr", files={"audio": ("test.wav", malformed_audio, "audio/wav")})
 
         assert response.status_code == 400
 

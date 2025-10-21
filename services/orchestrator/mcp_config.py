@@ -86,9 +86,7 @@ class MCPConfig:
 
                 # Substitute environment variables in args
                 processed_args = [self._substitute_env_vars(arg) for arg in args]
-                processed_env = {
-                    k: self._substitute_env_vars(v) for k, v in env.items()
-                }
+                processed_env = {k: self._substitute_env_vars(v) for k, v in env.items()}
 
                 server_config = MCPServerConfig(
                     name=name,

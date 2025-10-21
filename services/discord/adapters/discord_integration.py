@@ -91,9 +91,7 @@ class DiscordAdapterIntegration:
                 guild_id=self.guild_id, channel_id=self.channel_id
             )
 
-            self._audio_sink = DiscordAudioSink(
-                guild_id=self.guild_id, channel_id=self.channel_id
-            )
+            self._audio_sink = DiscordAudioSink(guild_id=self.guild_id, channel_id=self.channel_id)
 
             self._control_channel = DiscordControlChannel(
                 guild_id=self.guild_id, channel_id=self.channel_id
@@ -230,9 +228,7 @@ class DiscordAdapterIntegration:
         """Get surface lifecycle adapter."""
         return self._surface_lifecycle
 
-    async def register_event_handler(
-        self, event_type: str, handler: Callable[..., Any]
-    ) -> None:
+    async def register_event_handler(self, event_type: str, handler: Callable[..., Any]) -> None:
         """
         Register event handler for specific event type.
 

@@ -192,9 +192,7 @@ class SessionOrchestratorIntegration:
             logger.error("Failed to create session: %s", e)
             return None
 
-    async def end_session(
-        self, session_id: str, reason: str = "user_requested"
-    ) -> bool:
+    async def end_session(self, session_id: str, reason: str = "user_requested") -> bool:
         """
         End a session.
 
@@ -255,9 +253,7 @@ class SessionOrchestratorIntegration:
             )
 
             if not policy_result.get("should_process", True):
-                logger.debug(
-                    "Transcript rejected by policy engine for session %s", session_id
-                )
+                logger.debug("Transcript rejected by policy engine for session %s", session_id)
                 return {
                     "status": "rejected",
                     "reason": policy_result.get("reason", "Policy rejection"),
@@ -305,14 +301,10 @@ class SessionOrchestratorIntegration:
             return result
 
         except Exception as e:
-            logger.error(
-                "Failed to process transcript for session %s: %s", session_id, e
-            )
+            logger.error("Failed to process transcript for session %s: %s", session_id, e)
             return {"error": str(e)}
 
-    async def register_event_handler(
-        self, event_type: str, handler: Callable[..., Any]
-    ) -> None:
+    async def register_event_handler(self, event_type: str, handler: Callable[..., Any]) -> None:
         """
         Register event handler for specific event type.
 

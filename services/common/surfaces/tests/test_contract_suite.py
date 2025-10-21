@@ -85,9 +85,7 @@ class TestSurfaceAdapterContractTester:
         return adapter
 
     @pytest.mark.component
-    async def test_audio_source_contract_success(
-        self, contract_tester, mock_audio_source
-    ):
+    async def test_audio_source_contract_success(self, contract_tester, mock_audio_source):
         """Test successful AudioSource contract validation."""
         results = await contract_tester.test_audio_source_contract(mock_audio_source)
 
@@ -117,13 +115,9 @@ class TestSurfaceAdapterContractTester:
 
     @pytest.mark.asyncio
     @pytest.mark.component
-    async def test_control_channel_contract_success(
-        self, contract_tester, mock_control_channel
-    ):
+    async def test_control_channel_contract_success(self, contract_tester, mock_control_channel):
         """Test successful ControlChannel contract validation."""
-        results = await contract_tester.test_control_channel_contract(
-            mock_control_channel
-        )
+        results = await contract_tester.test_control_channel_contract(mock_control_channel)
 
         assert results["adapter_type"] == "ControlChannel"
         assert results["tests_passed"] > 0
@@ -140,9 +134,7 @@ class TestSurfaceAdapterContractTester:
         self, contract_tester, mock_surface_lifecycle
     ):
         """Test successful SurfaceLifecycle contract validation."""
-        results = await contract_tester.test_surface_lifecycle_contract(
-            mock_surface_lifecycle
-        )
+        results = await contract_tester.test_surface_lifecycle_contract(mock_surface_lifecycle)
 
         assert results["adapter_type"] == "SurfaceLifecycle"
         assert results["tests_passed"] > 0
@@ -177,9 +169,7 @@ class TestSurfaceAdapterContractTester:
 
     @pytest.mark.asyncio
     @pytest.mark.component
-    async def test_comprehensive_tests(
-        self, contract_tester, mock_audio_source, mock_audio_sink
-    ):
+    async def test_comprehensive_tests(self, contract_tester, mock_audio_source, mock_audio_sink):
         """Test comprehensive test suite."""
         adapters = {"audio_source": mock_audio_source, "audio_sink": mock_audio_sink}
 
@@ -259,11 +249,7 @@ class TestSurfaceAdapterContractTester:
 
         # Find telemetry test
         telemetry_test = next(
-            (
-                test
-                for test in results["test_details"]
-                if test["test_name"] == "telemetry"
-            ),
+            (test for test in results["test_details"] if test["test_name"] == "telemetry"),
             None,
         )
         assert telemetry_test is not None
@@ -286,11 +272,7 @@ class TestSurfaceAdapterContractTester:
 
         # Find event receiving test
         receive_test = next(
-            (
-                test
-                for test in results["test_details"]
-                if test["test_name"] == "event_receiving"
-            ),
+            (test for test in results["test_details"] if test["test_name"] == "event_receiving"),
             None,
         )
         assert receive_test is not None

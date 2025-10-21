@@ -14,9 +14,7 @@ def mock_piper_model() -> Generator[mock.Mock, None, None]:
     """Mock Piper TTS model for testing."""
     with mock.patch("piper.PiperVoice") as mock_voice:
         # Configure mock voice
-        mock_voice.return_value.synthesize.return_value = np.random.randn(22050).astype(
-            np.float32
-        )
+        mock_voice.return_value.synthesize.return_value = np.random.randn(22050).astype(np.float32)
         mock_voice.return_value.sample_rate = 22050
         yield mock_voice.return_value
 

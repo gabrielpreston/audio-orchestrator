@@ -67,9 +67,7 @@ class Orchestrator:
 
         try:
             # Use standardized audio processing
-            wav_data = processor.pcm_to_wav(
-                raw_audio_data, sample_rate, num_channels, sample_width
-            )
+            wav_data = processor.pcm_to_wav(raw_audio_data, sample_rate, num_channels, sample_width)
             return bytes(wav_data)
 
         except Exception as exc:

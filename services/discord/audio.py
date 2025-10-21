@@ -99,9 +99,7 @@ class Accumulator:
             return FlushDecision("flush", "max_duration", total_duration, silence_age)
         if silence_age >= self.config.silence_timeout_seconds:
             if total_duration >= self.config.min_segment_duration_seconds:
-                return FlushDecision(
-                    "flush", "silence_timeout", total_duration, silence_age
-                )
+                return FlushDecision("flush", "silence_timeout", total_duration, silence_age)
             return FlushDecision("hold", "min_duration", total_duration, silence_age)
         return None
 
@@ -201,9 +199,7 @@ class AudioPipeline:
             Accumulator(user_id=user_id, config=self._config),
         )
         accumulator.sequence += 1
-        normalized_pcm, adjusted_rms = self._normalize_pcm(
-            pcm, target_rms=rms, user_id=user_id
-        )
+        normalized_pcm, adjusted_rms = self._normalize_pcm(pcm, target_rms=rms, user_id=user_id)
         frame = PCMFrame(
             pcm=normalized_pcm,
             timestamp=timestamp,
@@ -218,9 +214,9 @@ class AudioPipeline:
         # Sample VAD decisions to reduce log verbosity
         sample_n = self._telemetry_config.log_sample_vad_n or 50
 
-        if should_sample(
-            "discord.vad_decision", sample_n
-        ) or self._should_log_vad_decision(accumulator.sequence):
+        if should_sample("discord.vad_decision", sample_n) or self._should_log_vad_decision(
+            accumulator.sequence
+        ):
             self._logger.debug(
                 "voice.vad_decision",
                 user_id=user_id,
@@ -257,9 +253,7 @@ class AudioPipeline:
         except Exception:
             frame_sample_n = 50
 
-        if frame.sequence <= 10 or should_sample(
-            "discord.frame_buffered", frame_sample_n
-        ):
+        if frame.sequence <= 10 or should_sample("discord.frame_buffered", frame_sample_n):
             self._logger.debug(
                 "voice.frame_buffered",
                 user_id=user_id,
@@ -349,12 +343,7 @@ class AudioPipeline:
 
         segment_logger = bind_correlation_id(self._logger, segment.correlation_id)
 
-        reason = (
-            override_reason
-            or (decision.reason if decision else None)
-            or trigger
-            or "unknown"
-        )
+        reason = override_reason or (decision.reason if decision else None) or trigger or "unknown"
         # Always log segment readiness once for determinism in tests and clarity
         segment_logger.info(
             "voice.segment_ready",
@@ -381,9 +370,7 @@ class AudioPipeline:
             return pcm
         if sample_rate != self._target_sample_rate:
             try:
-                pcm, _ = audioop.ratecv(
-                    pcm, 2, 1, sample_rate, self._target_sample_rate, None
-                )
+                pcm, _ = audioop.ratecv(pcm, 2, 1, sample_rate, self._target_sample_rate, None)
             except Exception as exc:
                 self._logger.warning(
                     "voice.vad_resample_failed",
@@ -426,9 +413,7 @@ class AudioPipeline:
         if target_rms <= 1.0:
             target_rms = max(1.0, target_rms * 32768.0)
 
-        normalized_pcm, new_rms = processor.normalize_audio(
-            pcm, target_rms, 2, user_id=user_id
-        )
+        normalized_pcm, new_rms = processor.normalize_audio(pcm, target_rms, 2, user_id=user_id)
 
         return normalized_pcm, new_rms
 

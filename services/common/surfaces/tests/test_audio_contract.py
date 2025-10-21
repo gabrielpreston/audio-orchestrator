@@ -109,9 +109,7 @@ class TestAudioContract:
             "sample_width": 2,
         }
 
-        normalized_data, normalized_metadata = contract.normalize_audio(
-            audio_data, metadata
-        )
+        normalized_data, normalized_metadata = contract.normalize_audio(audio_data, metadata)
 
         assert normalized_data == audio_data
         assert normalized_metadata["sample_rate"] == 16000

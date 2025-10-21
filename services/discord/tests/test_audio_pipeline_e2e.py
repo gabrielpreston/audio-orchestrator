@@ -93,9 +93,7 @@ class TestAudioPipelineE2E:
         """Create mock transcription client."""
         client = Mock(spec=TranscriptionClient)
         client.transcribe = AsyncMock()
-        client.get_circuit_stats = Mock(
-            return_value={"state": "closed", "available": True}
-        )
+        client.get_circuit_stats = Mock(return_value={"state": "closed", "available": True})
         return client
 
     @pytest.fixture
@@ -144,9 +142,7 @@ class TestAudioPipelineE2E:
         mock_orchestrator_result = Mock()
         mock_orchestrator_result.text = "I'm doing well, thank you!"
         mock_orchestrator_result.audio_url = "http://test-tts:7000/audio/123.wav"
-        mock_orchestrator_client.process_transcript.return_value = (
-            mock_orchestrator_result
-        )
+        mock_orchestrator_client.process_transcript.return_value = mock_orchestrator_result
 
         # Create voice bot with mocks
         voice_bot = Mock(spec=VoiceBot)
@@ -174,15 +170,11 @@ class TestAudioPipelineE2E:
             voice_bot._save_debug_wav(sample_audio_segment, prefix="captured")
 
             # Simulate transcription
-            transcript = await mock_transcription_client.transcribe(
-                sample_audio_segment
-            )
+            transcript = await mock_transcription_client.transcribe(sample_audio_segment)
             assert transcript.text == "hey atlas, how are you?"
 
             # Simulate wake detection
-            wake_result = mock_wake_detector.detect(
-                sample_audio_segment, transcript.text
-            )
+            wake_result = mock_wake_detector.detect(sample_audio_segment, transcript.text)
             assert wake_result.phrase == "hey atlas"
 
             # Simulate orchestrator processing
@@ -197,12 +189,8 @@ class TestAudioPipelineE2E:
 
         # Verify debug WAV files were saved
         assert voice_bot._save_debug_wav.call_count == 2
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="captured"
-        )
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="wake_detected"
-        )
+        voice_bot._save_debug_wav.assert_any_call(sample_audio_segment, prefix="captured")
+        voice_bot._save_debug_wav.assert_any_call(sample_audio_segment, prefix="wake_detected")
 
     @pytest.mark.component
     def test_audio_pipeline_with_wake_detection(
@@ -228,9 +216,7 @@ class TestAudioPipelineE2E:
         mock_wake_detector.detect.return_value = mock_wake_result
 
         # Test wake detection
-        wake_result = mock_wake_detector.detect(
-            sample_audio_segment, mock_transcript.text
-        )
+        wake_result = mock_wake_detector.detect(sample_audio_segment, mock_transcript.text)
 
         assert wake_result is not None
         assert wake_result.phrase == "hey atlas"
@@ -264,9 +250,7 @@ class TestAudioPipelineE2E:
         mock_wake_detector.detect.return_value = mock_wake_result
 
         # Test wake detection
-        wake_result = mock_wake_detector.detect(
-            sample_audio_segment, mock_transcript.text
-        )
+        wake_result = mock_wake_detector.detect(sample_audio_segment, mock_transcript.text)
 
         assert wake_result is not None
         assert wake_result.phrase == "testing_mode"
@@ -366,14 +350,10 @@ class TestAudioPipelineE2E:
 
         # Verify debug artifacts were generated
         assert voice_bot._save_debug_wav.call_count >= 1
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="captured"
-        )
+        voice_bot._save_debug_wav.assert_any_call(sample_audio_segment, prefix="captured")
 
         if wake_result:
-            voice_bot._save_debug_wav.assert_any_call(
-                sample_audio_segment, prefix="wake_detected"
-            )
+            voice_bot._save_debug_wav.assert_any_call(sample_audio_segment, prefix="wake_detected")
 
     @pytest.mark.component
     async def test_audio_pipeline_error_handling(
@@ -381,9 +361,7 @@ class TestAudioPipelineE2E:
     ):
         """Test audio pipeline error handling."""
         # Mock transcription failure
-        mock_transcription_client.transcribe.side_effect = Exception(
-            "STT service unavailable"
-        )
+        mock_transcription_client.transcribe.side_effect = Exception("STT service unavailable")
 
         # Test error handling
         with pytest.raises(Exception, match="STT service unavailable"):

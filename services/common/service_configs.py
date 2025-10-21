@@ -44,9 +44,7 @@ class DiscordConfig(BaseConfig):
         self.auto_join = auto_join
         self.voice_connect_timeout_seconds = voice_connect_timeout_seconds
         self.voice_connect_max_attempts = voice_connect_max_attempts
-        self.voice_reconnect_initial_backoff_seconds = (
-            voice_reconnect_initial_backoff_seconds
-        )
+        self.voice_reconnect_initial_backoff_seconds = voice_reconnect_initial_backoff_seconds
         self.voice_reconnect_max_backoff_seconds = voice_reconnect_max_backoff_seconds
 
     @classmethod

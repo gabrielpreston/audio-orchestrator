@@ -138,9 +138,7 @@ class TestTTSAudioQualityMetrics:
                 noise_level=0.0,
             )
             wav_data = create_wav_file(pcm_data, sample_rate=22050, channels=1)
-            samples.append(
-                validate_tts_audio_quality(wav_data, min_snr=0.0, max_thd=100.0)
-            )
+            samples.append(validate_tts_audio_quality(wav_data, min_snr=0.0, max_thd=100.0))
 
         # Just test that all samples can be processed
         for sample in samples:

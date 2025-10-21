@@ -118,9 +118,7 @@ class AudioContract:
 
             # Convert to mono if needed
             if current_channels != self.spec.channels:
-                audio_data = self._convert_to_mono(
-                    audio_data, current_channels, current_width
-                )
+                audio_data = self._convert_to_mono(audio_data, current_channels, current_width)
                 current_channels = self.spec.channels
 
             # Convert to 16-bit if needed
@@ -158,17 +156,13 @@ class AudioContract:
         """Resample audio using audioop."""
         try:
             # Use audioop for simple resampling
-            resampled, _ = audioop.ratecv(
-                audio_data, sample_width, 1, from_rate, to_rate, None
-            )
+            resampled, _ = audioop.ratecv(audio_data, sample_width, 1, from_rate, to_rate, None)
             return resampled
         except (ValueError, TypeError, OSError) as e:
             self._logger.warning("audio_contract.resample_failed", error=str(e))
             return audio_data
 
-    def _convert_to_mono(
-        self, audio_data: bytes, channels: int, sample_width: int
-    ) -> bytes:
+    def _convert_to_mono(self, audio_data: bytes, channels: int, sample_width: int) -> bytes:
         """Convert stereo to mono."""
         if channels == 1:
             return audio_data
@@ -184,9 +178,7 @@ class AudioContract:
             self._logger.warning("audio_contract.mono_conversion_failed", error=str(e))
             return audio_data
 
-    def _convert_sample_width(
-        self, audio_data: bytes, from_width: int, to_width: int
-    ) -> bytes:
+    def _convert_sample_width(self, audio_data: bytes, from_width: int, to_width: int) -> bytes:
         """Convert sample width."""
         if from_width == to_width:
             return audio_data
@@ -242,13 +234,10 @@ class AudioContract:
                     "sample_width": self.spec.sample_width,
                     "bit_depth": self.spec.bit_depth,
                     "format": "pcm",
-                    "frames": len(audio_data)
-                    // (self.spec.channels * self.spec.sample_width),
+                    "frames": len(audio_data) // (self.spec.channels * self.spec.sample_width),
                 }
         except (ValueError, TypeError, OSError) as e:
-            self._logger.warning(
-                "audio_contract.metadata_extraction_failed", error=str(e)
-            )
+            self._logger.warning("audio_contract.metadata_extraction_failed", error=str(e))
             return {
                 "sample_rate": self.spec.sample_rate,
                 "channels": self.spec.channels,

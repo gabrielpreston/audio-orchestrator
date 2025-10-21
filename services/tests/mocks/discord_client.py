@@ -227,9 +227,7 @@ def create_mock_guild(guild_id: int, name: str = "Test Guild") -> MockGuild:
     return MockGuild(guild_id, name)
 
 
-def create_mock_voice_channel(
-    channel_id: int, guild_id: int | None = None
-) -> MockVoiceChannel:
+def create_mock_voice_channel(channel_id: int, guild_id: int | None = None) -> MockVoiceChannel:
     """Create a mock voice channel for testing.
 
     Args:

@@ -121,9 +121,7 @@ class DiscordAudioSource(AudioSource):
             await asyncio.sleep(0.02)  # 20ms frame duration
 
             # Create dummy PCM data (silence)
-            pcm_data = (
-                b"\x00\x00" * 960
-            )  # 960 samples * 2 bytes = 1920 bytes for 20ms at 48kHz
+            pcm_data = b"\x00\x00" * 960  # 960 samples * 2 bytes = 1920 bytes for 20ms at 48kHz
 
             frame = PCMFrame(
                 pcm=pcm_data,
@@ -147,9 +145,7 @@ class DiscordAudioSource(AudioSource):
                 try:
                     handler(frame)
                 except (ValueError, TypeError, KeyError) as e:
-                    self._logger.error(
-                        "discord_source.frame_handler_failed", error=str(e)
-                    )
+                    self._logger.error("discord_source.frame_handler_failed", error=str(e))
 
             return frame
 
@@ -335,9 +331,7 @@ class DiscordAudioSource(AudioSource):
         """Update surface-specific policies."""
         # This is a stub implementation
         # In a real implementation, this would update VAD thresholds, etc.
-        self._logger.debug(
-            "discord_source.policy_updated", config_keys=list(policy_config.keys())
-        )
+        self._logger.debug("discord_source.policy_updated", config_keys=list(policy_config.keys()))
 
     def __repr__(self) -> str:
         """String representation of the audio source."""

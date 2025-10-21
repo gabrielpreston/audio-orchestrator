@@ -194,9 +194,7 @@ class DiscordMediaGatewayIntegration:
             logger.error("Failed to process audio frame: %s", e)
             return None
 
-    async def normalize_audio(
-        self, audio_data: bytes, input_format: AudioFormat
-    ) -> bytes | None:
+    async def normalize_audio(self, audio_data: bytes, input_format: AudioFormat) -> bytes | None:
         """
         Normalize audio data using AudioContract.
 
@@ -273,9 +271,7 @@ class DiscordMediaGatewayIntegration:
             logger.error("Failed to convert codec: %s", e)
             return None
 
-    async def register_event_handler(
-        self, event_type: str, handler: Callable[..., Any]
-    ) -> None:
+    async def register_event_handler(self, event_type: str, handler: Callable[..., Any]) -> None:
         """
         Register event handler for specific event type.
 

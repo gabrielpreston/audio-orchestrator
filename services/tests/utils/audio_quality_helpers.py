@@ -31,9 +31,7 @@ def calculate_snr(audio_data: bytes, noise_floor: float = 0.01) -> float:
         signal_power = np.mean(audio_float**2)
 
         # Estimate noise power (using minimum values as noise floor)
-        noise_power = max(
-            noise_floor, float(np.var(audio_float[audio_float < noise_floor]))
-        )
+        noise_power = max(noise_floor, float(np.var(audio_float[audio_float < noise_floor])))
 
         if noise_power == 0:
             return float("inf")
@@ -102,9 +100,7 @@ def calculate_thd(
         return 0.0
 
 
-def measure_frequency_response(
-    audio_data: bytes, sample_rate: int = 16000
-) -> dict[str, Any]:
+def measure_frequency_response(audio_data: bytes, sample_rate: int = 16000) -> dict[str, Any]:
     """
     Measure frequency response of audio data.
 
@@ -195,18 +191,12 @@ def validate_audio_fidelity(
             correlation = 0.0
 
         # Calculate mean squared error
-        mse = np.mean(
-            (orig_array.astype(np.float32) - proc_array.astype(np.float32)) ** 2
-        )
+        mse = np.mean((orig_array.astype(np.float32) - proc_array.astype(np.float32)) ** 2)
 
         # Calculate signal-to-noise ratio between original and processed
         signal_power = np.mean(orig_array.astype(np.float32) ** 2)
         noise_power = mse
-        snr = (
-            10 * np.log10(signal_power / noise_power)
-            if noise_power > 0
-            else float("inf")
-        )
+        snr = 10 * np.log10(signal_power / noise_power) if noise_power > 0 else float("inf")
 
         # Calculate fidelity score (0.0 to 1.0)
         fidelity_score = max(0.0, min(1.0, correlation * (1.0 - mse / (32768.0**2))))
@@ -309,9 +299,7 @@ def generate_test_audio(
         return b"\x00" * int(sample_rate * duration * 2)
 
 
-def create_wav_file(
-    pcm_data: bytes, sample_rate: int = 16000, channels: int = 1
-) -> bytes:
+def create_wav_file(pcm_data: bytes, sample_rate: int = 16000, channels: int = 1) -> bytes:
     """
     Create WAV file from PCM data.
 

@@ -66,9 +66,7 @@ class TestDiscordServiceIntegration:
             assert data["service"] == "discord"
 
             # Test ready endpoint
-            response = await client.get(
-                "http://discord:8001/health/ready", timeout=15.0
-            )
+            response = await client.get("http://discord:8001/health/ready", timeout=15.0)
             assert response.status_code in [200, 503]  # May be ready or not ready
             if response.status_code == 200:
                 data = response.json()

@@ -206,9 +206,7 @@ class PolicyConfig:
                 mode=BargeInMode(bi_data.get("mode", "graceful")),
                 detection_threshold=bi_data.get("detection_threshold", 0.8),
                 response_delay_ms=bi_data.get("response_delay_ms", 100.0),
-                max_interruption_duration_ms=bi_data.get(
-                    "max_interruption_duration_ms", 5000.0
-                ),
+                max_interruption_duration_ms=bi_data.get("max_interruption_duration_ms", 5000.0),
             )
 
         if "wake" in data:
@@ -262,9 +260,7 @@ class PolicyConfig:
             errors.append("Endpointing silence timeout must be non-negative")
 
         if not 0.0 <= self.endpointing.confidence_threshold <= 1.0:
-            errors.append(
-                "Endpointing confidence threshold must be between 0.0 and 1.0"
-            )
+            errors.append("Endpointing confidence threshold must be between 0.0 and 1.0")
 
         # Validate barge-in policy
         if not 0.0 <= self.barge_in.detection_threshold <= 1.0:

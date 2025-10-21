@@ -105,9 +105,7 @@ class MockAudioProcessor:
             "duration": 1.0,
         }
 
-    def _resample(
-        self, audio_data: np.ndarray, orig_sr: int, target_sr: int
-    ) -> np.ndarray:
+    def _resample(self, audio_data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
         """Mock resampling."""
         if orig_sr == target_sr:
             return audio_data
@@ -116,9 +114,7 @@ class MockAudioProcessor:
         ratio = target_sr / orig_sr
         new_length = int(len(audio_data) * ratio)
         indices = np.linspace(0, len(audio_data) - 1, new_length)
-        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(
-            audio_data.dtype
-        )
+        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(audio_data.dtype)
 
 
 class MockLibrosa:
@@ -229,9 +225,7 @@ class MockLibrosa:
         hop_length = hop_length or 512
         return np.random.randn(n_frames * hop_length).astype(np.float32)
 
-    def _resample(
-        self, audio_data: np.ndarray, orig_sr: int, target_sr: int
-    ) -> np.ndarray:
+    def _resample(self, audio_data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
         """Mock resampling."""
         if orig_sr == target_sr:
             return audio_data
@@ -239,9 +233,7 @@ class MockLibrosa:
         ratio = target_sr / orig_sr
         new_length = int(len(audio_data) * ratio)
         indices = np.linspace(0, len(audio_data) - 1, new_length)
-        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(
-            audio_data.dtype
-        )
+        return np.interp(indices, np.arange(len(audio_data)), audio_data).astype(audio_data.dtype)
 
 
 def create_mock_audio_processor() -> MockAudioProcessor:

@@ -36,9 +36,7 @@ class TestLatencyMeasurements:
         # Mock the complete pipeline
         with (
             patch("services.discord.discord_voice.TranscriptionClient") as mock_stt,
-            patch(
-                "services.discord.discord_voice.OrchestratorClient"
-            ) as mock_orchestrator,
+            patch("services.discord.discord_voice.OrchestratorClient") as mock_orchestrator,
             patch("services.discord.discord_voice.TTSClient") as mock_tts,
         ):
 
@@ -124,9 +122,7 @@ class TestLatencyMeasurements:
             )
 
             # Simulate wake detection
-            _wake_result = mock_wake.return_value.detect(
-                sample_wav_file, "hey atlas, how are you?"
-            )
+            _wake_result = mock_wake.return_value.detect(sample_wav_file, "hey atlas, how are you?")
 
             end_time = time.time()
             latency = end_time - start_time
@@ -249,9 +245,7 @@ class TestConcurrentAudioProcessing:
         """Test concurrent audio processing latency."""
 
         async def process_audio():
-            with patch(
-                "services.discord.discord_voice.TranscriptionClient"
-            ) as mock_stt:
+            with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
                 mock_stt.return_value.transcribe.return_value = Mock(
                     text="concurrent processing",
                     start_timestamp=0.0,
@@ -279,9 +273,7 @@ class TestConcurrentAudioProcessing:
         """Test concurrent audio quality consistency."""
 
         async def process_audio():
-            with patch(
-                "services.discord.discord_voice.TranscriptionClient"
-            ) as mock_stt:
+            with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
                 mock_stt.return_value.transcribe.return_value = Mock(
                     text="consistent quality",
                     start_timestamp=0.0,
@@ -316,9 +308,7 @@ class TestConcurrentAudioProcessing:
         initial_memory = process.memory_info().rss
 
         async def process_audio():
-            with patch(
-                "services.discord.discord_voice.TranscriptionClient"
-            ) as mock_stt:
+            with patch("services.discord.discord_voice.TranscriptionClient") as mock_stt:
                 mock_stt.return_value.transcribe.return_value = Mock(
                     text="memory test",
                     start_timestamp=0.0,

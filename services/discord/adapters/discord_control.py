@@ -179,21 +179,15 @@ class DiscordControlChannel(ControlChannel):
             }
 
         except (ValueError, TypeError, KeyError) as e:
-            self._logger.error(
-                "discord_control.event_receive_loop_failed", error=str(e)
-            )
+            self._logger.error("discord_control.event_receive_loop_failed", error=str(e))
             raise
 
-    def register_event_handler(
-        self, _event_type: str, handler: Callable[[Any], None]
-    ) -> None:
+    def register_event_handler(self, _event_type: str, handler: Callable[[Any], None]) -> None:
         """Register a callback for incoming control events."""
         self._event_handlers.append(handler)
         self._logger.debug("discord_control.event_handler_registered")
 
-    def unregister_event_handler(
-        self, handler: Callable[[dict[str, Any]], None]
-    ) -> None:
+    def unregister_event_handler(self, handler: Callable[[dict[str, Any]], None]) -> None:
         """Unregister an event handler."""
         if handler in self._event_handlers:
             self._event_handlers.remove(handler)
@@ -201,9 +195,7 @@ class DiscordControlChannel(ControlChannel):
 
     # Discord-specific event methods
 
-    async def send_wake_detected(
-        self, confidence: float, ts_device: float = 0.0
-    ) -> None:
+    async def send_wake_detected(self, confidence: float, ts_device: float = 0.0) -> None:
         """Send wake phrase detected event."""
         event = WakeDetectedEvent(
             confidence=confidence,
@@ -218,9 +210,7 @@ class DiscordControlChannel(ControlChannel):
         )
         await self.send_event(event.to_dict())
 
-    async def send_vad_end_speech(
-        self, duration_ms: float, ts_device: float = 0.0
-    ) -> None:
+    async def send_vad_end_speech(self, duration_ms: float, ts_device: float = 0.0) -> None:
         """Send VAD end speech event."""
         event = VADEndSpeechEvent(
             ts_device=ts_device or time.time(),
@@ -243,9 +233,7 @@ class DiscordControlChannel(ControlChannel):
         )
         await self.send_event(event.to_dict())
 
-    async def send_route_change(
-        self, input_route: str | None, output_route: str | None
-    ) -> None:
+    async def send_route_change(self, input_route: str | None, output_route: str | None) -> None:
         """Send route change event."""
         event = RouteChangeEvent(
             input=input_route or "unknown",
@@ -281,9 +269,7 @@ class DiscordControlChannel(ControlChannel):
         )
         await self.send_event(event.to_dict())
 
-    async def send_transcript_final(
-        self, text: str, words: list[WordTimestamp]
-    ) -> None:
+    async def send_transcript_final(self, text: str, words: list[WordTimestamp]) -> None:
         """Send final transcript event."""
         event = TranscriptFinalEvent(
             text=text,
@@ -298,9 +284,7 @@ class DiscordControlChannel(ControlChannel):
         )
         await self.send_event(event.to_dict())
 
-    async def send_error(
-        self, code: str, message: str, recoverable: bool = True
-    ) -> None:
+    async def send_error(self, code: str, message: str, recoverable: bool = True) -> None:
         """Send error event."""
         event = ErrorEvent(
             code=code,
@@ -411,9 +395,7 @@ class DiscordControlChannel(ControlChannel):
         """Update surface-specific policies."""
         # This is a stub implementation
         # In a real implementation, this would update control policies
-        self._logger.debug(
-            "discord_control.policy_updated", config_keys=list(policy_config.keys())
-        )
+        self._logger.debug("discord_control.policy_updated", config_keys=list(policy_config.keys()))
 
     def __repr__(self) -> str:
         """String representation of the control channel."""
