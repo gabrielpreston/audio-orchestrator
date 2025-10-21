@@ -65,19 +65,18 @@ class TestServiceHealth:
     async def test_service_startup_order_independence(self):
         """Test service startup order independence."""
         # Test that services can start in any order
-        async with httpx.AsyncClient() as client:
-            # All services should be accessible regardless of startup order
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # All services should be accessible regardless of startup order
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{base_url}/health/live")
-                    assert response.status_code == 200
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{base_url}/health/live")
+                assert response.status_code == 200
 
     @pytest.mark.integration
     async def test_graceful_degradation_when_optional_services_down(self):
@@ -126,27 +125,24 @@ class TestServiceDiscovery:
     @pytest.mark.integration
     async def test_service_discovery_mechanism(self):
         """Test service discovery mechanism."""
-        async with httpx.AsyncClient() as client:
-            # Test service discovery
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test service discovery
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            discovered_services = []
+        discovered_services = []
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(
-                            f"{base_url}/health/live", timeout=5.0
-                        )
-                        if response.status_code == 200:
-                            discovered_services.append(_service_name)
-                    except httpx.ConnectError:
-                        pass
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{base_url}/health/live", timeout=5.0)
+                    if response.status_code == 200:
+                        discovered_services.append(_service_name)
+                except httpx.ConnectError:
+                    pass
 
             # Should discover at least some services
             assert len(discovered_services) > 0
@@ -168,49 +164,45 @@ class TestServiceDiscovery:
     @pytest.mark.integration
     async def test_service_health_monitoring(self):
         """Test service health monitoring."""
-        async with httpx.AsyncClient() as client:
-            # Test health monitoring
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test health monitoring
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            health_status = {}
+        health_status = {}
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(
-                            f"{base_url}/health/ready", timeout=5.0
-                        )
-                        health_status[_service_name] = response.status_code == 200
-                    except httpx.ConnectError:
-                        health_status[_service_name] = False
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{base_url}/health/ready", timeout=5.0)
+                    health_status[_service_name] = response.status_code == 200
+                except httpx.ConnectError:
+                    health_status[_service_name] = False
 
-            # Should have health status for all services
-            assert len(health_status) == len(services)
+        # Should have health status for all services
+        assert len(health_status) == len(services)
 
     @pytest.mark.integration
     async def test_service_load_balancing(self):
         """Test service load balancing."""
-        async with httpx.AsyncClient() as client:
-            # Test load balancing across services
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test load balancing across services
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            # Test load balancing
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    # Make multiple requests to test load balancing
-                    for _ in range(3):
-                        response = await client.get(f"{base_url}/health/live")
-                        assert response.status_code == 200
+        # Test load balancing
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                # Make multiple requests to test load balancing
+                for _ in range(3):
+                    response = await client.get(f"{base_url}/health/live")
+                    assert response.status_code == 200
 
 
 class TestServiceResilience:
@@ -219,74 +211,69 @@ class TestServiceResilience:
     @pytest.mark.integration
     async def test_service_failure_recovery(self):
         """Test service failure recovery."""
-        async with httpx.AsyncClient() as client:
-            # Test service failure and recovery
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test service failure and recovery
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            # Test initial health
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    response = await client.get(f"{base_url}/health/live")
-                    assert response.status_code == 200
+        # Test initial health
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(f"{base_url}/health/live")
+                assert response.status_code == 200
 
-            # Simulate service failure and recovery
-            # This would test actual service failure scenarios
+        # Simulate service failure and recovery
+        # This would test actual service failure scenarios
 
     @pytest.mark.integration
     async def test_service_timeout_handling(self):
         """Test service timeout handling."""
-        async with httpx.AsyncClient() as client:
-            # Test timeout handling
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test timeout handling
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    # Test with short timeout
-                    try:
-                        response = await client.get(
-                            f"{base_url}/health/live", timeout=0.1
-                        )
-                        assert response.status_code == 200
-                    except httpx.TimeoutException:
-                        # Expected for some services
-                        pass
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                # Test with short timeout
+                try:
+                    response = await client.get(f"{base_url}/health/live", timeout=0.1)
+                    assert response.status_code == 200
+                except httpx.TimeoutException:
+                    # Expected for some services
+                    pass
 
     @pytest.mark.integration
     async def test_service_retry_mechanism(self):
         """Test service retry mechanism."""
-        async with httpx.AsyncClient() as client:
-            # Test retry mechanism
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test retry mechanism
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    # Test retry mechanism
-                    for attempt in range(3):
-                        try:
-                            response = await client.get(
-                                f"{base_url}/health/live", timeout=5.0
-                            )
-                            if response.status_code == 200:
-                                break
-                        except httpx.ConnectError:
-                            if attempt == 2:  # Last attempt
-                                raise
-                            await asyncio.sleep(1)  # Wait before retry
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                # Test retry mechanism
+                for attempt in range(3):
+                    try:
+                        response = await client.get(
+                            f"{base_url}/health/live", timeout=5.0
+                        )
+                        if response.status_code == 200:
+                            break
+                    except httpx.ConnectError:
+                        if attempt == 2:  # Last attempt
+                            raise
+                        await asyncio.sleep(1)  # Wait before retry
 
 
 class TestServiceMetrics:
@@ -295,72 +282,65 @@ class TestServiceMetrics:
     @pytest.mark.integration
     async def test_service_metrics_exposure(self):
         """Test service metrics exposure."""
-        async with httpx.AsyncClient() as client:
-            # Test metrics endpoints
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test metrics endpoints
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(f"{base_url}/metrics", timeout=5.0)
-                        if response.status_code == 200:
-                            # Should contain metrics
-                            assert "text/plain" in response.headers.get(
-                                "content-type", ""
-                            )
-                    except httpx.ConnectError:
-                        # Service might not have metrics endpoint
-                        pass
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{base_url}/metrics", timeout=5.0)
+                    if response.status_code == 200:
+                        # Should contain metrics
+                        assert "text/plain" in response.headers.get("content-type", "")
+                except httpx.ConnectError:
+                    # Service might not have metrics endpoint
+                    pass
 
     @pytest.mark.integration
     async def test_service_health_metrics(self):
         """Test service health metrics."""
-        async with httpx.AsyncClient() as client:
-            # Test health metrics
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test health metrics
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(
-                            f"{base_url}/health/ready", timeout=5.0
-                        )
-                        if response.status_code == 200:
-                            # Should return health status
-                            data = response.json()
-                            assert "status" in data
-                    except httpx.ConnectError:
-                        pass
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{base_url}/health/ready", timeout=5.0)
+                    if response.status_code == 200:
+                        # Should return health status
+                        data = response.json()
+                        assert "status" in data
+                except httpx.ConnectError:
+                    pass
 
     @pytest.mark.integration
     async def test_service_performance_metrics(self):
         """Test service performance metrics."""
-        async with httpx.AsyncClient() as client:
-            # Test performance metrics
-            services = [
-                ("stt", "http://stt:9000"),
-                ("tts", "http://tts:7000"),
-                ("llm", "http://llm:8000"),
-                ("orchestrator", "http://orchestrator:8000"),
-            ]
+        # Test performance metrics
+        services = [
+            ("stt", "http://stt:9000"),
+            ("tts", "http://tts:7000"),
+            ("llm", "http://llm:8000"),
+            ("orchestrator", "http://orchestrator:8000"),
+        ]
 
-            for _service_name, base_url in services:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        response = await client.get(f"{base_url}/metrics", timeout=5.0)
-                        if response.status_code == 200:
-                            # Should contain performance metrics
-                            metrics_text = response.text
-                            assert len(metrics_text) > 0
-                    except httpx.ConnectError:
-                        pass
+        for _service_name, base_url in services:
+            async with httpx.AsyncClient() as client:
+                try:
+                    response = await client.get(f"{base_url}/metrics", timeout=5.0)
+                    if response.status_code == 200:
+                        # Should contain performance metrics
+                        metrics_text = response.text
+                        assert len(metrics_text) > 0
+                except httpx.ConnectError:
+                    pass

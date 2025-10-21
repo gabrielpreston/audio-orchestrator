@@ -130,6 +130,40 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 4. **Update service URLs**: `localhost:PORT` → `service_name:PORT`
 5. **Update markers**: Add appropriate `@pytest.mark.component` or `@pytest.mark.integration`
 
+## Integration Test Patterns
+
+### HTTP Client Fixtures
+
+Use the shared `http_client` fixture for all integration tests:
+
+```python
+@pytest.mark.integration
+async def test_my_integration(http_client, services):
+    """Test description."""
+    for service_name, base_url in services:
+        response = await http_client.get(f"{base_url}/health/live")
+        assert response.status_code == 200
+```
+
+### Utility Functions
+
+Use shared utility functions from `services.tests.fixtures.integration_fixtures`:
+
+- `check_service_health()` - Check if service is healthy
+- `check_service_ready()` - Check if service is ready
+- `get_service_metrics()` - Get Prometheus metrics
+- `retry_request()` - Retry requests with backoff
+
+### Timeout Constants
+
+Use standardized timeout constants from `Timeouts` class:
+
+- `Timeouts.HEALTH_CHECK` - 5.0s for health endpoints
+- `Timeouts.SHORT` - 1.0s for fast operations
+- `Timeouts.STRESS_TEST` - 0.1s for timeout testing
+- `Timeouts.STANDARD` - 30.0s for normal requests
+- `Timeouts.LONG_RUNNING` - 60.0s for STT/LLM processing
+
 ## Test Organization
 
 ### Service-Specific Tests

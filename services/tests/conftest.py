@@ -15,6 +15,7 @@ from freezegun import freeze_time
 
 # Import integration test fixtures
 from services.tests.fixtures.integration_fixtures import *  # noqa: F401, F403
+from services.tests.fixtures.voice_pipeline_fixtures import *  # noqa: F401, F403
 
 
 @pytest.fixture(scope="session", autouse=True)
