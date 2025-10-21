@@ -34,6 +34,7 @@ services:
       - test-network
     environment:
       - LOG_LEVEL=INFO
+      - TTS_AUTH_TOKEN=test-token
     healthcheck:
       test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "3"]
       interval: 5s
@@ -60,9 +61,9 @@ services:
       start_period: 10s
 
   orchestrator:
-    extends:
-      file: docker-compose.yml
-      service: orchestrator
+    build:
+      context: '.'
+      dockerfile: 'services/orchestrator/Dockerfile'
     networks:
       - test-network
     environment:
@@ -79,4 +80,33 @@ services:
       llm:
         condition: service_healthy
       tts:
+        condition: service_healthy
+
+  # Discord service for E2E tests (optional, requires token)
+  discord:
+    build:
+      context: .
+      dockerfile: services/discord/Dockerfile
+    networks:
+      - test-network
+    ports:
+      - "8001:8001"  # Discord HTTP API port
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN:-dummy-token-for-testing}
+      - DISCORD_FULL_BOT=false  # HTTP mode by default (correct env var name)
+      - DISCORD_GUILD_ID=123456789
+      - DISCORD_VOICE_CHANNEL_ID=987654321
+      - STT_BASE_URL=http://stt:9000
+      - ORCHESTRATOR_BASE_URL=http://orchestrator:8000
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8001/health/ready", "--timeout", "3"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      stt:
+        condition: service_healthy
+      orchestrator:
         condition: service_healthy

@@ -1,6 +1,7 @@
 """Fixtures for integration tests."""
 
 import base64
+from typing import Any
 
 import pytest
 
@@ -57,3 +58,16 @@ def test_user_id() -> str:
 def test_correlation_id() -> str:
     """Test correlation ID for request tracking."""
     return "test-correlation-1234567890abcdef"
+
+
+@pytest.fixture
+def test_mcp_tool_request() -> dict[str, Any]:
+    """Sample MCP tool call request."""
+    return {
+        "tool": "discord.send_message",
+        "args": {
+            "guild_id": "123456789",
+            "channel_id": "987654321",
+            "message": "Test message from integration test",
+        },
+    }

@@ -3,8 +3,6 @@
 import httpx
 import pytest
 
-from services.tests.utils.service_helpers import docker_compose_test_context
-
 
 @pytest.mark.integration
 class TestOrchestratorLLMIntegration:
@@ -12,10 +10,7 @@ class TestOrchestratorLLMIntegration:
 
     async def test_llm_openai_compatible_endpoint(self, test_auth_token):
         """Test LLM OpenAI-compatible API endpoint."""
-        async with (
-            docker_compose_test_context(["llm"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://llm:8000/v1/chat/completions",
                 json={
@@ -32,10 +27,7 @@ class TestOrchestratorLLMIntegration:
 
     async def test_llm_authentication_required(self):
         """Test LLM requires authentication."""
-        async with (
-            docker_compose_test_context(["llm"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
                 "http://llm:8000/v1/chat/completions",
@@ -50,10 +42,7 @@ class TestOrchestratorLLMIntegration:
 
     async def test_llm_health_endpoint(self):
         """Test LLM health endpoint accessibility."""
-        async with (
-            docker_compose_test_context(["llm"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test live endpoint
             response = await client.get("http://llm:8000/health/live", timeout=5.0)
             assert response.status_code == 200
@@ -71,10 +60,7 @@ class TestOrchestratorLLMIntegration:
         self, test_auth_token, test_correlation_id
     ):
         """Test correlation ID propagation through LLM."""
-        async with (
-            docker_compose_test_context(["llm"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://llm:8000/v1/chat/completions",
                 json={

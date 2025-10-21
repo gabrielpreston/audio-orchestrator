@@ -3,8 +3,6 @@
 import httpx
 import pytest
 
-from services.tests.utils.service_helpers import docker_compose_test_context
-
 
 @pytest.mark.integration
 class TestOrchestratorTTSIntegration:
@@ -12,10 +10,7 @@ class TestOrchestratorTTSIntegration:
 
     async def test_tts_synthesize_endpoint(self, test_auth_token):
         """Test TTS synthesis endpoint."""
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://tts:7000/synthesize",
                 json={"text": "Hello world"},
@@ -29,10 +24,7 @@ class TestOrchestratorTTSIntegration:
 
     async def test_tts_authentication_required(self):
         """Test TTS requires authentication."""
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
                 "http://tts:7000/synthesize",
@@ -44,10 +36,7 @@ class TestOrchestratorTTSIntegration:
 
     async def test_tts_rate_limiting(self, test_auth_token):
         """Test TTS rate limiting."""
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Make multiple rapid requests
             responses = []
             for _ in range(5):
@@ -64,10 +53,7 @@ class TestOrchestratorTTSIntegration:
 
     async def test_tts_health_endpoint(self):
         """Test TTS health endpoint accessibility."""
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test live endpoint
             response = await client.get("http://tts:7000/health/live", timeout=5.0)
             assert response.status_code == 200
@@ -87,10 +73,7 @@ class TestOrchestratorTTSIntegration:
             "<speak>This is SSML text with <break time='0.5s'/> a pause.</speak>"
         )
 
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://tts:7000/synthesize",
                 json={"text": ssml_text},
@@ -106,10 +89,7 @@ class TestOrchestratorTTSIntegration:
         self, test_auth_token, test_correlation_id
     ):
         """Test correlation ID propagation through TTS."""
-        async with (
-            docker_compose_test_context(["tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://tts:7000/synthesize",
                 json={"text": "Hello world", "correlation_id": test_correlation_id},

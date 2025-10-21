@@ -36,6 +36,49 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 - **Network**: Tests run inside `discord-voice-lab-test` Docker network
 - **Service URLs**: Use service names (e.g., `http://stt:9000`)
 
+#### Voice Pipeline Integration Tests
+
+- **Complete Voice Pipeline**: `test_voice_pipeline_integration.py`
+  - Tests end-to-end voice feedback loop: Audio → STT → Orchestrator → LLM → TTS
+  - Validates latency thresholds (< 2s total, < 300ms STT, < 1s TTS)
+  - Tests correlation ID propagation through all services
+  - Tests concurrent voice processing (3+ requests)
+  - Tests error recovery and timeout handling
+
+- **Audio Format Chain**: `test_audio_format_chain.py`
+  - Tests audio format preservation: Discord PCM → STT (16kHz) → TTS (22.05kHz)
+  - Validates quality metrics: SNR > 20dB, THD < 1%
+  - Tests format conversion at each pipeline stage
+  - Tests audio quality preservation through pipeline
+
+- **Performance Integration**: `test_performance_integration.py`
+  - Benchmarks voice pipeline latency and performance
+  - Tests concurrent voice processing without interference
+  - Tests service health under load
+  - Tests memory usage under concurrent load
+  - Tests latency consistency across multiple requests
+
+- **Discord Service Integration**: `test_discord_service_integration.py`
+  - Tests Discord HTTP API endpoints (`/mcp/send_message`, `/mcp/transcript`, `/mcp/tools`)
+  - Tests Discord health endpoints
+  - Tests Discord → STT → Orchestrator chain
+  - Tests correlation ID propagation through Discord service
+  - Tests error handling and timeout behavior
+
+- **MCP Integration**: `test_mcp_integration.py`
+  - Tests MCP tool discovery and execution
+  - Tests MCP tool schema validation
+  - Tests correlation ID propagation through MCP
+  - Tests MCP error handling and recovery
+  - Tests MCP concurrent request handling
+
+- **Cross-Service Authentication**: `test_cross_service_auth.py`
+  - Tests Bearer token authentication: Orchestrator → LLM, Orchestrator → TTS
+  - Tests unauthorized access rejection (401 responses)
+  - Tests Discord MCP endpoints (no auth required for internal services)
+  - Tests invalid auth token rejection
+  - Tests auth token propagation through voice pipeline
+
 ### End-to-End Tests
 
 - **Location**: `services/tests/e2e/`
@@ -43,6 +86,17 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 - **Scope**: Complete workflows from Discord to response
 - **Execution**: `pytest -m e2e`
 - **Note**: Manual trigger only
+
+#### Voice Pipeline E2E Tests
+
+- **Real Discord Voice Pipeline**: `test_e2e_voice_pipeline.py`
+  - Tests complete voice pipeline with real Discord bot
+  - Requires `DISCORD_TOKEN` environment variable
+  - Tests Discord bot voice channel integration
+  - Tests Discord bot error recovery scenarios
+  - Tests concurrent voice requests with real Discord
+  - Tests Discord bot health monitoring during operations
+  - Tests correlation ID tracking through E2E Discord bot operations
 
 ### Quality Tests
 

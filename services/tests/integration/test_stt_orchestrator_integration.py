@@ -3,8 +3,6 @@
 import httpx
 import pytest
 
-from services.tests.utils.service_helpers import docker_compose_test_context
-
 
 @pytest.mark.integration
 class TestSTTOrchestratorIntegration:
@@ -19,10 +17,7 @@ class TestSTTOrchestratorIntegration:
         test_user_id,
     ):
         """Test orchestrator transcript processing endpoint."""
-        async with (
-            docker_compose_test_context(["orchestrator", "llm", "tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://orchestrator:8000/process",
                 json={
@@ -41,10 +36,7 @@ class TestSTTOrchestratorIntegration:
 
     async def test_orchestrator_authentication(self, test_transcript):
         """Test orchestrator authentication requirements."""
-        async with (
-            docker_compose_test_context(["orchestrator", "llm", "tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
                 "http://orchestrator:8000/process",
@@ -56,10 +48,7 @@ class TestSTTOrchestratorIntegration:
 
     async def test_orchestrator_health_endpoint(self):
         """Test orchestrator health endpoint accessibility."""
-        async with (
-            docker_compose_test_context(["orchestrator"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             # Test live endpoint
             response = await client.get(
                 "http://orchestrator:8000/health/live", timeout=5.0
@@ -87,10 +76,7 @@ class TestSTTOrchestratorIntegration:
         test_user_id,
     ):
         """Test correlation ID propagation through orchestrator."""
-        async with (
-            docker_compose_test_context(["orchestrator", "llm", "tts"]),
-            httpx.AsyncClient() as client,
-        ):
+        async with httpx.AsyncClient() as client:
             response = await client.post(
                 "http://orchestrator:8000/process",
                 json={

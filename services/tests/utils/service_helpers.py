@@ -58,6 +58,7 @@ class DockerComposeManager:
             "tts": 7000,
             "llm": 8000,
             "orchestrator": 8000,  # Note: Same as LLM, different containers
+            "discord": 8001,  # Discord HTTP API port
         }
 
         if service not in service_ports:
