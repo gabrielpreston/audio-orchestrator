@@ -2,7 +2,7 @@
 """Rotate AUTH_TOKEN values across all environment files.
 
 This script generates new secure tokens and updates all relevant environment files
-to maintain consistency across the discord-voice-lab services.
+to maintain consistency across the audio-orchestrator services.
 """
 from __future__ import annotations
 

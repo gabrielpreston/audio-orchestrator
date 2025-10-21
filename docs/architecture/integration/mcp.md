@@ -18,8 +18,8 @@ discover and connect to Model Context Protocol (MCP) servers.
 The Discord bot loads manifests in the following order (later entries override earlier ones):
 
 1. `MCP_CONFIG_PATH` environment override.
-2. Workspace-scoped `./.discord-voice-lab/mcp.json` file.
-3. User-scoped `~/.config/discord-voice-lab/mcp.json` file.
+2. Workspace-scoped `./.audio-orchestrator/mcp.json` file.
+3. User-scoped `~/.config/audio-orchestrator/mcp.json` file.
 
 ## Top-Level Shape
 

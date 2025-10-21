@@ -1,1 +1,1 @@
-"""discord-voice-lab service packages."""
+"""audio-orchestrator service packages."""

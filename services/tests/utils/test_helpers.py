@@ -1,4 +1,4 @@
-"""Test helper utilities for discord-voice-lab."""
+"""Test helper utilities for audio-orchestrator."""
 
 import json
 import secrets

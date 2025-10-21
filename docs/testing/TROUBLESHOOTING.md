@@ -1,12 +1,12 @@
 ---
 title: Testing Troubleshooting Guide
-description: Guide for diagnosing and resolving common testing issues in the discord-voice-lab audio pipeline
+description: Guide for diagnosing and resolving common testing issues in the audio-orchestrator audio pipeline
 last-updated: 2025-10-20
 ---
 
 # Testing Troubleshooting Guide
 
-This guide helps diagnose and resolve common issues encountered during testing of the discord-voice-lab audio pipeline.
+This guide helps diagnose and resolve common issues encountered during testing of the audio-orchestrator audio pipeline.
 
 ## Common Test Failures
 

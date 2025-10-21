@@ -1,12 +1,12 @@
 ---
 title: Testing Guide
-description: Comprehensive guidance for testing the discord-voice-lab audio pipeline
+description: Comprehensive guidance for testing the audio-orchestrator audio pipeline
 last-updated: 2025-10-20
 ---
 
 # Testing Guide
 
-This document provides comprehensive guidance for testing the discord-voice-lab audio pipeline.
+This document provides comprehensive guidance for testing the audio-orchestrator audio pipeline.
 
 ## Test Categories
 
@@ -33,7 +33,7 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 - **Scope**: Real HTTP communication via Docker Compose
 - **Execution**: `make test-integration` or `pytest -m integration`
 - **Mocking**: None - real services via Docker Compose
-- **Network**: Tests run inside `discord-voice-lab-test` Docker network
+- **Network**: Tests run inside `audio-orchestrator-test` Docker network
 - **Service URLs**: Use service names (e.g., `http://stt:9000`)
 
 #### Voice Pipeline Integration Tests

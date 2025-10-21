@@ -10,7 +10,7 @@ last-updated: 2025-10-18
 
 # Configuration Management Library
 
-The `services.common.config` module provides a comprehensive, type-safe, and validated configuration management system for all Python services in the discord-voice-lab project.
+The `services.common.config` module provides a comprehensive, type-safe, and validated configuration management system for all Python services in the audio-orchestrator project.
 
 > **Status**: This configuration library is actively implemented and used by all services (discord, stt, llm, orchestrator, tts). All services use the ConfigBuilder pattern for type-safe configuration management.
 

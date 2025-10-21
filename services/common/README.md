@@ -1,6 +1,6 @@
 # Common Configuration Library
 
-A comprehensive, type-safe configuration management system for discord-voice-lab services.
+A comprehensive, type-safe configuration management system for audio-orchestrator services.
 
 ## Features
 

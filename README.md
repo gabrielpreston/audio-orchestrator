@@ -79,5 +79,5 @@ This project follows the [Contributor Playbook](AGENTS.md) for development workf
 
 ---
 
-[ci-badge]: https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml/badge.svg
-[ci-workflow]: https://github.com/gabrielpreston/discord-voice-lab/actions/workflows/ci.yaml
+[ci-badge]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/ci.yaml/badge.svg
+[ci-workflow]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/ci.yaml

@@ -10,7 +10,7 @@ last-updated: 2025-10-18
 
 # Scripts Reference
 
-This document provides comprehensive reference information for the utility scripts included in the discord-voice-lab project.
+This document provides comprehensive reference information for the utility scripts included in the audio-orchestrator project.
 
 ## Environment Management
 

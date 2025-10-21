@@ -22,7 +22,7 @@ voice lab stack.
 
 ### Token Rotation
 
-The `discord-voice-lab` includes an automated script for rotating authentication tokens across all environment files:
+The `audio-orchestrator` includes an automated script for rotating authentication tokens across all environment files:
 
 ```bash
 # Rotate all authentication tokens

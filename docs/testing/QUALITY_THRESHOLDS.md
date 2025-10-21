@@ -1,6 +1,6 @@
 ---
 title: Audio Quality Thresholds
-description: Quality thresholds and benchmarks for the discord-voice-lab audio pipeline
+description: Quality thresholds and benchmarks for the audio-orchestrator audio pipeline
 last-updated: 2025-10-17
 ---
 
@@ -8,7 +8,7 @@ last-updated: 2025-10-17
 
 > **Note**: The thresholds documented in this file are primarily used in test assertions and quality validation, not as runtime environment variables. Only `MAX_TTS_LATENCY` is actively used in TTS integration tests. Other thresholds serve as documentation of quality expectations and test baselines.
 
-This document defines the quality thresholds and benchmarks for the discord-voice-lab audio pipeline.
+This document defines the quality thresholds and benchmarks for the audio-orchestrator audio pipeline.
 
 ## Configuration vs. Test Thresholds
 

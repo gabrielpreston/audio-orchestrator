@@ -1,4 +1,4 @@
-"""Global test configuration and fixtures for discord-voice-lab."""
+"""Global test configuration and fixtures for audio-orchestrator."""
 
 import os
 import random

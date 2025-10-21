@@ -1,3 +1,3 @@
-"""Shared utilities for discord-voice-lab services."""
+"""Shared utilities for audio-orchestrator services."""
 
 __all__ = ["http", "logging"]

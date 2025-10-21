@@ -1,12 +1,12 @@
 ---
 title: TTS Testing Guide
-description: TTS (Text-to-Speech) testing strategy and implementation for the discord-voice-lab project
+description: TTS (Text-to-Speech) testing strategy and implementation for the audio-orchestrator project
 last-updated: 2025-10-17
 ---
 
 # TTS Testing Guide
 
-This document describes the TTS (Text-to-Speech) testing strategy and implementation for the discord-voice-lab project.
+This document describes the TTS (Text-to-Speech) testing strategy and implementation for the audio-orchestrator project.
 
 ## Overview
 

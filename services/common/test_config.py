@@ -482,7 +482,7 @@ class TestServiceConfigs(TestCase):
         self.assertEqual(config.timeout, 30.0)
         self.assertEqual(config.max_retries, 3)
         self.assertEqual(config.retry_delay, 1.0)
-        self.assertEqual(config.user_agent, "discord-voice-lab/1.0")
+        self.assertEqual(config.user_agent, "audio-orchestrator/1.0")
 
     @pytest.mark.unit
     def test_logging_config(self):

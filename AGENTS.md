@@ -1,4 +1,4 @@
-# Contributor Playbook — `discord-voice-lab`
+# Contributor Playbook — `audio-orchestrator`
 
 This guide consolidates the expectations from every previous `AGENTS.md` file and aligns
 them with the current repository layout. Follow these conventions for all changes,
@@ -66,7 +66,7 @@ Consult the user only when:
 
 ## 3. Project purpose & architecture
 
-`discord-voice-lab` delivers a voice-first Discord assistant composed of five core services
+`audio-orchestrator` delivers a voice-first Discord assistant composed of five core services
 plus shared helpers:
 
 - `services/discord` (Python; `discord.py`, MCP) — Captures voice from Discord,
