@@ -12,20 +12,21 @@ Key Components:
 
 Usage:
     from services.orchestrator.agents import BaseAgent, AgentResponse, ConversationContext
-    
+
     class MyAgent(BaseAgent):
         async def handle(self, context: ConversationContext, transcript: str) -> AgentResponse:
             return AgentResponse(response_text="Hello from my agent!")
 """
 
 from .base import BaseAgent
-from .types import AgentResponse, ConversationContext, ExternalAction
-from .registry import AgentRegistry
 from .manager import AgentManager
+from .registry import AgentRegistry
+from .types import AgentResponse, ConversationContext, ExternalAction
+
 
 __all__ = [
     "BaseAgent",
-    "AgentResponse", 
+    "AgentResponse",
     "ConversationContext",
     "ExternalAction",
     "AgentRegistry",
