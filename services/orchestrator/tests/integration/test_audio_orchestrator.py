@@ -4,10 +4,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-
-pytestmark = pytest.mark.component
-
-
 from services.orchestrator.adapters.manager import AdapterManager
 from services.orchestrator.agents.manager import AgentManager
 from services.orchestrator.integration.audio_orchestrator import AudioOrchestrator
@@ -16,6 +12,9 @@ from services.orchestrator.pipeline.types import (
     ProcessedSegment,
     ProcessingStatus,
 )
+
+
+pytestmark = pytest.mark.component
 
 
 class TestAudioOrchestrator:

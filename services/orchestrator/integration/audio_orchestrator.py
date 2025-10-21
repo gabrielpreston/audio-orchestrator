@@ -53,10 +53,10 @@ class AudioOrchestrator:
 
         # Initialize integrations
         self.pipeline_integration = PipelineIntegration(
-            self.adapter_manager, 
-            self.audio_pipeline, 
+            self.adapter_manager,
+            self.audio_pipeline,
             self.config,
-            segment_callback=self.handle_processed_segment
+            segment_callback=self.handle_processed_segment,
         )
         self.agent_integration = AgentIntegration(self.agent_manager)
 
@@ -88,7 +88,7 @@ class AudioOrchestrator:
             await self.adapter_manager.health_check()
 
             # Initialize agent manager
-            await self.agent_manager.get_stats()
+            self.agent_manager.get_stats()
 
             # Initialize audio pipeline
             await self.audio_pipeline.health_check()

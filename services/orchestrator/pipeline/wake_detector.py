@@ -150,32 +150,35 @@ class WakeDetector:
         await asyncio.sleep(0.01)  # Simulate processing time
 
         # Mock implementation - simulate more realistic wake phrase detection
-        import random
         import hashlib
 
         # Use audio data hash to create deterministic but varied behavior
-        audio_hash = hashlib.md5(audio_data).hexdigest()
+        audio_hash = hashlib.sha256(audio_data).hexdigest()
         hash_int = int(audio_hash[:8], 16)
-        
+
         # Simulate audio analysis based on data characteristics
-        audio_energy = sum(abs(b) for b in audio_data[:100]) if len(audio_data) > 0 else 0
+        audio_energy = (
+            sum(abs(b) for b in audio_data[:100]) if len(audio_data) > 0 else 0
+        )
         audio_complexity = len(set(audio_data[:50])) if len(audio_data) > 0 else 0
-        
+
         # More realistic detection based on audio characteristics
         # Higher energy and complexity increase detection probability
-        detection_probability = min(0.05, (audio_energy / 1000.0) * (audio_complexity / 50.0))
-        
+        detection_probability = min(
+            0.05, (audio_energy / 1000.0) * (audio_complexity / 50.0)
+        )
+
         # Add some randomness but make it more controlled
         random_factor = (hash_int % 1000) / 1000.0
         if random_factor < detection_probability:
             # Select wake phrase based on audio characteristics
             phrase_index = hash_int % len(self.config.wake_phrases)
             wake_phrase = self.config.wake_phrases[phrase_index]
-            
+
             # Calculate confidence based on audio characteristics
             base_confidence = 0.6 + (audio_energy / 2000.0) + (audio_complexity / 100.0)
             confidence = min(0.95, max(0.5, base_confidence))
-            
+
             # Only return positive detection if confidence meets threshold
             if confidence >= self.config.wake_confidence_threshold:
                 return True, wake_phrase, confidence

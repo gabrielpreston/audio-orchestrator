@@ -11,13 +11,13 @@ Key Components:
 
 Usage:
     from services.orchestrator.pipeline import AudioPipeline, AudioProcessor
-    
+
     # Create audio processor
     processor = AudioProcessor()
-    
+
     # Create pipeline
     pipeline = AudioPipeline(processor)
-    
+
     # Process audio chunks
     async for processed_segment in pipeline.process_audio_stream(audio_stream):
         # Handle processed audio

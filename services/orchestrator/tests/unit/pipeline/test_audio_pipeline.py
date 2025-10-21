@@ -65,7 +65,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_process_audio_stream(self):
         """Test processing an audio stream."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         # Create mock audio chunks
@@ -109,7 +108,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_process_audio_stream_with_multiple_chunks(self):
         """Test processing audio stream with multiple chunks."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         # Create mock audio chunks
@@ -164,7 +162,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_get_statistics(self):
         """Test getting pipeline statistics."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         # Process some chunks to generate statistics
@@ -199,7 +196,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_reset_statistics(self):
         """Test resetting pipeline statistics."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         # Process some chunks to generate statistics
@@ -238,7 +234,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_get_capabilities(self):
         """Test getting pipeline capabilities."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         capabilities = await pipeline.get_capabilities()
@@ -252,7 +247,6 @@ class TestAudioPipeline:
     @pytest.mark.asyncio
     async def test_health_check(self):
         """Test health check."""
-        config = ProcessingConfig()
         pipeline = AudioPipeline()
 
         health = await pipeline.health_check()
