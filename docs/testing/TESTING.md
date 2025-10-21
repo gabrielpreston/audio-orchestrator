@@ -56,11 +56,13 @@ This document provides comprehensive guidance for testing the discord-voice-lab 
 ### Changes from Previous Structure
 
 **Old approach** (DEPRECATED):
+
 - Integration tests used `test_services_context()` with subprocess
 - Integration tests mocked internal classes
 - Tests ran from host connecting to localhost ports
 
 **New approach** (CURRENT):
+
 - Integration tests use `docker_compose_test_context()` with Docker Compose
 - Integration tests test real HTTP boundaries
 - Tests run inside Docker network using service names

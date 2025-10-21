@@ -313,6 +313,7 @@ async def health_ready() -> dict[str, Any]:
 ### Integration Test Pattern
 
 Integration tests must:
+
 - Use `docker_compose_test_context()` to start real services
 - Test actual HTTP communication between services
 - Use service names (e.g., `http://stt:9000`) - tests run inside Docker network
@@ -321,6 +322,7 @@ Integration tests must:
 - NOT mock internal service classes
 
 Example:
+
 ```python
 @pytest.mark.integration
 async def test_service_boundary():
@@ -333,11 +335,13 @@ async def test_service_boundary():
 ### Component Test Pattern
 
 Component tests must:
+
 - Mock external dependencies (HTTP clients, Discord API)
 - Test internal service logic and adapters
 - NOT start real services or make HTTP calls
 
 Example:
+
 ```python
 @pytest.mark.component
 def test_internal_logic():

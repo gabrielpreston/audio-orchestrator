@@ -27,11 +27,15 @@ class DockerComposeManager:
 
     async def start_services(self, services: list[str], timeout: float = 60.0) -> bool:
         """Start specified services using Docker Compose."""
-        cmd = (
-            self.compose_cmd
-            + ["-f", self.compose_file, "up", "-d", "--build"]
-            + services
-        )
+        cmd = [
+            *self.compose_cmd,
+            "-f",
+            self.compose_file,
+            "up",
+            "-d",
+            "--build",
+            *services,
+        ]
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
@@ -70,7 +74,8 @@ class DockerComposeManager:
                         data = response.json()
                         if data.get("status") == "ready":
                             return True
-                except Exception:
+                except Exception as e:
+                    print(f"Health check failed for {service}: {e}")
                     pass
                 await asyncio.sleep(1.0)
 
@@ -79,9 +84,9 @@ class DockerComposeManager:
     async def stop_services(self, services: list[str] | None = None):
         """Stop services using Docker Compose."""
         if services:
-            cmd = self.compose_cmd + ["-f", self.compose_file, "stop"] + services
+            cmd = [*self.compose_cmd, "-f", self.compose_file, "stop", *services]
         else:
-            cmd = self.compose_cmd + ["-f", self.compose_file, "down", "-v"]
+            cmd = [*self.compose_cmd, "-f", self.compose_file, "down", "-v"]
 
         subprocess.run(cmd, capture_output=True, check=False)
 
