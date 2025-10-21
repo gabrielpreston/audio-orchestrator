@@ -198,8 +198,10 @@ async def send_message(request: SendMessageRequest) -> dict[str, Any]:
             message=request.message,
         )
 
-        # TODO: Implement actual Discord message sending
-        # For now, just acknowledge the request
+        # NOTE: HTTP mode uses simulated message sending for testing/development.
+        # Full Discord.py bot mode (when DISCORD_FULL_BOT=true) handles actual
+        # message sending through the VoiceBot class.
+        # For production HTTP-based message sending, implement Discord REST API client here.
 
         return {
             "status": "success",
@@ -232,8 +234,11 @@ async def handle_transcript(notification: TranscriptNotification) -> dict[str, A
             correlation_id=notification.correlation_id,
         )
 
-        # TODO: Trigger orchestrator processing here
-        # For now, just acknowledge receipt
+        # NOTE: This endpoint receives transcript notifications from the orchestrator.
+        # In the current architecture, the orchestrator initiates processing after receiving
+        # transcripts from the STT service. This endpoint serves as a notification/webhook.
+        # Full processing flow: Discord → STT → Orchestrator → [this endpoint for notifications]
+        # If bidirectional communication is needed, implement orchestrator client call here.
 
         return {
             "status": "received",

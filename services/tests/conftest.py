@@ -13,6 +13,10 @@ import pytest
 import structlog
 from freezegun import freeze_time
 
+# Import integration test fixtures
+from services.tests.fixtures.integration_fixtures import *  # noqa: F401, F403
+from services.tests.fixtures.voice_pipeline_fixtures import *  # noqa: F401, F403
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment() -> None:
@@ -147,6 +151,9 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers", "integration: Integration tests (require Docker Compose)"
     )
     config.addinivalue_line("markers", "e2e: End-to-end tests (manual trigger only)")
+    config.addinivalue_line(
+        "markers", "manual: Manual tests requiring human intervention"
+    )
     config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
     config.addinivalue_line("markers", "performance: Performance benchmark tests")
     config.addinivalue_line("markers", "concurrent: Concurrency and threading tests")

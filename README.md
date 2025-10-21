@@ -39,6 +39,15 @@ The system consists of five core services working together to process voice inpu
 ## Development
 
 - **Linting & Testing**: Run `make lint` and `make test` for code quality checks
+- **Unit Tests**: `make test-unit` - Fast, isolated tests
+- **Component Tests**: `make test-component` - Internal logic with mocks
+- **Integration Tests**: `make test-integration` - Service HTTP boundaries via Docker Compose
+  - **Voice Pipeline Tests**: Complete end-to-end voice feedback loop validation
+  - **Audio Format Chain**: Format preservation and quality validation
+  - **Performance Tests**: Latency benchmarks and concurrent processing
+  - **Discord Integration**: MCP endpoints and service communication
+  - **Cross-Service Auth**: Authentication flow validation
+- **End-to-End Tests**: `pytest -m e2e` - Full system validation with real Discord (manual trigger)
 - **Workflow Validation**: Run `make workflows-validate` to validate GitHub Actions workflows with yamllint and actionlint
 - **Local Development**: Use `make run` to start services, `make logs` to follow output
 - **CI/CD**: Automated testing, linting, and security scanning on every push

@@ -4,9 +4,11 @@
 
 ## Testing checklist
 
-- [ ] `make lint-local`
-- [ ] `make test-local`
-- [ ] `make docker-smoke`
+- [ ] `make lint` (unified linting via Docker)
+- [ ] `make test-unit` (fast unit tests)
+- [ ] `make test-component` (component tests with mocked dependencies)
+- [ ] `make test-integration` (integration tests via Docker Compose)
+- [ ] `make docker-smoke` (Docker smoke tests)
 - [ ] Security scan expectations addressed (pip-audit findings acknowledged or resolved)
 
 ## CI

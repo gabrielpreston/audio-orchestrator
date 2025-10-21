@@ -12,8 +12,6 @@ from .audio_quality_helpers import (
 from .service_helpers import (
     get_service_health,
     is_service_running,
-    register_test_service,
-    setup_default_services,
     start_test_services,
     stop_test_services,
     test_services_context,
@@ -36,7 +34,5 @@ __all__ = [
     "stop_test_services",
     "get_service_health",
     "is_service_running",
-    "register_test_service",
     "test_services_context",
-    "setup_default_services",
 ]

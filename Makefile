@@ -362,27 +362,28 @@ test-component: test-image ## Run component tests (with mocked external dependen
 
 test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@printf "$(COLOR_CYAN)→ Running integration tests$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ Starting Docker Compose services for integration tests$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) up -d --build
-	@printf "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)\n"
-	@sleep 10
+	@printf "$(COLOR_CYAN)→ Running integration tests with Docker Compose$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)→ Building test services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.test.yml build
+	@printf "$(COLOR_YELLOW)→ Starting test services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.test.yml up -d
+	@printf "$(COLOR_YELLOW)→ Running integration tests$(COLOR_OFF)\n"
 	@docker run --rm \
+		--network discord-voice-lab-test \
 		-u $$(id -u):$$(id -g) \
 		-e HOME=$(TEST_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo tester) \
 		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
 		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		--network host \
 		$(TEST_IMAGE) \
 		pytest -m integration $(PYTEST_ARGS) || { \
 			status=$$?; \
-			printf "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)\n"; \
-			$(DOCKER_COMPOSE) down; \
+			printf "$(COLOR_YELLOW)→ Stopping test services$(COLOR_OFF)\n"; \
+			$(DOCKER_COMPOSE) -f docker-compose.test.yml down -v; \
 			exit $$status; \
 		}
-	@printf "$(COLOR_YELLOW)→ Stopping Docker Compose services$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) down
+	@printf "$(COLOR_YELLOW)→ Stopping test services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down -v
 
 test-e2e: test-image ## Run end-to-end tests (manual trigger only)
 	@printf "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)\n"
