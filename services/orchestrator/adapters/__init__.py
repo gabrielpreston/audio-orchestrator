@@ -12,12 +12,12 @@ Key Components:
 
 Usage:
     from services.orchestrator.adapters import AudioInputAdapter, AudioOutputAdapter
-    
+
     class MyInputAdapter(AudioInputAdapter):
         async def start_capture(self) -> None:
             # Start capturing audio
             pass
-    
+
     class MyOutputAdapter(AudioOutputAdapter):
         async def play_audio(self, audio_data: bytes) -> None:
             # Play audio data
@@ -26,11 +26,12 @@ Usage:
 
 from .base import AudioInputAdapter, AudioOutputAdapter
 from .manager import AdapterManager
-from .types import AudioChunk, AudioMetadata, AdapterConfig
+from .types import AdapterConfig, AudioChunk, AudioMetadata
+
 
 __all__ = [
     "AudioInputAdapter",
-    "AudioOutputAdapter", 
+    "AudioOutputAdapter",
     "AdapterManager",
     "AudioChunk",
     "AudioMetadata",
