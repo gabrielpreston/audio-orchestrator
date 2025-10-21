@@ -165,9 +165,9 @@ class AudioProcessor:
                 },
             )
 
-            # Return failed segment
+            # Return failed segment with minimal valid audio data
             return ProcessedSegment(
-                audio_data=b"",
+                audio_data=b"\x00\x00",  # Minimal valid audio data (2 bytes)
                 correlation_id=audio_chunk.correlation_id,
                 session_id=session_id,
                 original_format=AudioFormat.PCM,

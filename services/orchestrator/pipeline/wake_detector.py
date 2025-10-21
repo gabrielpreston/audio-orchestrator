@@ -35,7 +35,7 @@ class WakeDetector:
         self._logger = get_logger(self.__class__.__name__)
 
         # Initialize wake word models (mock for now)
-        self._wake_models = {}
+        self._wake_models: dict[str, dict[str, Any]] = {}
         self._initialize_wake_models()
 
         self._logger.info(
@@ -149,14 +149,36 @@ class WakeDetector:
         # Mock implementation - simulate wake phrase detection
         await asyncio.sleep(0.01)  # Simulate processing time
 
-        # Simple mock logic - randomly detect wake phrases
+        # Mock implementation - simulate more realistic wake phrase detection
         import random
+        import hashlib
 
-        # 10% chance of detecting a wake phrase
-        if random.random() < 0.1:
-            wake_phrase = random.choice(self.config.wake_phrases)
-            confidence = random.uniform(0.8, 0.95)
-            return True, wake_phrase, confidence
+        # Use audio data hash to create deterministic but varied behavior
+        audio_hash = hashlib.md5(audio_data).hexdigest()
+        hash_int = int(audio_hash[:8], 16)
+        
+        # Simulate audio analysis based on data characteristics
+        audio_energy = sum(abs(b) for b in audio_data[:100]) if len(audio_data) > 0 else 0
+        audio_complexity = len(set(audio_data[:50])) if len(audio_data) > 0 else 0
+        
+        # More realistic detection based on audio characteristics
+        # Higher energy and complexity increase detection probability
+        detection_probability = min(0.05, (audio_energy / 1000.0) * (audio_complexity / 50.0))
+        
+        # Add some randomness but make it more controlled
+        random_factor = (hash_int % 1000) / 1000.0
+        if random_factor < detection_probability:
+            # Select wake phrase based on audio characteristics
+            phrase_index = hash_int % len(self.config.wake_phrases)
+            wake_phrase = self.config.wake_phrases[phrase_index]
+            
+            # Calculate confidence based on audio characteristics
+            base_confidence = 0.6 + (audio_energy / 2000.0) + (audio_complexity / 100.0)
+            confidence = min(0.95, max(0.5, base_confidence))
+            
+            # Only return positive detection if confidence meets threshold
+            if confidence >= self.config.wake_confidence_threshold:
+                return True, wake_phrase, confidence
 
         return False, None, 0.0
 
