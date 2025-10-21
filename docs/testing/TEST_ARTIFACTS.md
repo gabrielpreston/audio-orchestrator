@@ -1,12 +1,12 @@
 ---
 title: Test Artifacts Management
-description: Test artifact storage strategy and management for the discord-voice-lab project
+description: Test artifact storage strategy and management for the audio-orchestrator project
 last-updated: 2025-10-17
 ---
 
 # Test Artifacts Management
 
-This document describes the test artifact storage strategy and management for the discord-voice-lab project.
+This document describes the test artifact storage strategy and management for the audio-orchestrator project.
 
 ## Overview
 

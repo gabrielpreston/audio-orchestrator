@@ -131,7 +131,7 @@ RUNTIME_SERVICES := discord stt llm orchestrator tts common
 all: help ## Default aggregate target
 
 help: ## Show this help (default)
-	@printf "$(COLOR_CYAN)discord-voice-lab Makefile — handy targets$(COLOR_OFF)\n"
+	@printf "$(COLOR_CYAN)audio-orchestrator Makefile — handy targets$(COLOR_OFF)\n"
 	@echo
 	@echo "Usage: make <target>"
 	@echo
@@ -369,7 +369,7 @@ test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml up -d
 	@printf "$(COLOR_YELLOW)→ Running integration tests$(COLOR_OFF)\n"
 	@docker run --rm \
-		--network discord-voice-lab-test \
+		--network audio-orchestrator-test \
 		-u $$(id -u):$$(id -g) \
 		-e HOME=$(TEST_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo tester) \

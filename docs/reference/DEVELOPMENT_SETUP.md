@@ -1,12 +1,12 @@
 ---
 title: Development Environment Setup
-description: Multi-virtual environment setup for the discord-voice-lab project
+description: Multi-virtual environment setup for the audio-orchestrator project
 last-updated: 2025-10-19
 ---
 
 # Development Environment Setup
 
-This document describes the development setup for the `discord-voice-lab` project.
+This document describes the development setup for the `audio-orchestrator` project.
 
 ## 🏗️ Architecture Overview
 
@@ -20,7 +20,7 @@ The project uses a **Docker-based development approach**:
 ## 📁 Directory Structure
 
 ```text
-discord-voice-lab/
+audio-orchestrator/
 ├── .vscode/settings.json           # Root workspace settings
 ├── discord-voice-lab.code-workspace # Multi-root workspace file
 ├── docker-compose.yml              # Service orchestration
@@ -333,4 +333,4 @@ make docker-build SERVICE=[service-name]
 make docker-build
 ```
 
-This setup provides the best of both worlds: complete service isolation with shared library access, optimized for the `discord-voice-lab` project architecture using Docker containers.
+This setup provides the best of both worlds: complete service isolation with shared library access, optimized for the `audio-orchestrator` project architecture using Docker containers.

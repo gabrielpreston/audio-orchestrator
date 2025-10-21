@@ -1,4 +1,4 @@
-"""Centralized logging utilities for discord-voice-lab services."""
+"""Centralized logging utilities for audio-orchestrator services."""
 
 from __future__ import annotations
 

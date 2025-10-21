@@ -21,7 +21,7 @@ from services.common.service_configs import (
 )
 
 
-app = FastAPI(title="discord-voice-lab STT (faster-whisper)")
+app = FastAPI(title="audio-orchestrator STT (faster-whisper)")
 
 # Centralized configuration
 _cfg: ServiceConfig = (

@@ -10,7 +10,7 @@ last-updated: 2025-10-18
 
 # Shared Utilities
 
-The `services/common/` package provides shared utilities and libraries used across all Python services in the discord-voice-lab project.
+The `services/common/` package provides shared utilities and libraries used across all Python services in the audio-orchestrator project.
 
 ## Overview
 

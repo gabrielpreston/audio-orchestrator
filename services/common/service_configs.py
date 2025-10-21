@@ -1,4 +1,4 @@
-"""Service-specific configuration classes for discord-voice-lab services.
+"""Service-specific configuration classes for audio-orchestrator services.
 
 This module contains pre-built configuration classes for each service,
 demonstrating how to use the common configuration library.

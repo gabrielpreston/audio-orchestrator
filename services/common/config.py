@@ -1,4 +1,4 @@
-"""Comprehensive configuration management library for discord-voice-lab services.
+"""Comprehensive configuration management library for audio-orchestrator services.
 
 This module provides a unified, type-safe, and validated configuration system
 that can be used across all Python services in the project.
@@ -332,7 +332,7 @@ class HttpConfig(BaseConfig):
         timeout: float = 30.0,
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        user_agent: str = "discord-voice-lab/1.0",
+        user_agent: str = "audio-orchestrator/1.0",
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -374,7 +374,7 @@ class HttpConfig(BaseConfig):
             FieldDefinition(
                 name="user_agent",
                 field_type=str,
-                default="discord-voice-lab/1.0",
+                default="audio-orchestrator/1.0",
                 description="User agent string for HTTP requests",
                 env_var="HTTP_USER_AGENT",
             ),
