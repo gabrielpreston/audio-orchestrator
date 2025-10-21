@@ -53,7 +53,10 @@ class AudioOrchestrator:
 
         # Initialize integrations
         self.pipeline_integration = PipelineIntegration(
-            self.adapter_manager, self.audio_pipeline, self.config
+            self.adapter_manager, 
+            self.audio_pipeline, 
+            self.config,
+            segment_callback=self.handle_processed_segment
         )
         self.agent_integration = AgentIntegration(self.agent_manager)
 
@@ -222,7 +225,7 @@ class AudioOrchestrator:
             "active_sessions": len(self._active_sessions),
             "session_ids": list(self._active_sessions),
             "adapter_manager": await self.adapter_manager.health_check(),
-            "agent_manager": await self.agent_manager.get_stats(),
+            "agent_manager": self.agent_manager.get_stats(),
             "audio_pipeline": await self.audio_pipeline.health_check(),
             "pipeline_integration": await self.pipeline_integration.get_status(),
             "agent_integration": await self.agent_integration.get_status(),
@@ -241,7 +244,7 @@ class AudioOrchestrator:
             "active_sessions": len(self._active_sessions),
             "components": {
                 "adapter_manager": await self.adapter_manager.health_check(),
-                "agent_manager": await self.agent_manager.get_stats(),
+                "agent_manager": self.agent_manager.get_stats(),
                 "audio_pipeline": await self.audio_pipeline.health_check(),
                 "pipeline_integration": await self.pipeline_integration.get_status(),
                 "agent_integration": await self.agent_integration.get_status(),

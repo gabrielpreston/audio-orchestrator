@@ -31,6 +31,7 @@ class PipelineIntegration:
         adapter_manager: AdapterManager,
         audio_pipeline: AudioPipeline,
         config: ProcessingConfig | None = None,
+        segment_callback: callable | None = None,
     ) -> None:
         """Initialize the pipeline integration.
 
@@ -38,10 +39,12 @@ class PipelineIntegration:
             adapter_manager: Manager for I/O adapters
             audio_pipeline: Audio processing pipeline
             config: Processing configuration
+            segment_callback: Callback function for processed segments
         """
         self.adapter_manager = adapter_manager
         self.audio_pipeline = audio_pipeline
         self.config = config or ProcessingConfig()
+        self.segment_callback = segment_callback
         self._logger = get_logger(self.__class__.__name__)
 
         # Processing state
@@ -223,6 +226,20 @@ class PipelineIntegration:
             #     correlation_id=processed_segment.correlation_id,
             #     sequence_number=0,  # Will be set by output adapter
             # )
+
+            # Forward to orchestrator if callback is provided
+            if self.segment_callback:
+                try:
+                    await self.segment_callback(processed_segment, session_id)
+                except Exception as e:
+                    self._logger.error(
+                        "Error in segment callback",
+                        extra={
+                            "correlation_id": processed_segment.correlation_id,
+                            "session_id": session_id,
+                            "error": str(e),
+                        },
+                    )
 
             # Send to output adapter if needed
             # For now, just log the segment

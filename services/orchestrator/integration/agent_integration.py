@@ -132,7 +132,7 @@ class AgentIntegration:
         """
         try:
             # Select appropriate agent
-            agent = await self.agent_manager.select_agent(context, transcript)
+            agent = await self.agent_manager.select_agent(transcript, context)
 
             if not agent:
                 self._logger.warning(
@@ -154,7 +154,7 @@ class AgentIntegration:
             )
 
             # Process with selected agent
-            response = await self.agent_manager.process_transcript(context, transcript)
+            response = await self.agent_manager.process_transcript(transcript, context)
 
             # Update conversation history
             context.history.append((transcript, response.response_text or ""))
@@ -221,7 +221,7 @@ class AgentIntegration:
         return {
             "active_sessions": len(self._active_sessions),
             "session_ids": list(self._active_sessions.keys()),
-            "agent_manager": await self.agent_manager.get_stats(),
+            "agent_manager": self.agent_manager.get_stats(),
         }
 
     async def health_check(self) -> dict[str, Any]:
@@ -234,5 +234,5 @@ class AgentIntegration:
             "status": "healthy",
             "integration_type": "AgentIntegration",
             "active_sessions": len(self._active_sessions),
-            "agent_manager": await self.agent_manager.get_stats(),
+            "agent_manager": self.agent_manager.get_stats(),
         }
