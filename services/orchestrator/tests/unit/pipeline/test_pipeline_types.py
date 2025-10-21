@@ -1,7 +1,8 @@
 """Unit tests for pipeline types."""
 
-import pytest
 from datetime import datetime
+
+import pytest
 
 from services.orchestrator.pipeline.types import (
     AudioFormat,
@@ -17,7 +18,7 @@ class TestProcessingConfig:
     def test_processing_config_creation(self):
         """Test creating a processing config."""
         config = ProcessingConfig()
-        
+
         assert config.target_sample_rate == 16000
         assert config.target_channels == 1
         assert config.target_format == AudioFormat.PCM
@@ -49,7 +50,7 @@ class TestProcessingConfig:
             enable_noise_reduction=False,
             enable_volume_normalization=False,
         )
-        
+
         assert config.target_sample_rate == 44100
         assert config.target_channels == 2
         assert config.target_format == AudioFormat.WAV
@@ -76,7 +77,9 @@ class TestProcessingConfig:
 
     def test_processing_config_validation_invalid_confidence_threshold(self):
         """Test processing config validation with invalid confidence threshold."""
-        with pytest.raises(ValueError, match="wake_confidence_threshold must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="wake_confidence_threshold must be between 0.0 and 1.0"
+        ):
             ProcessingConfig(wake_confidence_threshold=1.5)
 
     def test_processing_config_validation_negative_max_duration(self):
@@ -91,12 +94,17 @@ class TestProcessingConfig:
 
     def test_processing_config_validation_min_greater_than_max_duration(self):
         """Test processing config validation with min duration greater than max."""
-        with pytest.raises(ValueError, match="min_segment_duration must be less than max_segment_duration"):
+        with pytest.raises(
+            ValueError,
+            match="min_segment_duration must be less than max_segment_duration",
+        ):
             ProcessingConfig(min_segment_duration=10.0, max_segment_duration=5.0)
 
     def test_processing_config_validation_invalid_silence_threshold(self):
         """Test processing config validation with invalid silence threshold."""
-        with pytest.raises(ValueError, match="silence_threshold must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="silence_threshold must be between 0.0 and 1.0"
+        ):
             ProcessingConfig(silence_threshold=1.5)
 
     def test_processing_config_validation_negative_silence_duration(self):
@@ -122,7 +130,7 @@ class TestProcessedSegment:
             status=ProcessingStatus.COMPLETED,
             processing_time=0.01,
         )
-        
+
         assert segment.audio_data == b"\x00" * 1024
         assert segment.correlation_id == "test-123"
         assert segment.session_id == "session-456"
@@ -164,7 +172,7 @@ class TestProcessedSegment:
             clarity_score=0.9,
             metadata={"test": "value"},
         )
-        
+
         assert segment.audio_data == b"\x00" * 2048
         assert segment.correlation_id == "test-789"
         assert segment.session_id == "session-101"
@@ -297,7 +305,9 @@ class TestProcessedSegment:
 
     def test_processed_segment_validation_invalid_wake_confidence(self):
         """Test processed segment validation with invalid wake confidence."""
-        with pytest.raises(ValueError, match="wake_confidence must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="wake_confidence must be between 0.0 and 1.0"
+        ):
             ProcessedSegment(
                 audio_data=b"\x00" * 1024,
                 correlation_id="test-123",
@@ -314,7 +324,9 @@ class TestProcessedSegment:
 
     def test_processed_segment_validation_invalid_volume_level(self):
         """Test processed segment validation with invalid volume level."""
-        with pytest.raises(ValueError, match="volume_level must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="volume_level must be between 0.0 and 1.0"
+        ):
             ProcessedSegment(
                 audio_data=b"\x00" * 1024,
                 correlation_id="test-123",
@@ -348,7 +360,9 @@ class TestProcessedSegment:
 
     def test_processed_segment_validation_invalid_clarity_score(self):
         """Test processed segment validation with invalid clarity score."""
-        with pytest.raises(ValueError, match="clarity_score must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="clarity_score must be between 0.0 and 1.0"
+        ):
             ProcessedSegment(
                 audio_data=b"\x00" * 1024,
                 correlation_id="test-123",
@@ -377,7 +391,7 @@ class TestProcessedSegment:
             status=ProcessingStatus.COMPLETED,
             processing_time=0.01,
         )
-        
+
         assert segment.size_bytes == 1024
 
     def test_processed_segment_is_high_quality_true(self):
@@ -397,7 +411,7 @@ class TestProcessedSegment:
             noise_level=0.2,
             volume_level=0.5,
         )
-        
+
         assert segment.is_high_quality is True
 
     def test_processed_segment_is_high_quality_false(self):
@@ -417,7 +431,7 @@ class TestProcessedSegment:
             noise_level=0.5,
             volume_level=0.05,
         )
-        
+
         assert segment.is_high_quality is False
 
     def test_processed_segment_get_summary(self):
@@ -440,9 +454,9 @@ class TestProcessedSegment:
             noise_level=0.1,
             clarity_score=0.9,
         )
-        
+
         summary = segment.get_summary()
-        
+
         assert summary["correlation_id"] == "test-123"
         assert summary["session_id"] == "session-456"
         assert summary["status"] == "completed"

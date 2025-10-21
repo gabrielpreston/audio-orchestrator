@@ -29,9 +29,10 @@ from .pipeline import AudioPipeline
 from .types import ProcessedSegment, ProcessingConfig
 from .wake_detector import WakeDetector
 
+
 __all__ = [
     "AudioProcessor",
-    "AudioPipeline", 
+    "AudioPipeline",
     "WakeDetector",
     "ProcessedSegment",
     "ProcessingConfig",

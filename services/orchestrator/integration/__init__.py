@@ -18,12 +18,13 @@ Usage:
     await orchestrator.start_processing(session_id="session-123")
 """
 
+from .agent_integration import AgentIntegration
 from .audio_orchestrator import AudioOrchestrator
 from .pipeline_integration import PipelineIntegration
-from .agent_integration import AgentIntegration
+
 
 __all__ = [
     "AudioOrchestrator",
-    "PipelineIntegration", 
+    "PipelineIntegration",
     "AgentIntegration",
 ]

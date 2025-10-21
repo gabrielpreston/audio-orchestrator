@@ -1,11 +1,14 @@
 """Unit tests for audio processor."""
 
 import pytest
-from unittest.mock import AsyncMock, Mock
 
 from services.orchestrator.adapters.types import AudioChunk, AudioMetadata
 from services.orchestrator.pipeline.audio_processor import AudioProcessor
-from services.orchestrator.pipeline.types import AudioFormat, ProcessingConfig, ProcessingStatus
+from services.orchestrator.pipeline.types import (
+    AudioFormat,
+    ProcessingConfig,
+    ProcessingStatus,
+)
 
 
 class TestAudioProcessor:
@@ -15,7 +18,7 @@ class TestAudioProcessor:
         """Test creating an audio processor."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         assert processor.config == config
         assert processor.config.target_sample_rate == 16000
         assert processor.config.target_channels == 1
@@ -24,7 +27,7 @@ class TestAudioProcessor:
     def test_audio_processor_creation_with_defaults(self):
         """Test creating an audio processor with default config."""
         processor = AudioProcessor()
-        
+
         assert processor.config is not None
         assert processor.config.target_sample_rate == 16000
         assert processor.config.target_channels == 1
@@ -34,7 +37,7 @@ class TestAudioProcessor:
         """Test successful audio chunk processing."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         # Create mock audio chunk
         metadata = AudioMetadata(
             sample_rate=48000,
@@ -45,17 +48,17 @@ class TestAudioProcessor:
             format="pcm",
             bit_depth=16,
         )
-        
+
         audio_chunk = AudioChunk(
             data=b"\x00" * 1024,
             metadata=metadata,
             correlation_id="test-123",
             sequence_number=1,
         )
-        
+
         # Process the chunk
         result = await processor.process_audio_chunk(audio_chunk, "session-456")
-        
+
         assert result.correlation_id == "test-123"
         assert result.session_id == "session-456"
         assert result.status == ProcessingStatus.COMPLETED
@@ -77,7 +80,7 @@ class TestAudioProcessor:
             enable_volume_normalization=True,
         )
         processor = AudioProcessor(config)
-        
+
         metadata = AudioMetadata(
             sample_rate=48000,
             channels=2,
@@ -87,16 +90,16 @@ class TestAudioProcessor:
             format="pcm",
             bit_depth=16,
         )
-        
+
         audio_chunk = AudioChunk(
             data=b"\x00" * 1024,
             metadata=metadata,
             correlation_id="test-456",
             sequence_number=1,
         )
-        
+
         result = await processor.process_audio_chunk(audio_chunk, "session-789")
-        
+
         assert result.status == ProcessingStatus.COMPLETED
         assert "enhancement" in result.metadata.get("processing_stages", [])
         assert "noise_reduction" in result.metadata.get("processing_stages", [])
@@ -111,7 +114,7 @@ class TestAudioProcessor:
             enable_volume_normalization=False,
         )
         processor = AudioProcessor(config)
-        
+
         metadata = AudioMetadata(
             sample_rate=48000,
             channels=2,
@@ -121,16 +124,16 @@ class TestAudioProcessor:
             format="pcm",
             bit_depth=16,
         )
-        
+
         audio_chunk = AudioChunk(
             data=b"\x00" * 1024,
             metadata=metadata,
             correlation_id="test-789",
             sequence_number=1,
         )
-        
+
         result = await processor.process_audio_chunk(audio_chunk, "session-101")
-        
+
         assert result.status == ProcessingStatus.COMPLETED
         assert "enhancement" not in result.metadata.get("processing_stages", [])
         assert "noise_reduction" not in result.metadata.get("processing_stages", [])
@@ -141,9 +144,9 @@ class TestAudioProcessor:
         """Test getting processor capabilities."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         capabilities = await processor.get_capabilities()
-        
+
         assert "supported_formats" in capabilities
         assert "target_sample_rate" in capabilities
         assert "target_channels" in capabilities
@@ -157,9 +160,9 @@ class TestAudioProcessor:
         """Test health check."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         health = await processor.health_check()
-        
+
         assert health["status"] == "healthy"
         assert health["processor_type"] == "AudioProcessor"
         assert "config" in health
@@ -170,11 +173,11 @@ class TestAudioProcessor:
         """Test volume level calculation."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         # Test with empty data
         volume = await processor._calculate_volume_level(b"")
         assert volume == 0.0
-        
+
         # Test with mock data
         volume = await processor._calculate_volume_level(b"\x00" * 1024)
         assert 0.0 <= volume <= 1.0
@@ -184,7 +187,7 @@ class TestAudioProcessor:
         """Test noise level calculation."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         noise = await processor._calculate_noise_level(b"\x00" * 1024)
         assert 0.0 <= noise <= 1.0
 
@@ -193,6 +196,6 @@ class TestAudioProcessor:
         """Test clarity score calculation."""
         config = ProcessingConfig()
         processor = AudioProcessor(config)
-        
+
         clarity = await processor._calculate_clarity_score(b"\x00" * 1024)
         assert 0.0 <= clarity <= 1.0

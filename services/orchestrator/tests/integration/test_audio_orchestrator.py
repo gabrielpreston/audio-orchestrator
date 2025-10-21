@@ -1,16 +1,21 @@
 """Integration tests for audio orchestrator."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, Mock
+
 
 pytestmark = pytest.mark.component
 
+
 from services.orchestrator.adapters.manager import AdapterManager
-from services.orchestrator.adapters.types import AudioChunk, AudioMetadata
 from services.orchestrator.agents.manager import AgentManager
 from services.orchestrator.integration.audio_orchestrator import AudioOrchestrator
-from services.orchestrator.pipeline.types import ProcessedSegment, ProcessingStatus, AudioFormat
-from datetime import datetime
+from services.orchestrator.pipeline.types import (
+    AudioFormat,
+    ProcessedSegment,
+    ProcessingStatus,
+)
 
 
 class TestAudioOrchestrator:
@@ -19,7 +24,7 @@ class TestAudioOrchestrator:
     def test_audio_orchestrator_creation(self):
         """Test creating an audio orchestrator."""
         orchestrator = AudioOrchestrator()
-        
+
         assert orchestrator.adapter_manager is not None
         assert orchestrator.agent_manager is not None
         assert orchestrator.audio_pipeline is not None
@@ -30,12 +35,12 @@ class TestAudioOrchestrator:
         """Test creating an audio orchestrator with custom components."""
         adapter_manager = AdapterManager()
         agent_manager = AgentManager()
-        
+
         orchestrator = AudioOrchestrator(
             adapter_manager=adapter_manager,
             agent_manager=agent_manager,
         )
-        
+
         assert orchestrator.adapter_manager == adapter_manager
         assert orchestrator.agent_manager == agent_manager
 
@@ -43,39 +48,47 @@ class TestAudioOrchestrator:
     async def test_initialize(self):
         """Test orchestrator initialization."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock component health checks
-        orchestrator.adapter_manager.health_check = AsyncMock(return_value={"status": "healthy"})
-        orchestrator.agent_manager.get_stats = AsyncMock(return_value={"agent_count": 0})
-        orchestrator.audio_pipeline.health_check = AsyncMock(return_value={"status": "healthy"})
-        
+        orchestrator.adapter_manager.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+        orchestrator.agent_manager.get_stats = AsyncMock(
+            return_value={"agent_count": 0}
+        )
+        orchestrator.audio_pipeline.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+
         await orchestrator.initialize()
-        
+
         assert orchestrator._is_initialized is True
 
     @pytest.mark.asyncio
     async def test_start_session(self):
         """Test starting an audio processing session."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock initialization
         orchestrator._is_initialized = True
         orchestrator.pipeline_integration.start_processing = AsyncMock()
-        
+
         await orchestrator.start_session("session-123")
-        
+
         assert "session-123" in orchestrator._active_sessions
-        orchestrator.pipeline_integration.start_processing.assert_called_once_with("session-123")
+        orchestrator.pipeline_integration.start_processing.assert_called_once_with(
+            "session-123"
+        )
 
     @pytest.mark.asyncio
     async def test_start_session_already_active(self):
         """Test starting a session that's already active."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock initialization
         orchestrator._is_initialized = True
         orchestrator._active_sessions.add("session-123")
-        
+
         # Should not raise an error
         await orchestrator.start_session("session-123")
 
@@ -83,23 +96,27 @@ class TestAudioOrchestrator:
     async def test_stop_session(self):
         """Test stopping an audio processing session."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock session state
         orchestrator._active_sessions.add("session-123")
         orchestrator.pipeline_integration.stop_processing = AsyncMock()
         orchestrator.agent_integration.end_session = AsyncMock()
-        
+
         await orchestrator.stop_session("session-123")
-        
+
         assert "session-123" not in orchestrator._active_sessions
-        orchestrator.pipeline_integration.stop_processing.assert_called_once_with("session-123")
-        orchestrator.agent_integration.end_session.assert_called_once_with("session-123")
+        orchestrator.pipeline_integration.stop_processing.assert_called_once_with(
+            "session-123"
+        )
+        orchestrator.agent_integration.end_session.assert_called_once_with(
+            "session-123"
+        )
 
     @pytest.mark.asyncio
     async def test_stop_session_not_active(self):
         """Test stopping a session that's not active."""
         orchestrator = AudioOrchestrator()
-        
+
         # Should not raise an error
         await orchestrator.stop_session("session-123")
 
@@ -107,11 +124,11 @@ class TestAudioOrchestrator:
     async def test_handle_processed_segment(self):
         """Test handling a processed audio segment."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock session state
         orchestrator._active_sessions.add("session-123")
         orchestrator.agent_integration.handle_processed_segment = AsyncMock()
-        
+
         # Create processed segment
         processed_segment = ProcessedSegment(
             audio_data=b"\x00" * 1024,
@@ -125,9 +142,9 @@ class TestAudioOrchestrator:
             status=ProcessingStatus.COMPLETED,
             processing_time=0.01,
         )
-        
+
         await orchestrator.handle_processed_segment(processed_segment, "session-123")
-        
+
         orchestrator.agent_integration.handle_processed_segment.assert_called_once_with(
             processed_segment, "session-123"
         )
@@ -136,7 +153,7 @@ class TestAudioOrchestrator:
     async def test_handle_processed_segment_inactive_session(self):
         """Test handling a processed segment for inactive session."""
         orchestrator = AudioOrchestrator()
-        
+
         # Create processed segment
         processed_segment = ProcessedSegment(
             audio_data=b"\x00" * 1024,
@@ -150,7 +167,7 @@ class TestAudioOrchestrator:
             status=ProcessingStatus.COMPLETED,
             processing_time=0.01,
         )
-        
+
         # Should not raise an error
         await orchestrator.handle_processed_segment(processed_segment, "session-123")
 
@@ -158,14 +175,18 @@ class TestAudioOrchestrator:
     async def test_get_session_status(self):
         """Test getting session status."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock session state
         orchestrator._active_sessions.add("session-123")
-        orchestrator.pipeline_integration.get_status = AsyncMock(return_value={"is_processing": True})
-        orchestrator.agent_integration.get_status = AsyncMock(return_value={"active_sessions": 1})
-        
+        orchestrator.pipeline_integration.get_status = AsyncMock(
+            return_value={"is_processing": True}
+        )
+        orchestrator.agent_integration.get_status = AsyncMock(
+            return_value={"active_sessions": 1}
+        )
+
         status = await orchestrator.get_session_status("session-123")
-        
+
         assert status["session_id"] == "session-123"
         assert status["is_active"] is True
         assert "pipeline_status" in status
@@ -175,18 +196,28 @@ class TestAudioOrchestrator:
     async def test_get_orchestrator_status(self):
         """Test getting orchestrator status."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock component status
         orchestrator._is_initialized = True
         orchestrator._active_sessions.add("session-123")
-        orchestrator.adapter_manager.health_check = AsyncMock(return_value={"status": "healthy"})
-        orchestrator.agent_manager.get_stats = AsyncMock(return_value={"agent_count": 0})
-        orchestrator.audio_pipeline.health_check = AsyncMock(return_value={"status": "healthy"})
-        orchestrator.pipeline_integration.get_status = AsyncMock(return_value={"is_processing": True})
-        orchestrator.agent_integration.get_status = AsyncMock(return_value={"active_sessions": 1})
-        
+        orchestrator.adapter_manager.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+        orchestrator.agent_manager.get_stats = AsyncMock(
+            return_value={"agent_count": 0}
+        )
+        orchestrator.audio_pipeline.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+        orchestrator.pipeline_integration.get_status = AsyncMock(
+            return_value={"is_processing": True}
+        )
+        orchestrator.agent_integration.get_status = AsyncMock(
+            return_value={"active_sessions": 1}
+        )
+
         status = await orchestrator.get_orchestrator_status()
-        
+
         assert status["is_initialized"] is True
         assert status["active_sessions"] == 1
         assert "session-123" in status["session_ids"]
@@ -200,18 +231,28 @@ class TestAudioOrchestrator:
     async def test_health_check(self):
         """Test health check."""
         orchestrator = AudioOrchestrator()
-        
+
         # Mock component health checks
         orchestrator._is_initialized = True
         orchestrator._active_sessions.add("session-123")
-        orchestrator.adapter_manager.health_check = AsyncMock(return_value={"status": "healthy"})
-        orchestrator.agent_manager.get_stats = AsyncMock(return_value={"agent_count": 0})
-        orchestrator.audio_pipeline.health_check = AsyncMock(return_value={"status": "healthy"})
-        orchestrator.pipeline_integration.get_status = AsyncMock(return_value={"is_processing": True})
-        orchestrator.agent_integration.get_status = AsyncMock(return_value={"active_sessions": 1})
-        
+        orchestrator.adapter_manager.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+        orchestrator.agent_manager.get_stats = AsyncMock(
+            return_value={"agent_count": 0}
+        )
+        orchestrator.audio_pipeline.health_check = AsyncMock(
+            return_value={"status": "healthy"}
+        )
+        orchestrator.pipeline_integration.get_status = AsyncMock(
+            return_value={"is_processing": True}
+        )
+        orchestrator.agent_integration.get_status = AsyncMock(
+            return_value={"active_sessions": 1}
+        )
+
         health = await orchestrator.health_check()
-        
+
         assert health["status"] == "healthy"
         assert health["orchestrator_type"] == "AudioOrchestrator"
         assert health["is_initialized"] is True
