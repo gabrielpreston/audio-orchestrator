@@ -230,39 +230,6 @@ class OptimizedAudioProcessor(AudioProcessor):
 
         return processed_data
 
-    async def _process_audio_sequential(
-        self, audio_data: bytes, metadata: AudioMetadata
-    ) -> bytes:
-        """Process audio sequentially (fallback).
-
-        Args:
-            audio_data: Audio data to process
-            metadata: Original audio metadata
-
-        Returns:
-            Processed audio data
-        """
-        processed_data = audio_data
-
-        if self._needs_format_conversion(metadata):
-            processed_data = await self._convert_audio_format_optimized(processed_data)
-
-        if self._needs_resampling(metadata):
-            processed_data = await self._resample_audio_optimized(
-                processed_data, metadata
-            )
-
-        if self.config.enable_volume_normalization:
-            processed_data = await self._normalize_audio_optimized(processed_data)
-
-        if self.config.enable_noise_reduction:
-            processed_data = await self._reduce_noise_optimized(processed_data)
-
-        if self.config.enable_audio_enhancement:
-            processed_data = await self._enhance_audio_optimized(processed_data)
-
-        return processed_data
-
     def _needs_format_conversion(self, metadata: AudioMetadata) -> bool:
         """Check if format conversion is needed.
 
