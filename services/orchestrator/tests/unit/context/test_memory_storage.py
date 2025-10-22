@@ -259,14 +259,27 @@ class TestMemoryStorage:
     async def test_ttl_expiration(self, storage):
         """Test TTL-based expiration."""
         # Create session with very short TTL
-        short_ttl_storage = MemoryStorage(max_sessions=100, ttl_minutes=0)  # 0 minutes
+        short_ttl_storage = MemoryStorage(
+            max_sessions=100, ttl_minutes=1
+        )  # Very short TTL (1 minute)
 
         session_id = "ttl-test-session"
-        await short_ttl_storage.get_session(session_id)
+        # Create session first
+        session = await short_ttl_storage.get_session(session_id)
+        assert session.id == session_id
 
-        # Wait for TTL to expire
-        await asyncio.sleep(0.1)
+        # Manually set the session's timestamps to be in the past to simulate expiration
+        from datetime import datetime, timedelta
+
+        expired_time = datetime.utcnow() - timedelta(minutes=2)  # 2 minutes ago
+        session.created_at = expired_time
+        session.last_active_at = expired_time
 
         # Cleanup should remove expired session
         cleaned_count = await short_ttl_storage.cleanup_expired_sessions()
         assert cleaned_count >= 1
+
+        # Verify session is no longer accessible by checking if it exists in storage
+        # Since get_session creates a new session if it doesn't exist, we need to check differently
+        sessions = await short_ttl_storage.list_sessions()
+        assert session_id not in [s.id for s in sessions]

@@ -19,16 +19,20 @@ Usage:
 """
 
 from .base import BaseAgent
+from .echo_agent import EchoAgent
 from .manager import AgentManager
 from .registry import AgentRegistry
+from .summarization_agent import SummarizationAgent
 from .types import AgentResponse, ConversationContext, ExternalAction
 
 
 __all__ = [
-    "BaseAgent",
-    "AgentResponse",
-    "ConversationContext",
-    "ExternalAction",
-    "AgentRegistry",
     "AgentManager",
+    "AgentRegistry",
+    "AgentResponse",
+    "BaseAgent",
+    "ConversationContext",
+    "EchoAgent",
+    "ExternalAction",
+    "SummarizationAgent",
 ]

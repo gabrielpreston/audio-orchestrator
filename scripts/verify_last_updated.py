@@ -23,11 +23,11 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from datetime import date, datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
@@ -42,7 +42,7 @@ VERSION_HISTORY_ENTRY = re.compile(r"^-\s+\*\*(\d{4}-\d{2}-\d{2})\*\*")
 
 @dataclasses.dataclass
 class FrontMatter:
-    raw: Dict[str, str]
+    raw: dict[str, str]
     last_updated: date
 
 
@@ -65,7 +65,7 @@ def load_front_matter(path: Path) -> FrontMatter:
         raise ValueError("unterminated YAML front matter")
 
     block = text[len(FRONT_MATTER_BOUNDARY) + 1 : end_idx]
-    entries: Dict[str, str] = {}
+    entries: dict[str, str] = {}
     for line in block.splitlines():
         if not line.strip() or line.strip().startswith("#"):
             continue
@@ -74,20 +74,20 @@ def load_front_matter(path: Path) -> FrontMatter:
         key, value = line.split(":", 1)
         entries[key.strip()] = value.strip()
 
-    value = entries.get("last-updated")
-    if value is None:
+    last_updated_value: str | None = entries.get("last-updated")
+    if last_updated_value is None:
         raise ValueError("missing last-updated field")
-    if not DATE_PATTERN.fullmatch(value):
+    if not DATE_PATTERN.fullmatch(last_updated_value):
         raise ValueError("last-updated must be YYYY-MM-DD")
     try:
-        parsed_date = datetime.fromisoformat(value).date()
+        parsed_date = datetime.fromisoformat(last_updated_value).date()
     except ValueError as exc:  # pragma: no cover - defensive fallback
-        raise ValueError(f"invalid last-updated date: {value!r}") from exc
+        raise ValueError(f"invalid last-updated date: {last_updated_value!r}") from exc
 
     return FrontMatter(raw=entries, last_updated=parsed_date)
 
 
-def parse_version_history_date(path: Path, content: str) -> Optional[date]:
+def parse_version_history_date(_path: Path, content: str) -> date | None:
     header_match = VERSION_HISTORY_HEADER.search(content)
     if not header_match:
         return None
@@ -105,7 +105,9 @@ def parse_version_history_date(path: Path, content: str) -> Optional[date]:
     return None
 
 
-def iter_index_rows(source_path: Path, content: str) -> Iterable[Tuple[str, Path, str, date]]:
+def iter_index_rows(
+    source_path: Path, content: str
+) -> Iterable[tuple[str, Path, str, date]]:
     base_dir = source_path.parent
     for line in content.splitlines():
         match = INDEX_ROW_PATTERN.match(line.strip())
@@ -126,7 +128,7 @@ def iter_index_rows(source_path: Path, content: str) -> Iterable[Tuple[str, Path
 
 
 def run_git_command(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    return subprocess.run(  # nosec B603, B607
         ["git", *args],
         cwd=REPO_ROOT,
         text=True,
@@ -135,9 +137,9 @@ def run_git_command(args: Sequence[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
-def collect_git_status() -> Dict[Path, str]:
+def collect_git_status() -> dict[Path, str]:
     result = run_git_command(["status", "--porcelain"])
-    status_map: Dict[Path, str] = {}
+    status_map: dict[Path, str] = {}
     for line in result.stdout.splitlines():
         if not line:
             continue
@@ -147,17 +149,19 @@ def collect_git_status() -> Dict[Path, str]:
     return status_map
 
 
-def latest_commit_date(path: Path) -> Optional[date]:
-    result = run_git_command(["log", "-1", "--format=%cs", "--", str(path.relative_to(REPO_ROOT))])
+def latest_commit_date(path: Path) -> date | None:
+    result = run_git_command(
+        ["log", "-1", "--format=%cs", "--", str(path.relative_to(REPO_ROOT))]
+    )
     if result.returncode != 0 or not result.stdout.strip():
         return None
     return datetime.fromisoformat(result.stdout.strip()).date()
 
 
-def list_date_modifications() -> Dict[Path, List[str]]:
+def list_date_modifications() -> dict[Path, list[str]]:
     result = run_git_command(["diff", "HEAD", "--unified=0", "--", "docs"])
-    modifications: Dict[Path, List[str]] = {}
-    current_file: Optional[Path] = None
+    modifications: dict[Path, list[str]] = {}
+    current_file: Path | None = None
     for line in result.stdout.splitlines():
         if line.startswith("diff --git"):
             parts = line.split()
@@ -172,7 +176,7 @@ def list_date_modifications() -> Dict[Path, List[str]]:
             continue
         if line.startswith("@@"):
             continue
-        if "last-updated:" in line and (line.startswith("+") or line.startswith("-")):
+        if "last-updated:" in line and line.startswith(("+", "-")):
             modifications.setdefault(current_file, []).append(line)
     return modifications
 
@@ -180,10 +184,10 @@ def list_date_modifications() -> Dict[Path, List[str]]:
 def validate(
     paths: Iterable[Path],
     allow_divergence: bool,
-    status_map: Dict[Path, str],
+    status_map: dict[Path, str],
     recency_paths: Iterable[Path],
-) -> List[ValidationIssue]:
-    issues: List[ValidationIssue] = []
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
     recency_set = {path.resolve() for path in recency_paths}
     for path in paths:
         try:
@@ -206,7 +210,7 @@ def validate(
                 )
             )
 
-        for title, target_path, status, table_date in iter_index_rows(path, content):
+        for title, target_path, _status, table_date in iter_index_rows(path, content):
             try:
                 target_front_matter = load_front_matter(target_path)
             except ValueError as exc:
@@ -235,11 +239,9 @@ def validate(
         if path.resolve() in recency_set:
             git_status = status_map.get(path.resolve())
             if git_status:
-                reference_date = date.today()
+                reference_date = datetime.now().date()
             else:
-                reference_date = latest_commit_date(path)
-                if reference_date is None:
-                    reference_date = date.today()
+                reference_date = latest_commit_date(path) or datetime.now().date()
             delta_days = abs((front_matter.last_updated - reference_date).days)
             if delta_days > 1 and not allow_divergence:
                 issues.append(
@@ -256,7 +258,7 @@ def validate(
     return issues
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--allow-divergence",

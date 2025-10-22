@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Split `.env.sample` into the env files expected by docker-compose."""
+
 from __future__ import annotations
 
 import argparse
