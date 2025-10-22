@@ -282,4 +282,4 @@ class TestMemoryStorage:
         # Verify session is no longer accessible by checking if it exists in storage
         # Since get_session creates a new session if it doesn't exist, we need to check differently
         sessions = await short_ttl_storage.list_sessions()
-        assert session_id not in [s.id for s in sessions]
+        assert session_id not in sessions
