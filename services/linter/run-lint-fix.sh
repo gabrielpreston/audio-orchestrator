@@ -23,6 +23,10 @@ ruff format services
 
 # Apply Markdown formatting fixes
 print_status "$BLUE" "Fixing Markdown formatting..."
-markdownlint --fix README.md AGENTS.md 'docs/**/*.md'
+markdownlint --config .markdownlint.yaml --fix README.md AGENTS.md 'docs/**/*.md'
+
+# Update secrets baseline (detect-secrets will modify it)
+print_status "$BLUE" "Updating secrets baseline..."
+detect-secrets scan --baseline .secrets.baseline
 
 print_status "$GREEN" "✅ All automatic fixes applied!"

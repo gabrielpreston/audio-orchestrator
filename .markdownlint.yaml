@@ -1,0 +1,33 @@
+# Markdownlint configuration
+# See: https://github.com/igorshubovych/markdownlint-cli
+
+# Enable all rules by default
+default: true
+
+# Line length configuration
+MD013:
+  line_length: 250
+  tables: false
+  code_blocks: false
+  code: false
+
+# Multiple headers with the same content
+MD024:
+  siblings_only: true
+
+# First line in file should be a top level heading
+MD025:
+  front_matter_title: ""
+
+# Disable specific rules that are too strict for this project
+MD033: false # Inline HTML - allow HTML in markdown
+MD041: false # First line in file should be a top level heading
+MD005: false # Inconsistent indentation for list items
+MD007: false # Unordered list indentation
+
+# List spacing configuration
+MD030:
+  ul_single: 2
+  ol_single: 2
+  ul_multi: 2
+  ol_multi: 2

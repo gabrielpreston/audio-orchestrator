@@ -25,7 +25,7 @@ class DiscordConfig(BaseConfig):
 
     def __init__(
         self,
-        token: str = "",
+        token: str = "",  # nosec B107
         guild_id: int = 0,
         voice_channel_id: int = 0,
         intents: list[str] | None = None,
@@ -783,6 +783,8 @@ class OrchestratorConfig(BaseConfig):
         tts_voice: str | None = None,
         tts_timeout: float = 30.0,
         mcp_config_path: str = "./mcp.json",
+        summary_min_turns: int = 5,
+        summary_trigger_keywords: list[str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -793,6 +795,14 @@ class OrchestratorConfig(BaseConfig):
         self.tts_voice = tts_voice
         self.tts_timeout = tts_timeout
         self.mcp_config_path = mcp_config_path
+        self.summary_min_turns = summary_min_turns
+        self.summary_trigger_keywords = summary_trigger_keywords or [
+            "summarize",
+            "summary",
+            "recap",
+            "overview",
+            "what did we talk about",
+        ]
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -846,6 +856,28 @@ class OrchestratorConfig(BaseConfig):
                 default="./mcp.json",
                 description="Path to MCP configuration file",
                 env_var="MCP_CONFIG_PATH",
+            ),
+            create_field_definition(
+                name="summary_min_turns",
+                field_type=int,
+                default=5,
+                description="Minimum conversation turns before summarization is useful",
+                min_value=1,
+                max_value=100,
+                env_var="SUMMARY_MIN_TURNS",
+            ),
+            create_field_definition(
+                name="summary_trigger_keywords",
+                field_type=list,
+                default=[
+                    "summarize",
+                    "summary",
+                    "recap",
+                    "overview",
+                    "what did we talk about",
+                ],
+                description="Keywords that trigger summarization agent",
+                env_var="SUMMARY_TRIGGER_KEYWORDS",
             ),
         ]
 

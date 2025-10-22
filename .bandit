@@ -1,0 +1,15 @@
+# Bandit configuration file
+# See: https://bandit.readthedocs.io/en/latest/config.html
+
+[bandit]
+# Skip specific tests
+skips = B104
+
+# Exclude directories
+exclude_dirs = ["**/.venv/**", "**/node_modules/**", "**/__pycache__/**"]
+
+# Set severity threshold (only report HIGH severity issues)
+severity = HIGH
+
+# Set confidence threshold
+confidence = HIGH

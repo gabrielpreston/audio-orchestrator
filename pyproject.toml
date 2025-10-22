@@ -31,7 +31,7 @@ select = [
     "S",   # flake8-bandit - security-focused linting (catches potential security issues)
     "RET", # flake8-return - catches unnecessary return statements and else blocks
     "SIM", # flake8-simplify - suggests code simplifications
-    
+
     # Import and type checking
     "TCH", # flake8-type-checking - catches imports that should be TYPE_CHECKING
     "TID", # flake8-tidy-imports - enforces import organization and naming
@@ -64,28 +64,28 @@ ignore = [
     # Black compatibility - let Black handle these formatting issues
     "E501",  # line too long - Black handles line length automatically
     "COM812", # missing trailing comma - Black handles comma placement
-    
+
     # Function argument and complexity rules - too strict for our use case
     "B008",  # do not perform function calls in argument defaults - sometimes necessary for dependency injection
     "C901",  # too complex - some functions need to be complex (e.g., main event loops)
     "PLR0913", # too many arguments - common in service constructors with many config options
     "PLR0912", # too many branches - common in complex business logic
     "PLR0915", # too many statements - common in main functions and event handlers
-    
+
     # Exception handling - sometimes we need different patterns
     "B904",  # within an except clause, raise exceptions with raise ... from err - not always applicable
     "RSE",   # flake8-raise - sometimes we want to re-raise without 'from'
-    
+
     # Modern Python syntax - some features not available in our target version
     "UP038", # use X | Y in isinstance call instead of (X, Y) - requires Python 3.10+
-    
+
     # Security rules - too strict for our development environment
     "S101",  # use of assert - common and necessary in tests
     "S104",  # hardcoded bind all interfaces - common in Docker development
     "S311",  # random usage for jitter in retry logic - non-cryptographic usage is fine
     "S603",  # subprocess call - common in Docker and deployment scripts
     "S607",  # starting a process with a partial executable path - common in containerized environments
-    
+
     # Code style - sometimes readability trumps strict rules
     "RET504", # unnecessary assignment before return - sometimes clearer than one-liner
     "RET505", # unnecessary else after return - sometimes improves readability
@@ -295,4 +295,3 @@ filterwarnings = [
 
 # Minimum version requirements
 minversion = "8.0"
-

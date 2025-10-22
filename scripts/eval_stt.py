@@ -6,7 +6,8 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+from collections.abc import Iterable
 
 import httpx
 
@@ -45,7 +46,9 @@ async def synthesize_tts(tts_url: str, text: str, token: str | None = None) -> b
     if token:
         headers["Authorization"] = f"Bearer {token}"
     payload = {"text": text}
-    async with httpx.AsyncClient(base_url=tts_url, timeout=httpx.Timeout(30.0)) as client:
+    async with httpx.AsyncClient(
+        base_url=tts_url, timeout=httpx.Timeout(30.0)
+    ) as client:
         resp = await client.post("/synthesize", json=payload, headers=headers)
         resp.raise_for_status()
         content: bytes = resp.content
@@ -61,7 +64,9 @@ async def stt_transcribe(
     if beam_size:
         params["beam_size"] = str(beam_size)
     files = {"file": ("eval.wav", wav_bytes, "audio/wav")}
-    async with httpx.AsyncClient(base_url=stt_url, timeout=httpx.Timeout(60.0)) as client:
+    async with httpx.AsyncClient(
+        base_url=stt_url, timeout=httpx.Timeout(60.0)
+    ) as client:
         resp = await client.post(
             "/transcribe", files=files, data={"metadata": "eval"}, params=params
         )
@@ -75,18 +80,35 @@ def exact_match_score(expected: str, actual: str) -> float:
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="Evaluate STT providers on simple phrase lists")
-    parser.add_argument("--provider", default="stt", help="Provider key (stt|openai|azure|gcp)")
-    parser.add_argument(
-        "--phrases", nargs="+", type=Path, required=True, help="Paths to .txt phrase lists"
+    parser = argparse.ArgumentParser(
+        description="Evaluate STT providers on simple phrase lists"
     )
     parser.add_argument(
-        "--out", type=Path, default=Path("./debug/eval/"), help="Output directory for reports"
+        "--provider", default="stt", help="Provider key (stt|openai|azure|gcp)"
     )
-    parser.add_argument("--stt-url", default=os.getenv("STT_BASE_URL", "http://localhost:9000"))
-    parser.add_argument("--tts-url", default=os.getenv("TTS_BASE_URL", "http://localhost:7000"))
+    parser.add_argument(
+        "--phrases",
+        nargs="+",
+        type=Path,
+        required=True,
+        help="Paths to .txt phrase lists",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("./debug/eval/"),
+        help="Output directory for reports",
+    )
+    parser.add_argument(
+        "--stt-url", default=os.getenv("STT_BASE_URL", "http://localhost:9000")
+    )
+    parser.add_argument(
+        "--tts-url", default=os.getenv("TTS_BASE_URL", "http://localhost:7000")
+    )
     parser.add_argument("--language", default=os.getenv("STT_FORCED_LANGUAGE", "en"))
-    parser.add_argument("--beam-size", type=int, default=int(os.getenv("STT_BEAM_SIZE", "8")))
+    parser.add_argument(
+        "--beam-size", type=int, default=int(os.getenv("STT_BEAM_SIZE", "8"))
+    )
     args = parser.parse_args()
 
     phrases = read_phrases(args.phrases)

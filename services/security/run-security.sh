@@ -81,14 +81,14 @@ if [ -f "$combined_report" ] && [ "$audit_exit_code" -eq 0 ]; then
 else
     # There are vulnerabilities - we need to scan each service individually to get accurate results
     print_status "$YELLOW" "→ Vulnerabilities detected, scanning services individually for accurate reporting"
-    
+
     for i in "${!req_files[@]}"; do
         req="${req_files[$i]}"
         service_name="${service_names[$i]}"
         service_report="security-reports/${service_name}-requirements.json"
-        
+
         print_status "$CYAN" "→ Auditing $service_name individually"
-        
+
         if pip-audit --progress-spinner off --format json --requirement "$req" > "$service_report" 2>/dev/null; then
             print_status "$GREEN" "✓ $service_name: clean"
         else

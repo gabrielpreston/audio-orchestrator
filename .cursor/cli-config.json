@@ -4,7 +4,7 @@
     "github_cli": [
       "gh api",
       "gh run view",
-      "gh pr view", 
+      "gh pr view",
       "gh pr diff",
       "gh pr list",
       "gh run download"
@@ -12,14 +12,14 @@
     "git": [
       "git status",
       "git checkout",
-      "git branch", 
+      "git branch",
       "git commit",
       "git push",
       "git remote"
     ],
     "analysis": [
       "ci_failure_analysis",
-      "root_cause_detection", 
+      "root_cause_detection",
       "automated_fixes"
     ]
   },
