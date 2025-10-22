@@ -262,7 +262,12 @@ def optimize_audio_processing(func: Any) -> Any:
             return await func(*args, **kwargs)
         # Otherwise run in thread pool to avoid blocking event loop
         # Use functools.partial to bind keyword arguments since run_in_executor doesn't support kwargs
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
         bound_func = functools.partial(func, *args, **kwargs)
         return await loop.run_in_executor(None, bound_func)
 
