@@ -5,8 +5,17 @@ This module provides abstractions for managing conversation context and user ses
 enabling multi-turn conversations and session persistence.
 """
 
-from .storage_interface import StorageInterface
+from .manager import ContextManager
+from .memory_storage import MemoryStorage
+from .storage_interface import StorageInterface, StorageError
 from .types import ConversationContext, Session
 
 
-__all__ = ["Session", "ConversationContext", "StorageInterface"]
+__all__ = [
+    "Session",
+    "ConversationContext",
+    "StorageInterface",
+    "StorageError",
+    "ContextManager",
+    "MemoryStorage",
+]

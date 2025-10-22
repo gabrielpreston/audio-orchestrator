@@ -6,6 +6,7 @@ for persisting conversation context and session data.
 """
 
 from abc import ABC, abstractmethod
+from typing import Any
 
 from .types import ConversationContext, Session
 
@@ -120,6 +121,24 @@ class StorageInterface(ABC):
 
         Raises:
             StorageError: If cleanup fails
+        """
+        pass
+
+    @abstractmethod
+    async def get_stats(self) -> dict[str, Any]:
+        """Get storage statistics.
+
+        Returns:
+            Dictionary containing storage statistics
+        """
+        pass
+
+    @abstractmethod
+    async def health_check(self) -> dict[str, Any]:
+        """Perform health check for storage.
+
+        Returns:
+            Health check results
         """
         pass
 

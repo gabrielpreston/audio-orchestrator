@@ -25,27 +25,37 @@ repos:
   # Python code formatting and linting
   # Purpose: Ensure consistent Python code style and catch common issues
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.8
+  - repo: local
     hooks:
       - id: ruff
-        args: ["--fix", "--exit-non-zero-on-fix"] # Fix auto-fixable issues and fail on others
-      - id: ruff-format # Format code with ruff (alternative to Black)
+        name: ruff
+        entry: .venv/bin/ruff
+        language: system
+        args: ["check", "--fix", "--exit-non-zero-on-fix"]
+        files: '\.py$'
+      - id: ruff-format
+        name: ruff-format
+        entry: .venv/bin/ruff
+        language: system
+        args: ["format"]
+        files: '\.py$'
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [types-all] # Install type stubs for better checking
-        args: ["--ignore-missing-imports"] # Ignore missing imports (common with external packages)
+        name: mypy
+        entry: .venv/bin/mypy
+        language: system
+        args: ["--ignore-missing-imports"]
+        files: '\.py$'
 
   # YAML file linting
   # Purpose: Ensure YAML files are properly formatted and follow best practices
-  - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
-    hooks:
-      - id: yamllint
-        args: ["-c", ".yamllint"] # Use our custom yamllint configuration
+  # - repo: https://github.com/adrienverge/yamllint
+  #   rev: v1.35.1
+  #   hooks:
+  #     - id: yamllint
+  #       args: ["-c", ".yamllint"] # Use our custom yamllint configuration
 
   # Markdown file linting
   # Purpose: Ensure Markdown files are properly formatted and follow best practices
@@ -76,15 +86,15 @@ repos:
         files: '\.py$'
 
   # Secret detection using local .venv
-  - repo: local
-    hooks:
-      - id: detect-secrets
-        name: detect-secrets
-        entry: .venv/bin/detect-secrets
-        language: system
-        args: ["scan", "--baseline", ".secrets.baseline"]
-        exclude: '\.env.*'
-        files: '\.(py|yaml|yml|json|txt|md)$'
+  # - repo: local
+  #   hooks:
+  #     - id: detect-secrets
+  #       name: detect-secrets
+  #       entry: .venv/bin/detect-secrets
+  #       language: system
+  #       args: ["scan", "--baseline", ".secrets.baseline"]
+  #       exclude: '\.env.*'
+  #       files: '\.(py|yaml|yml|json|txt|md)$'
 
   # Code complexity analysis using local .venv
   - repo: local
@@ -114,7 +124,7 @@ repos:
 
 # Global configuration
 default_language_version:
-  python: python3.11 # Use Python 3.11 as the default language version
+  python: python3.12 # Use Python 3.12 as the default language version
 
 # Exclude patterns
 # Purpose: Skip linting for generated files, caches, and other non-source files

@@ -5,6 +5,7 @@ Tests the StorageInterface abstract class and StorageError exception.
 """
 
 from datetime import datetime
+from typing import Any
 
 import pytest
 
@@ -88,6 +89,26 @@ class MockStorage(StorageInterface):
         if self.should_raise_error:
             raise StorageError(self.error_message)
         return 0
+
+    async def get_stats(self) -> dict[str, Any]:
+        """Mock get_stats implementation."""
+        if self.should_raise_error:
+            raise StorageError(self.error_message)
+        return {
+            "total_sessions": len(self.sessions),
+            "total_contexts": len(self.contexts),
+            "execution_logs": len(self.execution_logs),
+        }
+
+    async def health_check(self) -> dict[str, Any]:
+        """Mock health_check implementation."""
+        if self.should_raise_error:
+            raise StorageError(self.error_message)
+        return {
+            "status": "healthy",
+            "storage_type": "MockStorage",
+            "sessions_count": len(self.sessions),
+        }
 
 
 class TestStorageInterface:
