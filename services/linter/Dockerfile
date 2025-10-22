@@ -24,6 +24,7 @@ COPY services/linter/run-lint-security.sh /usr/local/bin/
 COPY services/linter/run-lint-complexity.sh /usr/local/bin/
 COPY services/linter/run-lint-dockerfile.sh /usr/local/bin/
 COPY services/linter/run-lint-makefile.sh /usr/local/bin/
+COPY services/linter/update-secrets-baseline.sh /usr/local/bin/
 
 # Make all scripts executable
-RUN chmod +x /usr/local/bin/run-lint*.sh
+RUN chmod +x /usr/local/bin/run-lint*.sh /usr/local/bin/update-secrets-baseline.sh

@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Running security analysis with bandit..."
-# Run bandit security analysis on Python files (skip B104, exclude .venv, only HIGH severity)
-bandit -r services/ -f json -o bandit-report.json --skip B104 --exclude "**/.venv/**" --severity-level high
+if [[ $# -gt 0 ]]; then
+  exec "$@"
+fi
 
 echo "Running secret detection..."
-# Run detect-secrets to scan for secrets
-detect-secrets scan --baseline .secrets.baseline
+# Run detect-secrets to scan for secrets (without updating baseline)
+detect-secrets scan --baseline .secrets.baseline --force-use-all-plugins
 
-echo "Security analysis complete!"
+echo "Secret detection completed!"

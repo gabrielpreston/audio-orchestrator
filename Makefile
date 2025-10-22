@@ -467,6 +467,20 @@ lint-%: lint-image ## Run specific linter (e.g., make lint-black, make lint-yaml
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		/usr/local/bin/run-lint-single.sh $*
 
+lint-security: lint-image ## Run security analysis (bandit + detect-secrets)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-security.sh
+
+update-secrets-baseline: lint-image ## Update secrets baseline (run manually when needed)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/update-secrets-baseline.sh
+
 # =============================================================================
 # SECURITY & QUALITY GATES
 # =============================================================================

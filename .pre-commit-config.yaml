@@ -34,6 +34,19 @@ repos:
         pass_filenames: false
         always_run: true
 
+  # Security analysis (run on Python files only, less frequently)
+  # Purpose: Run security checks without triggering infinite loops
+  - repo: local
+    hooks:
+      - id: docker-lint-security
+        name: Security Analysis (Docker)
+        entry: make
+        language: system
+        args: ["lint-security"]
+        files: '\.py$'
+        pass_filenames: false
+        always_run: false
+
   # Docker-based testing
   # Purpose: Run tests in Docker for consistency
   - repo: local
@@ -80,5 +93,8 @@ exclude: |
     coverage\.xml|     # Coverage XML reports
     \.tox/.*|          # Tox cache
     \.env.*|           # Environment files
-    node_modules/.*    # Node.js dependencies
+    node_modules/.*|   # Node.js dependencies
+    \.secrets\.baseline$|  # Secrets baseline file (prevents infinite loops)
+    \.secrets\.baseline\.json$|  # Secrets baseline JSON file
+    bandit-report\.json$|  # Bandit security report file
   )$
