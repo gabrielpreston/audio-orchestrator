@@ -804,14 +804,17 @@ class OrchestratorConfig(BaseConfig):
             "overview",
             "what did we talk about",
         ]
-        self.intent_classes = intent_classes or {
-            "echo": "echo",
-            "summarize": "summarization",
-            "general": "conversation",
-            "help": "echo",
-            "weather": "general",
-            "time": "general",
-        }
+        self.intent_classes = (
+            intent_classes
+            or {
+                "echo": "echo",
+                "summarize": "summarization",
+                "general": "conversation",
+                "help": "echo",
+                "weather": "conversation",  # Fixed: weather should route to conversation agent
+                "time": "conversation",  # Fixed: time should route to conversation agent
+            }
+        )
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -896,8 +899,8 @@ class OrchestratorConfig(BaseConfig):
                     "summarize": "summarization",
                     "general": "conversation",
                     "help": "echo",
-                    "weather": "general",
-                    "time": "general",
+                    "weather": "conversation",  # Fixed: weather should route to conversation agent
+                    "time": "conversation",  # Fixed: time should route to conversation agent
                 },
                 description="Mapping of intent names to agent names",
                 env_var="INTENT_CLASSES",

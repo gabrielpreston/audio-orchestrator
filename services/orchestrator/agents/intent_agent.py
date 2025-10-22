@@ -20,26 +20,35 @@ if TYPE_CHECKING:
 class IntentClassificationAgent(BaseAgent):
     """Classifies user intent and routes to specialized agents."""
 
-    def __init__(self, llm_service_url: str, agent_manager: "AgentManager"):
+    def __init__(
+        self,
+        llm_service_url: str,
+        agent_manager: "AgentManager",
+        intent_classes: dict[str, str] | None = None,
+    ):
         """Initialize the intent classification agent.
 
         Args:
             llm_service_url: URL of the LLM service for intent classification
             agent_manager: Agent manager for routing to specialized agents
+            intent_classes: Optional mapping of intents to agent names. If None, uses defaults.
         """
         self.llm_url = llm_service_url
         self.agent_manager = agent_manager
         self._logger = logging.getLogger(__name__)
 
-        # Intent classification configuration
-        self.intent_classes = {
-            "echo": "echo",
-            "summarize": "summarization",
-            "general": "conversation",
-            "help": "echo",
-            "weather": "general",
-            "time": "general",
-        }
+        # Intent classification configuration - use provided or defaults
+        self.intent_classes = (
+            intent_classes
+            or {
+                "echo": "echo",
+                "summarize": "summarization",
+                "general": "conversation",
+                "help": "echo",
+                "weather": "conversation",  # Fixed: weather should route to conversation agent
+                "time": "conversation",  # Fixed: time should route to conversation agent
+            }
+        )
 
         # Intent classification prompt template
         self.classification_prompt = """Classify the user's intent from the following transcript:

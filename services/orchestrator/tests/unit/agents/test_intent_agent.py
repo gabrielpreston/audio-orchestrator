@@ -257,10 +257,26 @@ class TestIntentClassificationAgent:
             "summarize": "summarization",
             "general": "conversation",
             "help": "echo",
-            "weather": "general",
-            "time": "general",
+            "weather": "conversation",  # Fixed: weather should route to conversation agent
+            "time": "conversation",  # Fixed: time should route to conversation agent
         }
         assert intent_agent.intent_classes == expected_intents
+
+    def test_intent_classes_custom(self, mock_agent_manager):
+        """Test custom intent classes configuration."""
+        custom_intents = {
+            "greeting": "echo",
+            "question": "conversation",
+            "command": "echo",
+        }
+
+        agent = IntentClassificationAgent(
+            llm_service_url="http://llm:8000",
+            agent_manager=mock_agent_manager,
+            intent_classes=custom_intents,
+        )
+
+        assert agent.intent_classes == custom_intents
 
     def test_classification_prompt_format(self, intent_agent):
         """Test that classification prompt is properly formatted."""

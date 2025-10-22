@@ -1,9 +1,9 @@
-# Pre-commit hooks configuration
+# Pre-commit hooks configuration - Docker-first approach
+# Purpose: Orchestrate Docker-based linting for consistent developer experience
 # https://pre-commit.com/
-# Purpose: Automatically run linting and formatting tools before each commit
 
 repos:
-  # General file quality hooks
+  # Basic file quality hooks (lightweight, no external dependencies)
   # Purpose: Catch common file issues and ensure basic quality standards
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.5.0
@@ -22,108 +22,24 @@ repos:
       - id: debug-statements # Detect debug statements (print, pdb, etc.)
       - id: detect-private-key # Detect private keys in commits
 
-  # Python code formatting and linting
-  # Purpose: Ensure consistent Python code style and catch common issues
-
+  # Docker-based comprehensive linting (on staged files)
+  # Purpose: Run comprehensive linting in Docker for consistency
   - repo: local
     hooks:
-      - id: ruff
-        name: ruff
-        entry: .venv/bin/ruff
+      - id: docker-lint-staged
+        name: Comprehensive Linting (Docker)
+        entry: make
         language: system
-        args: ["check", "--fix", "--exit-non-zero-on-fix"]
-        files: '\.py$'
-      - id: ruff-format
-        name: ruff-format
-        entry: .venv/bin/ruff
-        language: system
-        args: ["format"]
-        files: '\.py$'
+        args: ["lint"]
+        pass_filenames: false
+        always_run: true
 
+  # Docker-based testing
+  # Purpose: Run tests in Docker for consistency
   - repo: local
     hooks:
-      - id: mypy
-        name: mypy
-        entry: .venv/bin/mypy
-        language: system
-        args: ["--ignore-missing-imports"]
-        files: '\.py$'
-
-  # YAML file linting
-  # Purpose: Ensure YAML files are properly formatted and follow best practices
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: https://github.com/adrienverge/yamllint
-  #   rev: v1.35.1
-  #   hooks:
-  #     - id: yamllint
-  #       args: ["-c", ".yamllint"] # Use our custom yamllint configuration
-
-  # Markdown file linting
-  # Purpose: Ensure Markdown files are properly formatted and follow best practices
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: https://github.com/igorshubovych/markdownlint-cli
-  #   rev: v0.37.0
-  #   hooks:
-  #     - id: markdownlint
-  #       args: ["--config", ".markdownlint.yaml"] # Use our custom markdownlint configuration
-
-  # Dockerfile linting
-  # Purpose: Ensure Dockerfiles follow best practices and security guidelines
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: https://github.com/hadolint/hadolint
-  #   rev: v2.12.0
-  #   hooks:
-  #     - id: hadolint
-  #       args: ["--config", ".hadolint.yaml"] # Use our custom hadolint configuration
-
-  # Security analysis using local .venv
-  # Purpose: Detect security vulnerabilities and anti-patterns in agent-generated code
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: local
-  #   hooks:
-  #     - id: bandit
-  #       name: bandit
-  #       entry: .venv/bin/bandit
-  #       language: system
-  #       args: ["-r", "-f", "json", "-o", "bandit-report.json"]
-  #       exclude: "tests/.*"
-  #       files: '\.py$'
-
-  # Secret detection using local .venv
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: local
-  #   hooks:
-  #     - id: detect-secrets
-  #       name: detect-secrets
-  #       entry: .venv/bin/detect-secrets
-  #       language: system
-  #       args: ["scan", "--baseline", ".secrets.baseline"]
-  #       exclude: '\.env.*'
-  #       files: '\.(py|yaml|yml|json|txt|md)$'
-
-  # Code complexity analysis using local .venv
-  # DISABLED: Use Docker-based linting instead (make lint)
-  # - repo: local
-  #   hooks:
-  #     - id: radon-cc
-  #       name: radon-cc
-  #       entry: .venv/bin/radon
-  #       language: system
-  #       args: ["cc", "--min", "B", "services/"]
-  #       files: '\.py$'
-  #     - id: radon-mi
-  #       name: radon-mi
-  #       entry: .venv/bin/radon
-  #       language: system
-  #       args: ["mi", "--min", "B", "services/"]
-  #       files: '\.py$'
-
-  # Test execution using local .venv
-  # Purpose: Run tests before commit to catch failures early
-  - repo: local
-    hooks:
-      - id: test
-        name: test
+      - id: docker-test
+        name: Testing (Docker)
         entry: make
         language: system
         args: ["test"]
@@ -131,7 +47,8 @@ repos:
         pass_filenames: false
         always_run: true
 
-  # Commit message validation using local .venv
+  # Commit message validation (lightweight local tool)
+  # Purpose: Ensure commit messages follow conventional commit format
   - repo: local
     hooks:
       - id: commitizen
