@@ -10,60 +10,109 @@ repos:
     hooks:
       - id: trailing-whitespace
         exclude: '\.md$' # Allow trailing spaces in Markdown (used for line breaks)
+        files: '\.(py|js|ts|json|yaml|yml|toml|md|txt|sh|bash|zsh)$'
       - id: end-of-file-fixer # Ensure files end with newline
+        files: '\.(py|js|ts|json|yaml|yml|toml|md|txt|sh|bash|zsh)$'
       - id: check-yaml
         args: ["--unsafe"] # Allow unsafe YAML (needed for some Docker Compose files)
+        files: '\.(yaml|yml)$'
       - id: check-json # Validate JSON syntax
+        files: '\.json$'
       - id: check-toml # Validate TOML syntax
+        files: '\.toml$'
       - id: check-merge-conflict # Detect merge conflict markers
+        files: '\.(py|js|ts|json|yaml|yml|toml|md|txt|sh|bash|zsh)$'
       - id: check-added-large-files
-        args: ["--maxkb=1000"] # Prevent accidentally committing large files
+        args: ["--maxkb=15"] # Prevent accidentally committing large files (15KB limit)
+        files: ".*" # Check all files
+        exclude: '\.(git|venv|node_modules|__pycache__|\.mypy_cache|\.pytest_cache|\.ruff_cache|htmlcov|\.coverage|coverage\.xml|\.tox|\.env|\.secrets|bandit-report)'
       - id: check-case-conflict # Detect case conflicts in filenames
+        files: '\.(py|js|ts|json|yaml|yml|toml|md|txt|sh|bash|zsh)$'
       - id: debug-statements # Detect debug statements (print, pdb, etc.)
+        files: '\.py$'
       - id: detect-private-key # Detect private keys in commits
+        files: '\.(py|js|ts|json|yaml|yml|toml|env|key|pem|p12|pfx|jks|keystore|truststore|crt|cer|der|p7b|p7c|spc)$'
+      - id: check-executables-have-shebangs # Ensure executable scripts have shebangs
+        files: '\.(sh|bash|zsh|py|pl|rb|js|ts)$'
+      - id: check-shebang-scripts-are-executable # Ensure scripts with shebangs are executable
+        files: '\.(sh|bash|zsh|py|pl|rb|js|ts)$'
+      - id: check-symlinks # Check for broken symlinks
+        files: '\.(sh|bash|zsh|py|pl|rb|js|ts)$'
 
-  # Docker-based comprehensive linting (on staged files)
-  # Purpose: Run comprehensive linting in Docker for consistency
+  # Docker-based development tools (consolidated local repo)
+  # Purpose: Run comprehensive linting, testing, and security analysis in Docker for consistency
   - repo: local
     hooks:
+      # Quick linting for fast feedback (Python files only)
+      - id: docker-lint-quick
+        name: Quick Linting (Docker)
+        description: "Fast Python-only linting for quick feedback during development"
+        entry: make
+        language: system
+        args: ["lint-python"]
+        files: '\.py$'
+        pass_filenames: false
+        always_run: false
+        stages: [pre-commit]
+        timeout: 300 # 5 minutes timeout
+        requires: [trailing-whitespace, end-of-file-fixer]
+
+      # Comprehensive linting (all file types)
       - id: docker-lint-staged
         name: Comprehensive Linting (Docker)
+        description: "Full linting suite for all file types with comprehensive checks"
         entry: make
         language: system
         args: ["lint"]
         pass_filenames: false
         always_run: true
+        stages: [pre-commit]
+        timeout: 600 # 10 minutes timeout
+        requires: [check-yaml, check-json, check-toml]
 
-  # Security analysis (run on Python files only, less frequently)
-  # Purpose: Run security checks without triggering infinite loops
-  - repo: local
-    hooks:
+      # Security analysis (Python files only, less frequently)
       - id: docker-lint-security
         name: Security Analysis (Docker)
+        description: "Security-focused linting including bandit and detect-secrets"
         entry: make
         language: system
         args: ["lint-security"]
         files: '\.py$'
         pass_filenames: false
         always_run: false
+        stages: [pre-commit]
+        timeout: 300 # 5 minutes timeout
+        requires: [detect-private-key, debug-statements]
 
-  # Docker-based testing
-  # Purpose: Run tests in Docker for consistency
-  - repo: local
-    hooks:
+      # Testing (Python files only, conditional)
       - id: docker-test
         name: Testing (Docker)
+        description: "Comprehensive test suite execution in Docker environment"
         entry: make
         language: system
         args: ["test"]
         files: '\.py$'
         pass_filenames: false
-        always_run: true
+        always_run: false
+        stages: [pre-commit]
+        timeout: 900 # 15 minutes timeout
+        requires: [docker-lint-staged]
 
-  # Commit message validation (lightweight local tool)
-  # Purpose: Ensure commit messages follow conventional commit format
-  - repo: local
-    hooks:
+      # Performance monitoring (Python files only, conditional)
+      - id: docker-lint-performance
+        name: Performance Check (Docker)
+        description: "Performance monitoring and optimization checks"
+        entry: make
+        language: system
+        args: ["lint-performance"]
+        files: '\.py$'
+        pass_filenames: false
+        always_run: false
+        stages: [pre-commit]
+        timeout: 60 # 1 minute timeout
+        requires: [docker-lint-quick]
+
+      # Commit message validation (lightweight local tool)
       - id: commitizen
         name: commitizen
         entry: .venv/bin/cz
@@ -74,6 +123,10 @@ repos:
 # Global configuration
 default_language_version:
   python: python3.12 # Use Python 3.12 as the default language version
+
+# Performance optimizations
+minimum_pre_commit_version: "3.0.0"
+fail_fast: false # Run all hooks even if one fails
 
 # Exclude patterns
 # Purpose: Skip linting for generated files, caches, and other non-source files
@@ -97,4 +150,38 @@ exclude: |
     \.secrets\.baseline$|  # Secrets baseline file (prevents infinite loops)
     \.secrets\.baseline\.json$|  # Secrets baseline JSON file
     bandit-report\.json$|  # Bandit security report file
+    # Security-focused exclusions
+    \.env\.local$|        # Local environment files
+    \.env\.production$|   # Production environment files
+    \.env\.staging$|      # Staging environment files
+    \.env\.development$| # Development environment files
+    \.env\.test$|         # Test environment files
+    \.env\.dev$|          # Dev environment files
+    \.env\.prod$|         # Prod environment files
+    \.env\.stage$|        # Stage environment files
+    \.env\.testing$|      # Testing environment files
+    # Additional security exclusions
+    \.ssh/.*|            # SSH keys and config
+    \.aws/.*|            # AWS credentials
+    \.docker/.*|          # Docker credentials
+    \.kube/.*|           # Kubernetes config
+    \.helm/.*|           # Helm config
+    \.terraform/.*|      # Terraform state
+    \.vault/.*|          # Vault config
+    \.secrets/.*|        # Secrets directory
+    \.keys/.*|           # Keys directory
+    \.certs/.*|          # Certificates directory
+    \.pem$|              # PEM files
+    \.key$|              # Key files
+    \.p12$|              # P12 files
+    \.pfx$|              # PFX files
+    \.jks$|              # JKS files
+    \.keystore$|         # Keystore files
+    \.truststore$|       # Truststore files
+    \.crt$|              # Certificate files
+    \.cer$|              # Certificate files
+    \.der$|              # DER files
+    \.p7b$|              # P7B files
+    \.p7c$|              # P7C files
+    \.spc$|              # SPC files
   )$
