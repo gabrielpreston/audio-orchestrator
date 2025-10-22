@@ -112,6 +112,19 @@ repos:
         args: ["mi", "--min", "B", "services/"]
         files: '\.py$'
 
+  # Test execution using local .venv
+  # Purpose: Run tests before commit to catch failures early
+  - repo: local
+    hooks:
+      - id: test
+        name: test
+        entry: make
+        language: system
+        args: ["test"]
+        files: '\.py$'
+        pass_filenames: false
+        always_run: true
+
   # Commit message validation using local .venv
   - repo: local
     hooks:
