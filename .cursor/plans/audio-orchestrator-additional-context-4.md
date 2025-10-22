@@ -73,7 +73,7 @@ Fallback model: retain piper as a lightweight alternative for environments where
 
 UI & Testing Layer
 
-Gradio interface: implement a lightweight web UI for developers. Gradio makes it easy to define inputs and outputs (audio recorders, chat UI) and launch shareable demos
+Streamlit interface: implement a lightweight web UI for developers. 
 sider.ai
 .
 
@@ -155,6 +155,6 @@ Orchestrator/Agent	LangChain / LangGraph, MCP adapter	Python, LangChain, Redis/D
 LLM Service	FLAN‑T5 model	HuggingFace transformers, local model weights	External LLM via API (GPT‑4, LLaMA, etc.)
 Guardrail Layer	Input & output filters, redaction	Regular expressions, PII detection libs, logging service	Human escalation
 TTS	Bark	Suno Bark model weights, EnCodec, audio streaming	Piper (lightweight)
-UI & Testing	Gradio / Streamlit	Gradio / Streamlit frameworks	CLI for offline testing
+UI & Testing	Streamlit	Streamlit frameworks	CLI for offline testing
 Persistence	Redis or PostgreSQL	DB driver (async support), containerized or cloud-hosted	Local file storage for prototypes
 External Tools (MCP)	Various API clients (HTTP)	requests, authentication creds, tool definitions	None – design allows adding/removing tools easily

@@ -75,7 +75,6 @@ By studying these resources, you can enhance your Discord Voice Lab in several w
 * Integrate Bark to produce more natural and expressive audio responses with multiple voices and languages.
 * Adopt LangChain (or LangGraph) to orchestrate STT, reasoning and TTS calls with structured chains, fallback strategies and multi‑agent patterns.
 * Preprocess user audio with MetricGAN+ to denoise noisy Discord streams, improving transcription accuracy.
-* Use Gradio for a quick, shareable testing interface during development, and switch to Streamlit for a richer admin console later.
 * Implement guardrails—input sanitization, output validation, human escalation and monitoring—to ensure your voice agent remains safe, trustworthy and compliant.
 
 These insights can significantly shorten the time to a working MVP while laying the foundation for a reliable, scalable and secure voice assistant.

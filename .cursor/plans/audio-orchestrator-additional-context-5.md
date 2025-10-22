@@ -94,7 +94,7 @@ Operation: The audio is streamed back to the client. The orchestrator logs the c
 
 10. Test UI ↔ Orchestrator Interface
 
-From/To: Gradio (or Streamlit) UI.
+From/To: Streamlit UI.
 
 Data: User text/audio input and responses mirrored from the orchestrator.
 

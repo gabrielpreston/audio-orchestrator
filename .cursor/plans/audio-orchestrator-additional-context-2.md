@@ -63,7 +63,7 @@ To better align with modern voice‑AI best practices while preserving the stren
    * Add caching of frequently used responses/voices.
 8. **Testing UI (new)**
 
-   * Lightweight Gradio interface for developers to test end‑to‑end flows outside Discord.
+   * Lightweight Streamlit interface for developers to test end‑to‑end flows outside Discord.
    * Allows text input, audio recording, conversation history display, and output audio playback.
 
 ### Detailed Recommendations
@@ -100,7 +100,7 @@ To better align with modern voice‑AI best practices while preserving the stren
 
 6. **Provide a Lightweight Development UI**
 
-   * Build a **Gradio** interface that replicates your Discord pipeline: record audio, show transcripts, display the LLM’s textual response, and play synthesized speech.
+   * Build a **Streamlit** interface that replicates your Discord pipeline: record audio, show transcripts, display the LLM’s textual response, and play synthesized speech.
    * This interface will help you iterate faster on model integration, prompt tuning, and error handling without connecting to the Discord gateway.
 
 7. **Preserve and Enhance Microservice Modularity**
@@ -113,7 +113,7 @@ To better align with modern voice‑AI best practices while preserving the stren
 
 * **Better Performance & Cost Control** – Running FLAN‑T5 locally or in a container reduces reliance on expensive APIs while still providing strong conversational capabilities.
 * **Improved Speech Quality & Robustness** – MetricGAN+ cleans user audio before STT, and Bark generates more natural responses, resulting in a smoother conversational loop.
-* **Faster Development Cycle** – The Gradio testing UI provides immediate feedback, streamlining experimentation and bug fixing.
+* **Faster Development Cycle** – The Streamlit testing UI provides immediate feedback, streamlining experimentation and bug fixing.
 * **Enhanced Safety** – Guardrails and robust error handling reduce hallucinations, prevent prompt injections, and allow safe escalation.
 * **Scalability & Extensibility** – The modular service design with LangChain orchestration prepares the system for more complex workflows (e.g., retrieval‑augmented generation, multi‑agent planning) and additional languages.
 
