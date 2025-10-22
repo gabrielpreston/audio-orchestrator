@@ -41,17 +41,14 @@ class IntentClassificationAgent(BaseAgent):
         self._logger = logging.getLogger(__name__)
 
         # Intent classification configuration - use provided or defaults
-        self.intent_classes = (
-            intent_classes
-            or {
-                "echo": "echo",
-                "summarize": "summarization",
-                "general": "echo",  # Fixed: use echo agent for general intent
-                "help": "echo",
-                "weather": "echo",  # Fixed: use echo agent for weather intent
-                "time": "echo",  # Fixed: use echo agent for time intent
-            }
-        )
+        self.intent_classes = intent_classes or {
+            "echo": "echo",
+            "summarize": "summarization",
+            "general": "echo",  # Fixed: use echo agent for general intent
+            "help": "echo",
+            "weather": "echo",  # Fixed: use echo agent for weather intent
+            "time": "echo",  # Fixed: use echo agent for time intent
+        }
 
         # Intent classification prompt template
         self.classification_prompt = """Classify the user's intent from the following transcript:

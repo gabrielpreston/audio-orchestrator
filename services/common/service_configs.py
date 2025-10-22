@@ -804,17 +804,14 @@ class OrchestratorConfig(BaseConfig):
             "overview",
             "what did we talk about",
         ]
-        self.intent_classes = (
-            intent_classes
-            or {
-                "echo": "echo",
-                "summarize": "summarization",
-                "general": "echo",  # Fixed: use echo agent for general intent
-                "help": "echo",
-                "weather": "echo",  # Fixed: use echo agent for weather intent
-                "time": "echo",  # Fixed: use echo agent for time intent
-            }
-        )
+        self.intent_classes = intent_classes or {
+            "echo": "echo",
+            "summarize": "summarization",
+            "general": "echo",  # Fixed: use echo agent for general intent
+            "help": "echo",
+            "weather": "echo",  # Fixed: use echo agent for weather intent
+            "time": "echo",  # Fixed: use echo agent for time intent
+        }
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
