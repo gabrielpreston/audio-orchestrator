@@ -18,24 +18,24 @@ Launch the full Discord Voice Lab stack via Docker Compose.
 make run
 ```
 
--  Builds service images (Discord, STT, Orchestrator, LLM, TTS) if they are not cached.
--  Starts containers with environment files from `.env.common`, `.env.docker`, and `services/**/.env.service`.
--  Streams logs to stdout; use `Ctrl+C` to exit or `make stop` from a separate shell.
+- Builds service images (Discord, STT, Orchestrator, LLM, TTS) if they are not cached.
+- Starts containers with environment files from `.env.common`, `.env.docker`, and `services/**/.env.service`.
+- Streams logs to stdout; use `Ctrl+C` to exit or `make stop` from a separate shell.
 
 ## Monitoring
 
--  `make logs` — Tail all services.
--  `make logs SERVICE=discord` — Focus on the Discord bot; useful for wake phrase debugging.
--  `make logs SERVICE=stt` — Inspect faster-whisper initialization and transcription speed.
--  `make logs SERVICE=llm` — Review LLM service reasoning and API requests.
--  `make logs SERVICE=orchestrator` — Review orchestrator coordination and MCP tool calls.
--  `make logs SERVICE=tts` — Validate synthesis timing and concurrency.
+- `make logs` — Tail all services.
+- `make logs SERVICE=discord` — Focus on the Discord bot; useful for wake phrase debugging.
+- `make logs SERVICE=stt` — Inspect faster-whisper initialization and transcription speed.
+- `make logs SERVICE=llm` — Review LLM service reasoning and API requests.
+- `make logs SERVICE=orchestrator` — Review orchestrator coordination and MCP tool calls.
+- `make logs SERVICE=tts` — Validate synthesis timing and concurrency.
 
 ## Shutdown & Cleanup
 
--  `make stop` — Gracefully stop containers.
--  `make docker-clean` — Remove unused Docker resources (safe, preserves active images/volumes).
--  `make docker-clean-all` — Nuclear option: stop compose stack and remove ALL images and volumes.
+- `make stop` — Gracefully stop containers.
+- `make docker-clean` — Remove unused Docker resources (safe, preserves active images/volumes).
+- `make docker-clean-all` — Nuclear option: stop compose stack and remove ALL images and volumes.
 
 ## Next Steps
 

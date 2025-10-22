@@ -12,8 +12,8 @@ last-updated: 2025-10-20
 
 ## Version History
 
--  **2025-10-20** — Updated documentation references to correct CI optimization descriptions and remove misleading docker-build-ci target references.
--  **2025-10-11** — Added YAML front matter, breadcrumbs, and metadata validation references for
+- **2025-10-20** — Updated documentation references to correct CI optimization descriptions and remove misleading docker-build-ci target references.
+- **2025-10-11** — Added YAML front matter, breadcrumbs, and metadata validation references for
   the CI migration notes.
 
 The initial CI pipeline now lives at `.github/workflows/ci.yaml` and mirrors the
@@ -23,13 +23,13 @@ artifact expectations that shaped the rollout.
 
 ## Workflow overview
 
--  **Triggers:** `push` and `pull_request` events targeting `main`, plus an
+- **Triggers:** `push` and `pull_request` events targeting `main`, plus an
   on-demand `workflow_dispatch` entrypoint for dry runs.
--  **Permissions:** Workflow-level `permissions: contents: read` with job steps
+- **Permissions:** Workflow-level `permissions: contents: read` with job steps
   reusing the default read-only token.
--  **Concurrency:** `concurrency: ci-${{ github.ref }}` with
+- **Concurrency:** `concurrency: ci-${{ github.ref }}` with
   `cancel-in-progress: true` to collapse superseded branch runs.
--  **Global environment:** disables pip version checks and bytecode writes so job
+- **Global environment:** disables pip version checks and bytecode writes so job
   logs stay deterministic.
 
 ## Change detection gates
@@ -59,41 +59,41 @@ All jobs inherit the default GitHub-hosted Ubuntu runner with Docker enabled.
 
 ## Local reproduction checklist
 
--  Install the lint toolchain locally:
+- Install the lint toolchain locally:
   -  `pip install ruff mypy yamllint`
   -  Download the Hadolint binary to your `$PATH`
   -  `go install github.com/checkmake/checkmake/cmd/checkmake@latest`
   -  `npm install -g markdownlint-cli`
--  Install service dependencies: `pip install -r services/<service>/requirements.txt`
+- Install service dependencies: `pip install -r services/<service>/requirements.txt`
    for each service plus `services/tester/requirements.txt`.
--  Run `python scripts/prepare_env_files.py` to create any missing `.env`
+- Run `python scripts/prepare_env_files.py` to create any missing `.env`
    files consumed by `docker compose`. Pass `--force` to refresh files that
    already exist (the CI workflow invokes the script with this flag so every run
    starts from the sample defaults).
--  Run `make lint-local`, `make test-local`, and `make docker-smoke`.
--  When Docker validation fails, inspect `docker-smoke.log` and the rendered
+- Run `make lint-local`, `make test-local`, and `make docker-smoke`.
+- When Docker validation fails, inspect `docker-smoke.log` and the rendered
    `docker-compose.config.yaml` artifact from the workflow run.
--  For security findings, review the JSON files in `pip-audit-reports` and
+- For security findings, review the JSON files in `pip-audit-reports` and
    remediate or accept as appropriate. Re-run `pip-audit --requirement` on the
    affected requirements files to verify fixes.
 
 ## Cache and artifact guidance
 
--  `actions/setup-python` handles pip caching automatically keyed by the Python
+- `actions/setup-python` handles pip caching automatically keyed by the Python
   version and requirements content.
--  Node and Go tooling are installed each run to keep version skew explicit; pin
+- Node and Go tooling are installed each run to keep version skew explicit; pin
   revisions in the workflow when ready to publish hardened versions.
--  Artifact retention follows the repository default (90 days). Download logs
+- Artifact retention follows the repository default (90 days). Download logs
   while investigating failures to avoid re-running jobs unnecessarily.
 
 ## Troubleshooting quick hits
 
--  **Lint job fails immediately:** confirm host tooling matches the versions in
+- **Lint job fails immediately:** confirm host tooling matches the versions in
   the workflow, especially Hadolint and Checkmake paths.
--  **Docker smoke build flakes:** rerun with `DOCKER_BUILDKIT=0 make docker-smoke`
+- **Docker smoke build flakes:** rerun with `DOCKER_BUILDKIT=0 make docker-smoke`
   locally to compare BuildKit vs. legacy builds, then clear dangling images via
   `make docker-clean-all`.
--  **pip-audit reports vulnerabilities:** check whether a patched version exists
+- **pip-audit reports vulnerabilities:** check whether a patched version exists
   and update the relevant `requirements.txt`. If no fix is available, document
   the rationale in the PR description before merging.
 

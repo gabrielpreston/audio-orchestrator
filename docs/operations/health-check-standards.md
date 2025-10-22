@@ -18,9 +18,9 @@ All services must implement two health check endpoints following Kubernetes best
 
 ### GET /health/live
 
--  **Purpose**: Liveness probe - indicates if the process is running
--  **Response**: Always returns 200 if the process is alive
--  **Format**: Simple JSON with service identification
+- **Purpose**: Liveness probe - indicates if the process is running
+- **Response**: Always returns 200 if the process is alive
+- **Format**: Simple JSON with service identification
 
 ```json
 {
@@ -31,11 +31,11 @@ All services must implement two health check endpoints following Kubernetes best
 
 ### GET /health/ready
 
--  **Purpose**: Readiness probe - indicates if the service can handle requests
--  **Response**:
+- **Purpose**: Readiness probe - indicates if the service can handle requests
+- **Response**:
   -  200 when service is ready to serve requests
   -  503 when service is not ready (startup incomplete or dependencies unavailable)
--  **Format**: Detailed JSON with component status and dependencies
+- **Format**: Detailed JSON with component status and dependencies
 
 ## Response Format Requirements
 
@@ -71,9 +71,9 @@ All services must implement two health check endpoints following Kubernetes best
 
 ## Status Values
 
--  **ready**: Service is fully operational and all dependencies are healthy
--  **degraded**: Service is operational but some dependencies are unhealthy
--  **not_ready**: Service cannot serve requests (startup incomplete or critical failures)
+- **ready**: Service is fully operational and all dependencies are healthy
+- **degraded**: Service is operational but some dependencies are unhealthy
+- **not_ready**: Service cannot serve requests (startup incomplete or critical failures)
 
 ## Startup State Management Requirements
 
@@ -81,9 +81,9 @@ All services must implement two health check endpoints following Kubernetes best
 
 All services must:
 
--  **Call `mark_startup_complete()`** after initialization is complete
--  **Register dependencies** using `_health_manager.register_dependency()`
--  **Handle startup failures gracefully** without crashing the service
+- **Call `mark_startup_complete()`** after initialization is complete
+- **Register dependencies** using `_health_manager.register_dependency()`
+- **Handle startup failures gracefully** without crashing the service
 
 ### Implementation Pattern
 
@@ -173,85 +173,85 @@ All services expose the following Prometheus metrics for health checks:
 
 ### health_check_duration_seconds
 
--  **Type**: Histogram
--  **Description**: Health check execution duration
--  **Labels**: `service`, `check_type`
--  **Buckets**: Default Prometheus buckets
+- **Type**: Histogram
+- **Description**: Health check execution duration
+- **Labels**: `service`, `check_type`
+- **Buckets**: Default Prometheus buckets
 
 ### service_health_status
 
--  **Type**: Gauge
--  **Description**: Current service health status
--  **Labels**: `service`, `component`
--  **Values**: 1=healthy, 0.5=degraded, 0=unhealthy
+- **Type**: Gauge
+- **Description**: Current service health status
+- **Labels**: `service`, `component`
+- **Values**: 1=healthy, 0.5=degraded, 0=unhealthy
 
 ### service_dependency_health
 
--  **Type**: Gauge
--  **Description**: Dependency health status
--  **Labels**: `service`, `dependency`
--  **Values**: 1=healthy, 0=unhealthy
+- **Type**: Gauge
+- **Description**: Dependency health status
+- **Labels**: `service`, `dependency`
+- **Values**: 1=healthy, 0=unhealthy
 
 ## Status Transitions
 
 ### Healthy → Degraded
 
--  Occurs when a non-critical dependency becomes unhealthy
--  Service continues to operate with reduced functionality
--  Health endpoint returns 200 with `"status": "degraded"`
+- Occurs when a non-critical dependency becomes unhealthy
+- Service continues to operate with reduced functionality
+- Health endpoint returns 200 with `"status": "degraded"`
 
 ### Degraded → Unhealthy
 
--  Occurs when a critical dependency becomes unhealthy
--  Service cannot serve requests
--  Health endpoint returns 503 with `"status": "not_ready"`
+- Occurs when a critical dependency becomes unhealthy
+- Service cannot serve requests
+- Health endpoint returns 503 with `"status": "not_ready"`
 
 ### Unhealthy → Healthy
 
--  Occurs when all dependencies become healthy
--  Service is fully operational
--  Health endpoint returns 200 with `"status": "ready"`
+- Occurs when all dependencies become healthy
+- Service is fully operational
+- Health endpoint returns 200 with `"status": "ready"`
 
 ## Service-Specific Requirements
 
 ### STT Service
 
--  **Components**: `model_loaded`, `model_name`, `startup_complete`
--  **Dependencies**: None (standalone service)
+- **Components**: `model_loaded`, `model_name`, `startup_complete`
+- **Dependencies**: None (standalone service)
 
 ### TTS Service
 
--  **Components**: `voice_loaded`, `sample_rate`, `max_concurrency`, `startup_complete`
--  **Dependencies**: None (standalone service)
+- **Components**: `voice_loaded`, `sample_rate`, `max_concurrency`, `startup_complete`
+- **Dependencies**: None (standalone service)
 
 ### LLM Service
 
--  **Components**: `llm_loaded`, `tts_available`, `startup_complete`
--  **Dependencies**: `tts` (optional)
+- **Components**: `llm_loaded`, `tts_available`, `startup_complete`
+- **Dependencies**: `tts` (optional)
 
 ### Orchestrator Service
 
--  **Components**: `orchestrator_active`, `llm_available`, `tts_available`, `mcp_clients`, `startup_complete`
--  **Dependencies**: `llm`, `tts`
+- **Components**: `orchestrator_active`, `llm_available`, `tts_available`, `mcp_clients`, `startup_complete`
+- **Dependencies**: `llm`, `tts`
 
 ### Discord Service
 
--  **Components**: `bot_connected`, `mode`, `startup_complete`
--  **Dependencies**: `stt`, `orchestrator`
+- **Components**: `bot_connected`, `mode`, `startup_complete`
+- **Dependencies**: `stt`, `orchestrator`
 
 ## Testing Requirements
 
 ### Unit Tests
 
--  Mock `_health_manager.get_health_status()` using `AsyncMock`
--  Validate response structure includes all required fields
--  Test both ready and not-ready scenarios
+- Mock `_health_manager.get_health_status()` using `AsyncMock`
+- Validate response structure includes all required fields
+- Test both ready and not-ready scenarios
 
 ### Integration Tests
 
--  Validate health check response structure
--  Test dependency health tracking
--  Verify status transitions
+- Validate health check response structure
+- Test dependency health tracking
+- Verify status transitions
 
 ### Health Check Validation
 
@@ -270,15 +270,15 @@ def _validate_health_response(data: dict, service_name: str) -> bool:
 
 ### Key Metrics to Monitor
 
--  `service_health_status` - Overall service health
--  `service_dependency_health` - Dependency health
--  `health_check_duration_seconds` - Health check performance
+- `service_health_status` - Overall service health
+- `service_dependency_health` - Dependency health
+- `health_check_duration_seconds` - Health check performance
 
 ### Alerting Rules
 
--  Alert when `service_health_status` drops below 1 (degraded/unhealthy)
--  Alert when `service_dependency_health` drops below 1 for critical dependencies
--  Alert when `health_check_duration_seconds` exceeds threshold
+- Alert when `service_health_status` drops below 1 (degraded/unhealthy)
+- Alert when `service_dependency_health` drops below 1 for critical dependencies
+- Alert when `health_check_duration_seconds` exceeds threshold
 
 ### Dashboard Queries
 
@@ -297,17 +297,17 @@ histogram_quantile(0.95, health_check_duration_seconds_bucket)
 
 ### Breaking Changes
 
--  **Response Format**: Changed from simple fields to structured components
--  **Status Values**: Now supports "degraded" status
--  **Startup Behavior**: All services must call `mark_startup_complete()`
--  **Dependency Tracking**: Services must register dependencies
--  **Metrics**: New Prometheus metrics exposed
+- **Response Format**: Changed from simple fields to structured components
+- **Status Values**: Now supports "degraded" status
+- **Startup Behavior**: All services must call `mark_startup_complete()`
+- **Dependency Tracking**: Services must register dependencies
+- **Metrics**: New Prometheus metrics exposed
 
 ### Backward Compatibility
 
--  Old health check clients will need to be updated
--  Response format changes require client code updates
--  Status value changes may affect monitoring systems
+- Old health check clients will need to be updated
+- Response format changes require client code updates
+- Status value changes may affect monitoring systems
 
 ## Examples
 

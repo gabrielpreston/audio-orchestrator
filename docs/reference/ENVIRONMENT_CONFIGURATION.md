@@ -315,6 +315,7 @@ global:
 
 #### Development Environment
 
+
 ```yaml
 # config/development.yaml
 surfaces:
@@ -347,6 +348,7 @@ global:
 
 #### Staging Environment
 
+
 ```yaml
 # config/staging.yaml
 surfaces:
@@ -378,6 +380,7 @@ global:
 ```
 
 #### Production Environment
+
 
 ```yaml
 # config/production.yaml
@@ -709,22 +712,22 @@ encryption:
 
 ### Common Configuration Issues
 
--  **Audio Quality Issues**
+- **Audio Quality Issues**
   -  Check sample rate configuration
   -  Verify bit depth settings
   -  Review audio buffer size
 
--  **Connection Problems**
+- **Connection Problems**
   -  Validate authentication tokens
   -  Check network connectivity
   -  Review timeout settings
 
--  **Performance Issues**
+- **Performance Issues**
   -  Adjust buffer sizes
   -  Review latency targets
   -  Check resource limits
 
--  **Event Processing Errors**
+- **Event Processing Errors**
   -  Verify event routing configuration
   -  Check event timeout settings
   -  Review retry configurations

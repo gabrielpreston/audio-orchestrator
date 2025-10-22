@@ -1,28 +1,8 @@
 {
     "folders": [
         {
-            "name": "discord-voice-lab (Root)",
+            "name": "audio orchestrator (Root)",
             "path": "."
-        },
-        {
-            "name": "Discord Service",
-            "path": "./services/discord"
-        },
-        {
-            "name": "STT Service",
-            "path": "./services/stt"
-        },
-        {
-            "name": "LLM Service",
-            "path": "./services/llm"
-        },
-        {
-            "name": "Orchestrator Service",
-            "path": "./services/orchestrator"
-        },
-        {
-            "name": "TTS Service",
-            "path": "./services/tts"
         },
         {
             "name": "Common Library",

@@ -28,31 +28,31 @@ streaming pipeline.
 
 ### API design and observability
 
--  ✅ Uses standard JSON request/response bodies and descriptive HTTP status codes.
--  ✅ Emits structured logs through the shared logging helpers, enabling aggregation
+- ✅ Uses standard JSON request/response bodies and descriptive HTTP status codes.
+- ✅ Emits structured logs through the shared logging helpers, enabling aggregation
   across services.
--  ✅ Adds `/health` and `/metrics` endpoints so orchestrators and monitoring
+- ✅ Adds `/health` and `/metrics` endpoints so orchestrators and monitoring
   agents can observe Piper readiness and latency/size distributions.
--  ✅ Streams synthesized responses to minimize playback latency for short
+- ✅ Streams synthesized responses to minimize playback latency for short
   utterances while keeping the audio ephemeral.
--  ✅ Enforces bearer authentication and per-minute rate limits to prevent abuse in
+- ✅ Enforces bearer authentication and per-minute rate limits to prevent abuse in
   shared environments.
 
 ### Audio generation pipeline
 
--  ✅ Migrated to Piper for neural-quality synthesis with multi-speaker support.
--  ✅ Keeps a warm synthesizer in memory and gates concurrency through a global
+- ✅ Migrated to Piper for neural-quality synthesis with multi-speaker support.
+- ✅ Keeps a warm synthesizer in memory and gates concurrency through a global
   semaphore to avoid repeated initialization and CPU contention.
--  ✅ Accepts SSML payloads with adjustable length/noise parameters to control
+- ✅ Accepts SSML payloads with adjustable length/noise parameters to control
   prosody.
--  ✅ Streams generated audio directly to callers without persisting it on disk.
+- ✅ Streams generated audio directly to callers without persisting it on disk.
 
 ### Scalability and resilience
 
--  ✅ Streams responses on demand to avoid persisting synthesized audio on disk.
--  ✅ Caps concurrency and exposes Prometheus metrics so operators can size the
+- ✅ Streams responses on demand to avoid persisting synthesized audio on disk.
+- ✅ Caps concurrency and exposes Prometheus metrics so operators can size the
   service and drive autoscaling.
--  ⚠️ Consider adding request tracing headers and queue depth metrics if the
+- ⚠️ Consider adding request tracing headers and queue depth metrics if the
   synthesizer later backs a multi-tenant deployment.
 
 ## Python Libraries and Services to Consider
@@ -70,13 +70,13 @@ streaming pipeline.
 
 ## Recommendations
 
--  ✅ Replace `pyttsx3` with a neural TTS engine (Piper) for higher fidelity,
+- ✅ Replace `pyttsx3` with a neural TTS engine (Piper) for higher fidelity,
    richer voice options, and improved multi-language support.
--  ✅ Maintain a reusable synthesizer instance and concurrency guard to avoid
+- ✅ Maintain a reusable synthesizer instance and concurrency guard to avoid
    repeated initialization overhead.
--  ✅ Add authentication middleware and configurable rate limiting to secure the
+- ✅ Add authentication middleware and configurable rate limiting to secure the
    service in shared deployments.
--  ✅ Extend the API to support streaming (`audio/wav` chunked responses) and SSML
+- ✅ Extend the API to support streaming (`audio/wav` chunked responses) and SSML
    payloads for richer prosody control.
--  ✅ Stream synthesized audio with Prometheus telemetry covering latency and
+- ✅ Stream synthesized audio with Prometheus telemetry covering latency and
    payload size so downstream services can play responses reliably.
