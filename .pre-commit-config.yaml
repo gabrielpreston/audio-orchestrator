@@ -51,6 +51,7 @@ repos:
 
   # YAML file linting
   # Purpose: Ensure YAML files are properly formatted and follow best practices
+  # DISABLED: Use Docker-based linting instead (make lint)
   # - repo: https://github.com/adrienverge/yamllint
   #   rev: v1.35.1
   #   hooks:
@@ -59,33 +60,37 @@ repos:
 
   # Markdown file linting
   # Purpose: Ensure Markdown files are properly formatted and follow best practices
-  - repo: https://github.com/igorshubovych/markdownlint-cli
-    rev: v0.37.0
-    hooks:
-      - id: markdownlint
-        args: ["--config", ".markdownlint.yaml"] # Use our custom markdownlint configuration
+  # DISABLED: Use Docker-based linting instead (make lint)
+  # - repo: https://github.com/igorshubovych/markdownlint-cli
+  #   rev: v0.37.0
+  #   hooks:
+  #     - id: markdownlint
+  #       args: ["--config", ".markdownlint.yaml"] # Use our custom markdownlint configuration
 
   # Dockerfile linting
   # Purpose: Ensure Dockerfiles follow best practices and security guidelines
-  - repo: https://github.com/hadolint/hadolint
-    rev: v2.12.0
-    hooks:
-      - id: hadolint
-        args: ["--config", ".hadolint.yaml"] # Use our custom hadolint configuration
+  # DISABLED: Use Docker-based linting instead (make lint)
+  # - repo: https://github.com/hadolint/hadolint
+  #   rev: v2.12.0
+  #   hooks:
+  #     - id: hadolint
+  #       args: ["--config", ".hadolint.yaml"] # Use our custom hadolint configuration
 
   # Security analysis using local .venv
   # Purpose: Detect security vulnerabilities and anti-patterns in agent-generated code
-  - repo: local
-    hooks:
-      - id: bandit
-        name: bandit
-        entry: .venv/bin/bandit
-        language: system
-        args: ["-r", "-f", "json", "-o", "bandit-report.json"]
-        exclude: "tests/.*"
-        files: '\.py$'
+  # DISABLED: Use Docker-based linting instead (make lint)
+  # - repo: local
+  #   hooks:
+  #     - id: bandit
+  #       name: bandit
+  #       entry: .venv/bin/bandit
+  #       language: system
+  #       args: ["-r", "-f", "json", "-o", "bandit-report.json"]
+  #       exclude: "tests/.*"
+  #       files: '\.py$'
 
   # Secret detection using local .venv
+  # DISABLED: Use Docker-based linting instead (make lint)
   # - repo: local
   #   hooks:
   #     - id: detect-secrets
@@ -97,20 +102,21 @@ repos:
   #       files: '\.(py|yaml|yml|json|txt|md)$'
 
   # Code complexity analysis using local .venv
-  - repo: local
-    hooks:
-      - id: radon-cc
-        name: radon-cc
-        entry: .venv/bin/radon
-        language: system
-        args: ["cc", "--min", "B", "services/"]
-        files: '\.py$'
-      - id: radon-mi
-        name: radon-mi
-        entry: .venv/bin/radon
-        language: system
-        args: ["mi", "--min", "B", "services/"]
-        files: '\.py$'
+  # DISABLED: Use Docker-based linting instead (make lint)
+  # - repo: local
+  #   hooks:
+  #     - id: radon-cc
+  #       name: radon-cc
+  #       entry: .venv/bin/radon
+  #       language: system
+  #       args: ["cc", "--min", "B", "services/"]
+  #       files: '\.py$'
+  #     - id: radon-mi
+  #       name: radon-mi
+  #       entry: .venv/bin/radon
+  #       language: system
+  #       args: ["mi", "--min", "B", "services/"]
+  #       files: '\.py$'
 
   # Test execution using local .venv
   # Purpose: Run tests before commit to catch failures early

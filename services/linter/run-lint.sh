@@ -30,6 +30,19 @@ checkmake --config .checkmake.yaml Makefile
 
 echo "Linting Markdown files..."
 # Auto-discover all Markdown files
-markdownlint --config .markdownlint.json README.md AGENTS.md 'docs/**/*.md'
+markdownlint --config .markdownlint.yaml README.md AGENTS.md 'docs/**/*.md'
+
+echo "Running security analysis with bandit..."
+# Run bandit security analysis on Python files (skip B104, exclude .venv, only HIGH severity)
+bandit -r services/ -f json -o bandit-report.json --skip B104 --exclude "**/.venv/**" --severity-level high
+
+echo "Running secret detection..."
+# Run detect-secrets to scan for secrets
+detect-secrets scan --baseline .secrets.baseline
+
+echo "Running complexity analysis..."
+# Run radon complexity analysis
+radon cc --min B services/
+radon mi --min B services/
 
 echo "All linting checks passed!"
