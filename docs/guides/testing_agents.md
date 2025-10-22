@@ -1,3 +1,10 @@
+---
+title: Testing Audio Agents
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-22
+---
+
 # Testing Audio Agents
 
 ## Overview

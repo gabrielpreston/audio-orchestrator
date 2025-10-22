@@ -1,3 +1,10 @@
+---
+title: Audio Adapter Types Reference
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-22
+---
+
 # Audio Adapter Types Reference
 
 ## Overview

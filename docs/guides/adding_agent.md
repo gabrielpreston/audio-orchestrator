@@ -1,3 +1,10 @@
+---
+title: Adding a New Agent
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-22
+---
+
 # Adding a New Agent
 
 ## Overview

@@ -1,3 +1,10 @@
+---
+title: Agent Types Reference
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-22
+---
+
 # Agent Types Reference
 
 ## Overview
