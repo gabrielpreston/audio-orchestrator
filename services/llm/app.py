@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 from services.common.service_configs import (
     HttpConfig,
     LlamaConfig,
@@ -53,6 +55,8 @@ _TTS_CLIENT: httpx.AsyncClient | None = None
 _TTS_VOICE = _cfg.tts.voice  # type: ignore[attr-defined]
 _TTS_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
 _health_manager = HealthManager("llm")
+# Metrics collector for performance monitoring (disabled for now)
+# _metrics_collector: MetricsCollector = init_metrics_registry("llm", "1.0.0")
 
 _TTS_BASE_URL = _cfg.tts.base_url  # type: ignore[attr-defined]
 

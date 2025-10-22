@@ -33,10 +33,10 @@ class AudioSource(ABC):
 
 **Responsibilities:**
 
-- Capture audio from the surface
-- Provide audio frames in standardized PCM format
-- Handle audio quality and format conversion
-- Report audio capture metrics
+-  Capture audio from the surface
+-  Provide audio frames in standardized PCM format
+-  Handle audio quality and format conversion
+-  Report audio capture metrics
 
 ### AudioSink Interface
 
@@ -55,10 +55,10 @@ class AudioSink(ABC):
 
 **Responsibilities:**
 
-- Play audio to the surface
-- Handle audio format conversion
-- Manage audio playback timing and synchronization
-- Report playback metrics
+-  Play audio to the surface
+-  Handle audio format conversion
+-  Manage audio playback timing and synchronization
+-  Report playback metrics
 
 ### ControlChannel Interface
 
@@ -81,10 +81,10 @@ class ControlChannel(ABC):
 
 **Responsibilities:**
 
-- Handle surface-specific control events
-- Manage user interactions (wake words, button presses, etc.)
-- Route events between surface and voice pipeline
-- Provide surface state information
+-  Handle surface-specific control events
+-  Manage user interactions (wake words, button presses, etc.)
+-  Route events between surface and voice pipeline
+-  Provide surface state information
 
 ### SurfaceLifecycle Interface
 
@@ -111,10 +111,10 @@ class SurfaceLifecycle(ABC):
 
 **Responsibilities:**
 
-- Manage surface connection lifecycle
-- Handle authentication and permissions
-- Monitor connection health
-- Provide connection metrics
+-  Manage surface connection lifecycle
+-  Handle authentication and permissions
+-  Monitor connection health
+-  Provide connection metrics
 
 ## Data Types
 
@@ -148,17 +148,17 @@ class AudioFormat:
 
 The architecture uses a comprehensive event system for communication:
 
-- **WakeDetectedEvent**: Wake word detection
-- **VADStartSpeechEvent**: Voice activity detection start
-- **VADEndSpeechEvent**: Voice activity detection end
-- **BargeInRequestEvent**: User interruption request
-- **SessionStateEvent**: Session state changes
-- **RouteChangeEvent**: Audio routing changes
-- **PlaybackControlEvent**: Playback control commands
-- **EndpointingEvent**: Speech endpointing
-- **TranscriptPartialEvent**: Partial transcript updates
-- **TranscriptFinalEvent**: Final transcript results
-- **ErrorEvent**: Error reporting
+-  **WakeDetectedEvent**: Wake word detection
+-  **VADStartSpeechEvent**: Voice activity detection start
+-  **VADEndSpeechEvent**: Voice activity detection end
+-  **BargeInRequestEvent**: User interruption request
+-  **SessionStateEvent**: Session state changes
+-  **RouteChangeEvent**: Audio routing changes
+-  **PlaybackControlEvent**: Playback control commands
+-  **EndpointingEvent**: Speech endpointing
+-  **TranscriptPartialEvent**: Partial transcript updates
+-  **TranscriptFinalEvent**: Final transcript results
+-  **ErrorEvent**: Error reporting
 
 ## Discord Implementation
 
@@ -168,37 +168,37 @@ The Discord service implements the Composable Surface Architecture through speci
 
 Implements the `AudioSource` interface for Discord voice capture, handling:
 
-- Discord voice channel audio capture
-- Audio format conversion to PCM
-- Voice activity detection integration
-- Audio quality metrics
+-  Discord voice channel audio capture
+-  Audio format conversion to PCM
+-  Voice activity detection integration
+-  Audio quality metrics
 
 ### DiscordAudioSink
 
 Implements the `AudioSink` interface for Discord audio playback, handling:
 
-- Discord voice channel audio playback
-- Audio format conversion from PCM
-- Playback timing and synchronization
-- Playback quality metrics
+-  Discord voice channel audio playback
+-  Audio format conversion from PCM
+-  Playback timing and synchronization
+-  Playback quality metrics
 
 ### DiscordControlChannel
 
 Implements the `ControlChannel` interface for Discord control events, handling:
 
-- Discord message events
-- Voice state changes
-- User interaction events
-- MCP tool integration
+-  Discord message events
+-  Voice state changes
+-  User interaction events
+-  MCP tool integration
 
 ### DiscordSurfaceLifecycle
 
 Implements the `SurfaceLifecycle` interface for Discord connection management, handling:
 
-- Discord bot connection lifecycle
-- Authentication and permissions
-- Connection health monitoring
-- Session management
+-  Discord bot connection lifecycle
+-  Authentication and permissions
+-  Connection health monitoring
+-  Session management
 
 ## Registry System
 
@@ -214,10 +214,10 @@ registry.register_surface("discord", DiscordSurfaceAdapter())
 
 The media gateway handles audio routing and processing between surfaces and the voice pipeline:
 
-- Audio frame routing
-- Format conversion
-- Quality monitoring
-- Performance metrics
+-  Audio frame routing
+-  Format conversion
+-  Quality monitoring
+-  Performance metrics
 
 ## Configuration
 
@@ -231,11 +231,11 @@ These interfaces are not controlled by environment variables but are implemented
 
 ### Standardized Error Types
 
-- **ConnectionError**: Surface connection failures
-- **AuthenticationError**: Authentication/authorization failures
-- **AudioError**: Audio processing errors
-- **ControlError**: Control channel errors
-- **LifecycleError**: Lifecycle management errors
+-  **ConnectionError**: Surface connection failures
+-  **AuthenticationError**: Authentication/authorization failures
+-  **AudioError**: Audio processing errors
+-  **ControlError**: Control channel errors
+-  **LifecycleError**: Lifecycle management errors
 
 ### Error Recovery Patterns
 
@@ -251,17 +251,17 @@ except ConnectionError as e:
 
 ### Latency Targets
 
-- **Audio Capture**: < 50ms end-to-end latency
-- **Audio Playback**: < 50ms end-to-end latency
-- **Event Processing**: < 10ms processing time
-- **Connection Establishment**: < 1000ms connection time
-- **Health Checks**: < 100ms response time
+-  **Audio Capture**: < 50ms end-to-end latency
+-  **Audio Playback**: < 50ms end-to-end latency
+-  **Event Processing**: < 10ms processing time
+-  **Connection Establishment**: < 1000ms connection time
+-  **Health Checks**: < 100ms response time
 
 ### Throughput Requirements
 
-- **Audio Processing**: Support for 16kHz, 1-channel audio
-- **Event Handling**: 100+ events per second
-- **Concurrent Sessions**: Multiple simultaneous surface connections
+-  **Audio Processing**: Support for 16kHz, 1-channel audio
+-  **Event Handling**: 100+ events per second
+-  **Concurrent Sessions**: Multiple simultaneous surface connections
 
 ## Testing Requirements
 
@@ -269,37 +269,37 @@ except ConnectionError as e:
 
 All surface adapters must pass contract tests that validate:
 
-- Interface compliance
-- Performance requirements
-- Error handling behavior
-- Lifecycle management
+-  Interface compliance
+-  Performance requirements
+-  Error handling behavior
+-  Lifecycle management
 
 ### Parity Testing
 
 Cross-surface parity tests ensure:
 
-- Consistent performance across surface types
-- Uniform behavior patterns
-- Comparable latency characteristics
+-  Consistent performance across surface types
+-  Uniform behavior patterns
+-  Comparable latency characteristics
 
 ### Chaos Testing
 
 Reliability testing includes:
 
-- Network fault injection
-- Memory pressure testing
-- Rapid connect/disconnect cycles
-- Concurrent operation stress tests
+-  Network fault injection
+-  Memory pressure testing
+-  Rapid connect/disconnect cycles
+-  Concurrent operation stress tests
 
 ## Implementation Files
 
-- **Core Interfaces**: `services/common/surfaces/interfaces.py`
-- **Discord Adapters**: `services/discord/adapters/`
-- **Registry System**: `services/common/surfaces/registry.py`
-- **Media Gateway**: `services/common/surfaces/gateway.py`
-- **Event System**: `services/common/surfaces/events.py`
+-  **Core Interfaces**: `services/common/surfaces/interfaces.py`
+-  **Discord Adapters**: `services/discord/adapters/`
+-  **Registry System**: `services/common/surfaces/registry.py`
+-  **Media Gateway**: `services/common/surfaces/gateway.py`
+-  **Event System**: `services/common/surfaces/events.py`
 
 ## Related Documentation
 
-- [Shared Utilities](../architecture/shared-utilities.md) - Overview of shared utilities including surface architecture
-- [Multi-Surface Architecture Proposal](../proposals/multi-surface-architecture.md) - Future extensions and advanced features
+-  [Shared Utilities](../architecture/shared-utilities.md) - Overview of shared utilities including surface architecture
+-  [Multi-Surface Architecture Proposal](../proposals/multi-surface-architecture.md) - Future extensions and advanced features

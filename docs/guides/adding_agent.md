@@ -2,17 +2,19 @@
 
 ## Overview
 
+<!-- markdownlint-disable MD013 -->
 Agents process user input and generate responses using various strategies (echo, summarization, intent classification, conversation, etc.). The agent framework provides a clean abstraction layer that allows the system to route user input to specialized agents based on context and requirements.
+<!-- markdownlint-enable MD013 -->
 
 ## Architecture
 
 The agent system consists of several key components:
 
-- **`BaseAgent`** - Abstract base class for all agents
-- **`AgentManager`** - Routes input to appropriate agents
-- **`AgentRegistry`** - Manages available agents
-- **`ConversationContext`** - Maintains conversation state
-- **`AgentResponse`** - Standardized response format
+-  **`BaseAgent`** - Abstract base class for all agents
+-  **`AgentManager`** - Routes input to appropriate agents
+-  **`AgentRegistry`** - Manages available agents
+-  **`ConversationContext`** - Maintains conversation state
+-  **`AgentResponse`** - Standardized response format
 
 ## Interface Requirements
 
@@ -529,61 +531,70 @@ class CalculatorAgent(BaseAgent):
 ## Testing Strategies
 
 ### Unit Tests
-- Test individual methods in isolation
-- Mock external dependencies (APIs, services, etc.)
-- Test error conditions and edge cases
-- Verify response format and metadata
+
+-  Test individual methods in isolation
+-  Mock external dependencies (APIs, services, etc.)
+-  Test error conditions and edge cases
+-  Verify response format and metadata
 
 ### Component Tests
-- Test agent with mocked dependencies
-- Test routing logic and agent selection
-- Test conversation context handling
-- Verify agent registration and configuration
+
+-  Test agent with mocked dependencies
+-  Test routing logic and agent selection
+-  Test conversation context handling
+-  Verify agent registration and configuration
 
 ### Integration Tests
-- Test agent with real external services when possible
-- Test agent within the full orchestrator system
-- Verify end-to-end agent functionality
-- Test performance and latency requirements
+
+-  Test agent with real external services when possible
+-  Test agent within the full orchestrator system
+-  Verify end-to-end agent functionality
+-  Test performance and latency requirements
 
 ### Manual Testing
-- Test with real user inputs
-- Verify agent behavior in different contexts
-- Test conversation flow and context management
-- Validate response quality and accuracy
+
+-  Test with real user inputs
+-  Verify agent behavior in different contexts
+-  Test conversation flow and context management
+-  Validate response quality and accuracy
 
 ## Common Pitfalls and Solutions
 
 ### 1. Agent Selection Issues
+
 **Problem:** Agent not being selected for appropriate inputs
 **Solution:** Implement robust `can_handle()` logic with proper keyword matching and context analysis
 
 ### 2. External Service Failures
+
 **Problem:** Agent crashes when external services are unavailable
 **Solution:** Implement proper error handling and graceful degradation
 
 ### 3. Context Management
+
 **Problem:** Agent doesn't maintain conversation context properly
 **Solution:** Use `ConversationContext` effectively and update context as needed
 
 ### 4. Performance Issues
+
 **Problem:** Agent causes high latency or resource usage
 **Solution:** Implement caching, async operations, and resource management
 
 ### 5. Response Formatting
+
 **Problem:** Agent responses are inconsistent or poorly formatted
 **Solution:** Follow `AgentResponse` format and include proper metadata
 
 ## Best Practices
 
-1. **Error Handling:** Always handle exceptions gracefully
-2. **Logging:** Use structured logging with correlation IDs
-3. **Configuration:** Make agents configurable through environment variables
-4. **Testing:** Write comprehensive tests for all code paths
-5. **Documentation:** Document agent behavior and configuration options
-6. **Performance:** Consider latency and resource usage
-7. **Security:** Validate inputs and handle sensitive data properly
-8. **Maintainability:** Write clear, well-documented code
+1.  **Error Handling:** Always handle exceptions gracefully
+2.  **Logging:** Use structured logging with correlation IDs
+3.  **Configuration:** Make agents configurable through environment variables
+4.  **Testing:** Write comprehensive tests for all code paths
+5.  **Documentation:** Document agent behavior and configuration options
+6.  **Performance:** Consider latency and resource usage
+7.  **Security:** Validate inputs and handle sensitive data properly
+8.  **Maintainability:** Write clear, well-documented code
 
 ## Integration with Orchestrator
 
@@ -600,15 +611,15 @@ AGENT_ROUTING_ENABLED = true
 
 ## Next Steps
 
-1. Implement your agent following this guide
-2. Write comprehensive tests
-3. Test with real inputs and scenarios
-4. Submit a pull request with your implementation
-5. Update this documentation if you discover new patterns
+1.  Implement your agent following this guide
+2.  Write comprehensive tests
+3.  Test with real inputs and scenarios
+4.  Submit a pull request with your implementation
+5.  Update this documentation if you discover new patterns
 
 ## Resources
 
-- [Agent Types Reference](../api/agent_types.md)
-- [Agent Testing Guide](../guides/testing_agents.md)
-- [Configuration Reference](../api/configuration.md)
-- [Orchestrator Integration](../architecture/orchestrator.md)
+-  [Agent Types Reference](../api/agent_types.md)
+-  [Agent Testing Guide](../guides/testing_agents.md)
+-  [Configuration Reference](../api/configuration.md)
+-  [Orchestrator Integration](../architecture/orchestrator.md)

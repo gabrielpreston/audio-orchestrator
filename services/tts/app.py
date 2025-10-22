@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 from services.common.service_configs import (
     HttpConfig,
     LoggingConfig,
@@ -46,6 +48,9 @@ configure_logging(
 logger = get_logger(__name__, service_name="tts")
 
 app = FastAPI(title="Piper Text-to-Speech Service")
+
+# Initialize metrics collector (disabled for now)
+# _metrics_collector: MetricsCollector = init_metrics_registry("tts", "1.0.0")
 
 _MODEL_PATH = _cfg.tts.model_path  # type: ignore[attr-defined]
 _MODEL_CONFIG_PATH = _cfg.tts.model_config_path  # type: ignore[attr-defined]
@@ -446,6 +451,15 @@ async def synthesize(
             except Exception as exc:
                 request_logger.exception("tts.synthesize_failed", error=str(exc))
                 _SYNTHESIS_COUNTER.labels(status="error").inc()
+
+                # Track error metrics (disabled for now)
+                # _metrics_collector.track_tts_request(
+                #     duration=0,
+                #     text_length=text_length,
+                #     status="error"
+                # )
+                # _metrics_collector.track_error("synthesis_error", "tts")
+
                 raise HTTPException(
                     status_code=500, detail="unable to synthesize audio"
                 ) from exc
@@ -454,6 +468,13 @@ async def synthesize(
         duration = time.perf_counter() - start_time
         _SYNTHESIS_DURATION.observe(duration)
         _SYNTHESIS_SIZE.observe(size_bytes)
+
+        # Track TTS metrics with new collector (disabled for now)
+        # _metrics_collector.track_tts_request(
+        #     duration=duration,
+        #     text_length=text_length,
+        #     status="success"
+        # )
 
         from services.common.correlation import generate_tts_correlation_id
 

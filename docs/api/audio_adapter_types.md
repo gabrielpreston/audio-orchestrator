@@ -302,7 +302,6 @@ FILE_OUTPUT_PATH=/path/to/output.wav
 
 #### Discord Configuration
 
-
 ```python
 discord_config = {
     "bot_token": "your_token_here",
@@ -315,7 +314,6 @@ discord_config = {
 
 #### File Configuration
 
-
 ```python
 file_config = {
     "file_path": "/path/to/audio.wav",
@@ -326,7 +324,6 @@ file_config = {
 ```
 
 #### WebRTC Configuration
-
 
 ```python
 webrtc_config = {
@@ -373,21 +370,21 @@ class AudioFormatError(AdapterError):
 
 ### Latency Requirements
 
-- **Input Latency:** < 50ms from audio source to processing
-- **Output Latency:** < 100ms from processing to audio output
-- **End-to-End:** < 2s total response time
+-  **Input Latency:** < 50ms from audio source to processing
+-  **Output Latency:** < 100ms from processing to audio output
+-  **End-to-End:** < 2s total response time
 
 ### Memory Management
 
-- **Buffer Sizes:** Use appropriate buffer sizes for your use case
-- **Memory Cleanup:** Always clean up audio buffers
-- **Streaming:** Use async generators for memory efficiency
+-  **Buffer Sizes:** Use appropriate buffer sizes for your use case
+-  **Memory Cleanup:** Always clean up audio buffers
+-  **Streaming:** Use async generators for memory efficiency
 
 ### CPU Usage
 
-- **Audio Processing:** Minimize CPU usage in hot paths
-- **Format Conversion:** Cache format conversion results
-- **Threading:** Use asyncio instead of threads when possible
+-  **Audio Processing:** Minimize CPU usage in hot paths
+-  **Format Conversion:** Cache format conversion results
+-  **Threading:** Use asyncio instead of threads when possible
 
 ## Testing
 

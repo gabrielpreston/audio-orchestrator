@@ -51,10 +51,11 @@ class AgentManager:
 ```
 
 **Key Features:**
-- **Agent Selection**: Routes input to appropriate agents
-- **Priority Management**: Handles agent priority and conflicts
-- **Context Analysis**: Uses conversation context for selection
-- **Fallback Handling**: Provides default agent when no match found
+
+-  **Agent Selection**: Routes input to appropriate agents
+-  **Priority Management**: Handles agent priority and conflicts
+-  **Context Analysis**: Uses conversation context for selection
+-  **Fallback Handling**: Provides default agent when no match found
 
 ### Agent Registry
 
@@ -73,10 +74,11 @@ class AgentRegistry:
 ```
 
 **Registry Features:**
-- **Agent Registration**: Dynamic agent registration and removal
-- **Validation**: Ensures agent compatibility and correctness
-- **Statistics**: Tracks agent usage and performance
-- **Health Monitoring**: Monitors agent health and availability
+
+-  **Agent Registration**: Dynamic agent registration and removal
+-  **Validation**: Ensures agent compatibility and correctness
+-  **Statistics**: Tracks agent usage and performance
+-  **Health Monitoring**: Monitors agent health and availability
 
 ### Base Agent Interface
 
@@ -133,9 +135,10 @@ class EchoAgent(BaseAgent):
 ```
 
 **Use Cases:**
-- **Testing**: Basic functionality testing
-- **Debugging**: Simple response validation
-- **Fallback**: Default response when no other agent matches
+
+-  **Testing**: Basic functionality testing
+-  **Debugging**: Simple response validation
+-  **Fallback**: Default response when no other agent matches
 
 ### Conversation Agent
 
@@ -158,10 +161,11 @@ class ConversationAgent(BaseAgent):
 ```
 
 **Features:**
-- **Context Awareness**: Uses conversation history
-- **LLM Integration**: Calls LLM service for reasoning
-- **Multi-turn Support**: Maintains conversation flow
-- **Response Generation**: Creates natural responses
+
+-  **Context Awareness**: Uses conversation history
+-  **LLM Integration**: Calls LLM service for reasoning
+-  **Multi-turn Support**: Maintains conversation flow
+-  **Response Generation**: Creates natural responses
 
 ### Summarization Agent
 
@@ -184,10 +188,11 @@ class SummarizationAgent(BaseAgent):
 ```
 
 **Features:**
-- **History Analysis**: Analyzes conversation history
-- **Summary Generation**: Creates concise summaries
-- **Context Preservation**: Maintains important context
-- **Trigger Detection**: Recognizes summarization requests
+
+-  **History Analysis**: Analyzes conversation history
+-  **Summary Generation**: Creates concise summaries
+-  **Context Preservation**: Maintains important context
+-  **Trigger Detection**: Recognizes summarization requests
 
 ### Intent Agent
 
@@ -210,37 +215,43 @@ class IntentAgent(BaseAgent):
 ```
 
 **Features:**
-- **Intent Classification**: Identifies user intent
-- **Agent Routing**: Routes to specialized agents
-- **Context Analysis**: Uses conversation context
-- **Fallback Handling**: Provides default responses
+
+-  **Intent Classification**: Identifies user intent
+-  **Agent Routing**: Routes to specialized agents
+-  **Context Analysis**: Uses conversation context
+-  **Fallback Handling**: Provides default responses
 
 ## Agent Lifecycle
 
 ### 1. Agent Registration
-- Agents are registered with the agent manager
-- Configuration and validation are performed
-- Health checks are initialized
+
+-  Agents are registered with the agent manager
+-  Configuration and validation are performed
+-  Health checks are initialized
 
 ### 2. Agent Selection
-- Input is analyzed for agent compatibility
-- Context is considered for selection
-- Priority and routing rules are applied
+
+-  Input is analyzed for agent compatibility
+-  Context is considered for selection
+-  Priority and routing rules are applied
 
 ### 3. Agent Processing
-- Selected agent processes the input
-- External services (LLM, MCP) are called as needed
-- Response is generated and validated
+
+-  Selected agent processes the input
+-  External services (LLM, MCP) are called as needed
+-  Response is generated and validated
 
 ### 4. Context Update
-- Conversation context is updated
-- Session state is persisted
-- Statistics are recorded
+
+-  Conversation context is updated
+-  Session state is persisted
+-  Statistics are recorded
 
 ### 5. Response Delivery
-- Response is sent to output adapters
-- Audio synthesis is performed if needed
-- User receives the response
+
+-  Response is sent to output adapters
+-  Audio synthesis is performed if needed
+-  User receives the response
 
 ## Configuration
 
@@ -284,47 +295,54 @@ SUMMARIZATION_AGENT_TRIGGER_KEYWORDS=summarize,summary,recap
 ## Error Handling
 
 ### Agent Errors
-- **Agent Failure**: Graceful fallback to default agent
-- **Timeout Handling**: Configurable timeouts and retries
-- **Resource Limits**: Memory and CPU usage monitoring
-- **External Service Failures**: LLM and MCP service error handling
+
+-  **Agent Failure**: Graceful fallback to default agent
+-  **Timeout Handling**: Configurable timeouts and retries
+-  **Resource Limits**: Memory and CPU usage monitoring
+-  **External Service Failures**: LLM and MCP service error handling
 
 ### Context Errors
-- **Session Corruption**: Session recovery and cleanup
-- **Context Loss**: Context reconstruction and validation
-- **Storage Failures**: Fallback to in-memory storage
-- **Data Corruption**: Data validation and repair
+
+-  **Session Corruption**: Session recovery and cleanup
+-  **Context Loss**: Context reconstruction and validation
+-  **Storage Failures**: Fallback to in-memory storage
+-  **Data Corruption**: Data validation and repair
 
 ## Monitoring and Metrics
 
 ### Agent Metrics
-- **Agent Usage**: Frequency and success rates
-- **Response Times**: Processing latency per agent
-- **Error Rates**: Failure rates and error types
-- **Resource Usage**: CPU and memory consumption
+
+-  **Agent Usage**: Frequency and success rates
+-  **Response Times**: Processing latency per agent
+-  **Error Rates**: Failure rates and error types
+-  **Resource Usage**: CPU and memory consumption
 
 ### System Metrics
-- **Agent Selection**: Selection accuracy and performance
-- **Context Management**: Context size and update frequency
-- **External Calls**: LLM and MCP service performance
-- **Overall Performance**: End-to-end response times
+
+-  **Agent Selection**: Selection accuracy and performance
+-  **Context Management**: Context size and update frequency
+-  **External Calls**: LLM and MCP service performance
+-  **Overall Performance**: End-to-end response times
 
 ## Best Practices
 
 ### Agent Development
-- **Single Responsibility**: Each agent should have a clear purpose
-- **Error Handling**: Implement comprehensive error handling
-- **Testing**: Write thorough tests for all agent functionality
-- **Documentation**: Document agent behavior and configuration
+
+-  **Single Responsibility**: Each agent should have a clear purpose
+-  **Error Handling**: Implement comprehensive error handling
+-  **Testing**: Write thorough tests for all agent functionality
+-  **Documentation**: Document agent behavior and configuration
 
 ### Performance
-- **Async Operations**: Use async/await for I/O operations
-- **Resource Management**: Monitor and limit resource usage
-- **Caching**: Cache expensive operations when appropriate
-- **Optimization**: Profile and optimize critical paths
+
+-  **Async Operations**: Use async/await for I/O operations
+-  **Resource Management**: Monitor and limit resource usage
+-  **Caching**: Cache expensive operations when appropriate
+-  **Optimization**: Profile and optimize critical paths
 
 ### Integration
-- **LLM Integration**: Handle LLM service failures gracefully
-- **MCP Integration**: Implement proper MCP tool error handling
-- **Context Management**: Maintain conversation context efficiently
-- **Response Generation**: Generate consistent and useful responses
+
+-  **LLM Integration**: Handle LLM service failures gracefully
+-  **MCP Integration**: Implement proper MCP tool error handling
+-  **Context Management**: Maintain conversation context efficiently
+-  **Response Generation**: Generate consistent and useful responses
