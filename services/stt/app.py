@@ -13,6 +13,8 @@ from starlette.requests import ClientDisconnect
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 from services.common.service_configs import (
     FasterWhisperConfig,
     HttpConfig,
@@ -39,6 +41,8 @@ MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[att
 _model: Any = None
 # Health manager for service resilience
 _health_manager = HealthManager("stt")
+# Metrics collector for performance monitoring (disabled for now)
+# _metrics_collector: MetricsCollector = init_metrics_registry("stt", "1.0.0")
 
 
 configure_logging(
@@ -309,6 +313,10 @@ async def _transcribe_request(
     segments_list: list[Any] = []
     text = ""
     segments_out: list[dict[str, Any]] = []
+
+    # Calculate audio duration for metrics (disabled for now)
+    # audio_duration = len(wav_bytes) / (channels * sampwidth * framerate) if channels and sampwidth and framerate else 0
+
     try:
         request_logger.debug(
             "stt.request_received",
@@ -367,6 +375,14 @@ async def _transcribe_request(
                 segments_list = [raw_segments]
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
+
+        # Track STT metrics (disabled for now)
+        # _metrics_collector.track_stt_request(
+        #     duration=processing_ms / 1000.0,
+        #     audio_duration=audio_duration,
+        #     status="success"
+        # )
+
         request_logger.info(
             "stt.request_processed",
             correlation_id=correlation_id,
@@ -409,6 +425,14 @@ async def _transcribe_request(
                     segment_entry["words"] = word_entries
                 segments_out.append(segment_entry)
     except Exception as e:
+        # Track error metrics (disabled for now)
+        # _metrics_collector.track_stt_request(
+        #     duration=0,
+        #     audio_duration=audio_duration,
+        #     status="error"
+        # )
+        # _metrics_collector.track_error("transcription_error", "stt")
+
         logger.exception(
             "stt.transcription_error", correlation_id=correlation_id, error=str(e)
         )

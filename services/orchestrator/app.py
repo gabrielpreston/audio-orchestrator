@@ -9,6 +9,8 @@ from pydantic import BaseModel, field_validator
 from services.common.config import ConfigBuilder, Environment, ServiceConfig
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 from services.common.service_configs import (
     HttpConfig,
     LLMClientConfig,
@@ -32,6 +34,9 @@ except ImportError:
     PROMETHEUS_AVAILABLE = False
 
 app = FastAPI(title="Voice Assistant Orchestrator")
+
+# Initialize metrics collector (disabled for now)
+# _metrics_collector: MetricsCollector = init_metrics_registry("orchestrator", "1.0.0")
 
 _cfg: ServiceConfig = (
     ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
@@ -172,6 +177,7 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     from services.common.logging import correlation_context
 
+    # start_time = time.time()
     with correlation_context(request.correlation_id) as request_logger:
         request_logger.info(
             "orchestrator.transcript_received",
@@ -194,6 +200,11 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
                 correlation_id=request.correlation_id,
             )
 
+            # Track successful processing (disabled for now)
+            # duration = time.time() - start_time
+            # _metrics_collector.track_end_to_end_response(duration)
+            # _metrics_collector.track_http_request("POST", "/mcp/transcript", duration, 200)
+
             request_logger.info(
                 "orchestrator.transcript_processed",
                 guild_id=request.guild_id,
@@ -206,6 +217,11 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
             return result
 
         except Exception as exc:
+            # Track error (disabled for now)
+            # duration = time.time() - start_time
+            # _metrics_collector.track_error("transcript_processing", "orchestrator")
+            # _metrics_collector.track_http_request("POST", "/mcp/transcript", duration, 500)
+
             request_logger.error(
                 "orchestrator.transcript_processing_failed",
                 error=str(exc),
