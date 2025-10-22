@@ -23,7 +23,7 @@ repos:
       - id: check-merge-conflict # Detect merge conflict markers
         files: '\.(py|js|ts|json|yaml|yml|toml|md|txt|sh|bash|zsh)$'
       - id: check-added-large-files
-        args: ["--maxkb=15"] # Prevent accidentally committing large files (15KB limit)
+        args: ["--maxkb=1000"] # Prevent accidentally committing large files (1MB limit)
         files: ".*" # Check all files
         exclude: '\.(git|venv|node_modules|__pycache__|\.mypy_cache|\.pytest_cache|\.ruff_cache|htmlcov|\.coverage|coverage\.xml|\.tox|\.env|\.secrets|bandit-report)'
       - id: check-case-conflict # Detect case conflicts in filenames

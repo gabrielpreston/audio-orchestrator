@@ -809,10 +809,10 @@ class OrchestratorConfig(BaseConfig):
             or {
                 "echo": "echo",
                 "summarize": "summarization",
-                "general": "conversation",
+                "general": "echo",  # Fixed: use echo agent for general intent
                 "help": "echo",
-                "weather": "conversation",  # Fixed: weather should route to conversation agent
-                "time": "conversation",  # Fixed: time should route to conversation agent
+                "weather": "echo",  # Fixed: use echo agent for weather intent
+                "time": "echo",  # Fixed: use echo agent for time intent
             }
         )
 

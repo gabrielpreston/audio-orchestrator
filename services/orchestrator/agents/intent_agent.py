@@ -25,6 +25,7 @@ class IntentClassificationAgent(BaseAgent):
         llm_service_url: str,
         agent_manager: "AgentManager",
         intent_classes: dict[str, str] | None = None,
+        llm_model: str = "gpt-3.5-turbo",
     ):
         """Initialize the intent classification agent.
 
@@ -32,9 +33,11 @@ class IntentClassificationAgent(BaseAgent):
             llm_service_url: URL of the LLM service for intent classification
             agent_manager: Agent manager for routing to specialized agents
             intent_classes: Optional mapping of intents to agent names. If None, uses defaults.
+            llm_model: LLM model name to use for classification. Defaults to gpt-3.5-turbo.
         """
         self.llm_url = llm_service_url
         self.agent_manager = agent_manager
+        self.llm_model = llm_model
         self._logger = logging.getLogger(__name__)
 
         # Intent classification configuration - use provided or defaults
@@ -43,10 +46,10 @@ class IntentClassificationAgent(BaseAgent):
             or {
                 "echo": "echo",
                 "summarize": "summarization",
-                "general": "conversation",
+                "general": "echo",  # Fixed: use echo agent for general intent
                 "help": "echo",
-                "weather": "conversation",  # Fixed: weather should route to conversation agent
-                "time": "conversation",  # Fixed: time should route to conversation agent
+                "weather": "echo",  # Fixed: use echo agent for weather intent
+                "time": "echo",  # Fixed: use echo agent for time intent
             }
         )
 
@@ -147,7 +150,7 @@ Intent:"""
                 response = await client.post(
                     f"{self.llm_url}/v1/chat/completions",
                     json={
-                        "model": "gpt-3.5-turbo",
+                        "model": self.llm_model,
                         "messages": [{"role": "user", "content": prompt}],
                         "max_tokens": 10,
                         "temperature": 0.1,
@@ -234,7 +237,7 @@ Intent:"""
         try:
             # Test LLM service connectivity
             async with httpx.AsyncClient(timeout=5.0) as client:
-                response = await client.get(f"{self.llm_url}/health")
+                response = await client.get(f"{self.llm_url}/health/ready")
                 llm_healthy = response.status_code == 200
         except Exception:
             llm_healthy = False
