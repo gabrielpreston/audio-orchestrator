@@ -72,7 +72,7 @@ class ConversationContext:
         """
         if not self.history or max_turns <= 0:
             return []
-        
+
         # Return the most recent max_turns interactions
         return self.history[-max_turns:]
 
