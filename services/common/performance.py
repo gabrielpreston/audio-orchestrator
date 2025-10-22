@@ -1,7 +1,7 @@
 """Performance optimization utilities for audio orchestrator.
 
 This module provides performance optimization tools including connection pooling,
-caching, and optimized buffer management.
+caching, and optimized buffer management with proper async patterns and error handling.
 """
 
 from __future__ import annotations
@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import functools
 import time
+from contextlib import asynccontextmanager
 from typing import Any, TypeVar
 
 import httpx
@@ -26,8 +27,12 @@ CONNECTION_POOL_SIZE = 5
 REQUEST_TIMEOUT = 30.0
 
 
-class ConnectionPool:
-    """Optimized HTTP connection pool for service communication."""
+class PersistentConnectionPool:
+    """Persistent HTTP connection pool that maintains connections across requests.
+
+    This is the correct implementation of connection pooling - connections are
+    maintained for the lifetime of the pool, not per request.
+    """
 
     def __init__(
         self,
@@ -35,7 +40,7 @@ class ConnectionPool:
         pool_size: int = CONNECTION_POOL_SIZE,
         timeout: float = REQUEST_TIMEOUT,
     ):
-        """Initialize connection pool.
+        """Initialize persistent connection pool.
 
         Args:
             base_url: Base URL for the service
@@ -47,10 +52,11 @@ class ConnectionPool:
         self.timeout = timeout
         self._client: httpx.AsyncClient | None = None
         self._logger = get_logger(__name__)
+        self._is_initialized = False
 
-    async def __aenter__(self) -> httpx.AsyncClient:
-        """Enter async context manager."""
-        if self._client is None:
+    async def _ensure_client(self) -> httpx.AsyncClient:
+        """Ensure client is initialized and return it."""
+        if self._client is None or self._client.is_closed:
             limits = httpx.Limits(
                 max_keepalive_connections=self.pool_size,
                 max_connections=self.pool_size,
@@ -60,18 +66,42 @@ class ConnectionPool:
                 limits=limits,
                 timeout=self.timeout,
             )
+            self._is_initialized = True
             self._logger.info(
-                "connection_pool.created",
+                "connection_pool.initialized",
                 base_url=self.base_url,
                 pool_size=self.pool_size,
             )
         return self._client
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        """Exit async context manager."""
-        if self._client:
+    async def get_client(self) -> httpx.AsyncClient:
+        """Get the HTTP client for making requests.
+
+        Returns:
+            HTTP client instance
+        """
+        return await self._ensure_client()
+
+    async def close(self) -> None:
+        """Close the connection pool and all connections."""
+        if self._client and not self._client.is_closed:
             await self._client.aclose()
             self._client = None
+            self._is_initialized = False
+            self._logger.info("connection_pool.closed")
+
+    async def __aenter__(self) -> httpx.AsyncClient:
+        """Enter async context manager - returns client but doesn't close on exit."""
+        return await self._ensure_client()
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Exit async context manager - does NOT close connections."""
+        # Don't close connections - they should persist for reuse
+        pass
+
+
+# Backward compatibility alias
+ConnectionPool = PersistentConnectionPool
 
 
 class ModelCache:
@@ -248,6 +278,9 @@ async def profile_function(func: Any, *args: Any, **kwargs: Any) -> tuple[Any, f
 def optimize_audio_processing(func: Any) -> Any:
     """Decorator to optimize audio processing functions.
 
+    This decorator properly handles both sync and async functions without
+    complex event loop management.
+
     Args:
         func: Function to optimize
 
@@ -260,11 +293,57 @@ def optimize_audio_processing(func: Any) -> Any:
         # If function is async, await it directly
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
-        # Otherwise run in thread pool to avoid blocking event loop
-        # Use functools.partial to bind keyword arguments since run_in_executor doesn't support kwargs
-        # Since this is an async decorator, we should always have a running loop
+
+        # For sync functions, run in thread pool
+        # This is the correct pattern for async decorators
         loop = asyncio.get_running_loop()
         bound_func = functools.partial(func, *args, **kwargs)
         return await loop.run_in_executor(None, bound_func)
 
     return wrapper
+
+
+# Global connection pool registry for proper lifecycle management
+_connection_pools: dict[str, PersistentConnectionPool] = {}
+
+
+@asynccontextmanager
+async def get_connection_pool(
+    base_url: str,
+    pool_size: int = CONNECTION_POOL_SIZE,
+    timeout: float = REQUEST_TIMEOUT,
+) -> httpx.AsyncClient:
+    """Get a connection pool for a service with proper lifecycle management.
+
+    This is the recommended way to use connection pools in the application.
+
+    Args:
+        base_url: Base URL for the service
+        pool_size: Maximum number of connections in pool
+        timeout: Request timeout in seconds
+
+    Yields:
+        HTTP client for making requests
+    """
+    # Use base_url as key for pool reuse
+    if base_url not in _connection_pools:
+        _connection_pools[base_url] = PersistentConnectionPool(
+            base_url, pool_size, timeout
+        )
+
+    pool = _connection_pools[base_url]
+    client = await pool.get_client()
+
+    try:
+        yield client
+    finally:
+        # Don't close the pool - it should persist for reuse
+        pass
+
+
+async def cleanup_all_connection_pools() -> None:
+    """Clean up all connection pools. Call this on application shutdown."""
+    for pool in _connection_pools.values():
+        await pool.close()
+    _connection_pools.clear()
+    logger.info("all_connection_pools.cleaned_up")
