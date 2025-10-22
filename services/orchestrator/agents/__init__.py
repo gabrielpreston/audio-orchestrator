@@ -20,6 +20,7 @@ Usage:
 
 from .base import BaseAgent
 from .echo_agent import EchoAgent
+from .intent_agent import IntentClassificationAgent
 from .manager import AgentManager
 from .registry import AgentRegistry
 from .summarization_agent import SummarizationAgent
@@ -34,5 +35,6 @@ __all__ = [
     "ConversationContext",
     "EchoAgent",
     "ExternalAction",
+    "IntentClassificationAgent",
     "SummarizationAgent",
 ]

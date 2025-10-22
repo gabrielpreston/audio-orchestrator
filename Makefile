@@ -467,6 +467,13 @@ lint-%: lint-image ## Run specific linter (e.g., make lint-black, make lint-yaml
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		/usr/local/bin/run-lint-single.sh $*
 
+update-secrets-baseline: lint-image ## Update secrets baseline (run manually when needed)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/update-secrets-baseline.sh
+
 # =============================================================================
 # SECURITY & QUALITY GATES
 # =============================================================================
@@ -645,3 +652,81 @@ clean-eval: ## Remove eval outputs and generated audio
 	@printf "$(COLOR_BLUE)→ Cleaning evaluation artifacts$(COLOR_OFF)\n"; \
 	rm -rf .artifacts/eval_wavs || true; \
 	rm -rf debug/eval || true
+# =============================================================================
+# DOCKER-FIRST LINTING TARGETS
+# =============================================================================
+# Purpose: Granular linting targets for Docker-first approach
+# These targets run specific linting tools in Docker containers
+
+# Python-specific linting (fast, for pre-commit)
+.PHONY: lint-python
+lint-python: lint-image ## Run Python linting only (ruff, mypy)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-python.sh
+
+# YAML linting
+.PHONY: lint-yaml
+lint-yaml: lint-image ## Run YAML linting only (yamllint, actionlint)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-yaml.sh
+
+# Markdown linting
+.PHONY: lint-markdown
+lint-markdown: lint-image ## Run Markdown linting only (markdownlint)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-markdown.sh
+
+# Security analysis
+.PHONY: lint-security
+lint-security: lint-image ## Run security analysis only (bandit, detect-secrets)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-security.sh
+
+# Complexity analysis
+.PHONY: lint-complexity
+lint-complexity: lint-image ## Run complexity analysis only (radon)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-complexity.sh
+
+# Dockerfile linting
+.PHONY: lint-dockerfile
+lint-dockerfile: lint-image ## Run Dockerfile linting only (hadolint)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-dockerfile.sh
+
+# Makefile linting
+.PHONY: lint-makefile
+lint-makefile: lint-image ## Run Makefile linting only (checkmake)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo lint) \
+		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
+		/usr/local/bin/run-lint-makefile.sh
+
+# Quick linting (Python + YAML only, for fast feedback)
+.PHONY: lint-quick
+lint-quick: lint-python lint-yaml ## Run quick linting (Python + YAML only)
+	@echo "Quick linting complete!"
+
+# Comprehensive linting (all tools, for thorough analysis)
+.PHONY: lint-comprehensive
+lint-comprehensive: lint-python lint-yaml lint-markdown lint-security lint-complexity lint-dockerfile lint-makefile ## Run comprehensive linting (all tools)
+	@echo "Comprehensive linting complete!"

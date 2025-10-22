@@ -785,6 +785,7 @@ class OrchestratorConfig(BaseConfig):
         mcp_config_path: str = "./mcp.json",
         summary_min_turns: int = 5,
         summary_trigger_keywords: list[str] | None = None,
+        intent_classes: dict[str, str] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -803,6 +804,14 @@ class OrchestratorConfig(BaseConfig):
             "overview",
             "what did we talk about",
         ]
+        self.intent_classes = intent_classes or {
+            "echo": "echo",
+            "summarize": "summarization",
+            "general": "echo",  # Fixed: use echo agent for general intent
+            "help": "echo",
+            "weather": "echo",  # Fixed: use echo agent for weather intent
+            "time": "echo",  # Fixed: use echo agent for time intent
+        }
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -878,6 +887,20 @@ class OrchestratorConfig(BaseConfig):
                 ],
                 description="Keywords that trigger summarization agent",
                 env_var="SUMMARY_TRIGGER_KEYWORDS",
+            ),
+            create_field_definition(
+                name="intent_classes",
+                field_type=dict,
+                default={
+                    "echo": "echo",
+                    "summarize": "summarization",
+                    "general": "conversation",
+                    "help": "echo",
+                    "weather": "conversation",  # Fixed: weather should route to conversation agent
+                    "time": "conversation",  # Fixed: time should route to conversation agent
+                },
+                description="Mapping of intent names to agent names",
+                env_var="INTENT_CLASSES",
             ),
         ]
 
