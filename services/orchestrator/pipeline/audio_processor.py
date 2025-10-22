@@ -174,7 +174,7 @@ class AudioProcessor:
                 processed_format=self.config.target_format,
                 sample_rate=self.config.target_sample_rate,
                 channels=self.config.target_channels,
-                duration=0.0,
+                duration=0.001,  # Minimal valid duration (1ms)
                 status=ProcessingStatus.FAILED,
                 processing_time=processing_time,
                 metadata={"error": str(e)},
@@ -269,9 +269,21 @@ class AudioProcessor:
         # Simple RMS calculation for 16-bit PCM
         import struct
 
-        samples = struct.unpack(f"<{len(audio_data)//2}h", audio_data)
-        rms = (sum(sample * sample for sample in samples) / len(samples)) ** 0.5
-        return min(rms / 32767.0, 1.0)  # Normalize to 0-1
+        # Ensure we have an even number of bytes for 16-bit samples
+        if len(audio_data) % 2 != 0:
+            audio_data = audio_data[:-1]  # Remove last byte if odd length
+        
+        if len(audio_data) < 2:
+            return 0.0  # Not enough data for a 16-bit sample
+
+        try:
+            samples = struct.unpack(f"<{len(audio_data)//2}h", audio_data)
+            if not samples:
+                return 0.0
+            rms = (sum(sample * sample for sample in samples) / len(samples)) ** 0.5
+            return min(rms / 32767.0, 1.0)  # Normalize to 0-1
+        except (struct.error, ZeroDivisionError):
+            return 0.0
 
     async def _calculate_noise_level(self, audio_data: bytes) -> float:
         """Calculate noise level in audio.

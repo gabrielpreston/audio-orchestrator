@@ -168,6 +168,10 @@ class WakeDetector:
             0.05, (audio_energy / 1000.0) * (audio_complexity / 50.0)
         )
 
+        # Check if we have wake phrases configured
+        if not self.config.wake_phrases:
+            return False, None, 0.0
+
         # Add some randomness but make it more controlled
         random_factor = (hash_int % 1000) / 1000.0
         if random_factor < detection_probability:
