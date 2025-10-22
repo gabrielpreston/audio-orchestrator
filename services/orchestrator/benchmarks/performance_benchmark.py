@@ -270,9 +270,12 @@ class PerformanceBenchmark:
         print(f"   Total Time: {original['total_time']:.3f}s")
         print(f"   Avg Time per Chunk: {original['avg_time_per_chunk']:.3f}s")
         print(f"   Chunks Processed: {original['chunks_processed']}")
-        print(
-            f"   Success Rate: {original['successful_chunks']/original['chunks_processed']*100:.1f}%"
+        success_rate_original = (
+            original["successful_chunks"] / original["chunks_processed"] * 100
+            if original["chunks_processed"] > 0
+            else 0.0
         )
+        print(f"   Success Rate: {success_rate_original:.1f}%")
         print(f"   Avg Processing Time: {original['avg_processing_time']:.3f}s")
 
         # Optimized results
@@ -281,9 +284,12 @@ class PerformanceBenchmark:
         print(f"   Total Time: {optimized['total_time']:.3f}s")
         print(f"   Avg Time per Chunk: {optimized['avg_time_per_chunk']:.3f}s")
         print(f"   Chunks Processed: {optimized['chunks_processed']}")
-        print(
-            f"   Success Rate: {optimized['successful_chunks']/optimized['chunks_processed']*100:.1f}%"
+        success_rate_optimized = (
+            optimized["successful_chunks"] / optimized["chunks_processed"] * 100
+            if optimized["chunks_processed"] > 0
+            else 0.0
         )
+        print(f"   Success Rate: {success_rate_optimized:.1f}%")
         print(f"   Avg Processing Time: {optimized['avg_processing_time']:.3f}s")
 
         # Improvements
