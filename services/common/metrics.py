@@ -52,7 +52,10 @@ def _ensure_metrics_created() -> None:
 # Service Information
 service_info = _get_or_create_metric(Info, "service_info", "Service information")
 service_health = _get_or_create_metric(
-    Gauge, "service_health", "Service health status (1=healthy, 0=unhealthy)"
+    Gauge,
+    "service_health",
+    "Service health status (1=healthy, 0=unhealthy)",
+    labelnames=["service"],
 )
 
 # Audio Processing Metrics
