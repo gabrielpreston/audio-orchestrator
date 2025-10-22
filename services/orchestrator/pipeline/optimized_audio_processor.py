@@ -188,33 +188,32 @@ class OptimizedAudioProcessor(AudioProcessor):
         Returns:
             Processed audio data
         """
-        # Run processing stages in parallel where possible
-        tasks = []
-
-        # Format conversion (can run in parallel with other operations)
-        if self._needs_format_conversion(metadata):
-            tasks.append(self._convert_audio_format_optimized(audio_data))
-
-        # Resampling (can run in parallel)
-        if self._needs_resampling(metadata):
-            tasks.append(self._resample_audio_optimized(audio_data, metadata))
-
-        # If no parallel tasks, process sequentially
-        if not tasks:
-            return await self._process_audio_sequential(audio_data, metadata)
-
-        # Wait for parallel tasks
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Use first successful result
+        # Process audio sequentially to ensure both conversions are applied
         processed_data = audio_data
-        for result in results:
-            if not isinstance(result, Exception) and isinstance(result, bytes):
-                processed_data = result
-                break
-        else:
-            # Fallback to sequential processing
-            processed_data = await self._process_audio_sequential(audio_data, metadata)
+
+        # Format conversion must happen first
+        if self._needs_format_conversion(metadata):
+            try:
+                processed_data = await self._convert_audio_format_optimized(
+                    processed_data
+                )
+            except Exception as e:
+                self._logger.error(
+                    "Format conversion failed, using original",
+                    extra={"error": str(e)},
+                )
+
+        # Resampling must happen after format conversion
+        if self._needs_resampling(metadata):
+            try:
+                processed_data = await self._resample_audio_optimized(
+                    processed_data, metadata
+                )
+            except Exception as e:
+                self._logger.error(
+                    "Resampling failed, using current data",
+                    extra={"error": str(e)},
+                )
 
         # Apply enhancements sequentially (they depend on each other)
         if self.config.enable_volume_normalization:

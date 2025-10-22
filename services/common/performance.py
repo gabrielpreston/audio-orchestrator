@@ -257,7 +257,10 @@ def optimize_audio_processing(func: Any) -> Any:
 
     @functools.wraps(func)
     async def wrapper(*args: Any, **kwargs: Any) -> Any:
-        # Run in thread pool to avoid blocking event loop
+        # If function is async, await it directly
+        if asyncio.iscoroutinefunction(func):
+            return await func(*args, **kwargs)
+        # Otherwise run in thread pool to avoid blocking event loop
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, func, *args, **kwargs)
 

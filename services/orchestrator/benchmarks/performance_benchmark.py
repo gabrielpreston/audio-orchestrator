@@ -197,20 +197,27 @@ class PerformanceBenchmark:
         Returns:
             Improvement metrics
         """
+        # Safely calculate improvements with zero-division checks
         time_improvement = (
             (original["total_time"] - optimized["total_time"])
             / original["total_time"]
             * 100
+            if original["total_time"] > 0
+            else 0.0
         )
         avg_time_improvement = (
             (original["avg_time_per_chunk"] - optimized["avg_time_per_chunk"])
             / original["avg_time_per_chunk"]
             * 100
+            if original["avg_time_per_chunk"] > 0
+            else 0.0
         )
         processing_time_improvement = (
             (original["avg_processing_time"] - optimized["avg_processing_time"])
             / original["avg_processing_time"]
             * 100
+            if original["avg_processing_time"] > 0
+            else 0.0
         )
 
         return {
@@ -218,18 +225,28 @@ class PerformanceBenchmark:
             "avg_time_per_chunk_improvement_percent": avg_time_improvement,
             "processing_time_improvement_percent": processing_time_improvement,
             "throughput_improvement": {
-                "original_chunks_per_second": original["chunks_processed"]
-                / original["total_time"],
-                "optimized_chunks_per_second": optimized["chunks_processed"]
-                / optimized["total_time"],
+                "original_chunks_per_second": (
+                    original["chunks_processed"] / original["total_time"]
+                    if original["total_time"] > 0
+                    else 0.0
+                ),
+                "optimized_chunks_per_second": (
+                    optimized["chunks_processed"] / optimized["total_time"]
+                    if optimized["total_time"] > 0
+                    else 0.0
+                ),
             },
             "reliability": {
-                "original_success_rate": original["successful_chunks"]
-                / original["chunks_processed"]
-                * 100,
-                "optimized_success_rate": optimized["successful_chunks"]
-                / optimized["chunks_processed"]
-                * 100,
+                "original_success_rate": (
+                    original["successful_chunks"] / original["chunks_processed"] * 100
+                    if original["chunks_processed"] > 0
+                    else 0.0
+                ),
+                "optimized_success_rate": (
+                    optimized["successful_chunks"] / optimized["chunks_processed"] * 100
+                    if optimized["chunks_processed"] > 0
+                    else 0.0
+                ),
             },
         }
 
