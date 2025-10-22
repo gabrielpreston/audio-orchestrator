@@ -5,6 +5,7 @@ in the audio orchestrator platform.
 """
 
 import time
+import inspect
 from functools import wraps
 from collections.abc import Callable
 from typing import Any
@@ -16,28 +17,24 @@ from prometheus_client import (
     Info,
     generate_latest,
     start_http_server,
-    CollectorRegistry,
+    REGISTRY,
 )
 
-# Global metrics registry to avoid duplicate registration
-_metrics_registry = CollectorRegistry()
-_metrics_initialized = False
+# Track created metrics to avoid duplicate registration
+_created_metrics: dict[str, Any] = {}
 
 
 def _get_or_create_metric(
     metric_class: type, name: str, description: str, **kwargs: Any
 ) -> Any:
     """Get existing metric or create new one to avoid duplicate registration."""
-    try:
-        # Try to get existing metric from registry
-        for collector in _metrics_registry._names_to_collectors.values():
-            if hasattr(collector, "_name") and collector._name == name:
-                return collector
-    except (AttributeError, KeyError):
-        pass
+    if name in _created_metrics:
+        return _created_metrics[name]
 
-    # Create new metric if not found
-    return metric_class(name, description, registry=_metrics_registry, **kwargs)
+    # Create new metric using default registry
+    metric = metric_class(name, description, **kwargs)
+    _created_metrics[name] = metric
+    return metric
 
 
 # Lazy initialization of metrics to avoid conflicts
@@ -481,9 +478,7 @@ def track_latency(
                     histogram.observe(duration)
 
         # Return appropriate wrapper based on function type
-        if (
-            hasattr(func, "__code__") and func.__code__.co_flags & 0x80
-        ):  # CO_ITERABLE_COROUTINE
+        if inspect.iscoroutinefunction(func):
             return async_wrapper
         else:
             return sync_wrapper
@@ -522,4 +517,4 @@ def get_metrics() -> str:
     Returns:
         Metrics in Prometheus exposition format
     """
-    return str(generate_latest(_metrics_registry).decode("utf-8"))
+    return str(generate_latest(REGISTRY).decode("utf-8"))

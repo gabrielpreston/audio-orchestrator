@@ -15,19 +15,19 @@ local workflows before touching production infrastructure.
 
 ## Guides
 
-- [Environment configuration](environment.md) — How to manage `.env.sample`, `.env.common`,
+-  [Environment configuration](environment.md) — How to manage `.env.sample`, `.env.common`,
   and service-specific overrides.
-- [Runtime quickstart](runtime.md) — Build, run, and monitor the Docker Compose stack.
-- [Local development workflows](local-development.md) — Make targets, linting, testing, and
+-  [Runtime quickstart](runtime.md) — Build, run, and monitor the Docker Compose stack.
+-  [Local development workflows](local-development.md) — Make targets, linting, testing, and
   Docker routines.
-- [Troubleshooting](troubleshooting.md) — Common issues and remediation steps for audio,
+-  [Troubleshooting](troubleshooting.md) — Common issues and remediation steps for audio,
   Docker, and permissions.
 
 ## Prerequisites
 
-- Docker Engine with `docker-compose` support.
-- `make` for invoking repository workflows.
-- Access to Discord, STT, LLM, and TTS credentials as required by your deployment plan.
+-  Docker Engine with `docker-compose` support.
+-  `make` for invoking repository workflows.
+-  Access to Discord, STT, LLM, and TTS credentials as required by your deployment plan.
 
 ## Next Steps
 

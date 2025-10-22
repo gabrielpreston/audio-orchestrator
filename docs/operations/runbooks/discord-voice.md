@@ -14,10 +14,10 @@ Use this runbook when operating the Discord bot and companion services in stagin
 
 ## Daily Checks
 
-- Run `make logs SERVICE=discord` to verify the bot connected to the configured guild and voice channel.
-- Confirm STT, Orchestrator, LLM, and TTS containers report healthy status via `/health`.
-- Spot-check latency by issuing a wake phrase and validating end-to-end response time (<2s target).
-- Review MCP tool manifests for required credentials or endpoint changes.
+-  Run `make logs SERVICE=discord` to verify the bot connected to the configured guild and voice channel.
+-  Confirm STT, Orchestrator, LLM, and TTS containers report healthy status via `/health`.
+-  Spot-check latency by issuing a wake phrase and validating end-to-end response time (<2s target).
+-  Review MCP tool manifests for required credentials or endpoint changes.
 
 ## Incident Response
 
@@ -31,12 +31,12 @@ Use this runbook when operating the Discord bot and companion services in stagin
 
 ## Escalation
 
-- Capture timestamps, service logs, and failing request IDs.
-- File an incident report under [reports](../../reports/README.md) with root-cause hypotheses.
-- Page the on-call integrator when the bot cannot respond to wake phrases for more than 15 minutes.
+-  Capture timestamps, service logs, and failing request IDs.
+-  File an incident report under [reports](../../reports/README.md) with root-cause hypotheses.
+-  Page the on-call integrator when the bot cannot respond to wake phrases for more than 15 minutes.
 
 ## Post-Incident Tasks
 
-- Update the runbook with newly discovered remediation steps.
-- Log follow-up actions in Monday.com or the chosen tracking system.
-- Review security implications if secrets were rotated or compromised.
+-  Update the runbook with newly discovered remediation steps.
+-  Log follow-up actions in Monday.com or the chosen tracking system.
+-  Review security implications if secrets were rotated or compromised.

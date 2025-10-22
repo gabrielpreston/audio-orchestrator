@@ -895,24 +895,24 @@ jobs:
 
 ### Testing Best Practices
 
-1. **Test Isolation:** Each test should be independent
-2. **Mock External Dependencies:** Use mocks for external services
-3. **Test Edge Cases:** Test error conditions and edge cases
-4. **Performance Testing:** Test against performance requirements
-5. **Documentation:** Document test cases and expected behavior
+1.  **Test Isolation:** Each test should be independent
+2.  **Mock External Dependencies:** Use mocks for external services
+3.  **Test Edge Cases:** Test error conditions and edge cases
+4.  **Performance Testing:** Test against performance requirements
+5.  **Documentation:** Document test cases and expected behavior
 
 ### Code Quality
 
-1. **Test Coverage:** Maintain high test coverage
-2. **Test Naming:** Use descriptive test names
-3. **Test Organization:** Organize tests logically
-4. **Test Data:** Use realistic test data
-5. **Test Maintenance:** Keep tests up to date
+1.  **Test Coverage:** Maintain high test coverage
+2.  **Test Naming:** Use descriptive test names
+3.  **Test Organization:** Organize tests logically
+4.  **Test Data:** Use realistic test data
+5.  **Test Maintenance:** Keep tests up to date
 
 ### Debugging
 
-1. **Logging:** Use structured logging in tests
-2. **Debugging Tools:** Use debugging tools when needed
-3. **Test Output:** Make test output clear and informative
-4. **Error Messages:** Provide helpful error messages
-5. **Test Reports:** Generate comprehensive test reports
+1.  **Logging:** Use structured logging in tests
+2.  **Debugging Tools:** Use debugging tools when needed
+3.  **Test Output:** Make test output clear and informative
+4.  **Error Messages:** Provide helpful error messages
+5.  **Test Reports:** Generate comprehensive test reports

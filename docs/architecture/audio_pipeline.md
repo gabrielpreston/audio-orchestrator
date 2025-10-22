@@ -50,11 +50,12 @@ class AudioProcessor:
 ```
 
 **Key Features:**
-- **Format Conversion**: Supports multiple input formats (PCM, WAV, MP3, etc.)
-- **Resampling**: Converts to optimal sample rate for STT
-- **Normalization**: Adjusts volume levels for consistent processing
-- **Noise Reduction**: Filters background noise and artifacts
-- **Quality Metrics**: Calculates audio quality indicators
+
+-  **Format Conversion**: Supports multiple input formats (PCM, WAV, MP3, etc.)
+-  **Resampling**: Converts to optimal sample rate for STT
+-  **Normalization**: Adjusts volume levels for consistent processing
+-  **Noise Reduction**: Filters background noise and artifacts
+-  **Quality Metrics**: Calculates audio quality indicators
 
 ### Wake Detector
 
@@ -76,10 +77,11 @@ class WakeDetector:
 ```
 
 **Detection Methods:**
-- **Energy Analysis**: Detects speech activity through audio energy
-- **Complexity Metrics**: Analyzes audio complexity patterns
-- **Pattern Matching**: Recognizes specific wake phrases
-- **Confidence Scoring**: Provides confidence levels for detection
+
+-  **Energy Analysis**: Detects speech activity through audio energy
+-  **Complexity Metrics**: Analyzes audio complexity patterns
+-  **Pattern Matching**: Recognizes specific wake phrases
+-  **Confidence Scoring**: Provides confidence levels for detection
 
 ### Audio Aggregator
 
@@ -101,38 +103,44 @@ class AudioAggregator:
 ```
 
 **Aggregation Features:**
-- **Smart Chunking**: Combines audio into optimal segments
-- **Buffer Management**: Handles memory-efficient buffering
-- **Segment Validation**: Ensures audio quality and completeness
-- **Quality Checks**: Validates segments before transcription
+
+-  **Smart Chunking**: Combines audio into optimal segments
+-  **Buffer Management**: Handles memory-efficient buffering
+-  **Segment Validation**: Ensures audio quality and completeness
+-  **Quality Checks**: Validates segments before transcription
 
 ## Pipeline Stages
 
 ### Stage 1: Audio Input
-- Raw audio captured from adapters
-- Initial format detection and validation
-- Basic quality assessment
+
+-  Raw audio captured from adapters
+-  Initial format detection and validation
+-  Basic quality assessment
 
 ### Stage 2: Audio Processing
-- Format conversion to standard format
-- Resampling to optimal sample rate
-- Volume normalization
-- Noise reduction and enhancement
+
+-  Format conversion to standard format
+-  Resampling to optimal sample rate
+-  Volume normalization
+-  Noise reduction and enhancement
 
 ### Stage 3: Wake Detection
-- Continuous monitoring for wake phrases
-- Speech activity detection
-- Confidence scoring and validation
+
+-  Continuous monitoring for wake phrases
+-  Speech activity detection
+-  Confidence scoring and validation
 
 ### Stage 4: Audio Aggregation
-- Collection of audio segments
-- Smart chunking for optimal transcription
-- Quality validation and filtering
+
+-  Collection of audio segments
+-  Smart chunking for optimal transcription
+-  Quality validation and filtering
 
 ### Stage 5: Transcription
-- Audio segments sent to STT service
-- Transcript generation and validation
-- Confidence scoring and error handling
+
+-  Audio segments sent to STT service
+-  Transcript generation and validation
+-  Confidence scoring and error handling
 
 ## Configuration
 
@@ -170,61 +178,70 @@ AUDIO_PROCESSING_TIMEOUT_MS=5000
 ## Error Handling
 
 ### Audio Quality Issues
-- **Low Quality**: Automatic retry with enhanced processing
-- **Noise Detection**: Noise reduction and filtering
-- **Format Issues**: Automatic format conversion
-- **Corruption**: Error logging and graceful degradation
+
+-  **Low Quality**: Automatic retry with enhanced processing
+-  **Noise Detection**: Noise reduction and filtering
+-  **Format Issues**: Automatic format conversion
+-  **Corruption**: Error logging and graceful degradation
 
 ### Performance Issues
-- **Buffer Overflow**: Automatic buffer management
-- **Processing Delays**: Timeout handling and fallback
-- **Memory Issues**: Garbage collection and cleanup
-- **Resource Limits**: Adaptive processing and throttling
+
+-  **Buffer Overflow**: Automatic buffer management
+-  **Processing Delays**: Timeout handling and fallback
+-  **Memory Issues**: Garbage collection and cleanup
+-  **Resource Limits**: Adaptive processing and throttling
 
 ## Monitoring and Metrics
 
 ### Key Metrics
-- **Audio Quality**: Signal-to-noise ratio, clarity scores
-- **Processing Latency**: End-to-end processing time
-- **Wake Detection**: Accuracy and false positive rates
-- **Resource Usage**: CPU, memory, and I/O utilization
+
+-  **Audio Quality**: Signal-to-noise ratio, clarity scores
+-  **Processing Latency**: End-to-end processing time
+-  **Wake Detection**: Accuracy and false positive rates
+-  **Resource Usage**: CPU, memory, and I/O utilization
 
 ### Health Checks
-- **Audio Pipeline Health**: Processing status and performance
-- **Component Health**: Individual component status
-- **Resource Health**: Memory and CPU utilization
-- **Quality Health**: Audio quality metrics and trends
+
+-  **Audio Pipeline Health**: Processing status and performance
+-  **Component Health**: Individual component status
+-  **Resource Health**: Memory and CPU utilization
+-  **Quality Health**: Audio quality metrics and trends
 
 ## Integration Points
 
 ### Adapter Integration
-- **Input Adapters**: Receive audio from various sources
-- **Output Adapters**: Send processed audio to destinations
-- **Format Support**: Multiple audio format handling
-- **Quality Control**: Consistent audio quality across sources
+
+-  **Input Adapters**: Receive audio from various sources
+-  **Output Adapters**: Send processed audio to destinations
+-  **Format Support**: Multiple audio format handling
+-  **Quality Control**: Consistent audio quality across sources
 
 ### Service Integration
-- **STT Service**: Optimized audio segments for transcription
-- **Agent Framework**: Context-aware audio processing
-- **Monitoring**: Comprehensive metrics and health checks
-- **Configuration**: Dynamic configuration updates
+
+-  **STT Service**: Optimized audio segments for transcription
+-  **Agent Framework**: Context-aware audio processing
+-  **Monitoring**: Comprehensive metrics and health checks
+-  **Configuration**: Dynamic configuration updates
 
 ## Best Practices
 
 ### Audio Quality
-- **Consistent Sampling**: Use standard sample rates
-- **Noise Reduction**: Implement appropriate filtering
-- **Volume Normalization**: Maintain consistent levels
-- **Format Optimization**: Choose optimal formats for processing
+
+-  **Consistent Sampling**: Use standard sample rates
+-  **Noise Reduction**: Implement appropriate filtering
+-  **Volume Normalization**: Maintain consistent levels
+-  **Format Optimization**: Choose optimal formats for processing
 
 ### Performance
-- **Buffer Management**: Efficient memory usage
-- **Processing Optimization**: Minimize latency
-- **Resource Management**: Monitor and limit resource usage
-- **Error Recovery**: Graceful handling of failures
+
+-  **Buffer Management**: Efficient memory usage
+-  **Processing Optimization**: Minimize latency
+-  **Resource Management**: Monitor and limit resource usage
+-  **Error Recovery**: Graceful handling of failures
 
 ### Monitoring
-- **Quality Metrics**: Track audio quality trends
-- **Performance Metrics**: Monitor processing latency
-- **Error Tracking**: Log and analyze errors
-- **Health Monitoring**: Continuous health assessment
+
+-  **Quality Metrics**: Track audio quality trends
+-  **Performance Metrics**: Monitor processing latency
+-  **Error Tracking**: Log and analyze errors
+-  **Health Monitoring**: Continuous health assessment

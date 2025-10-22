@@ -11,7 +11,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from services.common.health import HealthManager, HealthStatus
-from services.common.metrics import MetricsCollector, init_metrics_registry
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 
 # Configure logging
 from services.common.logging import get_logger
@@ -26,8 +26,8 @@ app = FastAPI(title="Discord Voice Service", version="1.0.0")
 # Global bot instance (simplified for HTTP mode)
 _bot: Any | None = None
 _health_manager = HealthManager("discord")
-# Metrics collector for performance monitoring
-_metrics_collector: MetricsCollector = init_metrics_registry("discord", "1.0.0")
+# Metrics collector for performance monitoring (disabled for now)
+# _metrics_collector: MetricsCollector = init_metrics_registry("discord", "1.0.0")
 
 
 class SendMessageRequest(BaseModel):

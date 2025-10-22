@@ -11,8 +11,8 @@ consistent behavior.
 
 The adapter system consists of two main interfaces:
 
-- **`AudioInputAdapter`** - Captures audio from sources (Discord, files, WebRTC, etc.)
-- **`AudioOutputAdapter`** - Plays audio to destinations (Discord, speakers, files, etc.)
+-  **`AudioInputAdapter`** - Captures audio from sources (Discord, files, WebRTC, etc.)
+-  **`AudioOutputAdapter`** - Plays audio to destinations (Discord, speakers, files, etc.)
 
 ## Interface Requirements
 
@@ -421,24 +421,24 @@ class WebRTCAudioInputAdapter(AudioInputAdapter):
 
 ### Unit Tests
 
-- Test individual methods in isolation
-- Mock external dependencies (WebRTC, file I/O, etc.)
-- Test error conditions and edge cases
-- Verify audio format handling
+-  Test individual methods in isolation
+-  Mock external dependencies (WebRTC, file I/O, etc.)
+-  Test error conditions and edge cases
+-  Verify audio format handling
 
 ### Integration Tests
 
-- Test with real audio sources when possible
-- Verify audio quality and format conversion
-- Test performance under load
-- Validate error handling
+-  Test with real audio sources when possible
+-  Verify audio quality and format conversion
+-  Test performance under load
+-  Validate error handling
 
 ### Manual Testing
 
-- Test with actual audio hardware
-- Verify audio quality and latency
-- Test with different audio formats
-- Validate configuration options
+-  Test with actual audio hardware
+-  Verify audio quality and latency
+-  Test with different audio formats
+-  Validate configuration options
 
 ## Common Pitfalls and Solutions
 
@@ -501,7 +501,7 @@ AUDIO_OUTPUT_ADAPTER = "my_output"
 
 ## Resources
 
-- [Audio Adapter Types](../api/audio_adapter_types.md)
-- [Audio Pipeline Architecture](../architecture/audio_pipeline.md)
-- [Testing Audio Adapters](../guides/testing_audio_adapters.md)
-- [Configuration Reference](../api/configuration.md)
+-  [Audio Adapter Types](../api/audio_adapter_types.md)
+-  [Audio Pipeline Architecture](../architecture/audio_pipeline.md)
+-  [Testing Audio Adapters](../guides/testing_audio_adapters.md)
+-  [Configuration Reference](../api/configuration.md)

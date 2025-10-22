@@ -405,6 +405,7 @@ CALCULATOR_PRECISION=2             # Calculator decimal precision
 ### Configuration Examples
 
 #### Echo Agent Configuration
+
 ```python
 echo_config = {
     "enabled": True,
@@ -413,6 +414,7 @@ echo_config = {
 ```
 
 #### Conversation Agent Configuration
+
 ```python
 conversation_config = {
     "llm_service_url": "http://llm:8000",
@@ -423,6 +425,7 @@ conversation_config = {
 ```
 
 #### Weather Agent Configuration
+
 ```python
 weather_config = {
     "weather_api_key": "your_api_key",
@@ -456,32 +459,32 @@ class AgentProcessingError(AgentError):
 
 ### Error Handling Best Practices
 
-1. **Graceful Degradation:** Handle errors without crashing
-2. **Logging:** Log errors with context information
-3. **Retry Logic:** Implement retry for transient failures
-4. **User Feedback:** Provide meaningful error messages
-5. **Resource Cleanup:** Always clean up resources on error
+1.  **Graceful Degradation:** Handle errors without crashing
+2.  **Logging:** Log errors with context information
+3.  **Retry Logic:** Implement retry for transient failures
+4.  **User Feedback:** Provide meaningful error messages
+5.  **Resource Cleanup:** Always clean up resources on error
 
 ## Performance Considerations
 
 ### Latency Requirements
 
-- **Agent Selection:** < 50ms for agent routing
-- **Response Generation:** < 2s for agent responses
-- **Context Processing:** < 100ms for context updates
-- **End-to-End:** < 2s total response time
+-  **Agent Selection:** < 50ms for agent routing
+-  **Response Generation:** < 2s for agent responses
+-  **Context Processing:** < 100ms for context updates
+-  **End-to-End:** < 2s total response time
 
 ### Memory Management
 
-- **Context History:** Limit conversation history size
-- **Agent State:** Avoid storing large objects in agent state
-- **Resource Cleanup:** Clean up resources after processing
+-  **Context History:** Limit conversation history size
+-  **Agent State:** Avoid storing large objects in agent state
+-  **Resource Cleanup:** Clean up resources after processing
 
 ### CPU Usage
 
-- **Agent Processing:** Minimize CPU usage in hot paths
-- **LLM Calls:** Use async operations for external calls
-- **Caching:** Cache frequently used data
+-  **Agent Processing:** Minimize CPU usage in hot paths
+-  **LLM Calls:** Use async operations for external calls
+-  **Caching:** Cache frequently used data
 
 ## Testing
 
@@ -528,23 +531,23 @@ async def test_agent_integration():
 
 ### Agent Development
 
-1. **Single Responsibility:** Each agent should have a clear purpose
-2. **Error Handling:** Always handle exceptions gracefully
-3. **Logging:** Use structured logging with correlation IDs
-4. **Configuration:** Make agents configurable
-5. **Testing:** Write comprehensive tests
-6. **Documentation:** Document agent behavior and configuration
+1.  **Single Responsibility:** Each agent should have a clear purpose
+2.  **Error Handling:** Always handle exceptions gracefully
+3.  **Logging:** Use structured logging with correlation IDs
+4.  **Configuration:** Make agents configurable
+5.  **Testing:** Write comprehensive tests
+6.  **Documentation:** Document agent behavior and configuration
 
 ### Performance
 
-1. **Async Operations:** Use async/await for I/O operations
-2. **Resource Management:** Clean up resources properly
-3. **Caching:** Cache expensive operations when appropriate
-4. **Monitoring:** Track agent performance and usage
+1.  **Async Operations:** Use async/await for I/O operations
+2.  **Resource Management:** Clean up resources properly
+3.  **Caching:** Cache expensive operations when appropriate
+4.  **Monitoring:** Track agent performance and usage
 
 ### Security
 
-1. **Input Validation:** Validate all inputs
-2. **Output Sanitization:** Sanitize outputs when necessary
-3. **Credential Management:** Handle credentials securely
-4. **Rate Limiting:** Implement rate limiting for external calls
+1.  **Input Validation:** Validate all inputs
+2.  **Output Sanitization:** Sanitize outputs when necessary
+3.  **Credential Management:** Handle credentials securely
+4.  **Rate Limiting:** Implement rate limiting for external calls

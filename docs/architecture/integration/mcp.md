@@ -17,9 +17,9 @@ discover and connect to Model Context Protocol (MCP) servers.
 
 The Discord bot loads manifests in the following order (later entries override earlier ones):
 
-- `MCP_CONFIG_PATH` environment override.
-- Workspace-scoped `./.audio-orchestrator/mcp.json` file.
-- User-scoped `~/.config/audio-orchestrator/mcp.json` file.
+-  `MCP_CONFIG_PATH` environment override.
+-  Workspace-scoped `./.audio-orchestrator/mcp.json` file.
+-  User-scoped `~/.config/audio-orchestrator/mcp.json` file.
 
 ## Top-Level Shape
 
@@ -51,8 +51,8 @@ connection.
 
 ## Field Reference
 
-- `mcpServers` *(object)* — Map of server name to configuration.
-- Server configuration fields:
+-  `mcpServers` *(object)* — Map of server name to configuration.
+-  Server configuration fields:
   -  `transport` *(object, optional)* — Remote connection descriptor.
     -  `type` *(string)* — Supported value: `websocket`.
     -  `url` *(string)* — WebSocket endpoint; HTTP(S) values are normalized to WS/WSS.
@@ -63,15 +63,15 @@ connection.
 
 ## Behavior & Fallbacks
 
-- Manifests are merged during startup; later files override earlier entries with the same name.
-- Transport-backed servers are dialed over WebSocket using the provided URL.
-- Command-backed servers run as child processes with stdio bridged as the MCP JSON-RPC transport.
+-  Manifests are merged during startup; later files override earlier entries with the same name.
+-  Transport-backed servers are dialed over WebSocket using the provided URL.
+-  Command-backed servers run as child processes with stdio bridged as the MCP JSON-RPC transport.
 
 ## Recommendations
 
-- Use absolute paths in `command` entries to avoid PATH resolution surprises; home directories are expanded automatically.
-- Prefer `wss://` endpoints for production MCP servers and secure them with authentication headers or token-based access.
-- Ensure subprocess servers speak newline-delimited JSON-RPC over stdio; the client uses upstream framing helpers.
+-  Use absolute paths in `command` entries to avoid PATH resolution surprises; home directories are expanded automatically.
+-  Prefer `wss://` endpoints for production MCP servers and secure them with authentication headers or token-based access.
+-  Ensure subprocess servers speak newline-delimited JSON-RPC over stdio; the client uses upstream framing helpers.
 
 ### Minimal Example
 
