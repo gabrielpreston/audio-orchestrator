@@ -207,3 +207,42 @@ class TestConversationContext:
         assert len(recent) == 3
         assert recent[0] == ("User 0", "Agent 0")
         assert recent[-1] == ("User 2", "Agent 2")
+
+    def test_get_recent_history_with_zero_max_turns(self):
+        """Test getting recent history with max_turns=0 returns empty list."""
+        now = datetime.now()
+        context = ConversationContext(
+            session_id="test-session-123",
+            history=[],
+            created_at=now,
+            last_active_at=now,
+        )
+
+        # Add some interactions
+        for i in range(3):
+            context.add_interaction(f"User {i}", f"Agent {i}")
+
+        # Request 0 recent interactions should return empty list
+        recent = context.get_recent_history(max_turns=0)
+        assert recent == []
+
+    def test_get_recent_history_with_negative_max_turns(self):
+        """Test getting recent history with negative max_turns returns empty list."""
+        now = datetime.now()
+        context = ConversationContext(
+            session_id="test-session-123",
+            history=[],
+            created_at=now,
+            last_active_at=now,
+        )
+
+        # Add some interactions
+        for i in range(3):
+            context.add_interaction(f"User {i}", f"Agent {i}")
+
+        # Request negative recent interactions should return empty list
+        recent = context.get_recent_history(max_turns=-1)
+        assert recent == []
+
+        recent = context.get_recent_history(max_turns=-5)
+        assert recent == []

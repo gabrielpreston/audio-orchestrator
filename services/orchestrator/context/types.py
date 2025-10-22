@@ -65,12 +65,16 @@ class ConversationContext:
         """Get the most recent conversation history.
 
         Args:
-            max_turns: Maximum number of turns to return
+            max_turns: Maximum number of turns to return (must be >= 0)
 
         Returns:
             List of recent (user, agent) interaction pairs
         """
-        return self.history[-max_turns:] if self.history else []
+        if not self.history or max_turns <= 0:
+            return []
+        
+        # Return the most recent max_turns interactions
+        return self.history[-max_turns:]
 
     def get_conversation_length(self) -> int:
         """Get the total number of interactions in this conversation.
