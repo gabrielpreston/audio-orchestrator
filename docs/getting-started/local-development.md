@@ -31,33 +31,33 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 
 ## Development Loop
 
--  Start the stack with `make run` and confirm voice connection in Discord.
--  Tail logs per service (`make logs SERVICE=discord`) to validate wake phrase detection and transcription flow.
--  Iterate on code changes; rerun `make run` to rebuild containers when dependencies change.
--  Run `make lint` before pushing to catch style or formatting issues.
--  Use `make test` to verify the automated suite; pass `PYTEST_ARGS` to scope runs during development.
+- Start the stack with `make run` and confirm voice connection in Discord.
+- Tail logs per service (`make logs SERVICE=discord`) to validate wake phrase detection and transcription flow.
+- Iterate on code changes; rerun `make run` to rebuild containers when dependencies change.
+- Run `make lint` before pushing to catch style or formatting issues.
+- Use `make test` to verify the automated suite; pass `PYTEST_ARGS` to scope runs during development.
 
 ## Tips
 
--  Keep the lint container warm by running `make lint` once before frequent edits; subsequent runs reuse the cached image.
--  For debugging outside Docker, export `PYTHONPATH=$PWD` so Python resolves the monorepo modules.
--  Use feature branches and small commits to keep diffs reviewable; reference affected docs in your PR summary.
--  Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/README.md).
+- Keep the lint container warm by running `make lint` once before frequent edits; subsequent runs reuse the cached image.
+- For debugging outside Docker, export `PYTHONPATH=$PWD` so Python resolves the monorepo modules.
+- Use feature branches and small commits to keep diffs reviewable; reference affected docs in your PR summary.
+- Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/README.md).
 
 ## Workflow Validation
 
 Validate GitHub Actions workflows locally before committing:
 
--  **`make workflows-validate`** — Runs yamllint and actionlint validation (containerized, no local installation required)
--  **`make workflows-validate-syntax`** — YAML syntax only (containerized yamllint)
--  **`make workflows-validate-actionlint`** — GitHub Actions static analysis (containerized actionlint)
+- **`make workflows-validate`** — Runs yamllint and actionlint validation (containerized, no local installation required)
+- **`make workflows-validate-syntax`** — YAML syntax only (containerized yamllint)
+- **`make workflows-validate-actionlint`** — GitHub Actions static analysis (containerized actionlint)
 
 ### How It Works
 
 All workflow validation uses the containerized linting infrastructure:
 
--  **yamllint** validates YAML syntax and formatting
--  **actionlint** validates GitHub Actions semantics, expressions, and action versions
+- **yamllint** validates YAML syntax and formatting
+- **actionlint** validates GitHub Actions semantics, expressions, and action versions
 
 No local tool installation required - everything runs in Docker containers.
 

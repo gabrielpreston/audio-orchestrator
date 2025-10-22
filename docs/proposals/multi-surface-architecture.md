@@ -17,32 +17,32 @@ This proposal outlines advanced features and extensions for the Composable Surfa
 
 The current implementation provides:
 
--  ✅ Core interfaces (AudioSource, AudioSink, ControlChannel, SurfaceLifecycle)
--  ✅ Discord surface adapter implementation
--  ✅ Basic event system
--  ✅ Registry system
--  ✅ Media gateway
--  ✅ Error handling and performance requirements
+- ✅ Core interfaces (AudioSource, AudioSink, ControlChannel, SurfaceLifecycle)
+- ✅ Discord surface adapter implementation
+- ✅ Basic event system
+- ✅ Registry system
+- ✅ Media gateway
+- ✅ Error handling and performance requirements
 
 ## Proposed Architecture Principles
 
 ### 1. **Composability**
 
--  Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
--  Each component can be implemented independently and swapped without affecting others
--  Components communicate through well-defined interfaces
+- Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
+- Each component can be implemented independently and swapped without affecting others
+- Components communicate through well-defined interfaces
 
 ### 2. **Extensibility**
 
--  New surface types can be added by implementing the four core interfaces
--  Existing surfaces can be enhanced without breaking changes
--  Plugin architecture supports third-party surface implementations
+- New surface types can be added by implementing the four core interfaces
+- Existing surfaces can be enhanced without breaking changes
+- Plugin architecture supports third-party surface implementations
 
 ### 3. **Consistency**
 
--  All surfaces provide consistent behavior through standardized interfaces
--  Common patterns for error handling, configuration, and lifecycle management
--  Unified event system across all surface types
+- All surfaces provide consistent behavior through standardized interfaces
+- Common patterns for error handling, configuration, and lifecycle management
+- Unified event system across all surface types
 
 ## Proposed Integration Patterns
 
@@ -89,130 +89,130 @@ await control_channel.initialize()
 
 ### Planned Surface Types
 
--  **WebRTC/LiveKit**: Real-time communication surfaces
--  **Mobile SDK**: Native mobile app integration
--  **IoT Devices**: Smart home device integration
--  **Telephony**: Phone system integration
+- **WebRTC/LiveKit**: Real-time communication surfaces
+- **Mobile SDK**: Native mobile app integration
+- **IoT Devices**: Smart home device integration
+- **Telephony**: Phone system integration
 
 ### Advanced Features
 
--  **Multi-Surface Sessions**: Simultaneous multiple surface connections
--  **Surface Switching**: Dynamic surface switching during sessions
--  **Load Balancing**: Distribution across multiple surface instances
--  **Failover**: Automatic failover between surface instances
+- **Multi-Surface Sessions**: Simultaneous multiple surface connections
+- **Surface Switching**: Dynamic surface switching during sessions
+- **Load Balancing**: Distribution across multiple surface instances
+- **Failover**: Automatic failover between surface instances
 
 ## Proposed Migration Guide
 
 ### From Monolithic to Composable
 
--  **Identify Surface Components**: Break down existing surface code into the four core interfaces
--  **Implement Adapters**: Create adapter classes for each interface
--  **Update Integration**: Replace direct surface calls with adapter calls
--  **Test Migration**: Run contract and parity tests to validate migration
+- **Identify Surface Components**: Break down existing surface code into the four core interfaces
+- **Implement Adapters**: Create adapter classes for each interface
+- **Update Integration**: Replace direct surface calls with adapter calls
+- **Test Migration**: Run contract and parity tests to validate migration
 
 ### Backward Compatibility
 
--  Existing surface implementations continue to work
--  Gradual migration path with feature flags
--  Compatibility layer for legacy interfaces
+- Existing surface implementations continue to work
+- Gradual migration path with feature flags
+- Compatibility layer for legacy interfaces
 
 ## Proposed Security Considerations
 
 ### Authentication
 
--  Surface-specific authentication mechanisms
--  Token-based authentication for API surfaces
--  Certificate-based authentication for secure connections
+- Surface-specific authentication mechanisms
+- Token-based authentication for API surfaces
+- Certificate-based authentication for secure connections
 
 ### Data Privacy
 
--  Audio data encryption in transit
--  No persistent audio storage
--  Secure event transmission
+- Audio data encryption in transit
+- No persistent audio storage
+- Secure event transmission
 
 ### Access Control
 
--  Surface-level permissions
--  User-based access control
--  Session-based authorization
+- Surface-level permissions
+- User-based access control
+- Session-based authorization
 
 ## Proposed Monitoring and Observability
 
 ### Health Monitoring
 
--  Connection status monitoring
--  Performance metrics collection
--  Error rate tracking
--  Latency monitoring
+- Connection status monitoring
+- Performance metrics collection
+- Error rate tracking
+- Latency monitoring
 
 ### Debugging Support
 
--  Detailed logging with correlation IDs
--  Event tracing across components
--  Performance profiling
--  Error diagnostics
+- Detailed logging with correlation IDs
+- Event tracing across components
+- Performance profiling
+- Error diagnostics
 
 ## Implementation Checklist
 
 ### For New Surface Implementations
 
--  [ ] Implement all four core interfaces
--  [ ] Add comprehensive error handling
--  [ ] Include performance optimizations
--  [ ] Write contract tests
--  [ ] Add parity test coverage
--  [ ] Document surface-specific configuration
--  [ ] Implement security measures
--  [ ] Add monitoring and logging
+- [ ] Implement all four core interfaces
+- [ ] Add comprehensive error handling
+- [ ] Include performance optimizations
+- [ ] Write contract tests
+- [ ] Add parity test coverage
+- [ ] Document surface-specific configuration
+- [ ] Implement security measures
+- [ ] Add monitoring and logging
 
 ### For Integration
 
--  [ ] Register surface in surface registry
--  [ ] Configure environment variables
--  [ ] Set up event routing
--  [ ] Implement lifecycle management
--  [ ] Add health monitoring
--  [ ] Test end-to-end functionality
--  [ ] Validate performance requirements
--  [ ] Document integration steps
+- [ ] Register surface in surface registry
+- [ ] Configure environment variables
+- [ ] Set up event routing
+- [ ] Implement lifecycle management
+- [ ] Add health monitoring
+- [ ] Test end-to-end functionality
+- [ ] Validate performance requirements
+- [ ] Document integration steps
 
 ## Rationale
 
 This proposal addresses several key needs:
 
--  **Scalability**: Support for multiple surface types and concurrent sessions
--  **Flexibility**: Plugin architecture for third-party surface implementations
--  **Reliability**: Advanced failover and load balancing capabilities
--  **Security**: Enhanced authentication and data privacy measures
--  **Observability**: Comprehensive monitoring and debugging support
+- **Scalability**: Support for multiple surface types and concurrent sessions
+- **Flexibility**: Plugin architecture for third-party surface implementations
+- **Reliability**: Advanced failover and load balancing capabilities
+- **Security**: Enhanced authentication and data privacy measures
+- **Observability**: Comprehensive monitoring and debugging support
 
 ## Timeline and Phasing
 
 ### Phase 1: Foundation (Q1 2025)
 
--  Complete current Discord implementation
--  Establish testing framework
--  Document current architecture
+- Complete current Discord implementation
+- Establish testing framework
+- Document current architecture
 
 ### Phase 2: Multi-Surface Support (Q2 2025)
 
--  Implement surface registry enhancements
--  Add multi-surface session management
--  Develop WebRTC surface adapter
+- Implement surface registry enhancements
+- Add multi-surface session management
+- Develop WebRTC surface adapter
 
 ### Phase 3: Advanced Features (Q3 2025)
 
--  Implement load balancing
--  Add failover capabilities
--  Enhance security measures
+- Implement load balancing
+- Add failover capabilities
+- Enhance security measures
 
 ### Phase 4: Ecosystem (Q4 2025)
 
--  Plugin architecture
--  Third-party surface support
--  Advanced monitoring and observability
+- Plugin architecture
+- Third-party surface support
+- Advanced monitoring and observability
 
 ## Related Documentation
 
--  [Surface Architecture Reference](../reference/surface-architecture.md) - Current implementation details
--  [Shared Utilities](../architecture/shared-utilities.md) - Overview of shared utilities
+- [Surface Architecture Reference](../reference/surface-architecture.md) - Current implementation details
+- [Shared Utilities](../architecture/shared-utilities.md) - Overview of shared utilities

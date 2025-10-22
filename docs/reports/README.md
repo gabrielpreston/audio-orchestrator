@@ -14,10 +14,10 @@ Implementation reviews, postmortems, and evaluation notes live here.
 
 ## Available Reports
 
--  [TTS Service Evaluation](tts-service-evaluation.md) — Piper migration summary and best practices.
+- [TTS Service Evaluation](tts-service-evaluation.md) — Piper migration summary and best practices.
 
 ## Contribution Notes
 
--  Add YAML front matter (title, author, status, last-updated) to every report.
--  Link newly added reports in this index with a one-line summary.
--  Capture mitigation follow-ups in the [roadmap](../roadmaps/README.md) or [operations runbooks](../operations/README.md).
+- Add YAML front matter (title, author, status, last-updated) to every report.
+- Link newly added reports in this index with a one-line summary.
+- Capture mitigation follow-ups in the [roadmap](../roadmaps/README.md) or [operations runbooks](../operations/README.md).

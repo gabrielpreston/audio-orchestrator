@@ -141,6 +141,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 
 ## Change Management
 
--  Update `.env.sample` and the relevant `.env.service` files when introducing new variables.
--  Reflect changes in this catalog and reference them from affected runbooks or proposals.
--  Include new configuration requirements in the PR summary to alert reviewers.
+- Update `.env.sample` and the relevant `.env.service` files when introducing new variables.
+- Reflect changes in this catalog and reference them from affected runbooks or proposals.
+- Include new configuration requirements in the PR summary to alert reviewers.

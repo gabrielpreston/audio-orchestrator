@@ -27,26 +27,26 @@ supporting services, and Docker Compose stack.
 
 ## Setup Steps
 
--  Use the automated script to generate environment files from `.env.sample`:
+- Use the automated script to generate environment files from `.env.sample`:
 
    ```bash
    python3 scripts/prepare_env_files.py
    ```
 
--  Populate secrets (Discord bot token, auth tokens) with production-ready values in the generated `.env.service` files.
--  Verify configuration using the new configuration library (see [Configuration Library Reference](../reference/configuration-library.md)).
--  Commit `.env.sample` changes when you introduce new keys so contributors can refresh their local files.
+- Populate secrets (Discord bot token, auth tokens) with production-ready values in the generated `.env.service` files.
+- Verify configuration using the new configuration library (see [Configuration Library Reference](../reference/configuration-library.md)).
+- Commit `.env.sample` changes when you introduce new keys so contributors can refresh their local files.
 
 ## Best Practices
 
--  Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
--  Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys. Ensure new keys like `DISCORD_FULL_BOT`, `DISCORD_HTTP_MODE`, `DISCORD_MCP_MODE`, and `ORCH_TIMEOUT` are present where applicable.
--  Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
--  Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
--  Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.
+- Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
+- Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys. Ensure new keys like `DISCORD_FULL_BOT`, `DISCORD_HTTP_MODE`, `DISCORD_MCP_MODE`, and `ORCH_TIMEOUT` are present where applicable.
+- Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
+- Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
+- Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.
 
 ## Validation Checklist
 
--  [ ] `make run` succeeds with your environment files in place.
--  [ ] `make logs SERVICE=discord` shows the bot connecting to Discord without authentication errors.
--  [ ] `make logs SERVICE=stt` confirms the chosen faster-whisper model loaded successfully.
+- [ ] `make run` succeeds with your environment files in place.
+- [ ] `make logs SERVICE=discord` shows the bot connecting to Discord without authentication errors.
+- [ ] `make logs SERVICE=stt` confirms the chosen faster-whisper model loaded successfully.

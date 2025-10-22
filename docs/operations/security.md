@@ -15,10 +15,10 @@ voice lab stack.
 
 ## Credential Management
 
--  Store Discord bot tokens, orchestrator auth tokens, and MCP secrets outside version control.
--  Rotate tokens whenever access is revoked or incidents occur; update `.env.service` files accordingly.
--  Use the automated token rotation script for consistent token management across all services.
--  Limit Discord bot scopes to required intents (`guilds`, `guild_voice_states`).
+- Store Discord bot tokens, orchestrator auth tokens, and MCP secrets outside version control.
+- Rotate tokens whenever access is revoked or incidents occur; update `.env.service` files accordingly.
+- Use the automated token rotation script for consistent token management across all services.
+- Limit Discord bot scopes to required intents (`guilds`, `guild_voice_states`).
 
 ### Token Rotation
 
@@ -37,11 +37,11 @@ make validate-tokens
 
 The rotation script:
 
--  Generates cryptographically secure random tokens (32 characters by default)
--  Updates all relevant environment files (`.env.sample`, service-specific `.env.service` files)
--  Validates token consistency after rotation
--  Supports dry-run mode for safe testing
--  Can rotate specific tokens or all tokens at once
+- Generates cryptographically secure random tokens (32 characters by default)
+- Updates all relevant environment files (`.env.sample`, service-specific `.env.service` files)
+- Validates token consistency after rotation
+- Supports dry-run mode for safe testing
+- Can rotate specific tokens or all tokens at once
 
 For manual rotation or custom token lengths:
 
@@ -55,18 +55,18 @@ For manual rotation or custom token lengths:
 
 ## Network & Access Control
 
--  Restrict MCP WebSocket endpoints with authentication and TLS (`wss://`).
--  Keep Docker networks private; expose only required ports to the host.
--  Enable firewall rules that limit inbound access to orchestrator and TTS services.
+- Restrict MCP WebSocket endpoints with authentication and TLS (`wss://`).
+- Keep Docker networks private; expose only required ports to the host.
+- Enable firewall rules that limit inbound access to orchestrator and TTS services.
 
 ## Data Handling
 
--  Avoid persisting raw audio unless debugging requires it; prefer ephemeral streams.
--  Scrub personally identifiable information from logs before sharing incident reports.
--  Use the [reports](../reports/README.md) section to document investigations without leaking secrets.
+- Avoid persisting raw audio unless debugging requires it; prefer ephemeral streams.
+- Scrub personally identifiable information from logs before sharing incident reports.
+- Use the [reports](../reports/README.md) section to document investigations without leaking secrets.
 
 ## Compliance Checklist
 
--  [ ] Secrets managed through environment variables or secret stores.
--  [ ] MCP manifests stored securely with least-privilege credentials.
--  [ ] Access reviews conducted quarterly for Discord, Monday.com, GitHub, and AWS integrations.
+- [ ] Secrets managed through environment variables or secret stores.
+- [ ] MCP manifests stored securely with least-privilege credentials.
+- [ ] Access reviews conducted quarterly for Discord, Monday.com, GitHub, and AWS integrations.

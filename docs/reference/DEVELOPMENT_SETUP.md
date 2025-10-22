@@ -12,10 +12,10 @@ This document describes the development setup for the `audio-orchestrator` proje
 
 The project uses a **Docker-based development approach**:
 
--  **Docker Compose**: All services run in containers for consistency
--  **Shared utilities**: `services.common` library provides shared functionality
--  **Service isolation**: Each service runs in its own container with specific dependencies
--  **Optimized builds**: CI uses shared base images and parallel builds for 80-90% faster build times
+- **Docker Compose**: All services run in containers for consistency
+- **Shared utilities**: `services.common` library provides shared functionality
+- **Service isolation**: Each service runs in its own container with specific dependencies
+- **Optimized builds**: CI uses shared base images and parallel builds for 80-90% faster build times
 
 ## 📁 Directory Structure
 
@@ -61,22 +61,23 @@ make stop
 
 When working on the project:
 
--  **Use Docker Compose** for running services
--  **Edit code locally** - changes are reflected in containers
--  **Use make targets** for common operations (test, lint, etc.)
+- **Use Docker Compose** for running services
+- **Edit code locally** - changes are reflected in containers
+- **Use make targets** for common operations (test, lint, etc.)
 
 ## 🔧 Build Optimization
 
 The project includes optimized Docker builds:
 
--  **Local Development**: Use `make docker-build-incremental` for smart rebuilds (50-80% faster)
--  **CI/CD**: Uses path-based change detection and matrix parallelization (already optimal)
--  **Base Images**: Shared base images cached in GHCR reduce build times by 80-90%
--  **Parallel Builds**: All services build in parallel when using `--parallel` flag
+- **Local Development**: Use `make docker-build-incremental` for smart rebuilds (50-80% faster)
+- **CI/CD**: Uses path-based change detection and matrix parallelization (already optimal)
+- **Base Images**: Shared base images cached in GHCR reduce build times by 80-90%
+- **Parallel Builds**: All services build in parallel when using `--parallel` flag
 
 ### Build Strategies
 
 #### Incremental Build (Recommended for Development)
+
 
 ```bash
 make docker-build-incremental
@@ -86,6 +87,7 @@ Detects changes via git and rebuilds only affected services. 50-80% faster for t
 
 #### Full Parallel Build
 
+
 ```bash
 make docker-build
 ```
@@ -94,6 +96,7 @@ Rebuilds all services in parallel. Use after pulling updates or for clean builds
 
 #### Single Service Build
 
+
 ```bash
 make docker-build-service SERVICE=stt
 ```
@@ -101,6 +104,7 @@ make docker-build-service SERVICE=stt
 Builds only the specified service.
 
 #### Base Images Rebuild
+
 
 ```bash
 make base-images
@@ -125,9 +129,9 @@ Rebuilds all base images (rarely needed - typically pulled from GHCR).
 
 **Contains**:
 
--  Service-specific Dockerfiles with dependencies
--  Shared base requirements (`requirements-base.txt`)
--  Development tools (`requirements-dev.txt`)
+- Service-specific Dockerfiles with dependencies
+- Shared base requirements (`requirements-base.txt`)
+- Development tools (`requirements-dev.txt`)
 
 **Usage**: All services run in containers for consistency
 
@@ -137,23 +141,23 @@ Each service has its own `requirements.txt` with:
 
 **Discord Service**:
 
--  `discord.py[voice]`, `discord-ext-voice_recv`, `PyNaCl`, `rapidfuzz`, `webrtcvad`
+- `discord.py[voice]`, `discord-ext-voice_recv`, `PyNaCl`, `rapidfuzz`, `webrtcvad`
 
 **STT Service**:
 
--  `faster-whisper`, `python-multipart`
+- `faster-whisper`, `python-multipart`
 
 **LLM Service**:
 
--  `llama-cpp-python`
+- `llama-cpp-python`
 
 **Orchestrator Service**:
 
--  `mcp`, `instructor`
+- `mcp`, `instructor`
 
 **TTS Service**:
 
--  `piper-tts`, `prometheus_client`
+- `piper-tts`, `prometheus_client`
 
 ## 🎯 Development Workflows
 
@@ -200,9 +204,9 @@ make stop
 
 The `discord-voice-lab.code-workspace` file provides:
 
--  **Proper Python path configuration** for the monorepo structure
--  **Shared settings** across all services
--  **Import resolution** for `services.common` library
+- **Proper Python path configuration** for the monorepo structure
+- **Shared settings** across all services
+- **Import resolution** for `services.common` library
 
 ### Root Settings
 
@@ -252,44 +256,44 @@ make logs
 
 If services aren't starting:
 
--  **Check Docker**: Ensure Docker is running
--  **Check logs**: `make logs` to see service logs
--  **Restart services**: `make stop && make run`
+- **Check Docker**: Ensure Docker is running
+- **Check logs**: `make logs` to see service logs
+- **Restart services**: `make stop && make run`
 
 ### Import Errors
 
 If you get `ModuleNotFoundError: No module named 'services'`:
 
--  **Check Python path**: Ensure the project root is in PYTHONPATH
--  **Check workspace**: Ensure you're in the correct workspace folder
--  **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
+- **Check Python path**: Ensure the project root is in PYTHONPATH
+- **Check workspace**: Ensure you're in the correct workspace folder
+- **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
 
 ### Cursor/VS Code Issues
 
 If IntelliSense isn't working:
 
--  **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
--  **Check workspace**: Ensure you're in the correct workspace folder
--  **Check Python path**: Verify Python path configuration
+- **Reload window**: `Ctrl+Shift+P` → "Developer: Reload Window"
+- **Check workspace**: Ensure you're in the correct workspace folder
+- **Check Python path**: Verify Python path configuration
 
 ## 📋 Benefits
 
 ### ✅ Advantages
 
--  **Consistent environment**: All services run in Docker containers
--  **Service isolation**: Each service runs in its own container
--  **Shared utilities**: `services.common` available everywhere
--  **Easy debugging**: Service-specific containers prevent conflicts
--  **Scalable**: Easy to add new services
--  **Production parity**: Development environment matches production
+- **Consistent environment**: All services run in Docker containers
+- **Service isolation**: Each service runs in its own container
+- **Shared utilities**: `services.common` available everywhere
+- **Easy debugging**: Service-specific containers prevent conflicts
+- **Scalable**: Easy to add new services
+- **Production parity**: Development environment matches production
 
 ### 🎯 Use Cases
 
--  **Service development**: Work on one service without affecting others
--  **Dependency management**: Each service manages its own dependencies
--  **Testing**: Test services independently
--  **Debugging**: Isolate issues to specific services
--  **Team development**: Different developers can work on different services
+- **Service development**: Work on one service without affecting others
+- **Dependency management**: Each service manages its own dependencies
+- **Testing**: Test services independently
+- **Debugging**: Isolate issues to specific services
+- **Team development**: Different developers can work on different services
 
 ## 🔄 Maintenance
 

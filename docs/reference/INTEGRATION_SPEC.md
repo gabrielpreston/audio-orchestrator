@@ -12,21 +12,21 @@ The Composable Surface Architecture provides a flexible, extensible framework fo
 
 ### 1. **Composability**
 
--  Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
--  Each component can be implemented independently and swapped without affecting others
--  Components communicate through well-defined interfaces
+- Surface adapters are composed of four independent components: AudioSource, AudioSink, ControlChannel, and SurfaceLifecycle
+- Each component can be implemented independently and swapped without affecting others
+- Components communicate through well-defined interfaces
 
 ### 2. **Extensibility**
 
--  New surface types can be added by implementing the four core interfaces
--  Existing surfaces can be enhanced without breaking changes
--  Plugin architecture supports third-party surface implementations
+- New surface types can be added by implementing the four core interfaces
+- Existing surfaces can be enhanced without breaking changes
+- Plugin architecture supports third-party surface implementations
 
 ### 3. **Consistency**
 
--  All surfaces provide consistent behavior through standardized interfaces
--  Common patterns for error handling, configuration, and lifecycle management
--  Unified event system across all surface types
+- All surfaces provide consistent behavior through standardized interfaces
+- Common patterns for error handling, configuration, and lifecycle management
+- Unified event system across all surface types
 
 ## Core Interfaces
 
@@ -47,10 +47,10 @@ class AudioSource(ABC):
 
 **Responsibilities:**
 
--  Capture audio from the surface
--  Provide audio frames in standardized PCM format
--  Handle audio quality and format conversion
--  Report audio capture metrics
+- Capture audio from the surface
+- Provide audio frames in standardized PCM format
+- Handle audio quality and format conversion
+- Report audio capture metrics
 
 ### AudioSink Interface
 
@@ -69,10 +69,10 @@ class AudioSink(ABC):
 
 **Responsibilities:**
 
--  Play audio to the surface
--  Handle audio format conversion
--  Manage audio playback timing and synchronization
--  Report playback metrics
+- Play audio to the surface
+- Handle audio format conversion
+- Manage audio playback timing and synchronization
+- Report playback metrics
 
 ### ControlChannel Interface
 
@@ -95,10 +95,10 @@ class ControlChannel(ABC):
 
 **Responsibilities:**
 
--  Handle surface-specific control events
--  Manage user interactions (wake words, button presses, etc.)
--  Route events between surface and voice pipeline
--  Provide surface state information
+- Handle surface-specific control events
+- Manage user interactions (wake words, button presses, etc.)
+- Route events between surface and voice pipeline
+- Provide surface state information
 
 ### SurfaceLifecycle Interface
 
@@ -125,10 +125,10 @@ class SurfaceLifecycle(ABC):
 
 **Responsibilities:**
 
--  Manage surface connection lifecycle
--  Handle authentication and permissions
--  Monitor connection health
--  Provide connection metrics
+- Manage surface connection lifecycle
+- Handle authentication and permissions
+- Monitor connection health
+- Provide connection metrics
 
 ## Data Types
 
@@ -162,17 +162,17 @@ class AudioFormat:
 
 The architecture uses a comprehensive event system for communication:
 
--  **WakeDetectedEvent**: Wake word detection
--  **VADStartSpeechEvent**: Voice activity detection start
--  **VADEndSpeechEvent**: Voice activity detection end
--  **BargeInRequestEvent**: User interruption request
--  **SessionStateEvent**: Session state changes
--  **RouteChangeEvent**: Audio routing changes
--  **PlaybackControlEvent**: Playback control commands
--  **EndpointingEvent**: Speech endpointing
--  **TranscriptPartialEvent**: Partial transcript updates
--  **TranscriptFinalEvent**: Final transcript results
--  **ErrorEvent**: Error reporting
+- **WakeDetectedEvent**: Wake word detection
+- **VADStartSpeechEvent**: Voice activity detection start
+- **VADEndSpeechEvent**: Voice activity detection end
+- **BargeInRequestEvent**: User interruption request
+- **SessionStateEvent**: Session state changes
+- **RouteChangeEvent**: Audio routing changes
+- **PlaybackControlEvent**: Playback control commands
+- **EndpointingEvent**: Speech endpointing
+- **TranscriptPartialEvent**: Partial transcript updates
+- **TranscriptFinalEvent**: Final transcript results
+- **ErrorEvent**: Error reporting
 
 ## Integration Patterns
 
@@ -259,11 +259,11 @@ surfaces:
 
 ### Standardized Error Types
 
--  **ConnectionError**: Surface connection failures
--  **AuthenticationError**: Authentication/authorization failures
--  **AudioError**: Audio processing errors
--  **ControlError**: Control channel errors
--  **LifecycleError**: Lifecycle management errors
+- **ConnectionError**: Surface connection failures
+- **AuthenticationError**: Authentication/authorization failures
+- **AudioError**: Audio processing errors
+- **ControlError**: Control channel errors
+- **LifecycleError**: Lifecycle management errors
 
 ### Error Recovery Patterns
 
@@ -279,17 +279,17 @@ except ConnectionError as e:
 
 ### Latency Targets
 
--  **Audio Capture**: < 50ms end-to-end latency
--  **Audio Playback**: < 50ms end-to-end latency
--  **Event Processing**: < 10ms processing time
--  **Connection Establishment**: < 1000ms connection time
--  **Health Checks**: < 100ms response time
+- **Audio Capture**: < 50ms end-to-end latency
+- **Audio Playback**: < 50ms end-to-end latency
+- **Event Processing**: < 10ms processing time
+- **Connection Establishment**: < 1000ms connection time
+- **Health Checks**: < 100ms response time
 
 ### Throughput Requirements
 
--  **Audio Processing**: Support for 16kHz, 1-channel audio
--  **Event Handling**: 100+ events per second
--  **Concurrent Sessions**: Multiple simultaneous surface connections
+- **Audio Processing**: Support for 16kHz, 1-channel audio
+- **Event Handling**: 100+ events per second
+- **Concurrent Sessions**: Multiple simultaneous surface connections
 
 ## Testing Requirements
 
@@ -297,115 +297,115 @@ except ConnectionError as e:
 
 All surface adapters must pass contract tests that validate:
 
--  Interface compliance
--  Performance requirements
--  Error handling behavior
--  Lifecycle management
+- Interface compliance
+- Performance requirements
+- Error handling behavior
+- Lifecycle management
 
 ### Parity Testing
 
 Cross-surface parity tests ensure:
 
--  Consistent performance across surface types
--  Uniform behavior patterns
--  Comparable latency characteristics
+- Consistent performance across surface types
+- Uniform behavior patterns
+- Comparable latency characteristics
 
 ### Chaos Testing
 
 Reliability testing includes:
 
--  Network fault injection
--  Memory pressure testing
--  Rapid connect/disconnect cycles
--  Concurrent operation stress tests
+- Network fault injection
+- Memory pressure testing
+- Rapid connect/disconnect cycles
+- Concurrent operation stress tests
 
 ## Migration Guide
 
 ### From Monolithic to Composable
 
--  **Identify Surface Components**: Break down existing surface code into the four core interfaces
--  **Implement Adapters**: Create adapter classes for each interface
--  **Update Integration**: Replace direct surface calls with adapter calls
--  **Test Migration**: Run contract and parity tests to validate migration
+- **Identify Surface Components**: Break down existing surface code into the four core interfaces
+- **Implement Adapters**: Create adapter classes for each interface
+- **Update Integration**: Replace direct surface calls with adapter calls
+- **Test Migration**: Run contract and parity tests to validate migration
 
 ### Backward Compatibility
 
--  Existing surface implementations continue to work
--  Gradual migration path with feature flags
--  Compatibility layer for legacy interfaces
+- Existing surface implementations continue to work
+- Gradual migration path with feature flags
+- Compatibility layer for legacy interfaces
 
 ## Security Considerations
 
 ### Authentication
 
--  Surface-specific authentication mechanisms
--  Token-based authentication for API surfaces
--  Certificate-based authentication for secure connections
+- Surface-specific authentication mechanisms
+- Token-based authentication for API surfaces
+- Certificate-based authentication for secure connections
 
 ### Data Privacy
 
--  Audio data encryption in transit
--  No persistent audio storage
--  Secure event transmission
+- Audio data encryption in transit
+- No persistent audio storage
+- Secure event transmission
 
 ### Access Control
 
--  Surface-level permissions
--  User-based access control
--  Session-based authorization
+- Surface-level permissions
+- User-based access control
+- Session-based authorization
 
 ## Monitoring and Observability
 
 ### Health Monitoring
 
--  Connection status monitoring
--  Performance metrics collection
--  Error rate tracking
--  Latency monitoring
+- Connection status monitoring
+- Performance metrics collection
+- Error rate tracking
+- Latency monitoring
 
 ### Debugging Support
 
--  Detailed logging with correlation IDs
--  Event tracing across components
--  Performance profiling
--  Error diagnostics
+- Detailed logging with correlation IDs
+- Event tracing across components
+- Performance profiling
+- Error diagnostics
 
 ## Future Extensions
 
 ### Planned Surface Types
 
--  **WebRTC/LiveKit**: Real-time communication surfaces
--  **Mobile SDK**: Native mobile app integration
--  **IoT Devices**: Smart home device integration
--  **Telephony**: Phone system integration
+- **WebRTC/LiveKit**: Real-time communication surfaces
+- **Mobile SDK**: Native mobile app integration
+- **IoT Devices**: Smart home device integration
+- **Telephony**: Phone system integration
 
 ### Advanced Features
 
--  **Multi-Surface Sessions**: Simultaneous multiple surface connections
--  **Surface Switching**: Dynamic surface switching during sessions
--  **Load Balancing**: Distribution across multiple surface instances
--  **Failover**: Automatic failover between surface instances
+- **Multi-Surface Sessions**: Simultaneous multiple surface connections
+- **Surface Switching**: Dynamic surface switching during sessions
+- **Load Balancing**: Distribution across multiple surface instances
+- **Failover**: Automatic failover between surface instances
 
 ## Implementation Checklist
 
 ### For New Surface Implementations
 
--  [ ] Implement all four core interfaces
--  [ ] Add comprehensive error handling
--  [ ] Include performance optimizations
--  [ ] Write contract tests
--  [ ] Add parity test coverage
--  [ ] Document surface-specific configuration
--  [ ] Implement security measures
--  [ ] Add monitoring and logging
+- [ ] Implement all four core interfaces
+- [ ] Add comprehensive error handling
+- [ ] Include performance optimizations
+- [ ] Write contract tests
+- [ ] Add parity test coverage
+- [ ] Document surface-specific configuration
+- [ ] Implement security measures
+- [ ] Add monitoring and logging
 
 ### For Integration
 
--  [ ] Register surface in surface registry
--  [ ] Configure environment variables
--  [ ] Set up event routing
--  [ ] Implement lifecycle management
--  [ ] Add health monitoring
--  [ ] Test end-to-end functionality
--  [ ] Validate performance requirements
--  [ ] Document integration steps
+- [ ] Register surface in surface registry
+- [ ] Configure environment variables
+- [ ] Set up event routing
+- [ ] Implement lifecycle management
+- [ ] Add health monitoring
+- [ ] Test end-to-end functionality
+- [ ] Validate performance requirements
+- [ ] Document integration steps

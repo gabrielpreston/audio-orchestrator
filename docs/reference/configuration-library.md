@@ -18,13 +18,13 @@ The `services.common.config` module provides a comprehensive, type-safe, and val
 
 The configuration library addresses the inconsistencies and limitations found in the current configuration management across services:
 
--  **Type Safety**: Full type hints and validation for all configuration values
--  **Consistency**: Unified patterns across all services
--  **Validation**: Comprehensive input validation with clear error messages
--  **Flexibility**: Support for different configuration sources (env vars, files, defaults)
--  **Extensibility**: Easy to add new configuration sections
--  **Documentation**: Self-documenting configuration with descriptions
--  **Environment Awareness**: Support for different environments (dev, prod, test, docker)
+- **Type Safety**: Full type hints and validation for all configuration values
+- **Consistency**: Unified patterns across all services
+- **Validation**: Comprehensive input validation with clear error messages
+- **Flexibility**: Support for different configuration sources (env vars, files, defaults)
+- **Extensibility**: Easy to add new configuration sections
+- **Documentation**: Self-documenting configuration with descriptions
+- **Environment Awareness**: Support for different environments (dev, prod, test, docker)
 
 ## Core Components
 
@@ -259,8 +259,8 @@ The library automatically maps configuration fields to environment variables:
 
 Field names are automatically converted to environment variables:
 
--  `field_name` → `FIELD_NAME`
--  `myField` → `MY_FIELD`
+- `field_name` → `FIELD_NAME`
+- `myField` → `MY_FIELD`
 
 ### Custom Mapping
 
@@ -477,9 +477,9 @@ python -m pytest test_config.py -v
 
 The configuration library is designed to be extensible. Future enhancements could include:
 
--  **Configuration hot-reloading**: Reload configuration without restarting services
--  **Configuration validation schemas**: JSON Schema or similar for external validation
--  **Configuration encryption**: Encrypt sensitive configuration values
--  **Configuration versioning**: Handle configuration schema changes over time
--  **Configuration inheritance**: Inherit configuration from parent services
--  **Configuration templates**: Pre-built configuration templates for common scenarios
+- **Configuration hot-reloading**: Reload configuration without restarting services
+- **Configuration validation schemas**: JSON Schema or similar for external validation
+- **Configuration encryption**: Encrypt sensitive configuration values
+- **Configuration versioning**: Handle configuration schema changes over time
+- **Configuration inheritance**: Inherit configuration from parent services
+- **Configuration templates**: Pre-built configuration templates for common scenarios
