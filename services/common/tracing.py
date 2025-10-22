@@ -4,6 +4,7 @@ This module provides standardized tracing setup and utilities across all service
 in the audio orchestrator platform.
 """
 
+import inspect
 import os
 import uuid
 from typing import Any
@@ -36,7 +37,8 @@ class TracingManager:
         self.service_name = service_name
         self.service_version = service_version
         self._tracer: trace.Tracer | None = None
-        self._instrumented = False
+        self._fastapi_instrumented = False
+        self._http_clients_instrumented = False
 
     def setup_tracing(self) -> None:
         """Set up OpenTelemetry tracing for the service."""
@@ -91,24 +93,47 @@ class TracingManager:
         # Jaeger exporter (fallback)
         jaeger_endpoint = os.getenv("JAEGER_ENDPOINT")
         if jaeger_endpoint:
-            jaeger_exporter = JaegerExporter(
-                agent_host_name=jaeger_endpoint.split(":")[0],
-                agent_port=int(jaeger_endpoint.split(":")[1])
-                if ":" in jaeger_endpoint
-                else 14268,
-            )
-            jaeger_processor = BatchSpanProcessor(jaeger_exporter)
-            tracer_provider.add_span_processor(jaeger_processor)
-            logger.info("tracing.jaeger_exporter_configured", endpoint=jaeger_endpoint)
+            try:
+                # Parse host and port safely
+                if ":" in jaeger_endpoint:
+                    host, port_str = jaeger_endpoint.split(":", 1)
+                    try:
+                        port = int(port_str)
+                    except ValueError:
+                        logger.warning(
+                            "tracing.jaeger_invalid_port",
+                            endpoint=jaeger_endpoint,
+                            port=port_str,
+                        )
+                        port = 14268
+                else:
+                    host = jaeger_endpoint
+                    port = 14268
+
+                jaeger_exporter = JaegerExporter(
+                    agent_host_name=host,
+                    agent_port=port,
+                )
+                jaeger_processor = BatchSpanProcessor(jaeger_exporter)
+                tracer_provider.add_span_processor(jaeger_processor)
+                logger.info(
+                    "tracing.jaeger_exporter_configured", endpoint=jaeger_endpoint
+                )
+            except Exception as exc:
+                logger.error(
+                    "tracing.jaeger_setup_failed",
+                    endpoint=jaeger_endpoint,
+                    error=str(exc),
+                )
 
     def instrument_fastapi(self, app: Any) -> None:
         """Instrument FastAPI application for tracing."""
-        if not self._tracer or self._instrumented:
+        if not self._tracer or self._fastapi_instrumented:
             return
 
         try:
             FastAPIInstrumentor.instrument_app(app)
-            self._instrumented = True
+            self._fastapi_instrumented = True
             logger.info("tracing.fastapi_instrumented", service=self.service_name)
         except Exception as exc:
             logger.error(
@@ -119,13 +144,13 @@ class TracingManager:
 
     def instrument_http_clients(self) -> None:
         """Instrument HTTP clients for tracing."""
-        if self._instrumented:
+        if self._http_clients_instrumented:
             return
 
         try:
             HTTPXClientInstrumentor().instrument()
             RequestsInstrumentor().instrument()
-            self._instrumented = True
+            self._http_clients_instrumented = True
             logger.info("tracing.http_clients_instrumented", service=self.service_name)
         except Exception as exc:
             logger.error(
@@ -186,8 +211,26 @@ def trace_audio_processing(operation_name: str) -> Any:
 
                 try:
                     result = func(*args, **kwargs)
-                    span.set_attribute("status", "success")
-                    return result
+
+                    # Handle async functions
+                    if inspect.iscoroutine(result):
+
+                        async def async_wrapper():
+                            try:
+                                result_value = await result
+                                span.set_attribute("status", "success")
+                                return result_value
+                            except Exception as exc:
+                                span.set_attribute("status", "error")
+                                span.set_attribute("error.message", str(exc))
+                                span.set_attribute("error.type", type(exc).__name__)
+                                raise
+
+                        return async_wrapper()
+                    else:
+                        span.set_attribute("status", "success")
+                        return result
+
                 except Exception as exc:
                     span.set_attribute("status", "error")
                     span.set_attribute("error.message", str(exc))
@@ -213,8 +256,26 @@ def trace_service_call(service_name: str, operation: str) -> Any:
 
                 try:
                     result = func(*args, **kwargs)
-                    span.set_attribute("status", "success")
-                    return result
+
+                    # Handle async functions
+                    if inspect.iscoroutine(result):
+
+                        async def async_wrapper():
+                            try:
+                                result_value = await result
+                                span.set_attribute("status", "success")
+                                return result_value
+                            except Exception as exc:
+                                span.set_attribute("status", "error")
+                                span.set_attribute("error.message", str(exc))
+                                span.set_attribute("error.type", type(exc).__name__)
+                                raise
+
+                        return async_wrapper()
+                    else:
+                        span.set_attribute("status", "success")
+                        return result
+
                 except Exception as exc:
                     span.set_attribute("status", "error")
                     span.set_attribute("error.message", str(exc))
