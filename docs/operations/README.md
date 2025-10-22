@@ -15,18 +15,18 @@ observability practices, and security considerations.
 
 ## Runbooks
 
-- [Discord voice runbook](runbooks/discord-voice.md)
+-  [Discord voice runbook](runbooks/discord-voice.md)
 
 ## Supporting Guides
 
-- [Observability](observability.md)
-- [Security](security.md)
+-  [Observability](observability.md)
+-  [Security](security.md)
 
 ## Tooling
 
-- `make logs` — Stream structured logs for one or more services.
-- `make docker-restart` — Restart the Compose stack while preserving volumes.
-- `make docker-clean` — Remove unused Docker resources (stopped containers, dangling images, build cache).
-- `make docker-clean-all` — Aggressive cleanup: stop compose and remove all images/volumes/networks.
+-  `make logs` — Stream structured logs for one or more services.
+-  `make docker-restart` — Restart the Compose stack while preserving volumes.
+-  `make docker-clean` — Remove unused Docker resources (stopped containers, dangling images, build cache).
+-  `make docker-clean-all` — Aggressive cleanup: stop compose and remove all images/volumes/networks.
 
 Update this index when introducing new operational guides (e.g., incident response, deployment playbooks).

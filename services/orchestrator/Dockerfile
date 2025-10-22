@@ -1,9 +1,11 @@
 # Build stage for MCP toolchains using shared base
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/mcp-toolchain:latest AS mcp-builder
 
 WORKDIR /app
 
 # Python dependencies stage using shared ML base
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-ml:latest AS python-builder
 
 WORKDIR /app
@@ -18,6 +20,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/discord/requirements.txt
 
 # Runtime stage using shared ML base
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app

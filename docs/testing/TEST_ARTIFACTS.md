@@ -116,9 +116,9 @@ def test_tts_baseline_comparison(tts_baseline_samples):
 
 ### Automatic Cleanup
 
-- **Session-scoped fixtures**: Clean up after all tests complete
-- **Function-scoped fixtures**: Clean up after each test
-- **Temporary directories**: Auto-deleted by pytest
+-  **Session-scoped fixtures**: Clean up after all tests complete
+-  **Function-scoped fixtures**: Clean up after each test
+-  **Temporary directories**: Auto-deleted by pytest
 
 ### Manual Cleanup
 
@@ -135,7 +135,7 @@ rm -rf test_artifacts/integration/
 
 ```yaml
 # GitHub Actions example
-- name: Clean test artifacts
+-  name: Clean test artifacts
   run: |
     rm -rf test_artifacts/
     rm -rf .pytest_cache/
@@ -145,20 +145,20 @@ rm -rf test_artifacts/integration/
 
 ### Common Issues
 
-1. **Artifacts not cleaning up**
-   - Check if processes are still using files
-   - Verify fixture scope (session vs function)
-   - Check for permission issues
+-  **Artifacts not cleaning up**
+  -  Check if processes are still using files
+  -  Verify fixture scope (session vs function)
+  -  Check for permission issues
 
-2. **Artifacts directory not found**
-   - Verify `TEST_ARTIFACTS_DIR` environment variable
-   - Check if directory is being created
-   - Ensure proper permissions
+-  **Artifacts directory not found**
+  -  Verify `TEST_ARTIFACTS_DIR` environment variable
+  -  Check if directory is being created
+  -  Ensure proper permissions
 
-3. **Large artifact files**
-   - Check for memory leaks in test generation
-   - Verify cleanup is working properly
-   - Consider reducing test data size
+-  **Large artifact files**
+  -  Check for memory leaks in test generation
+  -  Verify cleanup is working properly
+  -  Consider reducing test data size
 
 ### Debug Commands
 
@@ -177,39 +177,39 @@ lsof +D test_artifacts/
 
 ### File Naming
 
-- Use descriptive names: `test_audio_quality.wav`
-- Include test context: `integration_tts_synthesis.wav`
-- Use timestamps for unique files: `debug_20240115_103000.wav`
+-  Use descriptive names: `test_audio_quality.wav`
+-  Include test context: `integration_tts_synthesis.wav`
+-  Use timestamps for unique files: `debug_20240115_103000.wav`
 
 ### File Organization
 
-- Group by test type: `tts/`, `integration/`, `debug/`
-- Use subdirectories for complex tests
-- Keep related files together
+-  Group by test type: `tts/`, `integration/`, `debug/`
+-  Use subdirectories for complex tests
+-  Keep related files together
 
 ### Performance
 
-- Clean up large files immediately after use
-- Use temporary files for intermediate processing
-- Avoid storing large files in version control
+-  Clean up large files immediately after use
+-  Use temporary files for intermediate processing
+-  Avoid storing large files in version control
 
 ### Security
 
-- Don't store sensitive data in artifacts
-- Use appropriate file permissions
-- Clean up artifacts in CI/CD pipelines
+-  Don't store sensitive data in artifacts
+-  Use appropriate file permissions
+-  Clean up artifacts in CI/CD pipelines
 
 ## Integration with CI/CD
 
 ### GitHub Actions
 
 ```yaml
-- name: Run tests
+-  name: Run tests
   run: make test
   env:
     TEST_ARTIFACTS_DIR: ${{ runner.temp }}/test_artifacts
 
-- name: Upload test artifacts
+-  name: Upload test artifacts
   if: always()
   uses: actions/upload-artifact@v3
   with:
@@ -251,6 +251,6 @@ ls -la test_artifacts/  # Should be empty or not exist
 
 ## Related Documentation
 
-- [TTS Testing Guide](TTS_TESTING.md)
-- [Main Testing Documentation](TESTING.md)
-- [Quality Thresholds](QUALITY_THRESHOLDS.md)
+-  [TTS Testing Guide](TTS_TESTING.md)
+-  [Main Testing Documentation](TESTING.md)
+-  [Quality Thresholds](QUALITY_THRESHOLDS.md)

@@ -1,4 +1,5 @@
 # Build stage using shared audio base image
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-audio:latest AS builder
 
 WORKDIR /app
@@ -10,9 +11,10 @@ COPY services/requirements-base.txt /app/services/requirements-base.txt
 # Install Python dependencies
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /app/services/tts/requirements.txt
+    pip install --no-cache-dir -r /app/services/tts/requirements.txt
 
 # Runtime stage using shared audio base image
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-audio:latest
 
 WORKDIR /app

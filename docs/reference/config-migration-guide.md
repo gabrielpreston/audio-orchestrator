@@ -16,21 +16,21 @@ This guide documents the migration of all services to the new common configurati
 
 ✅ **ALL SERVICES MIGRATED** - All services now use the new configuration library:
 
-- **Discord Service**: ✅ Migrated
-- **STT Service**: ✅ Migrated  
-- **LLM Service**: ✅ Migrated
-- **Orchestrator Service**: ✅ Migrated
-- **TTS Service**: ✅ Migrated
+-  **Discord Service**: ✅ Migrated
+-  **STT Service**: ✅ Migrated  
+-  **LLM Service**: ✅ Migrated
+-  **Orchestrator Service**: ✅ Migrated
+-  **TTS Service**: ✅ Migrated
 
 ## Overview
 
 The new configuration library provides:
 
-- **Type safety** with full validation
-- **Consistent patterns** across all services
-- **Automatic environment variable loading**
-- **Comprehensive error handling**
-- **Self-documenting configuration**
+-  **Type safety** with full validation
+-  **Consistent patterns** across all services
+-  **Automatic environment variable loading**
+-  **Comprehensive error handling**
+-  **Self-documenting configuration**
 
 ## Discord Service Migration
 
@@ -62,11 +62,11 @@ def load_config() -> BotConfig:
 
 **Benefits achieved**:
 
-- Type-safe configuration with full validation
-- Consistent patterns with other services
-- Automatic environment variable loading
-- Comprehensive error handling
-- Self-documenting configuration
+-  Type-safe configuration with full validation
+-  Consistent patterns with other services
+-  Automatic environment variable loading
+-  Comprehensive error handling
+-  Self-documenting configuration
 
 ### Usage Changes
 
@@ -380,23 +380,23 @@ RequiredFieldError: Required field 'token' is missing
 
 ## Migration Steps
 
-1. **Install the new configuration library** (already done)
-2. **Update service imports** to use the new configuration classes
-3. **Replace manual environment variable parsing** with the new configuration loader
-4. **Update field access** to use the new configuration structure
-5. **Add validation calls** where appropriate
-6. **Test the migration** with existing environment variables
-7. **Update documentation** to reflect the new configuration approach
+-  **Install the new configuration library** (already done)
+-  **Update service imports** to use the new configuration classes
+-  **Replace manual environment variable parsing** with the new configuration loader
+-  **Update field access** to use the new configuration structure
+-  **Add validation calls** where appropriate
+-  **Test the migration** with existing environment variables
+-  **Update documentation** to reflect the new configuration approach
 
 ## Testing the Migration
 
 To test the migration:
 
-1. **Set up environment variables** as they currently are
-2. **Load configuration** using the new library
-3. **Validate configuration** to ensure all fields are correct
-4. **Compare values** with the old configuration approach
-5. **Test error handling** with invalid values
+-  **Set up environment variables** as they currently are
+-  **Load configuration** using the new library
+-  **Validate configuration** to ensure all fields are correct
+-  **Compare values** with the old configuration approach
+-  **Test error handling** with invalid values
 
 ```python
 # Test script
@@ -425,10 +425,10 @@ print(f"Voice Channel ID: {config.discord.voice_channel_id}")
 
 ## Benefits of Migration
 
-1. **Reduced Code**: Eliminate 100+ lines of manual parsing per service
-2. **Type Safety**: Catch configuration errors at startup
-3. **Consistency**: Unified configuration patterns across all services
-4. **Maintainability**: Easy to add new configuration fields
-5. **Documentation**: Self-documenting configuration with descriptions
-6. **Validation**: Comprehensive validation with clear error messages
-7. **Testing**: Easy to test configuration loading and validation
+-  **Reduced Code**: Eliminate 100+ lines of manual parsing per service
+-  **Type Safety**: Catch configuration errors at startup
+-  **Consistency**: Unified configuration patterns across all services
+-  **Maintainability**: Easy to add new configuration fields
+-  **Documentation**: Self-documenting configuration with descriptions
+-  **Validation**: Comprehensive validation with clear error messages
+-  **Testing**: Easy to test configuration loading and validation

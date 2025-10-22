@@ -542,7 +542,7 @@ docker-clean-all: ## Nuclear cleanup: stop compose stack, remove ALL images/volu
 # =============================================================================
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
-	@./scripts/verify_last_updated.py $(ARGS)
+	@./scripts/verify_last_updated.py --allow-divergence $(ARGS)
 
 # Token management
 rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files

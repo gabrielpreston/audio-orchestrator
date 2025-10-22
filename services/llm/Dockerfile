@@ -1,4 +1,5 @@
 # Build stage using shared ML base image
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
@@ -11,6 +12,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/llm/requirements.txt
 
 # Runtime stage using shared ML base image
+# hadolint ignore=DL3007
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app

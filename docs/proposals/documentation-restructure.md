@@ -19,17 +19,17 @@ navigational spine while preserving existing content.
 
 ## Guiding Principles
 
-1. **Role-targeted navigation** — Segment content for newcomers, operators, voice-orchestrator
+-  **Role-targeted navigation** — Segment content for newcomers, operators, voice-orchestrator
    developers, and MCP tool integrators with dedicated entry points.
-2. **Lifecycle alignment** — Arrange documentation around evaluate → onboard → build → operate →
+-  **Lifecycle alignment** — Arrange documentation around evaluate → onboard → build → operate →
    extend workflows so every phase has a canonical starting location.
-3. **Single source of truth** — Consolidate duplicated instructions (environment setup, logging,
+-  **Single source of truth** — Consolidate duplicated instructions (environment setup, logging,
    Makefile usage) and redirect supplemental files to the authoritative guide.
-4. **Change traceability** — Track conceptual docs (roadmaps, proposals, postmortems) under
+-  **Change traceability** — Track conceptual docs (roadmaps, proposals, postmortems) under
    time-ordered directories and reference them from a living index.
-5. **Automation-first governance** — Add lightweight CI checks (lint, link validation) so
+-  **Automation-first governance** — Add lightweight CI checks (lint, link validation) so
    structural drift is caught automatically instead of during ad-hoc reviews.
-6. **Low-friction contribution** — Provide templates and consistent metadata so new Markdown
+-  **Low-friction contribution** — Provide templates and consistent metadata so new Markdown
    assets can be landed without negotiating placement or format per PR.
 
 ## Proposed Directory Layout
@@ -49,58 +49,58 @@ navigational spine while preserving existing content.
 
 ## Content Migration Plan
 
-1. **Create `docs/README.md`** summarizing the voice lab purpose, documentation taxonomy, change
+-  **Create `docs/README.md`** summarizing the voice lab purpose, documentation taxonomy, change
    log, and contribution conventions (including proposal location rules from `AGENTS.md`).
-2. **Refactor `README.md`** into three sections: overview, "Run the Stack" (linking into
+-  **Refactor `README.md`** into three sections: overview, "Run the Stack" (linking into
    `docs/getting-started/runtime.md`), and "Documentation Index" referencing the new hub.
-3. **Establish `docs/getting-started/`** with:
-   - `environment.md` covering `.env` management currently described in `README.md`.
-   - `local-development.md` aggregating lint/test instructions and Makefile workflows.
-   - `troubleshooting.md` cataloging common Docker, audio, and permission issues.
-4. **Construct `docs/architecture/`** with:
-   - `system-overview.md` diagramming service relationships and audio/transcript flows.
-   - `service-deep-dives/discord.md`, `stt.md`, `llm.md`, `tts.md` capturing pipeline behavior,
+-  **Establish `docs/getting-started/`** with:
+  -  `environment.md` covering `.env` management currently described in `README.md`.
+  -  `local-development.md` aggregating lint/test instructions and Makefile workflows.
+  -  `troubleshooting.md` cataloging common Docker, audio, and permission issues.
+-  **Construct `docs/architecture/`** with:
+  -  `system-overview.md` diagramming service relationships and audio/transcript flows.
+  -  `service-deep-dives/discord.md`, `stt.md`, `llm.md`, `tts.md` capturing pipeline behavior,
      wake-word handling, STT contracts, orchestrator routes, and TTS streaming behavior. Relocate
      technical prose from `services/tts/README.md` while leaving an abridged summary behind.
-   - `integration/mcp.md` rehoming `docs/MCP_MANIFEST.md` as a specification appendix.
-5. **Launch `docs/operations/`** to cover:
-   - `runbooks/discord-voice.md` for day-to-day bot operations and alert response.
-   - `observability.md` summarizing structured logging, Prometheus endpoints, and `make logs` usage.
-   - `security.md` centralizing authentication, token handling, and rate-limiting guidance.
-6. **Move planning documents** by:
-   - Relocating `docs/ROADMAP.md` to `docs/roadmaps/2024-integrated-voice-devops.md` with front
+  -  `integration/mcp.md` rehoming `docs/MCP_MANIFEST.md` as a specification appendix.
+-  **Launch `docs/operations/`** to cover:
+  -  `runbooks/discord-voice.md` for day-to-day bot operations and alert response.
+  -  `observability.md` summarizing structured logging, Prometheus endpoints, and `make logs` usage.
+  -  `security.md` centralizing authentication, token handling, and rate-limiting guidance.
+-  **Move planning documents** by:
+  -  Relocating `docs/ROADMAP.md` to `docs/roadmaps/2024-integrated-voice-devops.md` with front
      matter specifying authorship, date, and status.
-   - Adding `docs/roadmaps/README.md` listing active and archived roadmaps with revision history.
-7. **Rehome implementation reviews** by converting `docs/implemented/tts_service_evaluation.md` into
+  -  Adding `docs/roadmaps/README.md` listing active and archived roadmaps with revision history.
+-  **Rehome implementation reviews** by converting `docs/implemented/tts_service_evaluation.md` into
    `docs/reports/tts-service-evaluation.md` and creating an index page summarizing lessons learned.
-8. **Standardize proposals** by:
-   - Adding YAML front matter (title, author, status, last-updated) to each file in
+-  **Standardize proposals** by:
+  -  Adding YAML front matter (title, author, status, last-updated) to each file in
      `docs/proposals/` and inserting a table that links them from a new `docs/proposals/README.md`.
-   - Adding guidelines for proposal lifecycle (draft → review → accepted/rejected) within the index.
-9. **Centralize configuration references** by compiling environment variables from `.env.sample` and
+  -  Adding guidelines for proposal lifecycle (draft → review → accepted/rejected) within the index.
+-  **Centralize configuration references** by compiling environment variables from `.env.sample` and
    service READMEs into `docs/reference/configuration-catalog.md` with per-service tables and
    cross-links back to operations runbooks.
-10. **Embed navigation breadcrumbs** at the top of each Markdown file (e.g., `Docs ▸ Architecture ▸
+-  **Embed navigation breadcrumbs** at the top of each Markdown file (e.g., `Docs ▸ Architecture ▸
     Orchestrator`) to reinforce the hierarchy and improve GitHub readability.
 
 ## Maintenance Workflows
 
-- Add a documentation checklist to `CONTRIBUTING.md` (or create one if absent) that requires
+-  Add a documentation checklist to `CONTRIBUTING.md` (or create one if absent) that requires
   updating relevant `docs/` sections whenever new services, MCP tools, or environment variables are
   introduced.
-- During PR review, confirm links to the documentation hub are added for any new Markdown asset.
-- Schedule quarterly audits to reconcile service READMEs with their authoritative architecture and
+-  During PR review, confirm links to the documentation hub are added for any new Markdown asset.
+-  Schedule quarterly audits to reconcile service READMEs with their authoritative architecture and
   operations guides, updating cross-links or extracting divergent content.
-- Stand up CI automation that runs `markdownlint` (format), `markdown-link-check` (links), and a
+-  Stand up CI automation that runs `markdownlint` (format), `markdown-link-check` (links), and a
   lightweight table-of-contents validator on every PR touching Markdown files.
-- Publish short-form templates (front matter skeletons, migration checklist) in `docs/.templates/`
+-  Publish short-form templates (front matter skeletons, migration checklist) in `docs/.templates/`
   so authors can bootstrap new guides without copying from unrelated files.
 
 ## Risks & Mitigations
 
-- **Link rot during migration** — Use automated link check (e.g., `markdown-link-check`) in CI and
+-  **Link rot during migration** — Use automated link check (e.g., `markdown-link-check`) in CI and
   include redirects (`docs/legacy/README.md` with pointers) for heavily referenced paths.
-- **Contributor confusion** — Publish the restructuring plan in `docs/README.md` and announce the
+-  **Contributor confusion** — Publish the restructuring plan in `docs/README.md` and announce the
   taxonomy in the README plus team channels before moving files.
-- **Drift between service READMEs and canonical docs** — Keep service READMEs scoped to quickstart
+-  **Drift between service READMEs and canonical docs** — Keep service READMEs scoped to quickstart
   steps and surface deeper detail exclusively from architecture/operations guides.

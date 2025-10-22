@@ -1,22 +1,24 @@
-version: '3.8'
+version: "3.8"
 services:
   discord:
     build:
-      context: '.'
-      dockerfile: 'services/discord/Dockerfile'
+      context: "."
+      dockerfile: "services/discord/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/discord:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/discord:latest"
     ports:
-      - '8009:8001'
+      - "8009:8001"
     env_file:
-      - './.env.common'
-      - './.env.docker'
-      - './services/discord/.env.service'
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/discord/.env.service"
     volumes:
-      - './debug:/app/debug'
+      - "./debug:/app/debug"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8001/health/ready", "--timeout", "5"]
+      test: >
+        ["CMD", "python", "/app/scripts/health_check.py",
+         "http://localhost:8001/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -26,90 +28,96 @@ services:
         condition: service_healthy
       orchestrator:
         condition: service_healthy
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
     logging:
-      driver: 'json-file'
+      driver: "json-file"
       options:
-        max-size: '10m'
-        max-file: '5'
+        max-size: "10m"
+        max-file: "5"
 
   stt:
     build:
-      context: '.'
-      dockerfile: 'services/stt/Dockerfile'
+      context: "."
+      dockerfile: "services/stt/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/stt:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/stt:latest"
     ports:
-      - '8011:9000'
+      - "8011:9000"
     env_file:
-      - './.env.common'
-      - './.env.docker'
-      - './services/stt/.env.service'
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/stt/.env.service"
     volumes:
-      - './services/models/stt:/app/models:ro'
-      - './debug:/app/debug'
+      - "./services/models/stt:/app/models:ro"
+      - "./debug:/app/debug"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:9000/health/ready", "--timeout", "5"]
+      test: >
+        ["CMD", "python", "/app/scripts/health_check.py",
+         "http://localhost:9000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
     logging:
-      driver: 'json-file'
+      driver: "json-file"
       options:
-        max-size: '10m'
-        max-file: '5'
+        max-size: "10m"
+        max-file: "5"
 
   llm:
     build:
-      context: '.'
-      dockerfile: 'services/llm/Dockerfile'
+      context: "."
+      dockerfile: "services/llm/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/llm:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/llm:latest"
     env_file:
-      - './.env.common'
-      - './.env.docker'
-      - './services/llm/.env.service'
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/llm/.env.service"
     ports:
-      - '8017:8000'
+      - "8017:8000"
     volumes:
-      - './services/models/llm:/app/models:ro'
-      - './debug:/app/debug'
+      - "./services/models/llm:/app/models:ro"
+      - "./debug:/app/debug"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "5"]
+      test: >
+        ["CMD", "python", "/app/scripts/health_check.py",
+         "http://localhost:8000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
     logging:
-      driver: 'json-file'
+      driver: "json-file"
       options:
-        max-size: '10m'
-        max-file: '5'
+        max-size: "10m"
+        max-file: "5"
 
   orchestrator:
     build:
-      context: '.'
-      dockerfile: 'services/orchestrator/Dockerfile'
+      context: "."
+      dockerfile: "services/orchestrator/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/orchestrator:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/orchestrator:latest"
     env_file:
-      - './.env.common'
-      - './.env.docker'
-      - './services/orchestrator/.env.service'
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/orchestrator/.env.service"
     ports:
-      - '8023:8000'
+      - "8023:8000"
     volumes:
-      - './mcp.json:/app/mcp.json:ro'
-      - './services/discord:/app/services/discord:ro'
-      - './debug:/app/debug'
+      - "./mcp.json:/app/mcp.json:ro"
+      - "./services/discord:/app/services/discord:ro"
+      - "./debug:/app/debug"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "5"]
+      test: >
+        ["CMD", "python", "/app/scripts/health_check.py",
+         "http://localhost:8000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -119,38 +127,40 @@ services:
         condition: service_healthy
       tts:
         condition: service_healthy
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
     logging:
-      driver: 'json-file'
+      driver: "json-file"
       options:
-        max-size: '10m'
-        max-file: '5'
+        max-size: "10m"
+        max-file: "5"
 
   tts:
     build:
-      context: '.'
-      dockerfile: 'services/tts/Dockerfile'
+      context: "."
+      dockerfile: "services/tts/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/tts:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/tts:latest"
     env_file:
-      - './.env.common'
-      - './.env.docker'
-      - './services/tts/.env.service'
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/tts/.env.service"
     ports:
-      - '8027:7000'
+      - "8027:7000"
     volumes:
-      - './services/models/tts:/app/models:ro'
-      - './debug:/app/debug'
+      - "./services/models/tts:/app/models:ro"
+      - "./debug:/app/debug"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "5"]
+      test: >
+        ["CMD", "python", "/app/scripts/health_check.py",
+         "http://localhost:7000/health/ready", "--timeout", "5"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 30s
-    restart: 'unless-stopped'
+    restart: "unless-stopped"
     logging:
-      driver: 'json-file'
+      driver: "json-file"
       options:
-        max-size: '10m'
-        max-file: '5'
+        max-size: "10m"
+        max-file: "5"

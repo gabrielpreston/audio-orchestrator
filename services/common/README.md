@@ -4,13 +4,13 @@ A comprehensive, type-safe configuration management system for audio-orchestrato
 
 ## Features
 
-- **Type Safety**: Full type hints and validation for all configuration values
-- **Consistency**: Unified patterns across all services
-- **Validation**: Comprehensive input validation with clear error messages
-- **Flexibility**: Support for different configuration sources (env vars, files, defaults)
-- **Extensibility**: Easy to add new configuration sections
-- **Documentation**: Self-documenting configuration with descriptions
-- **Environment Awareness**: Support for different environments (dev, prod, test, docker)
+-  **Type Safety**: Full type hints and validation for all configuration values
+-  **Consistency**: Unified patterns across all services
+-  **Validation**: Comprehensive input validation with clear error messages
+-  **Flexibility**: Support for different configuration sources (env vars, files, defaults)
+-  **Extensibility**: Easy to add new configuration sections
+-  **Documentation**: Self-documenting configuration with descriptions
+-  **Environment Awareness**: Support for different environments (dev, prod, test, docker)
 
 ## Quick Start
 
@@ -173,9 +173,9 @@ except RequiredFieldError as e:
 
 The library automatically maps configuration fields to environment variables:
 
-- `field_name` → `FIELD_NAME`
-- `myField` → `MY_FIELD`
-- With service prefix: `DISCORD_FIELD_NAME`
+-  `field_name` → `FIELD_NAME`
+-  `myField` → `MY_FIELD`
+-  With service prefix: `DISCORD_FIELD_NAME`
 
 ## Type Conversion
 
@@ -204,8 +204,8 @@ python -m pytest test_config.py -v
 
 ## Documentation
 
-- [Configuration Library Reference](../docs/reference/configuration-library.md)
-- [Migration Guide](../docs/reference/config-migration-guide.md)
+-  [Configuration Library Reference](../docs/reference/configuration-library.md)
+-  [Migration Guide](../docs/reference/config-migration-guide.md)
 
 ## Migration from Current Approach
 
@@ -213,10 +213,10 @@ The new configuration library replaces the current manual environment variable p
 
 ### Benefits of Migration
 
-1. **Reduced Code**: Eliminate 100+ lines of manual parsing per service
-2. **Type Safety**: Catch configuration errors at startup
-3. **Consistency**: Unified configuration patterns across all services
-4. **Maintainability**: Easy to add new configuration fields
-5. **Documentation**: Self-documenting configuration with descriptions
-6. **Validation**: Comprehensive validation with clear error messages
-7. **Testing**: Easy to test configuration loading and validation
+-  **Reduced Code**: Eliminate 100+ lines of manual parsing per service
+-  **Type Safety**: Catch configuration errors at startup
+-  **Consistency**: Unified configuration patterns across all services
+-  **Maintainability**: Easy to add new configuration fields
+-  **Documentation**: Self-documenting configuration with descriptions
+-  **Validation**: Comprehensive validation with clear error messages
+-  **Testing**: Easy to test configuration loading and validation

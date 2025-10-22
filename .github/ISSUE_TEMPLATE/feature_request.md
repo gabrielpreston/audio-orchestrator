@@ -14,16 +14,16 @@ labels: enhancement
 
 ## CI impact
 
-- [ ] New or updated Make targets required
-- [ ] Workflow changes anticipated (describe below)
-- Notes:
+-  [ ] New or updated Make targets required
+-  [ ] Workflow changes anticipated (describe below)
+-  Notes:
 
 ## Validation strategy
 
-- `make lint-local`: <!-- required? yes/no -->
-- `make test-local`: <!-- required? yes/no -->
-- `make docker-smoke`: <!-- required? yes/no -->
-- Additional checks:
+-  `make lint-local`: <!-- required? yes/no -->
+-  `make test-local`: <!-- required? yes/no -->
+-  `make docker-smoke`: <!-- required? yes/no -->
+-  Additional checks:
 
 ## Dependencies or blockers
 

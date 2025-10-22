@@ -30,6 +30,6 @@ checkmake --config .checkmake.yaml Makefile
 
 echo "Linting Markdown files..."
 # Auto-discover all Markdown files
-markdownlint --config .markdownlint.yaml README.md AGENTS.md 'docs/**/*.md'
+markdownlint --config .markdownlint.json README.md AGENTS.md 'docs/**/*.md'
 
 echo "All linting checks passed!"

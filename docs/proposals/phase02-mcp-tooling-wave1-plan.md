@@ -11,28 +11,28 @@ last-updated: 2025-10-11
 
 ## Objective
 
-- Deliver MCP tooling that unlocks Wave 1 voice-first user journeys across Monday.com sprint planning, GitHub status readouts, and AWS latency triage.
-- Ensure the orchestrator can orchestrate read/write actions safely with confirmation prompts, telemetry, and Monday.com-linked accountability trails.
+-  Deliver MCP tooling that unlocks Wave 1 voice-first user journeys across Monday.com sprint planning, GitHub status readouts, and AWS latency triage.
+-  Ensure the orchestrator can orchestrate read/write actions safely with confirmation prompts, telemetry, and Monday.com-linked accountability trails.
 
 ## Success Criteria
 
-- Discord voice sessions can trigger Monday.com MCP tools that retrieve board context, update items, and record confirmations with owner and due-date metadata.
-- GitHub MCP tools authenticate with repo-scoped tokens, return paginated PR/check-run status, and raise Monday.com follow-ups when blockers persist.
-- AWS observability MCP tools surface latency metrics with guard rails, publish Discord embeds for incidents, and mirror triage activity into Monday.com timelines.
-- Telemetry captures every MCP invocation, response time, and confirmation prompt outcome for audit and regression analysis.
+-  Discord voice sessions can trigger Monday.com MCP tools that retrieve board context, update items, and record confirmations with owner and due-date metadata.
+-  GitHub MCP tools authenticate with repo-scoped tokens, return paginated PR/check-run status, and raise Monday.com follow-ups when blockers persist.
+-  AWS observability MCP tools surface latency metrics with guard rails, publish Discord embeds for incidents, and mirror triage activity into Monday.com timelines.
+-  Telemetry captures every MCP invocation, response time, and confirmation prompt outcome for audit and regression analysis.
 
 ## Scope
 
-- Services: `services/llm` orchestrator MCP registry, Monday.com/GitHub/AWS tool implementations, Discord voice bot confirmation prompts, Monday.com ledger sync worker.
-- Integrations: Monday.com GraphQL API, GitHub REST/GraphQL APIs, AWS CloudWatch Metrics, Discord text bridge for notifications.
-- Deliverables: MCP manifests, tool implementations, configuration updates, documentation, telemetry dashboards, regression harness updates.
+-  Services: `services/llm` orchestrator MCP registry, Monday.com/GitHub/AWS tool implementations, Discord voice bot confirmation prompts, Monday.com ledger sync worker.
+-  Integrations: Monday.com GraphQL API, GitHub REST/GraphQL APIs, AWS CloudWatch Metrics, Discord text bridge for notifications.
+-  Deliverables: MCP manifests, tool implementations, configuration updates, documentation, telemetry dashboards, regression harness updates.
 
 ## Constraints & Assumptions
 
-- OAuth or token management for Monday.com, GitHub, and AWS must reuse existing secrets handling patterns (`.env.sample`, service-specific `.env`).
-- Monday.com remains the source of truth for action ownership; no alternative task system is introduced in Wave 1.
-- Orchestrator continues to run in legacy mode while Redis sandbox matures; MCP tools must support both runtimes via feature flags.
-- AWS access limited to read-only CloudWatch queries during Wave 1 to de-risk credentials and guardrails.
+-  OAuth or token management for Monday.com, GitHub, and AWS must reuse existing secrets handling patterns (`.env.sample`, service-specific `.env`).
+-  Monday.com remains the source of truth for action ownership; no alternative task system is introduced in Wave 1.
+-  Orchestrator continues to run in legacy mode while Redis sandbox matures; MCP tools must support both runtimes via feature flags.
+-  AWS access limited to read-only CloudWatch queries during Wave 1 to de-risk credentials and guardrails.
 
 ## Workstreams & Requirements
 
@@ -93,13 +93,13 @@ last-updated: 2025-10-11
 
 ## Risks & Mitigations
 
-- **Credential sprawl**: Secrets might diverge across environments. → Centralize in `.env.sample` and document rotation via vault integration.
-- **API rate limits**: High-frequency polling could throttle tools. → Add caching, exponential backoff, and alerting when limits approach thresholds.
-- **Voice confirmation fatigue**: Excess prompts could slow workflows. → Batch confirmations per session and allow opt-in bypass for read-only tools.
-- **Schema drift**: Monday/GitHub API changes could break tooling. → Monitor changelogs and add schema validation tests in CI.
+-  **Credential sprawl**: Secrets might diverge across environments. → Centralize in `.env.sample` and document rotation via vault integration.
+-  **API rate limits**: High-frequency polling could throttle tools. → Add caching, exponential backoff, and alerting when limits approach thresholds.
+-  **Voice confirmation fatigue**: Excess prompts could slow workflows. → Batch confirmations per session and allow opt-in bypass for read-only tools.
+-  **Schema drift**: Monday/GitHub API changes could break tooling. → Monitor changelogs and add schema validation tests in CI.
 
 ## Exit Criteria
 
-- Voice-driven Monday.com sprint updates, GitHub status summaries, and AWS metric snapshots complete end-to-end with confirmations recorded in Monday.com ledger entries.
-- Telemetry dashboards demonstrate tool latency under target thresholds and zero unhandled errors across a week of regression runs.
-- Documentation, demo scripts, and rollout checklist reviewed and signed off by platform lead before enabling tools for broader team.
+-  Voice-driven Monday.com sprint updates, GitHub status summaries, and AWS metric snapshots complete end-to-end with confirmations recorded in Monday.com ledger entries.
+-  Telemetry dashboards demonstrate tool latency under target thresholds and zero unhandled errors across a week of regression runs.
+-  Documentation, demo scripts, and rollout checklist reviewed and signed off by platform lead before enabling tools for broader team.

@@ -22,15 +22,15 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 
 **Test Files**:
 
-- `services/tts/tests/test_tts_audio_format.py`
-- `services/tts/tests/test_tts_audio_quality.py`
+-  `services/tts/tests/test_tts_audio_format.py`
+-  `services/tts/tests/test_tts_audio_quality.py`
 
 **What They Test**:
 
-- WAV format validation functions
-- Audio quality metrics calculation
-- Sample rate, bit depth, channel validation
-- SNR, THD, frequency response analysis
+-  WAV format validation functions
+-  Audio quality metrics calculation
+-  Sample rate, bit depth, channel validation
+-  SNR, THD, frequency response analysis
 
 ### Component Tests (`@pytest.mark.component`)
 
@@ -40,15 +40,15 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 
 **Test Files**:
 
-- `services/tts/tests/test_tts_service_audio.py`
-- `services/tts/tests/test_tts_audio_pipeline.py`
+-  `services/tts/tests/test_tts_service_audio.py`
+-  `services/tts/tests/test_tts_audio_pipeline.py`
 
 **What They Test**:
 
-- TTS service audio validation
-- Audio processing pipeline components
-- Error handling and edge cases
-- Voice parameter handling
+-  TTS service audio validation
+-  Audio processing pipeline components
+-  Error handling and edge cases
+-  Voice parameter handling
 
 ### Integration Tests (`@pytest.mark.integration`)
 
@@ -58,15 +58,15 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 
 **Test Files**:
 
-- `services/tests/integration/test_tts_synthesis_integration.py`
-- `services/tests/integration/test_tts_service_integration.py`
+-  `services/tests/integration/test_tts_synthesis_integration.py`
+-  `services/tests/integration/test_tts_service_integration.py`
 
 **What They Test**:
 
-- Real text-to-audio conversion
-- Audio format validation on real output
-- Audio quality metrics on real output
-- Performance thresholds with real models
+-  Real text-to-audio conversion
+-  Audio format validation on real output
+-  Audio quality metrics on real output
+-  Performance thresholds with real models
 
 ## Test Infrastructure
 
@@ -122,31 +122,31 @@ class MockTTSAdapter:
 
 ### Audio Format Requirements
 
-- **Sample Rate**: 22.05kHz (TTS standard)
-- **Channels**: 1 (mono)
-- **Bit Depth**: 16-bit PCM
-- **Duration**: > 0.1s, < 30s
-- **Format**: WAV with proper headers
+-  **Sample Rate**: 22.05kHz (TTS standard)
+-  **Channels**: 1 (mono)
+-  **Bit Depth**: 16-bit PCM
+-  **Duration**: > 0.1s, < 30s
+-  **Format**: WAV with proper headers
 
 ### Audio Quality Metrics
 
-- **Production TTS Quality**:
-  - **SNR**: ≥ 20dB (clean audio for real TTS integration tests)
-  - **THD**: ≤ 1% (low distortion for real TTS integration tests)
-  - **Voice Range**: 300Hz-3400Hz ratio ≥ 0.8
-  - **Fidelity**: Correlation ≥ 0.9, MSE ≤ 0.1
+-  **Production TTS Quality**:
+   -  **SNR**: ≥ 20dB (clean audio for real TTS integration tests)
+   -  **THD**: ≤ 1% (low distortion for real TTS integration tests)
+   -  **Voice Range**: 300Hz-3400Hz ratio ≥ 0.8
+   -  **Fidelity**: Correlation ≥ 0.9, MSE ≤ 0.1
 
-- **Component Test Quality** (for synthetic MockTTSAdapter):
-  - **SNR**: ≥ 3dB (relaxed for synthetic audio)
-  - **THD**: ≤ 50% (relaxed for synthetic audio with spectral leakage)
-  - **Voice Range**: ≥ 30% (relaxed for single-tone test signals)
+-  **Component Test Quality** (for synthetic MockTTSAdapter):
+   -  **SNR**: ≥ 3dB (relaxed for synthetic audio)
+   -  **THD**: ≤ 50% (relaxed for synthetic audio with spectral leakage)
+   -  **Voice Range**: ≥ 30% (relaxed for single-tone test signals)
 
 ### Performance Thresholds
 
-- **TTS Latency**: ≤ 1s per request
-- **Memory Usage**: ≤ 50MB per request
-- **Throughput**: ≥ 0.1 requests/second
-- **End-to-End**: ≤ 2s for short queries
+-  **TTS Latency**: ≤ 1s per request
+-  **Memory Usage**: ≤ 50MB per request
+-  **Throughput**: ≥ 0.1 requests/second
+-  **End-to-End**: ≤ 2s for short queries
 
 ## Running TTS Tests
 
@@ -315,25 +315,25 @@ services/tests/fixtures/tts/samples/
 
 ### Common Issues
 
-1. **Import Errors**
-   - Check Python path configuration
-   - Verify service dependencies are installed
-   - Use container environment for consistency
+-  **Import Errors**
+   -  Check Python path configuration
+   -  Verify service dependencies are installed
+   -  Use container environment for consistency
 
-2. **Audio Format Issues**
-   - Verify WAV header format
-   - Check sample rate and bit depth
-   - Validate audio duration
+-  **Audio Format Issues**
+   -  Verify WAV header format
+   -  Check sample rate and bit depth
+   -  Validate audio duration
 
-3. **Quality Threshold Failures**
-   - Check audio generation parameters
-   - Verify quality calculation functions
-   - Review baseline sample quality
+-  **Quality Threshold Failures**
+   -  Check audio generation parameters
+   -  Verify quality calculation functions
+   -  Review baseline sample quality
 
-4. **Performance Issues**
-   - Check test execution time
-   - Verify memory usage
-   - Review test data size
+-  **Performance Issues**
+   -  Check test execution time
+   -  Verify memory usage
+   -  Review test data size
 
 ### Debug Commands
 
@@ -355,28 +355,28 @@ pytest -v -s services/tts/tests/
 
 ### Test Design
 
-- Use descriptive test names
-- Include setup and teardown
-- Save artifacts for debugging
-- Validate both format and quality
+-  Use descriptive test names
+-  Include setup and teardown
+-  Save artifacts for debugging
+-  Validate both format and quality
 
 ### Performance
 
-- Use appropriate test markers
-- Mock external dependencies in unit tests
-- Use real models only in integration tests
-- Clean up test artifacts
+-  Use appropriate test markers
+-  Mock external dependencies in unit tests
+-  Use real models only in integration tests
+-  Clean up test artifacts
 
 ### Maintenance
 
-- Update baseline samples when models change
-- Review quality thresholds periodically
-- Monitor test execution time
-- Document test failures
+-  Update baseline samples when models change
+-  Review quality thresholds periodically
+-  Monitor test execution time
+-  Document test failures
 
 ## Related Documentation
 
-- [Test Artifacts Management](TEST_ARTIFACTS.md)
-- [Main Testing Documentation](TESTING.md)
-- [Quality Thresholds](QUALITY_THRESHOLDS.md)
-- [Audio Quality Helpers](../services/tests/utils/audio_quality_helpers.py)
+-  [Test Artifacts Management](TEST_ARTIFACTS.md)
+-  [Main Testing Documentation](TESTING.md)
+-  [Quality Thresholds](QUALITY_THRESHOLDS.md)
+-  [Audio Quality Helpers](../services/tests/utils/audio_quality_helpers.py)

@@ -38,19 +38,19 @@ flowchart LR
 
 ## Data Flow
 
-1. The Discord bot captures PCM audio once a wake phrase is detected.
-2. Audio segments are streamed to the STT service, which returns transcripts.
-3. Transcripts feed the orchestrator, which coordinates MCP tool calls and routes reasoning requests to the LLM service.
-4. The LLM service processes reasoning requests and returns responses to the orchestrator.
-5. For spoken replies, the orchestrator calls the TTS service and returns the resulting audio to Discord.
-6. Observability flows through shared structured logging helpers and optional `/metrics` endpoints.
+-  The Discord bot captures PCM audio once a wake phrase is detected.
+-  Audio segments are streamed to the STT service, which returns transcripts.
+-  Transcripts feed the orchestrator, which coordinates MCP tool calls and routes reasoning requests to the LLM service.
+-  The LLM service processes reasoning requests and returns responses to the orchestrator.
+-  For spoken replies, the orchestrator calls the TTS service and returns the resulting audio to Discord.
+-  Observability flows through shared structured logging helpers and optional `/metrics` endpoints.
 
 ## Integration Points
 
-- **Model Context Protocol (MCP)** — Register manifests via `MCP_MANIFESTS`, WebSocket URLs, or command handlers to expose automation tools.
-- **Discord tokens** — Configure via `services/discord/.env.service` with guild and channel identifiers.
-- **Llama.cpp runtime** — Tuned through `services/llm/.env.service` to set model paths, context size, and threading.
-- **LiveKit integration** — Planned future capability for enhanced real-time audio processing and multi-participant voice interactions.
+-  **Model Context Protocol (MCP)** — Register manifests via `MCP_MANIFESTS`, WebSocket URLs, or command handlers to expose automation tools.
+-  **Discord tokens** — Configure via `services/discord/.env.service` with guild and channel identifiers.
+-  **Llama.cpp runtime** — Tuned through `services/llm/.env.service` to set model paths, context size, and threading.
+-  **LiveKit integration** — Planned future capability for enhanced real-time audio processing and multi-participant voice interactions.
 
 For deeper service details, explore the [service deep dives](service-deep-dives/discord.md) and the
 [MCP integration appendix](integration/mcp.md).

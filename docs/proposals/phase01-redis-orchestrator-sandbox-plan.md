@@ -11,40 +11,40 @@ last-updated: 2025-10-11
 
 ## Objective
 
-- Deliver a Redis-backed orchestrator sandbox capable of replaying Discord event traffic
+-  Deliver a Redis-backed orchestrator sandbox capable of replaying Discord event traffic
   through the adaptive runtime prior to production rollout.
-- Establish telemetry and parity ledger foundations so replay sessions capture state deltas,
+-  Establish telemetry and parity ledger foundations so replay sessions capture state deltas,
   outcomes, and reliability metrics aligned with the target production behavior.
 
 ## Success Criteria
 
-- Docker Compose (or Makefile) target provisions Redis, orchestrator, and telemetry exporters
+-  Docker Compose (or Makefile) target provisions Redis, orchestrator, and telemetry exporters
   in an isolated sandbox environment using repository-standard configuration files.
-- Discord capture pipeline can inject previously recorded traffic or live-mirrored events into
+-  Discord capture pipeline can inject previously recorded traffic or live-mirrored events into
   the sandbox without impacting production Discord sessions.
-- Parity ledger persists orchestrator inputs/outputs and Redis state transitions for at least
+-  Parity ledger persists orchestrator inputs/outputs and Redis state transitions for at least
   48 hours, enabling diff analysis against production behavior.
-- Telemetry dashboards expose key lagging and leading indicators (latency, queue depth,
+-  Telemetry dashboards expose key lagging and leading indicators (latency, queue depth,
   tool invocation success rates) to validate replay fidelity.
 
 ## Scope
 
-- Services: `services/llm` orchestrator runtime, Redis broker/cache, telemetry exporters,
+-  Services: `services/llm` orchestrator runtime, Redis broker/cache, telemetry exporters,
   Discord ingestion tooling for replay, parity ledger process (likely Python worker).
-- Environments: Local Docker Compose sandbox and CI smoke tests validating Redis migrations
+-  Environments: Local Docker Compose sandbox and CI smoke tests validating Redis migrations
   and health checks.
-- Deliverables: Infrastructure manifests, configuration docs, operational runbooks,
+-  Deliverables: Infrastructure manifests, configuration docs, operational runbooks,
   automated smoke tests, initial dashboards.
 
 ## Constraints & Assumptions
 
-- Redis will be the canonical store for session state and replay buffers; no alternative
+-  Redis will be the canonical store for session state and replay buffers; no alternative
   persistence layer is in scope for this milestone.
-- Discord traffic is replayed from stored PCM/transcript artifacts captured via existing
+-  Discord traffic is replayed from stored PCM/transcript artifacts captured via existing
   Discord bot instrumentation or synthetic fixtures.
-- Telemetry stack reuses existing observability tooling (e.g., Prometheus exporters,
+-  Telemetry stack reuses existing observability tooling (e.g., Prometheus exporters,
   structlog JSON logs) with minimal new dependencies.
-- Monday.com integration is out of scope until the ledger proves accurate within the sandbox.
+-  Monday.com integration is out of scope until the ledger proves accurate within the sandbox.
 
 ## Workstreams & Tasks
 
@@ -105,20 +105,20 @@ last-updated: 2025-10-11
 
 ## Risks & Mitigations
 
-- **Redis resource contention**: Sandbox may require memory tuning; configure resource limits
+-  **Redis resource contention**: Sandbox may require memory tuning; configure resource limits
   and eviction policies, and document scaling thresholds.
-- **Replay data privacy**: Ensure captured Discord content is sanitized and access-restricted;
+-  **Replay data privacy**: Ensure captured Discord content is sanitized and access-restricted;
   introduce anonymization for external contributors.
-- **Telemetry overhead**: Metrics collection could increase latency; sample selectively and
+-  **Telemetry overhead**: Metrics collection could increase latency; sample selectively and
   benchmark before enabling in production.
-- **Ledger divergence noise**: False positives may emerge; calibrate diff tooling with tolerance
+-  **Ledger divergence noise**: False positives may emerge; calibrate diff tooling with tolerance
   thresholds and whitelist acceptable variances.
 
 ## Exit Criteria
 
-- Replay harness demonstrates parity within ±5% latency and success variance compared to
+-  Replay harness demonstrates parity within ±5% latency and success variance compared to
   production runs for at least three representative Discord sessions.
-- Telemetry dashboards and parity ledger reports are reviewed and signed off by the platform
+-  Telemetry dashboards and parity ledger reports are reviewed and signed off by the platform
   lead prior to enabling production traffic routing through the adaptive runtime.
-- Documentation updated with operational runbooks, configuration references, and troubleshooting
+-  Documentation updated with operational runbooks, configuration references, and troubleshooting
   guidance for the sandbox environment.

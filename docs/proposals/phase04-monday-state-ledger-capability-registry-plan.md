@@ -11,40 +11,40 @@ last-updated: 2025-10-11
 
 ## Objective
 
-- Build a Monday.com-linked state ledger and capability registry that keep cross-surface workflows
+-  Build a Monday.com-linked state ledger and capability registry that keep cross-surface workflows
   synchronized on ownership, status, and available execution tools.
-- Ensure Discord voice journeys, MCP tooling, and Redis sandbox runtimes can rely on the ledger for
+-  Ensure Discord voice journeys, MCP tooling, and Redis sandbox runtimes can rely on the ledger for
   persistent accountability and on the registry for tooling coverage before production rollout.
 
 ## Success Criteria
 
-- Voice and MCP-triggered actions automatically create or update Monday.com items with current owner,
+-  Voice and MCP-triggered actions automatically create or update Monday.com items with current owner,
   due date, status, and escalation metadata.
-- Capability registry reflects the available tooling per workflow (Discord voice, MCP, Cursor/local),
+-  Capability registry reflects the available tooling per workflow (Discord voice, MCP, Cursor/local),
   including health, latency, and fallback options.
-- Ledger exposes APIs or events that downstream services (Discord bot, orchestrator, telemetry
+-  Ledger exposes APIs or events that downstream services (Discord bot, orchestrator, telemetry
   dashboards) can query to reconcile workflow state.
-- Telemetry dashboards provide parity views of ledger updates and capability registry health across
+-  Telemetry dashboards provide parity views of ledger updates and capability registry health across
   Redis sandbox and legacy runtimes with no unresolved discrepancies for a full regression week.
 
 ## Scope
 
-- Services: Monday ledger worker, `services/llm` orchestrator, `services/discord` prompts, Redis
+-  Services: Monday ledger worker, `services/llm` orchestrator, `services/discord` prompts, Redis
   sandbox instrumentation, documentation under `docs/`.
-- Integrations: Monday.com GraphQL API, Discord webhooks/messages, MCP tooling catalog, capability
+-  Integrations: Monday.com GraphQL API, Discord webhooks/messages, MCP tooling catalog, capability
   registry persistence (Redis or database).
-- Deliverables: Ledger schema definitions, synchronization jobs, registry service/module, API
+-  Deliverables: Ledger schema definitions, synchronization jobs, registry service/module, API
   documentation, telemetry dashboards, rollout checklist, regression harness updates.
 
 ## Constraints & Assumptions
 
-- Monday.com remains the canonical source of truth; external replicas (Redis, caches) must reconcile
+-  Monday.com remains the canonical source of truth; external replicas (Redis, caches) must reconcile
   back to Monday before closing workflows.
-- Capability registry should operate in-memory with optional Redis persistence to match sandbox
+-  Capability registry should operate in-memory with optional Redis persistence to match sandbox
   architecture while supporting a file-backed fallback for local development.
-- Ledger and registry must function when orchestrator runs in either legacy or Redis sandbox modes;
+-  Ledger and registry must function when orchestrator runs in either legacy or Redis sandbox modes;
   feature flags will control advanced behaviors until parity sign-off.
-- Monday.com API rate limits require batching and retry/backoff strategies aligned with existing HTTP
+-  Monday.com API rate limits require batching and retry/backoff strategies aligned with existing HTTP
   helper utilities.
 
 ## Workstreams & Requirements
@@ -106,22 +106,22 @@ last-updated: 2025-10-11
 
 ## Risks & Mitigations
 
-- **Monday API constraints**: Rate limits or schema changes could delay sync jobs. → Implement caching,
+-  **Monday API constraints**: Rate limits or schema changes could delay sync jobs. → Implement caching,
   backoff, and schema validation tests; monitor Monday changelog.
-- **Data drift between runtimes**: Legacy and sandbox paths may diverge. → Use replay parity reports
+-  **Data drift between runtimes**: Legacy and sandbox paths may diverge. → Use replay parity reports
   and shared clients to keep behaviors aligned before rollout.
-- **Tooling availability gaps**: Registry may expose missing coverage. → Establish manual override
+-  **Tooling availability gaps**: Registry may expose missing coverage. → Establish manual override
   process and prioritize backlog items surfaced by registry health alerts.
-- **Security/compliance gaps**: New data retention policies may be required. → Engage security review
+-  **Security/compliance gaps**: New data retention policies may be required. → Engage security review
   early and document data flows with mitigation steps.
 
 ## Exit Criteria
 
-- Monday.com ledger reflects every orchestrated workflow with accurate ownership, status, due dates,
+-  Monday.com ledger reflects every orchestrated workflow with accurate ownership, status, due dates,
   and escalation trails updated automatically from voice/MCP interactions.
-- Capability registry drives tooling selection for Redis sandbox and legacy runtimes with telemetry
+-  Capability registry drives tooling selection for Redis sandbox and legacy runtimes with telemetry
   confirming healthy fallback behavior and no unresolved parity gaps for one regression week.
-- Discord prompts, documentation, and runbooks keep teams informed about ledger updates, tooling
+-  Discord prompts, documentation, and runbooks keep teams informed about ledger updates, tooling
   status, and escalation actions with auditable history in Monday.com.
-- Rollout checklist completed with security sign-off, replay parity reports, and dashboard coverage
+-  Rollout checklist completed with security sign-off, replay parity reports, and dashboard coverage
   reviewed by platform leadership.

@@ -421,49 +421,49 @@ services:
   discord-voice-bot:
     build: .
     environment:
-      - USE_NEW_ARCHITECTURE=true
-      - SURFACE_TYPE=discord
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
-      - AUDIO_SAMPLE_RATE=16000
-      - AUDIO_CHANNELS=1
-      - AUDIO_BIT_DEPTH=16
-      - LOG_LEVEL=INFO
+    -  USE_NEW_ARCHITECTURE=true
+    -  SURFACE_TYPE=discord
+    -  DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+    -  DISCORD_GUILD_ID=${DISCORD_GUILD_ID}
+    -  DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+    -  AUDIO_SAMPLE_RATE=16000
+    -  AUDIO_CHANNELS=1
+    -  AUDIO_BIT_DEPTH=16
+    -  LOG_LEVEL=INFO
     volumes:
-      - ./config:/app/config
-      - ./logs:/app/logs
+    -  ./config:/app/config
+    -  ./logs:/app/logs
     depends_on:
-      - stt-service
-      - tts-service
-      - orchestrator-service
+    -  stt-service
+    -  tts-service
+    -  orchestrator-service
 
   stt-service:
     build: ./services/stt
     environment:
-      - STT_MODEL_NAME=base
-      - STT_LANGUAGE=en
-      - STT_ENABLE_VAD=true
+    -  STT_MODEL_NAME=base
+    -  STT_LANGUAGE=en
+    -  STT_ENABLE_VAD=true
     ports:
-      - "8001:8000"
+    -  "8001:8000"
 
   tts-service:
     build: ./services/tts
     environment:
-      - TTS_MODEL_NAME=piper
-      - TTS_VOICE=default
-      - TTS_LANGUAGE=en
+    -  TTS_MODEL_NAME=piper
+    -  TTS_VOICE=default
+    -  TTS_LANGUAGE=en
     ports:
-      - "8002:8000"
+    -  "8002:8000"
 
   orchestrator-service:
     build: ./services/orchestrator
     environment:
-      - ORCHESTRATOR_URL=http://localhost:8000
-      - SESSION_BROKER_URL=http://localhost:8003
-      - POLICY_ENGINE_URL=http://localhost:8004
+    -  ORCHESTRATOR_URL=http://localhost:8000
+    -  SESSION_BROKER_URL=http://localhost:8003
+    -  POLICY_ENGINE_URL=http://localhost:8004
     ports:
-      - "8000:8000"
+    -  "8000:8000"
 ```
 
 ### Dockerfile
@@ -522,34 +522,34 @@ spec:
         app: discord-voice-bot
     spec:
       containers:
-      - name: discord-voice-bot
+    -  name: discord-voice-bot
         image: discord-voice-bot:latest
         env:
-        - name: USE_NEW_ARCHITECTURE
+        -  name: USE_NEW_ARCHITECTURE
           value: "true"
-        - name: SURFACE_TYPE
+        -  name: SURFACE_TYPE
           value: "discord"
-        - name: DISCORD_BOT_TOKEN
+        -  name: DISCORD_BOT_TOKEN
           valueFrom:
             secretKeyRef:
               name: discord-secrets
               key: bot-token
-        - name: DISCORD_GUILD_ID
+        -  name: DISCORD_GUILD_ID
           value: "123456789"
-        - name: DISCORD_CHANNEL_ID
+        -  name: DISCORD_CHANNEL_ID
           value: "987654321"
-        - name: AUDIO_SAMPLE_RATE
+        -  name: AUDIO_SAMPLE_RATE
           value: "16000"
-        - name: AUDIO_CHANNELS
+        -  name: AUDIO_CHANNELS
           value: "1"
-        - name: AUDIO_BIT_DEPTH
+        -  name: AUDIO_BIT_DEPTH
           value: "16"
-        - name: LOG_LEVEL
+        -  name: LOG_LEVEL
           value: "INFO"
         volumeMounts:
-        - name: config
+        -  name: config
           mountPath: /app/config
-        - name: logs
+        -  name: logs
           mountPath: /app/logs
         resources:
           requests:
@@ -559,10 +559,10 @@ spec:
             memory: "512Mi"
             cpu: "500m"
       volumes:
-      - name: config
+    -  name: config
         configMap:
           name: discord-config
-      - name: logs
+    -  name: logs
         emptyDir: {}
 ```
 
@@ -709,25 +709,25 @@ encryption:
 
 ### Common Configuration Issues
 
-1. **Audio Quality Issues**
-   - Check sample rate configuration
-   - Verify bit depth settings
-   - Review audio buffer size
+-  **Audio Quality Issues**
+  -  Check sample rate configuration
+  -  Verify bit depth settings
+  -  Review audio buffer size
 
-2. **Connection Problems**
-   - Validate authentication tokens
-   - Check network connectivity
-   - Review timeout settings
+-  **Connection Problems**
+  -  Validate authentication tokens
+  -  Check network connectivity
+  -  Review timeout settings
 
-3. **Performance Issues**
-   - Adjust buffer sizes
-   - Review latency targets
-   - Check resource limits
+-  **Performance Issues**
+  -  Adjust buffer sizes
+  -  Review latency targets
+  -  Check resource limits
 
-4. **Event Processing Errors**
-   - Verify event routing configuration
-   - Check event timeout settings
-   - Review retry configurations
+-  **Event Processing Errors**
+  -  Verify event routing configuration
+  -  Check event timeout settings
+  -  Review retry configurations
 
 ### Configuration Validation
 

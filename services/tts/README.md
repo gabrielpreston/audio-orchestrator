@@ -7,11 +7,11 @@ callers.
 
 ## Endpoints
 
-- `GET /voices` — enumerate available speakers included in the active Piper
+-  `GET /voices` — enumerate available speakers included in the active Piper
   model.
-- `POST /synthesize` — accept SSML or plain text and stream an `audio/wav`
+-  `POST /synthesize` — accept SSML or plain text and stream an `audio/wav`
   response body for immediate playback.
-- `GET /metrics` — Prometheus counters and histograms covering request volume,
+-  `GET /metrics` — Prometheus counters and histograms covering request volume,
   synthesis latency, audio duration, and payload size.
 
 ## Configuration
@@ -45,9 +45,9 @@ URLs or cached downloads are generated, keeping synthesized speech ephemeral.
 
 ## Local development tips
 
-- Run `make run` to build and start the TTS container alongside the Discord,
+-  Run `make run` to build and start the TTS container alongside the Discord,
   STT, and orchestrator services.
-- Use `make logs SERVICE=tts` to follow synthesis output and monitor rate-limit
+-  Use `make logs SERVICE=tts` to follow synthesis output and monitor rate-limit
   or concurrency rejections.
-- Visit `http://localhost:7000/docs` once the container is running to exercise
+-  Visit `http://localhost:7000/docs` once the container is running to exercise
   the OpenAPI interface and sanity-check voice settings.

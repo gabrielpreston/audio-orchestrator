@@ -11,39 +11,39 @@ last-updated: 2025-10-11
 
 ## Objective
 
-- Introduce structured intent schemas, short-term conversation memory, and confirmation heuristics so
+-  Introduce structured intent schemas, short-term conversation memory, and confirmation heuristics so
   the orchestrator validates user goals before performing write actions against external systems.
-- Ensure safety scaffolding works across both the legacy orchestrator runtime and the Redis-backed
+-  Ensure safety scaffolding works across both the legacy orchestrator runtime and the Redis-backed
   sandbox so adoption can progress without regressions.
 
 ## Success Criteria
 
-- Voice transcripts map into intent objects that classify read vs. write actions, target systems,
+-  Voice transcripts map into intent objects that classify read vs. write actions, target systems,
   confidence, and required confirmations.
-- Short-term memory preserves referenced entities (tasks, PRs, incidents) across turns with decay
+-  Short-term memory preserves referenced entities (tasks, PRs, incidents) across turns with decay
   rules and manual reset hooks.
-- Write-intent MCP tools require confirmation, log outcome metadata, and provide overridable
+-  Write-intent MCP tools require confirmation, log outcome metadata, and provide overridable
   safeguards for trusted flows.
-- Telemetry captures every intent evaluation, memory read/write, and confirmation outcome for audit
+-  Telemetry captures every intent evaluation, memory read/write, and confirmation outcome for audit
   and rollback decisions.
 
 ## Scope
 
-- Services: `services/llm` orchestrator, `services/discord` voice bot confirmation prompts,
+-  Services: `services/llm` orchestrator, `services/discord` voice bot confirmation prompts,
   Monday.com ledger worker, Redis sandbox runtime.
-- Integrations: Monday.com state ledger, GitHub MCP tools, AWS observability hooks, Discord text
+-  Integrations: Monday.com state ledger, GitHub MCP tools, AWS observability hooks, Discord text
   bridges for confirmations.
-- Deliverables: intent schema definitions, memory storage modules, confirmation middleware,
+-  Deliverables: intent schema definitions, memory storage modules, confirmation middleware,
   configuration updates, telemetry dashboards, documentation, regression harness extensions.
 
 ## Constraints & Assumptions
 
-- Redis sandbox remains optional until parity sign-off; new components must run in-process when Redis
+-  Redis sandbox remains optional until parity sign-off; new components must run in-process when Redis
   is disabled.
-- Monday.com continues as the canonical audit ledger for actions; confirmation logs replicate there.
-- Confirmation heuristics must support both voice prompts and Discord text fallback for
+-  Monday.com continues as the canonical audit ledger for actions; confirmation logs replicate there.
+-  Confirmation heuristics must support both voice prompts and Discord text fallback for
   accessibility.
-- Intent schemas should align with MCP manifest metadata to avoid duplication and schema drift.
+-  Intent schemas should align with MCP manifest metadata to avoid duplication and schema drift.
 
 ## Workstreams & Requirements
 
@@ -104,21 +104,21 @@ last-updated: 2025-10-11
 
 ## Risks & Mitigations
 
-- **Model misclassification**: LLM may mislabel intent types. → Add deterministic rules for
+-  **Model misclassification**: LLM may mislabel intent types. → Add deterministic rules for
   high-risk tools and require manual review for low-confidence outputs.
-- **Memory staleness**: Entities could linger past relevance. → Apply TTL decay, user reset commands,
+-  **Memory staleness**: Entities could linger past relevance. → Apply TTL decay, user reset commands,
   and ledger auditing to detect stale context.
-- **Confirmation fatigue**: Too many prompts slow workflows. → Tune heuristics per risk level and
+-  **Confirmation fatigue**: Too many prompts slow workflows. → Tune heuristics per risk level and
   allow trusted personas to bypass after audit approval.
-- **Dual-runtime drift**: Legacy and Redis paths may diverge. → Maintain shared test suites and
+-  **Dual-runtime drift**: Legacy and Redis paths may diverge. → Maintain shared test suites and
   parity dashboards to catch behavioral differences.
 
 ## Exit Criteria
 
-- Structured intents drive all MCP tool selections with confidence metrics and logged outcomes.
-- Memory-backed conversations resolve entity references accurately across at least three-turn flows
+-  Structured intents drive all MCP tool selections with confidence metrics and logged outcomes.
+-  Memory-backed conversations resolve entity references accurately across at least three-turn flows
   in both runtimes with parity telemetry.
-- Write actions across Monday.com, GitHub, and AWS require confirmations with auditable trails in
+-  Write actions across Monday.com, GitHub, and AWS require confirmations with auditable trails in
   Discord and Monday.com, including declined/time-out escalations.
-- Documentation, demos, and rollout checklists reviewed by platform owners, with telemetry
+-  Documentation, demos, and rollout checklists reviewed by platform owners, with telemetry
   dashboards showing no unhandled errors across a week of regression runs.

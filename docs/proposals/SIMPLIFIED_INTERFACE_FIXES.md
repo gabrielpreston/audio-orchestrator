@@ -73,26 +73,26 @@ async def read_audio_frame(self) -> PCMFrame | None
 
 The remaining 164 errors are primarily:
 
-1. **Missing `timestamp` parameter in PCMFrame constructors** (~50 errors)
-2. **Abstract method implementation issues** (~40 errors)
-3. **Test file instantiation problems** (~30 errors)
-4. **Method signature mismatches** (~20 errors)
-5. **Type annotation issues** (~24 errors)
+-  **Missing `timestamp` parameter in PCMFrame constructors** (~50 errors)
+-  **Abstract method implementation issues** (~40 errors)
+-  **Test file instantiation problems** (~30 errors)
+-  **Method signature mismatches** (~20 errors)
+-  **Type annotation issues** (~24 errors)
 
 ## 💡 **Next Steps**
 
-1. **Fix PCMFrame constructors** - Add missing `timestamp` parameters
-2. **Implement missing abstract methods** - Complete Discord adapter implementations
-3. **Fix test files** - Update test instantiation patterns
-4. **Resolve remaining type issues** - Clean up type annotations
+-  **Fix PCMFrame constructors** - Add missing `timestamp` parameters
+-  **Implement missing abstract methods** - Complete Discord adapter implementations
+-  **Fix test files** - Update test instantiation patterns
+-  **Resolve remaining type issues** - Clean up type annotations
 
 ## 🎉 **Conclusion**
 
 The simplified approach successfully reduced complexity by **33%** with minimal changes:
 
-- ✅ **Fixed core interface mismatches** with proper ABC inheritance
-- ✅ **Corrected method signatures** to match implementations  
-- ✅ **Resolved type system issues** with proper enum usage
-- ✅ **Simplified return types** for better usability
+-  ✅ **Fixed core interface mismatches** with proper ABC inheritance
+-  ✅ **Corrected method signatures** to match implementations  
+-  ✅ **Resolved type system issues** with proper enum usage
+-  ✅ **Simplified return types** for better usability
 
 This provides a solid foundation for resolving the remaining errors with focused, incremental fixes.

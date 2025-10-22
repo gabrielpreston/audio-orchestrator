@@ -14,10 +14,10 @@ Track design discussions and decisions across the voice lab.
 
 ## Submission Guidelines
 
-1. Add YAML front matter including `title`, `author`, `status`, and `last-updated`.
-2. Use the status lifecycle: `draft` → `in-review` → `accepted` or `rejected`.
-3. Link accepted proposals to the relevant architecture, operations, or roadmap docs.
-4. Update this index whenever the status of a proposal changes.
+-  Add YAML front matter including `title`, `author`, `status`, and `last-updated`.
+-  Use the status lifecycle: `draft` → `in-review` → `accepted` or `rejected`.
+-  Link accepted proposals to the relevant architecture, operations, or roadmap docs.
+-  Update this index whenever the status of a proposal changes.
 
 ## Active Proposals
 

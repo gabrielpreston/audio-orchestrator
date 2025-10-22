@@ -14,9 +14,9 @@ This guide helps diagnose and resolve common issues encountered during testing o
 
 #### Service Not Ready Symptoms
 
-- Tests fail with "Service not ready" errors
-- Health check endpoints return 503 status
-- Services fail to start or respond
+-  Tests fail with "Service not ready" errors
+-  Health check endpoints return 503 status
+-  Services fail to start or respond
 
 #### Service Not Ready Diagnosis
 
@@ -36,19 +36,19 @@ make logs SERVICE=orchestrator
 
 #### Solutions
 
-1. **Check Service Dependencies**: Ensure all required services are running
-2. **Verify Configuration**: Check environment variables and configuration files
-3. **Check Resource Usage**: Ensure sufficient CPU, memory, and disk space
-4. **Restart Services**: Use `make restart` to restart services
-5. **Check Network**: Verify network connectivity between services
+-  **Check Service Dependencies**: Ensure all required services are running
+-  **Verify Configuration**: Check environment variables and configuration files
+-  **Check Resource Usage**: Ensure sufficient CPU, memory, and disk space
+-  **Restart Services**: Use `make restart` to restart services
+-  **Check Network**: Verify network connectivity between services
 
 ### Audio Format Issues
 
 #### Audio Format Symptoms
 
-- Tests fail with "Invalid audio format" errors
-- WAV validation failures
-- Audio processing errors
+-  Tests fail with "Invalid audio format" errors
+-  WAV validation failures
+-  Audio processing errors
 
 #### Audio Format Diagnosis
 
@@ -69,20 +69,20 @@ print(result)
 
 #### Service Not Ready Solutions
 
-1. **Check Audio Format**: Ensure audio is 16-bit PCM WAV
-2. **Verify Sample Rate**: Check sample rate matches requirements
-3. **Check Channels**: Ensure mono or stereo as required
-4. **Validate Headers**: Check WAV header format
-5. **Regenerate Audio**: Use `generate_samples_simple.py` to create new samples
+-  **Check Audio Format**: Ensure audio is 16-bit PCM WAV
+-  **Verify Sample Rate**: Check sample rate matches requirements
+-  **Check Channels**: Ensure mono or stereo as required
+-  **Validate Headers**: Check WAV header format
+-  **Regenerate Audio**: Use `generate_samples_simple.py` to create new samples
 
 ### Quality Threshold Failures
 
 #### Quality Threshold Symptoms
 
-- Tests fail with quality threshold violations
-- SNR below threshold
-- THD above threshold
-- Latency above threshold
+-  Tests fail with quality threshold violations
+-  SNR below threshold
+-  THD above threshold
+-  Latency above threshold
 
 #### Quality Threshold Diagnosis
 
@@ -102,20 +102,20 @@ print(f'THD: {thd:.2f}%')
 
 #### Quality Threshold Solutions
 
-1. **Adjust Thresholds**: Modify quality thresholds if appropriate
-2. **Check Audio Quality**: Ensure test audio meets quality requirements
-3. **Verify Environment**: Check for environmental noise or interference
-4. **Update Baselines**: Update quality baselines if system has changed
-5. **Check Hardware**: Verify audio hardware is functioning correctly
+-  **Adjust Thresholds**: Modify quality thresholds if appropriate
+-  **Check Audio Quality**: Ensure test audio meets quality requirements
+-  **Verify Environment**: Check for environmental noise or interference
+-  **Update Baselines**: Update quality baselines if system has changed
+-  **Check Hardware**: Verify audio hardware is functioning correctly
 
 ### Performance Issues
 
 #### Performance Symptoms
 
-- Tests fail with performance threshold violations
-- High latency
-- High memory usage
-- High CPU usage
+-  Tests fail with performance threshold violations
+-  High latency
+-  High memory usage
+-  High CPU usage
 
 #### Performance Diagnosis
 
@@ -133,11 +133,11 @@ make logs SERVICE=tts | grep -i performance
 
 #### Performance Solutions
 
-1. **Optimize Configuration**: Adjust service configuration for better performance
-2. **Check Resource Usage**: Ensure sufficient system resources
-3. **Update Thresholds**: Adjust performance thresholds if appropriate
-4. **Check Dependencies**: Verify all dependencies are properly installed
-5. **Restart Services**: Restart services to clear memory leaks
+-  **Optimize Configuration**: Adjust service configuration for better performance
+-  **Check Resource Usage**: Ensure sufficient system resources
+-  **Update Thresholds**: Adjust performance thresholds if appropriate
+-  **Check Dependencies**: Verify all dependencies are properly installed
+-  **Restart Services**: Restart services to clear memory leaks
 
 ## Debugging Techniques
 
@@ -282,49 +282,49 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 #### Slow Test Symptoms
 
-- Tests take too long to complete
-- Timeout errors
-- Performance threshold violations
+-  Tests take too long to complete
+-  Timeout errors
+-  Performance threshold violations
 
 #### Slow Test Solutions
 
-1. **Skip Slow Tests**: Use `pytest -m "not slow"` to skip slow tests
-2. **Parallel Execution**: Use `pytest -n auto` for parallel execution
-3. **Optimize Configuration**: Adjust service configuration for better performance
-4. **Check Dependencies**: Ensure all dependencies are properly installed
-5. **Update Hardware**: Consider upgrading hardware for better performance
+-  **Skip Slow Tests**: Use `pytest -m "not slow"` to skip slow tests
+-  **Parallel Execution**: Use `pytest -n auto` for parallel execution
+-  **Optimize Configuration**: Adjust service configuration for better performance
+-  **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Update Hardware**: Consider upgrading hardware for better performance
 
 ### Memory Issues
 
 #### Memory Symptoms
 
-- Out of memory errors
-- High memory usage
-- Memory leaks
+-  Out of memory errors
+-  High memory usage
+-  Memory leaks
 
 #### Memory Solutions
 
-1. **Check Memory Usage**: Monitor memory usage during tests
-2. **Optimize Configuration**: Adjust memory-related configuration
-3. **Check for Leaks**: Look for memory leaks in long-running tests
-4. **Restart Services**: Restart services to clear memory
-5. **Update Dependencies**: Update dependencies to fix memory issues
+-  **Check Memory Usage**: Monitor memory usage during tests
+-  **Optimize Configuration**: Adjust memory-related configuration
+-  **Check for Leaks**: Look for memory leaks in long-running tests
+-  **Restart Services**: Restart services to clear memory
+-  **Update Dependencies**: Update dependencies to fix memory issues
 
 ### CPU Issues
 
 #### CPU Symptoms
 
-- High CPU usage
-- CPU timeout errors
-- Performance degradation
+-  High CPU usage
+-  CPU timeout errors
+-  Performance degradation
 
 #### CPU Solutions
 
-1. **Check CPU Usage**: Monitor CPU usage during tests
-2. **Optimize Configuration**: Adjust CPU-related configuration
-3. **Check Dependencies**: Ensure all dependencies are properly installed
-4. **Update Hardware**: Consider upgrading hardware for better performance
-5. **Check Background Processes**: Stop unnecessary background processes
+-  **Check CPU Usage**: Monitor CPU usage during tests
+-  **Optimize Configuration**: Adjust CPU-related configuration
+-  **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Update Hardware**: Consider upgrading hardware for better performance
+-  **Check Background Processes**: Stop unnecessary background processes
 
 ## Network Issues
 
@@ -332,9 +332,9 @@ ls -la /tmp/ | grep -E "(stt|tts|llm|orchestrator)"
 
 #### Connectivity Symptoms
 
-- Connection refused errors
-- Timeout errors
-- Network unreachable errors
+-  Connection refused errors
+-  Timeout errors
+-  Network unreachable errors
 
 #### Connectivity Diagnosis
 
@@ -352,27 +352,27 @@ netstat -tlnp | grep -E "(9000|7000|8000|8001)"
 
 #### Connectivity Solutions
 
-1. **Check Port Availability**: Ensure ports are available
-2. **Check Firewall**: Verify firewall settings
-3. **Check Service Status**: Ensure services are running
-4. **Check Network Configuration**: Verify network configuration
-5. **Restart Services**: Restart services to fix connectivity issues
+-  **Check Port Availability**: Ensure ports are available
+-  **Check Firewall**: Verify firewall settings
+-  **Check Service Status**: Ensure services are running
+-  **Check Network Configuration**: Verify network configuration
+-  **Restart Services**: Restart services to fix connectivity issues
 
 ### Timeout Issues
 
 #### Timeout Symptoms
 
-- Request timeout errors
-- Connection timeout errors
-- Service timeout errors
+-  Request timeout errors
+-  Connection timeout errors
+-  Service timeout errors
 
 #### Timeout Solutions
 
-1. **Increase Timeouts**: Adjust timeout settings
-2. **Check Service Performance**: Ensure services are performing well
-3. **Check Network Latency**: Verify network latency is acceptable
-4. **Optimize Configuration**: Adjust service configuration for better performance
-5. **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Increase Timeouts**: Adjust timeout settings
+-  **Check Service Performance**: Ensure services are performing well
+-  **Check Network Latency**: Verify network latency is acceptable
+-  **Optimize Configuration**: Adjust service configuration for better performance
+-  **Check Dependencies**: Ensure all dependencies are properly installed
 
 ## Test Environment Issues
 
@@ -380,9 +380,9 @@ netstat -tlnp | grep -E "(9000|7000|8000|8001)"
 
 #### Environment Symptoms
 
-- Configuration errors
-- Service startup failures
-- Test failures due to missing configuration
+-  Configuration errors
+-  Service startup failures
+-  Test failures due to missing configuration
 
 #### Environment Diagnosis
 
@@ -398,19 +398,19 @@ cat .env.docker
 
 #### Environment Solutions
 
-1. **Check Environment Variables**: Ensure all required environment variables are set
-2. **Check Configuration Files**: Verify configuration files are correct
-3. **Update Documentation**: Update documentation with correct configuration
-4. **Check Dependencies**: Ensure all dependencies are properly installed
-5. **Restart Services**: Restart services with correct configuration
+-  **Check Environment Variables**: Ensure all required environment variables are set
+-  **Check Configuration Files**: Verify configuration files are correct
+-  **Update Documentation**: Update documentation with correct configuration
+-  **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Restart Services**: Restart services with correct configuration
 
 ### Dependency Issues
 
 #### Dependency Symptoms
 
-- Import errors
-- Module not found errors
-- Version compatibility issues
+-  Import errors
+-  Module not found errors
+-  Version compatibility issues
 
 #### Dependency Diagnosis
 
@@ -424,11 +424,11 @@ ldd $(which python)
 
 #### Dependency Solutions
 
-1. **Install Dependencies**: Install missing dependencies
-2. **Update Dependencies**: Update dependencies to compatible versions
-3. **Check Version Compatibility**: Ensure version compatibility
-4. **Check System Dependencies**: Ensure system dependencies are installed
-5. **Use Virtual Environment**: Use virtual environment for dependency isolation
+-  **Install Dependencies**: Install missing dependencies
+-  **Update Dependencies**: Update dependencies to compatible versions
+-  **Check Version Compatibility**: Ensure version compatibility
+-  **Check System Dependencies**: Ensure system dependencies are installed
+-  **Use Virtual Environment**: Use virtual environment for dependency isolation
 
 ## Best Practices
 
@@ -436,58 +436,58 @@ ldd $(which python)
 
 #### Regular Updates
 
-1. **Update Test Data**: Regularly update test data and reference samples
-2. **Update Thresholds**: Adjust quality thresholds based on system changes
-3. **Update Documentation**: Keep documentation up to date
-4. **Review Test Results**: Regularly review test results for patterns
-5. **Optimize Tests**: Continuously optimize tests for better performance
+-  **Update Test Data**: Regularly update test data and reference samples
+-  **Update Thresholds**: Adjust quality thresholds based on system changes
+-  **Update Documentation**: Keep documentation up to date
+-  **Review Test Results**: Regularly review test results for patterns
+-  **Optimize Tests**: Continuously optimize tests for better performance
 
 #### Test Organization
 
-1. **Follow Naming Convention**: Use consistent naming for test files and functions
-2. **Use Appropriate Markers**: Use appropriate pytest markers for test categorization
-3. **Add Documentation**: Document test purpose and expected behavior
-4. **Keep Tests Focused**: Keep tests focused on specific functionality
-5. **Avoid Test Dependencies**: Avoid dependencies between tests
+-  **Follow Naming Convention**: Use consistent naming for test files and functions
+-  **Use Appropriate Markers**: Use appropriate pytest markers for test categorization
+-  **Add Documentation**: Document test purpose and expected behavior
+-  **Keep Tests Focused**: Keep tests focused on specific functionality
+-  **Avoid Test Dependencies**: Avoid dependencies between tests
 
 ### Quality Assurance
 
 #### Regular Testing
 
-1. **Run Tests Regularly**: Run tests regularly to catch issues early
-2. **Monitor Quality Metrics**: Monitor quality metrics continuously
-3. **Update Baselines**: Update quality baselines when system changes
-4. **Review Thresholds**: Review quality thresholds periodically
-5. **Continuous Improvement**: Continuously improve testing processes
+-  **Run Tests Regularly**: Run tests regularly to catch issues early
+-  **Monitor Quality Metrics**: Monitor quality metrics continuously
+-  **Update Baselines**: Update quality baselines when system changes
+-  **Review Thresholds**: Review quality thresholds periodically
+-  **Continuous Improvement**: Continuously improve testing processes
 
 #### Performance Monitoring
 
-1. **Monitor Performance**: Monitor performance metrics continuously
-2. **Set Alerts**: Set up alerts for performance issues
-3. **Optimize Configuration**: Optimize configuration for better performance
-4. **Update Hardware**: Update hardware when necessary
-5. **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Monitor Performance**: Monitor performance metrics continuously
+-  **Set Alerts**: Set up alerts for performance issues
+-  **Optimize Configuration**: Optimize configuration for better performance
+-  **Update Hardware**: Update hardware when necessary
+-  **Check Dependencies**: Ensure all dependencies are properly installed
 
 ### Troubleshooting Process
 
 #### Systematic Approach
 
-1. **Identify Symptoms**: Clearly identify the symptoms of the problem
-2. **Check Logs**: Check service logs for error messages
-3. **Verify Configuration**: Verify configuration is correct
-4. **Check Dependencies**: Ensure all dependencies are properly installed
-5. **Test Isolation**: Isolate the problem to specific components
-6. **Apply Solutions**: Apply appropriate solutions
-7. **Verify Fix**: Verify the fix resolves the problem
-8. **Document Solution**: Document the solution for future reference
+-  **Identify Symptoms**: Clearly identify the symptoms of the problem
+-  **Check Logs**: Check service logs for error messages
+-  **Verify Configuration**: Verify configuration is correct
+-  **Check Dependencies**: Ensure all dependencies are properly installed
+-  **Test Isolation**: Isolate the problem to specific components
+-  **Apply Solutions**: Apply appropriate solutions
+-  **Verify Fix**: Verify the fix resolves the problem
+-  **Document Solution**: Document the solution for future reference
 
 ### Async Tests Being Skipped
 
 #### Async Test Symptoms
 
-- Tests with `async def` are skipped with warning "async def functions are not natively supported"
-- Integration tests show "SKIPPED" status instead of running
-- Coverage collection fails due to skipped tests
+-  Tests with `async def` are skipped with warning "async def functions are not natively supported"
+-  Integration tests show "SKIPPED" status instead of running
+-  Coverage collection fails due to skipped tests
 
 #### Async Test Diagnosis
 
@@ -504,7 +504,7 @@ pytest --tb=short -m integration 2>&1 | grep -i "async"
 
 #### Solutions
 
-1. **Verify pytest-asyncio Configuration**: Ensure `pyproject.toml` has:
+-  **Verify pytest-asyncio Configuration**: Ensure `pyproject.toml` has:
 
    ```toml
    [tool.pytest.ini_options]
@@ -512,20 +512,20 @@ pytest --tb=short -m integration 2>&1 | grep -i "async"
    asyncio_default_fixture_loop_scope = "function"
    ```
 
-2. **Check pytest-asyncio Installation**: Verify pytest-asyncio is installed:
+-  **Check pytest-asyncio Installation**: Verify pytest-asyncio is installed:
 
    ```bash
    pip list | grep pytest-asyncio
    ```
 
-3. **Restart Test Environment**: Sometimes configuration changes require restart:
+-  **Restart Test Environment**: Sometimes configuration changes require restart:
 
    ```bash
    make stop
    make run
    ```
 
-4. **Check Test Markers**: Ensure integration tests have proper markers:
+-  **Check Test Markers**: Ensure integration tests have proper markers:
 
    ```python
    @pytest.mark.integration
@@ -535,8 +535,8 @@ pytest --tb=short -m integration 2>&1 | grep -i "async"
 
 #### Prevention
 
-1. **Regular Maintenance**: Perform regular maintenance on test environment
-2. **Monitor Quality**: Monitor quality metrics continuously
-3. **Update Dependencies**: Keep dependencies up to date
-4. **Check Configuration**: Regularly check configuration for issues
-5. **Document Issues**: Document common issues and solutions
+-  **Regular Maintenance**: Perform regular maintenance on test environment
+-  **Monitor Quality**: Monitor quality metrics continuously
+-  **Update Dependencies**: Keep dependencies up to date
+-  **Check Configuration**: Regularly check configuration for issues
+-  **Document Issues**: Document common issues and solutions
