@@ -19,6 +19,7 @@ Usage:
 """
 
 from .base import BaseAgent
+from .conversation_agent import ConversationAgent
 from .echo_agent import EchoAgent
 from .intent_agent import IntentClassificationAgent
 from .manager import AgentManager
@@ -32,6 +33,7 @@ __all__ = [
     "AgentRegistry",
     "AgentResponse",
     "BaseAgent",
+    "ConversationAgent",
     "ConversationContext",
     "EchoAgent",
     "ExternalAction",
