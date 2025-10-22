@@ -280,6 +280,7 @@ markers = [
     "tts: Tests involving text-to-speech",
     "llm: Tests involving language model",
     "orchestrator: Tests involving orchestration logic",
+    "quality: Audio quality validation tests",
 ]
 
 # Warnings configuration

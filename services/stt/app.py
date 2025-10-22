@@ -1,9 +1,9 @@
+from collections.abc import Iterable
 import io
 import os
 import time
-import wave
-from collections.abc import Iterable
 from typing import Any, cast
+import wave
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -39,10 +39,23 @@ MODEL_NAME = _cfg.faster_whisper.model  # type: ignore[attr-defined]
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[attr-defined]
 # Module-level cached model to avoid repeated loads
 _model: Any = None
+# Audio enhancer for preprocessing
+_audio_enhancer: Any = None
 # Health manager for service resilience
 _health_manager = HealthManager("stt")
 # Metrics collector for performance monitoring (disabled for now)
 # _metrics_collector: MetricsCollector = init_metrics_registry("stt", "1.0.0")
+
+# Enhancement statistics
+_enhancement_stats: dict[str, int | float | str | None] = {
+    "total_processed": 0,
+    "successful": 0,
+    "failed": 0,
+    "last_error": None,
+    "last_error_time": None,
+    "total_duration_ms": 0.0,
+    "avg_duration_ms": 0.0,
+}
 
 
 configure_logging(
@@ -53,13 +66,64 @@ configure_logging(
 logger = get_logger(__name__, service_name="stt")
 
 
+def _update_enhancement_stats(
+    success: bool, duration_ms: float, error: str | None = None
+) -> None:
+    """Update enhancement statistics."""
+    global _enhancement_stats  # noqa: PLW0602
+
+    _enhancement_stats["total_processed"] = (
+        int(_enhancement_stats["total_processed"] or 0) + 1
+    )
+    _enhancement_stats["total_duration_ms"] = (
+        float(_enhancement_stats["total_duration_ms"] or 0.0) + duration_ms
+    )
+    _enhancement_stats["avg_duration_ms"] = float(
+        _enhancement_stats["total_duration_ms"] or 0.0
+    ) / int(_enhancement_stats["total_processed"] or 1)
+
+    if success:
+        _enhancement_stats["successful"] = (
+            int(_enhancement_stats["successful"] or 0) + 1
+        )
+    else:
+        _enhancement_stats["failed"] = int(_enhancement_stats["failed"] or 0) + 1
+        _enhancement_stats["last_error"] = error
+        _enhancement_stats["last_error_time"] = time.time()
+
+
 @app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
+    global _audio_enhancer
 
     try:
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
+
+        # Load audio enhancer if enabled
+        if _cfg.faster_whisper.enable_enhancement:  # type: ignore[attr-defined]
+            try:
+                from services.common.audio_enhancement import AudioEnhancer
+
+                _audio_enhancer = AudioEnhancer(
+                    enable_metricgan=True,
+                    device=_cfg.faster_whisper.device,  # type: ignore[attr-defined]
+                    enhancement_class=None,  # Explicit: use real speechbrain in production
+                )
+
+                if _audio_enhancer.is_enhancement_enabled:
+                    logger.info("stt.enhancer_loaded")
+                else:
+                    logger.warning("stt.enhancer_disabled", reason="model_load_failed")
+
+            except Exception as exc:
+                logger.warning(
+                    "stt.enhancer_load_failed",
+                    error=str(exc),
+                )
+                _audio_enhancer = None
+
         _health_manager.mark_startup_complete()  # Mark as ready
         # Optional warm-up inference to avoid first-request latency
         warmup = _cfg.telemetry.stt_warmup  # type: ignore[attr-defined]
@@ -88,8 +152,8 @@ async def _warm_model() -> None:
             except Exception as _exc:  # best-effort
                 logger.debug("stt.warmup_skipped", reason=str(_exc))
             finally:
-                import os as _os
                 from contextlib import suppress
+                import os as _os
 
                 with suppress(Exception):
                     _os.unlink(tmp_path)
@@ -133,10 +197,29 @@ async def health_ready() -> dict[str, Any]:
         "components": {
             "model_loaded": _model is not None,
             "model_name": MODEL_NAME,
+            "enhancer_loaded": _audio_enhancer is not None,
+            "enhancer_enabled": (
+                _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+            ),
             "startup_complete": _health_manager._startup_complete,
         },
         "dependencies": health_status.details.get("dependencies", {}),
         "health_details": health_status.details,
+        "enhancement_stats": {
+            "total_processed": _enhancement_stats["total_processed"],
+            "successful": _enhancement_stats["successful"],
+            "failed": _enhancement_stats["failed"],
+            "success_rate": (
+                int(_enhancement_stats["successful"] or 0)
+                / int(_enhancement_stats["total_processed"] or 1)
+                * 100
+                if int(_enhancement_stats["total_processed"] or 0) > 0
+                else 0
+            ),
+            "avg_duration_ms": _enhancement_stats["avg_duration_ms"],
+            "last_error": _enhancement_stats["last_error"],
+            "last_error_time": _enhancement_stats["last_error_time"],
+        },
     }
 
 
@@ -245,6 +328,12 @@ async def _transcribe_request(
 
         if not wav_bytes:
             raise HTTPException(status_code=400, detail="empty request body")
+
+        # Apply audio enhancement if enabled
+        correlation_id = request.headers.get(
+            "X-Correlation-ID"
+        ) or request.query_params.get("correlation_id")
+        wav_bytes = _enhance_audio_if_enabled(wav_bytes, correlation_id)
 
         channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
@@ -512,6 +601,103 @@ async def asr(request: Request) -> dict[str, Any]:
         or request.query_params.get("correlation_id"),
         filename=None,
     )
+
+
+def _enhance_audio_if_enabled(
+    wav_bytes: bytes, correlation_id: str | None = None
+) -> bytes:
+    """Apply audio enhancement if enabled.
+
+    Args:
+        wav_bytes: WAV format audio
+        correlation_id: Optional correlation ID for request tracking
+
+    Returns:
+        Enhanced WAV audio or original if enhancement disabled
+    """
+    if _audio_enhancer is None or not _audio_enhancer.is_enhancement_enabled:
+        return wav_bytes
+
+    start_time = time.time()
+
+    try:
+        import numpy as np
+
+        from services.common.audio import AudioProcessor
+
+        # Convert WAV to numpy array
+        processor = AudioProcessor("stt")
+        pcm_data, metadata = processor.wav_to_pcm(wav_bytes)
+
+        # Convert PCM to float32 array
+        audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
+        audio_np = audio_np / 32768.0  # Normalize to [-1, 1]
+
+        # Apply high-pass filter
+        filtered = _audio_enhancer.apply_high_pass_filter(
+            audio_np,
+            sample_rate=metadata.sample_rate,
+        )
+
+        # Apply MetricGAN+ enhancement
+        enhanced = _audio_enhancer.enhance_audio(
+            filtered,
+            sample_rate=metadata.sample_rate,
+        )
+
+        # Convert back to int16 PCM
+        enhanced_int16 = (enhanced * 32768.0).astype(np.int16)
+        enhanced_pcm = enhanced_int16.tobytes()
+
+        # Convert back to WAV
+        enhanced_wav = processor.pcm_to_wav(
+            enhanced_pcm,
+            sample_rate=metadata.sample_rate,
+            channels=metadata.channels,
+            sample_width=metadata.sample_width,
+        )
+
+        # Calculate enhancement duration
+        enhancement_duration = (time.time() - start_time) * 1000
+
+        # Log successful enhancement with metrics
+        logger.debug(
+            "stt.audio_enhanced",
+            correlation_id=correlation_id,
+            input_size=len(wav_bytes),
+            output_size=len(enhanced_wav),
+            enhancement_duration_ms=enhancement_duration,
+            sample_rate=metadata.sample_rate,
+            channels=metadata.channels,
+        )
+
+        # Update enhancement statistics
+        _update_enhancement_stats(success=True, duration_ms=enhancement_duration)
+
+        return enhanced_wav
+
+    except Exception as exc:
+        # Calculate error duration
+        error_duration = (time.time() - start_time) * 1000
+
+        # Log error with enhanced context
+        logger.error(
+            "stt.enhancement_error",
+            correlation_id=correlation_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+            input_size=len(wav_bytes),
+            error_duration_ms=error_duration,
+            fallback_used=True,
+        )
+
+        # Update enhancement statistics
+        _update_enhancement_stats(
+            success=False, duration_ms=error_duration, error=str(exc)
+        )
+
+        # Fallback to original audio
+        return wav_bytes
 
 
 @app.post("/transcribe")  # type: ignore[misc]

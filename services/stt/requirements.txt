@@ -4,3 +4,9 @@
 # STT-specific dependencies
 faster-whisper==1.2.0
 python-multipart>=0.0,<1.0
+
+# Audio enhancement dependencies (optional - can be disabled via FW_ENABLE_ENHANCEMENT=false)
+torch>=2.0,<3.0
+torchaudio>=2.0,<3.0
+speechbrain>=0.5,<1.0
+scipy>=1.11,<2.0

@@ -139,7 +139,7 @@ class AudioConfig(BaseConfig):
         input_sample_rate_hz: int = 48000,
         vad_sample_rate_hz: int = 16000,
         vad_frame_duration_ms: int = 30,
-        vad_aggressiveness: int = 1,
+        vad_aggressiveness: int = 1,  # Standard setting: 1=balanced, 2=more aggressive, 3=most aggressive
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -245,6 +245,7 @@ class STTConfig(BaseConfig):
         request_timeout_seconds: float = 45.0,
         max_retries: int = 3,
         forced_language: str | None = None,
+        vad_filter: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -252,6 +253,7 @@ class STTConfig(BaseConfig):
         self.request_timeout_seconds = request_timeout_seconds
         self.max_retries = max_retries
         self.forced_language = forced_language
+        self.vad_filter = vad_filter
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -288,6 +290,13 @@ class STTConfig(BaseConfig):
                 description="Forced language for STT processing",
                 env_var="STT_FORCED_LANGUAGE",
             ),
+            create_field_definition(
+                name="vad_filter",
+                field_type=bool,
+                default=False,
+                description="Enable VAD filtering in STT transcription",
+                env_var="STT_VAD_FILTER",
+            ),
         ]
 
 
@@ -299,13 +308,20 @@ class WakeConfig(BaseConfig):
         enabled: bool = True,
         wake_phrases: list[str] | None = None,
         model_paths: list[Path] | None = None,
-        activation_threshold: float = 0.5,
+        activation_threshold: float = 0.3,  # Lower threshold = more sensitive detection
         target_sample_rate_hz: int = 16000,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self.enabled = enabled
-        self.wake_phrases = wake_phrases or ["hey atlas", "ok atlas"]
+        # Expanded default phrases
+        self.wake_phrases = wake_phrases or [
+            "hey atlas",
+            "ok atlas",
+            "atlas",
+            "hey assistant",
+            "ok assistant",
+        ]
         self.model_paths = model_paths or []
         self.activation_threshold = activation_threshold
         self.target_sample_rate_hz = target_sample_rate_hz
@@ -323,7 +339,13 @@ class WakeConfig(BaseConfig):
             create_field_definition(
                 name="wake_phrases",
                 field_type=list,
-                default=["hey atlas", "ok atlas"],
+                default=[
+                    "hey atlas",
+                    "ok atlas",
+                    "atlas",
+                    "hey assistant",
+                    "ok assistant",
+                ],
                 description="List of wake phrases to detect",
                 env_var="WAKE_PHRASES",
             ),
@@ -337,7 +359,7 @@ class WakeConfig(BaseConfig):
             create_field_definition(
                 name="activation_threshold",
                 field_type=float,
-                default=0.5,
+                default=0.3,
                 description="Activation threshold for wake phrase detection",
                 min_value=0.0,
                 max_value=1.0,
@@ -550,6 +572,7 @@ class FasterWhisperConfig(BaseConfig):
         device: str = "cpu",
         compute_type: str | None = None,
         model_path: str | None = None,
+        enable_enhancement: bool = False,
         **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
@@ -557,6 +580,7 @@ class FasterWhisperConfig(BaseConfig):
         self.device = device
         self.compute_type = compute_type
         self.model_path = model_path
+        self.enable_enhancement = enable_enhancement
 
     @classmethod
     def get_field_definitions(cls) -> list[FieldDefinition]:
@@ -598,6 +622,13 @@ class FasterWhisperConfig(BaseConfig):
                 field_type=str,
                 description="Path to the model directory",
                 env_var="FW_MODEL_PATH",
+            ),
+            create_field_definition(
+                name="enable_enhancement",
+                field_type=bool,
+                default=False,
+                description="Enable audio enhancement preprocessing",
+                env_var="FW_ENABLE_ENHANCEMENT",
             ),
         ]
 

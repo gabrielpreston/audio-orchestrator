@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 
 # audioop is deprecated, using alternative approach
 import io
 import time
-import wave
-from dataclasses import dataclass
 from types import TracebackType
 from typing import Any
+import wave
 
 import httpx
 
@@ -198,6 +198,9 @@ class TranscriptionClient:
             params["beam_size"] = str(self._config.beam_size)  # type: ignore[attr-defined]
         if getattr(self._config, "word_timestamps", False):
             params["word_timestamps"] = "true"
+        # Add VAD filter if enabled
+        if getattr(self._config, "vad_filter", False):
+            params["vad_filter"] = "true"
 
         processing_timeout = max(
             self._config.request_timeout_seconds,
