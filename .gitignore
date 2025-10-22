@@ -64,6 +64,7 @@ services/models/
 
 # Security Reports
 security-reports/
+bandit-report.json
 
 # OS-Specific
 .DS_Store

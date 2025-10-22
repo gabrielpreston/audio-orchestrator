@@ -41,7 +41,6 @@ class TestLatencyMeasurements:
             ) as mock_orchestrator,
             patch("services.discord.discord_voice.TTSClient") as mock_tts,
         ):
-
             # Mock all services with realistic delays
             mock_stt.return_value.transcribe.return_value = Mock(
                 text="short query",
@@ -161,7 +160,6 @@ class TestTimestampAccuracy:
             patch("services.discord.discord_voice.DiscordAudioSource") as mock_source,
             patch("services.discord.discord_voice.DiscordAudioSink") as mock_sink,
         ):
-
             mock_source.return_value.capture_audio.return_value = sample_wav_file
             mock_sink.return_value.play_audio.return_value = True
 

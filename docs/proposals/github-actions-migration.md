@@ -224,7 +224,7 @@ Triggered on pushes to `main`, tags, or manual dispatch.
 
 ### Tool Bootstrap Strategy
 
-- Python linters: `pip install black isort ruff mypy yamllint`.
+- Python linters: `pip install ruff mypy yamllint`.
 - Dockerfile lint: download Hadolint binary via `HADOLINT_URL`.
 - Makefile lint: `go install github.com/checkmake/checkmake/cmd/checkmake@latest` (pin version when finalizing).
 - Markdown lint: `npm install -g markdownlint-cli`.

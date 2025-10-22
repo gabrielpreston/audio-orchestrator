@@ -444,8 +444,8 @@ class DiscordAdapterIntegration:
             metrics["control_channel_metrics"] = self._control_channel.get_telemetry()
 
         if self._surface_lifecycle:
-            metrics["surface_lifecycle_metrics"] = (
-                await self._surface_lifecycle.get_connection_metrics()
-            )
+            metrics[
+                "surface_lifecycle_metrics"
+            ] = await self._surface_lifecycle.get_connection_metrics()
 
         return metrics

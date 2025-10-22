@@ -12,7 +12,7 @@ from typing import Any
 
 from services.common.logging import get_logger
 
-from ..adapters.types import AudioChunk, AudioMetadata
+from services.orchestrator.adapters.types import AudioChunk, AudioMetadata
 from .types import AudioFormat, ProcessedSegment, ProcessingConfig, ProcessingStatus
 
 
@@ -281,7 +281,7 @@ class AudioProcessor:
             if not samples:
                 return 0.0
             rms = (sum(sample * sample for sample in samples) / len(samples)) ** 0.5
-            return min(rms / 32767.0, 1.0)  # Normalize to 0-1
+            return float(min(rms / 32767.0, 1.0))  # Normalize to 0-1
         except (struct.error, ZeroDivisionError):
             return 0.0
 

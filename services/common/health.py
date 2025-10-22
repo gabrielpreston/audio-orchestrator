@@ -146,7 +146,9 @@ class HealthManager:
             status_value = (
                 1
                 if status == HealthStatus.HEALTHY
-                else 0.5 if status == HealthStatus.DEGRADED else 0
+                else 0.5
+                if status == HealthStatus.DEGRADED
+                else 0
             )
             self._health_status_gauge.labels(
                 service=self._service_name, component="overall"

@@ -5,16 +5,11 @@ if [[ $# -gt 0 ]]; then
   exec "$@"
 fi
 
-echo "Running Python linting..."
+echo "Running Python linting with Ruff..."
 
-echo "Checking code formatting with black..."
-black --check services
-
-echo "Checking import sorting with isort..."
-isort --check-only services
-
-echo "Running ruff linting..."
+echo "Running ruff linting and formatting checks..."
 ruff check services
+ruff format --check services
 
 echo "Running type checking with mypy..."
 mypy services

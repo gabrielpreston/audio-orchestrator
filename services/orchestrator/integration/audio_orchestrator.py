@@ -11,10 +11,10 @@ from typing import Any
 
 from services.common.logging import get_logger
 
-from ..adapters.manager import AdapterManager
-from ..agents.manager import AgentManager
-from ..pipeline.pipeline import AudioPipeline
-from ..pipeline.types import ProcessedSegment, ProcessingConfig
+from services.orchestrator.adapters.manager import AdapterManager
+from services.orchestrator.agents.manager import AgentManager
+from services.orchestrator.pipeline.pipeline import AudioPipeline
+from services.orchestrator.pipeline.types import ProcessedSegment, ProcessingConfig
 from .agent_integration import AgentIntegration
 from .pipeline_integration import PipelineIntegration
 

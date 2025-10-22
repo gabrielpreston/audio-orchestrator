@@ -181,7 +181,8 @@ class VoiceBot(discord.Client):
         if self.config.discord.auto_join:  # type: ignore[attr-defined]
             try:
                 await self.join_voice_channel(
-                    self.config.discord.guild_id, self.config.discord.voice_channel_id  # type: ignore[attr-defined]
+                    self.config.discord.guild_id,  # type: ignore[attr-defined]
+                    self.config.discord.voice_channel_id,  # type: ignore[attr-defined]
                 )
             except Exception as exc:
                 self._logger.error(
@@ -243,10 +244,12 @@ class VoiceBot(discord.Client):
             timeout = max(1.0, self.config.discord.voice_connect_timeout_seconds)  # type: ignore[attr-defined]
             max_attempts = max(1, self.config.discord.voice_connect_max_attempts)  # type: ignore[attr-defined]
             base_backoff = max(
-                0.5, self.config.discord.voice_reconnect_initial_backoff_seconds  # type: ignore[attr-defined]
+                0.5,
+                self.config.discord.voice_reconnect_initial_backoff_seconds,  # type: ignore[attr-defined]
             )
             max_backoff = max(
-                base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds  # type: ignore[attr-defined]
+                base_backoff,
+                self.config.discord.voice_reconnect_max_backoff_seconds,  # type: ignore[attr-defined]
             )
 
             attempt = 0
@@ -815,10 +818,12 @@ class VoiceBot(discord.Client):
         self, guild_id: int, channel_id: int, reason: str
     ) -> None:
         base_backoff = max(
-            0.5, self.config.discord.voice_reconnect_initial_backoff_seconds  # type: ignore[attr-defined]
+            0.5,
+            self.config.discord.voice_reconnect_initial_backoff_seconds,  # type: ignore[attr-defined]
         )
         max_backoff = max(
-            base_backoff, self.config.discord.voice_reconnect_max_backoff_seconds  # type: ignore[attr-defined]
+            base_backoff,
+            self.config.discord.voice_reconnect_max_backoff_seconds,  # type: ignore[attr-defined]
         )
         attempt = 0
         while not self._shutdown.is_set():
@@ -827,9 +832,7 @@ class VoiceBot(discord.Client):
                 await self.join_voice_channel(guild_id, channel_id)
             except Exception as exc:
                 exponential = base_backoff * (2 ** max(0, attempt - 1))
-                delay = min(max_backoff, exponential) + random.uniform(
-                    0, base_backoff
-                )  # noqa: S311 - jitter for retries, not cryptographic
+                delay = min(max_backoff, exponential) + random.uniform(0, base_backoff)  # noqa: S311 - jitter for retries, not cryptographic
                 self._logger.warning(
                     "discord.voice_reconnect_retry",
                     guild_id=guild_id,

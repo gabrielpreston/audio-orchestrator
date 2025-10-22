@@ -90,9 +90,11 @@ class WakeDetector:
             )
 
             # Simulate wake phrase detection
-            wake_detected, wake_phrase, confidence = (
-                await self._analyze_audio_for_wake_phrases(processed_segment.audio_data)
-            )
+            (
+                wake_detected,
+                wake_phrase,
+                confidence,
+            ) = await self._analyze_audio_for_wake_phrases(processed_segment.audio_data)
 
             # Update processed segment with wake detection results
             processed_segment.wake_detected = wake_detected

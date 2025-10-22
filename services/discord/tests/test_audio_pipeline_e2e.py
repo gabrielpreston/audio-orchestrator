@@ -169,7 +169,6 @@ class TestAudioPipelineE2E:
                 return_value=mock_orchestrator_client,
             ),
         ):
-
             # Simulate segment processing
             voice_bot._save_debug_wav(sample_audio_segment, prefix="captured")
 

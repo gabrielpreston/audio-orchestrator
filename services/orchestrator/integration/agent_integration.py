@@ -10,9 +10,9 @@ from typing import Any
 
 from services.common.logging import get_logger
 
-from ..agents.manager import AgentManager
-from ..agents.types import ConversationContext
-from ..pipeline.types import ProcessedSegment
+from services.orchestrator.agents.manager import AgentManager
+from services.orchestrator.agents.types import ConversationContext
+from services.orchestrator.pipeline.types import ProcessedSegment
 
 
 logger = get_logger(__name__)

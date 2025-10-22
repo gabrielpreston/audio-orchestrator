@@ -11,7 +11,7 @@ from typing import Any
 
 from services.common.logging import get_logger
 
-from ..adapters.types import AudioChunk
+from services.orchestrator.adapters.types import AudioChunk
 from .audio_processor import AudioProcessor
 from .types import ProcessedSegment, ProcessingConfig
 from .wake_detector import WakeDetector

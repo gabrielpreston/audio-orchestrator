@@ -95,7 +95,6 @@ class TestWakeDetection:
                 wake_detector_enabled, "_detect_transcript"
             ) as mock_transcript,
         ):
-
             mock_result = Mock()
             mock_result.phrase = "hey atlas"
             mock_result.confidence = 0.8
@@ -189,7 +188,6 @@ class TestWakeDetection:
                 wake_detector_enabled, "_detect_transcript"
             ) as mock_transcript,
         ):
-
             mock_result = Mock()
             mock_result.phrase = "hey atlas"
             mock_result.confidence = 0.7
@@ -218,7 +216,6 @@ class TestWakeDetection:
                 wake_detector_enabled, "_detect_transcript", return_value=None
             ),
         ):
-
             result = wake_detector_enabled.detect(sample_audio_segment, transcript)
 
         # Should return None

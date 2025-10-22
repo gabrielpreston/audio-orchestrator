@@ -147,7 +147,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=FlushDecision(
@@ -216,7 +215,6 @@ class TestAudioSegments:
             ),
             patch("services.common.logging.bind_correlation_id") as mock_bind,
         ):
-
             mock_segment_logger = Mock()
             mock_bind.return_value = mock_segment_logger
 
@@ -272,7 +270,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             segment = audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=decision,
@@ -329,7 +326,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             segment = audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=decision,
@@ -386,7 +382,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             segment = audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=decision,
@@ -438,7 +433,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=FlushDecision(
@@ -491,7 +485,6 @@ class TestAudioSegments:
                 "services.common.logging.bind_correlation_id", return_value=mock_logger
             ),
         ):
-
             segment = audio_pipeline._flush_accumulator(
                 sample_accumulator,
                 decision=None,

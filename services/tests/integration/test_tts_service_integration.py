@@ -199,7 +199,8 @@ class TestTTSServiceIntegration:
         """Test TTS service error handling."""
         # Test with invalid input
         response = tts_service_client.post(
-            "/synthesize", json={"text": None}  # Invalid input
+            "/synthesize",
+            json={"text": None},  # Invalid input
         )
 
         # Should handle gracefully

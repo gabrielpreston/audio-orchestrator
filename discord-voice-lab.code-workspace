@@ -9,7 +9,7 @@
             "path": "./services/discord"
         },
         {
-            "name": "STT Service", 
+            "name": "STT Service",
             "path": "./services/stt"
         },
         {
@@ -57,9 +57,7 @@
         "recommendations": [
             "ms-python.python",
             "ms-python.pylint",
-            "ms-python.black-formatter",
-            "ms-python.isort"
+            "charliermarsh.ruff"
         ]
     }
 }
-

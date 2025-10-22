@@ -447,7 +447,7 @@ lint: lint-image ## Run all linters (validation only)
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-parallel.sh
+		/usr/local/bin/run-lint.sh
 
 lint-image: ## Build the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }

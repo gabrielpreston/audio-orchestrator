@@ -2,45 +2,19 @@
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[tool.black]
-# Black code formatter configuration
-# Purpose: Ensures consistent Python code formatting across the project
-line-length = 88  # Standard line length for Python projects (PEP 8 recommends 79, but 88 is more practical)
-target-version = ['py311']  # Target Python 3.11 for modern syntax features
-include = '\.pyi?$'  # Include both .py and .pyi files (type stubs)
-extend-exclude = '''
-/(
-  # Exclude common build and cache directories to avoid formatting generated files
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
-
-[tool.isort]
-# isort import sorting configuration
-# Purpose: Organizes imports in a consistent, readable manner that works with Black
-profile = "black"  # Use Black-compatible import sorting style
-multi_line_output = 3  # Use vertical hanging indent for multi-line imports (Black-compatible)
-line_length = 88  # Match Black's line length to prevent conflicts
-include_trailing_comma = true  # Always include trailing commas (Black requirement)
-force_grid_wrap = 0  # Don't force grid wrapping (let Black handle it)
-use_parentheses = true  # Use parentheses for multi-line imports (Black-compatible)
-ensure_newline_before_comments = true  # Add blank line before import comments for readability
-lines_after_imports = 2  # Add 2 blank lines after imports (PEP 8 compliance)
-skip_glob = ["**/.venv/**", "**/build/**", "**/dist/**"]  # Skip virtual environments and build directories
-known_first_party = ["services"]  # Align with Ruff's isort config to classify internal package
 
 [tool.ruff]
 # Ruff linter configuration
-# Purpose: Fast Python linting that replaces multiple tools (flake8, isort, etc.)
+# Purpose: Fast Python linting and formatting that replaces multiple tools (flake8, isort, black, etc.)
 target-version = "py311"  # Target Python 3.11 for modern syntax features
-line-length = 88  # Match Black's line length to prevent conflicts
+line-length = 88  # Standard line length for Python projects
+
+[tool.ruff.format]
+# Ruff formatter configuration (replaces Black)
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
 [tool.ruff.lint]
 # Ruff linting rules selection

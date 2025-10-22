@@ -14,17 +14,12 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
-print_status "$CYAN" "Applying automatic fixes..."
+print_status "$CYAN" "Applying automatic fixes with Ruff..."
 
-# Apply Python formatting fixes
-print_status "$BLUE" "Fixing Python code formatting with black..."
-black services
-
-print_status "$BLUE" "Fixing import sorting with isort..."
-isort services
-
-print_status "$BLUE" "Applying ruff fixes..."
+# Apply Python formatting and import fixes with Ruff
+print_status "$BLUE" "Fixing Python code with ruff..."
 ruff check --fix services
+ruff format services
 
 # Apply Markdown formatting fixes
 print_status "$BLUE" "Fixing Markdown formatting..."

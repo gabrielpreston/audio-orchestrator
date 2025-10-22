@@ -20,7 +20,7 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 | `make stop` | Stop running containers without removing volumes. |
 | `make logs [SERVICE=name]` | Stream JSON logs for the entire stack or a single service. |
 | `make lint` | Run containerized linting for Python, Dockerfiles, Markdown, and YAML. |
-| `make lint-fix` | Apply `black` and `isort` formatting in the lint container. |
+| `make lint-fix` | Apply Ruff formatting in the lint container. |
 | `make lint-local` | Run lint tools installed on the host machine. |
 | `make test` | Execute `pytest` inside the tester container. |
 | `make test-local` | Run `pytest` on the host; set `PYTEST_ARGS` for filtering. |

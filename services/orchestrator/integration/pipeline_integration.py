@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from collections.abc import Callable
 
 from services.common.logging import get_logger
 
-from ..adapters.manager import AdapterManager
-from ..pipeline.pipeline import AudioPipeline
-from ..pipeline.types import ProcessedSegment, ProcessingConfig
+from services.orchestrator.adapters.manager import AdapterManager
+from services.orchestrator.pipeline.pipeline import AudioPipeline
+from services.orchestrator.pipeline.types import ProcessedSegment, ProcessingConfig
 
 
 logger = get_logger(__name__)
@@ -31,7 +32,7 @@ class PipelineIntegration:
         adapter_manager: AdapterManager,
         audio_pipeline: AudioPipeline,
         config: ProcessingConfig | None = None,
-        segment_callback: callable | None = None,
+        segment_callback: Callable[..., Any] | None = None,
     ) -> None:
         """Initialize the pipeline integration.
 
@@ -149,8 +150,8 @@ class PipelineIntegration:
 
     async def _process_audio_stream(
         self,
-        input_adapter,
-        output_adapter,
+        input_adapter: Any,
+        output_adapter: Any,
         session_id: str,
     ) -> None:
         """Process audio stream from input to output.
@@ -188,7 +189,7 @@ class PipelineIntegration:
     async def _handle_processed_segment(
         self,
         processed_segment: ProcessedSegment,
-        output_adapter,
+        output_adapter: Any,
         session_id: str,
     ) -> None:
         """Handle a processed audio segment.

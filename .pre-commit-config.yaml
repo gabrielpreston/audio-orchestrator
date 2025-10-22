@@ -9,47 +9,35 @@ repos:
     rev: v4.5.0
     hooks:
       - id: trailing-whitespace
-        exclude: '\.md$'  # Allow trailing spaces in Markdown (used for line breaks)
-      - id: end-of-file-fixer  # Ensure files end with newline
+        exclude: '\.md$' # Allow trailing spaces in Markdown (used for line breaks)
+      - id: end-of-file-fixer # Ensure files end with newline
       - id: check-yaml
-        args: ['--unsafe']  # Allow unsafe YAML (needed for some Docker Compose files)
-      - id: check-json  # Validate JSON syntax
-      - id: check-toml  # Validate TOML syntax
-      - id: check-merge-conflict  # Detect merge conflict markers
+        args: ["--unsafe"] # Allow unsafe YAML (needed for some Docker Compose files)
+      - id: check-json # Validate JSON syntax
+      - id: check-toml # Validate TOML syntax
+      - id: check-merge-conflict # Detect merge conflict markers
       - id: check-added-large-files
-        args: ['--maxkb=1000']  # Prevent accidentally committing large files
-      - id: check-case-conflict  # Detect case conflicts in filenames
-      - id: debug-statements  # Detect debug statements (print, pdb, etc.)
-      - id: detect-private-key  # Detect private keys in commits
+        args: ["--maxkb=1000"] # Prevent accidentally committing large files
+      - id: check-case-conflict # Detect case conflicts in filenames
+      - id: debug-statements # Detect debug statements (print, pdb, etc.)
+      - id: detect-private-key # Detect private keys in commits
 
   # Python code formatting and linting
   # Purpose: Ensure consistent Python code style and catch common issues
-  - repo: https://github.com/psf/black
-    rev: 24.1.1
-    hooks:
-      - id: black
-        language_version: python3.11  # Use Python 3.11 for formatting
-        args: ['--line-length=88']  # Match our Black configuration
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        args: ['--profile', 'black', '--line-length', '88']  # Match our isort configuration
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.1.8
     hooks:
       - id: ruff
-        args: ['--fix', '--exit-non-zero-on-fix']  # Fix auto-fixable issues and fail on others
-      - id: ruff-format  # Format code with ruff (alternative to Black)
+        args: ["--fix", "--exit-non-zero-on-fix"] # Fix auto-fixable issues and fail on others
+      - id: ruff-format # Format code with ruff (alternative to Black)
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
       - id: mypy
-        additional_dependencies: [types-all]  # Install type stubs for better checking
-        args: ['--ignore-missing-imports']  # Ignore missing imports (common with external packages)
+        additional_dependencies: [types-all] # Install type stubs for better checking
+        args: ["--ignore-missing-imports"] # Ignore missing imports (common with external packages)
 
   # YAML file linting
   # Purpose: Ensure YAML files are properly formatted and follow best practices
@@ -57,7 +45,7 @@ repos:
     rev: v1.35.1
     hooks:
       - id: yamllint
-        args: ['-c', '.yamllint']  # Use our custom yamllint configuration
+        args: ["-c", ".yamllint"] # Use our custom yamllint configuration
 
   # Markdown file linting
   # Purpose: Ensure Markdown files are properly formatted and follow best practices
@@ -65,7 +53,7 @@ repos:
     rev: v0.37.0
     hooks:
       - id: markdownlint
-        args: ['--config', '.markdownlint.yaml']  # Use our custom markdownlint configuration
+        args: ["--config", ".markdownlint.yaml"] # Use our custom markdownlint configuration
 
   # Dockerfile linting
   # Purpose: Ensure Dockerfiles follow best practices and security guidelines
@@ -73,19 +61,60 @@ repos:
     rev: v2.12.0
     hooks:
       - id: hadolint
-        args: ['--config', '.hadolint.yaml']  # Use our custom hadolint configuration
+        args: ["--config", ".hadolint.yaml"] # Use our custom hadolint configuration
 
-  # Makefile linting
-  # Purpose: Ensure Makefiles follow best practices and are properly formatted
-  - repo: https://github.com/checkmake/checkmake
-    rev: v0.2.2
+  # Security analysis using local .venv
+  # Purpose: Detect security vulnerabilities and anti-patterns in agent-generated code
+  - repo: local
     hooks:
-      - id: checkmake
-        args: ['--config', '.checkmake.yaml']  # Use our custom checkmake configuration
+      - id: bandit
+        name: bandit
+        entry: .venv/bin/bandit
+        language: system
+        args: ["-r", "-f", "json", "-o", "bandit-report.json"]
+        exclude: "tests/.*"
+        files: '\.py$'
+
+  # Secret detection using local .venv
+  - repo: local
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets
+        entry: .venv/bin/detect-secrets
+        language: system
+        args: ["scan", "--baseline", ".secrets.baseline"]
+        exclude: '\.env.*'
+        files: '\.(py|yaml|yml|json|txt|md)$'
+
+  # Code complexity analysis using local .venv
+  - repo: local
+    hooks:
+      - id: radon-cc
+        name: radon-cc
+        entry: .venv/bin/radon
+        language: system
+        args: ["cc", "--min", "B", "services/"]
+        files: '\.py$'
+      - id: radon-mi
+        name: radon-mi
+        entry: .venv/bin/radon
+        language: system
+        args: ["mi", "--min", "B", "services/"]
+        files: '\.py$'
+
+  # Commit message validation using local .venv
+  - repo: local
+    hooks:
+      - id: commitizen
+        name: commitizen
+        entry: .venv/bin/cz
+        language: system
+        stages: [commit-msg]
+        args: ["check", "--rev-range", "HEAD~1..HEAD"]
 
 # Global configuration
 default_language_version:
-  python: python3.11  # Use Python 3.11 as the default language version
+  python: python3.11 # Use Python 3.11 as the default language version
 
 # Exclude patterns
 # Purpose: Skip linting for generated files, caches, and other non-source files

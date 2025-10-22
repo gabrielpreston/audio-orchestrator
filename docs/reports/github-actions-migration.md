@@ -50,7 +50,7 @@ only when their categories change or when the workflow is triggered manually.
 
 | Job            | Timeout | Key steps                                                                                     | Artifacts               |
 |----------------|---------|-----------------------------------------------------------------------------------------------|-------------------------|
-| `Lint`         | 15 min  | Install Black, isort, Ruff, MyPy, Yamllint, Hadolint, Checkmake, Markdownlint; run `make lint-local`. | —                       |
+| `Lint`         | 15 min  | Install Ruff, MyPy, Yamllint, Hadolint, Checkmake, Markdownlint; run `make lint-local`. | —                       |
 | `Tests`        | 20 min  | Install service + tester requirements, export `PYTHONPATH`, run `make test-local`.            | `pytest-log`            |
 | `Docker smoke` | 30 min  | Enable Buildx, run `make docker-smoke`, capture `docker compose config`.                      | `docker-smoke-artifacts`|
 | `Security scan`| 10 min  | Install `pip-audit`, scan each `services/*/requirements.txt`, store JSON reports per service. | `pip-audit-reports`     |
@@ -60,7 +60,7 @@ All jobs inherit the default GitHub-hosted Ubuntu runner with Docker enabled.
 ## Local reproduction checklist
 
 1. Install the lint toolchain locally:
-   - `pip install black isort ruff mypy yamllint`
+   - `pip install ruff mypy yamllint`
    - Download the Hadolint binary to your `$PATH`
    - `go install github.com/checkmake/checkmake/cmd/checkmake@latest`
    - `npm install -g markdownlint-cli`

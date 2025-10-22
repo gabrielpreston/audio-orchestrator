@@ -11,28 +11,28 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Install additional system dependencies for tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        gnupg=* \
-        make=* \
-        nodejs=* \
-        npm=* \
-        cmake=* \
-        ffmpeg=* \
-        libavcodec-dev=* \
-        libavdevice-dev=* \
-        libavfilter-dev=* \
-        libavformat-dev=* \
-        libavutil-dev=* \
-        libcurl4-openssl-dev=* \
-        libffi-dev=* \
-        libgomp1=* \
-        libopenblas-dev=* \
-        libopus0=* \
-        libsndfile1=* \
-        libsodium-dev=* \
-        ninja-build=* \
-        pkg-config=* \
-        python3-dev=* \
-        wget=* && \
+    gnupg=* \
+    make=* \
+    nodejs=* \
+    npm=* \
+    cmake=* \
+    ffmpeg=* \
+    libavcodec-dev=* \
+    libavdevice-dev=* \
+    libavfilter-dev=* \
+    libavformat-dev=* \
+    libavutil-dev=* \
+    libcurl4-openssl-dev=* \
+    libffi-dev=* \
+    libgomp1=* \
+    libopenblas-dev=* \
+    libopus0=* \
+    libsndfile1=* \
+    libsodium-dev=* \
+    ninja-build=* \
+    pkg-config=* \
+    python3-dev=* \
+    wget=* && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go
@@ -94,8 +94,7 @@ RUN go install github.com/rhysd/actionlint/cmd/actionlint@latest
 
 # Copy tool scripts
 COPY services/linter/run-lint.sh /usr/local/bin/run-lint.sh
-COPY services/linter/run-lint-parallel.sh /usr/local/bin/run-lint-parallel.sh
 COPY services/tester/run-tests.sh /usr/local/bin/run-tests.sh
-RUN chmod +x /usr/local/bin/run-lint.sh /usr/local/bin/run-lint-parallel.sh /usr/local/bin/run-tests.sh
+RUN chmod +x /usr/local/bin/run-lint.sh /usr/local/bin/run-tests.sh
 
 WORKDIR /workspace

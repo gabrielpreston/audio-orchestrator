@@ -49,13 +49,13 @@ class TestAudioOrchestrator:
         orchestrator = AudioOrchestrator()
 
         # Mock component health checks
-        orchestrator.adapter_manager.health_check = AsyncMock(
+        orchestrator.adapter_manager.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
-        orchestrator.agent_manager.get_stats = AsyncMock(
+        orchestrator.agent_manager.get_stats = AsyncMock(  # type: ignore[method-assign]
             return_value={"agent_count": 0}
         )
-        orchestrator.audio_pipeline.health_check = AsyncMock(
+        orchestrator.audio_pipeline.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
 
@@ -70,7 +70,7 @@ class TestAudioOrchestrator:
 
         # Mock initialization
         orchestrator._is_initialized = True
-        orchestrator.pipeline_integration.start_processing = AsyncMock()
+        orchestrator.pipeline_integration.start_processing = AsyncMock()  # type: ignore[method-assign]
 
         await orchestrator.start_session("session-123")
 
@@ -98,8 +98,8 @@ class TestAudioOrchestrator:
 
         # Mock session state
         orchestrator._active_sessions.add("session-123")
-        orchestrator.pipeline_integration.stop_processing = AsyncMock()
-        orchestrator.agent_integration.end_session = AsyncMock()
+        orchestrator.pipeline_integration.stop_processing = AsyncMock()  # type: ignore[method-assign]
+        orchestrator.agent_integration.end_session = AsyncMock()  # type: ignore[method-assign]
 
         await orchestrator.stop_session("session-123")
 
@@ -126,7 +126,7 @@ class TestAudioOrchestrator:
 
         # Mock session state
         orchestrator._active_sessions.add("session-123")
-        orchestrator.agent_integration.handle_processed_segment = AsyncMock()
+        orchestrator.agent_integration.handle_processed_segment = AsyncMock()  # type: ignore[method-assign]
 
         # Create processed segment
         processed_segment = ProcessedSegment(
@@ -177,10 +177,10 @@ class TestAudioOrchestrator:
 
         # Mock session state
         orchestrator._active_sessions.add("session-123")
-        orchestrator.pipeline_integration.get_status = AsyncMock(
+        orchestrator.pipeline_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"is_processing": True}
         )
-        orchestrator.agent_integration.get_status = AsyncMock(
+        orchestrator.agent_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"active_sessions": 1}
         )
 
@@ -199,19 +199,19 @@ class TestAudioOrchestrator:
         # Mock component status
         orchestrator._is_initialized = True
         orchestrator._active_sessions.add("session-123")
-        orchestrator.adapter_manager.health_check = AsyncMock(
+        orchestrator.adapter_manager.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
-        orchestrator.agent_manager.get_stats = AsyncMock(
+        orchestrator.agent_manager.get_stats = AsyncMock(  # type: ignore[method-assign]
             return_value={"agent_count": 0}
         )
-        orchestrator.audio_pipeline.health_check = AsyncMock(
+        orchestrator.audio_pipeline.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
-        orchestrator.pipeline_integration.get_status = AsyncMock(
+        orchestrator.pipeline_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"is_processing": True}
         )
-        orchestrator.agent_integration.get_status = AsyncMock(
+        orchestrator.agent_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"active_sessions": 1}
         )
 
@@ -234,19 +234,19 @@ class TestAudioOrchestrator:
         # Mock component health checks
         orchestrator._is_initialized = True
         orchestrator._active_sessions.add("session-123")
-        orchestrator.adapter_manager.health_check = AsyncMock(
+        orchestrator.adapter_manager.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
-        orchestrator.agent_manager.get_stats = AsyncMock(
+        orchestrator.agent_manager.get_stats = AsyncMock(  # type: ignore[method-assign]
             return_value={"agent_count": 0}
         )
-        orchestrator.audio_pipeline.health_check = AsyncMock(
+        orchestrator.audio_pipeline.health_check = AsyncMock(  # type: ignore[method-assign]
             return_value={"status": "healthy"}
         )
-        orchestrator.pipeline_integration.get_status = AsyncMock(
+        orchestrator.pipeline_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"is_processing": True}
         )
-        orchestrator.agent_integration.get_status = AsyncMock(
+        orchestrator.agent_integration.get_status = AsyncMock(  # type: ignore[method-assign]
             return_value={"active_sessions": 1}
         )
 
