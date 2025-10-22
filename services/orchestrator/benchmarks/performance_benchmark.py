@@ -16,7 +16,7 @@ from services.orchestrator.pipeline.audio_processor import AudioProcessor
 from services.orchestrator.pipeline.optimized_audio_processor import (
     OptimizedAudioProcessor,
 )
-from services.orchestrator.pipeline.types import ProcessingConfig
+from services.orchestrator.pipeline.types import ProcessingConfig, ProcessingStatus
 
 logger = get_logger(__name__)
 
@@ -135,9 +135,11 @@ class PerformanceBenchmark:
             "avg_time_per_chunk": total_time / len(chunks),
             "chunks_processed": len(chunks),
             "successful_chunks": sum(
-                1 for r in results if r.status.value == "completed"
+                1 for r in results if r.status == ProcessingStatus.COMPLETED
             ),
-            "failed_chunks": sum(1 for r in results if r.status.value == "failed"),
+            "failed_chunks": sum(
+                1 for r in results if r.status == ProcessingStatus.FAILED
+            ),
             "avg_processing_time": sum(r.processing_time for r in results)
             / len(results),
             "total_audio_data": sum(len(r.audio_data) for r in results),
@@ -176,9 +178,11 @@ class PerformanceBenchmark:
             "avg_time_per_chunk": total_time / len(chunks),
             "chunks_processed": len(chunks),
             "successful_chunks": sum(
-                1 for r in results if r.status.value == "completed"
+                1 for r in results if r.status == ProcessingStatus.COMPLETED
             ),
-            "failed_chunks": sum(1 for r in results if r.status.value == "failed"),
+            "failed_chunks": sum(
+                1 for r in results if r.status == ProcessingStatus.FAILED
+            ),
             "avg_processing_time": sum(r.processing_time for r in results)
             / len(results),
             "total_audio_data": sum(len(r.audio_data) for r in results),

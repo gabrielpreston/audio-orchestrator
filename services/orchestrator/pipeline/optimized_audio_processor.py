@@ -44,6 +44,9 @@ class OptimizedAudioProcessor(AudioProcessor):
         """
         super().__init__(config)
 
+        # Initialize logger
+        self._logger = get_logger(__name__)
+
         # Performance optimizations
         self._audio_buffer = OptimizedBuffer()
         self._connection_pools: dict[str, ConnectionPool] = {}

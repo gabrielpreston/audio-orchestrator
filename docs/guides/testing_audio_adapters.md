@@ -1,3 +1,10 @@
+---
+title: Testing Audio Adapters
+author: Discord Voice Lab Team
+status: active
+last-updated: 2025-10-22
+---
+
 # Testing Audio Adapters
 
 ## Overview
