@@ -261,7 +261,9 @@ def optimize_audio_processing(func: Any) -> Any:
         if asyncio.iscoroutinefunction(func):
             return await func(*args, **kwargs)
         # Otherwise run in thread pool to avoid blocking event loop
+        # Use functools.partial to bind keyword arguments since run_in_executor doesn't support kwargs
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func, *args, **kwargs)
+        bound_func = functools.partial(func, *args, **kwargs)
+        return await loop.run_in_executor(None, bound_func)
 
     return wrapper
