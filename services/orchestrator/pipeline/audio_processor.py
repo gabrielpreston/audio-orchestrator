@@ -272,7 +272,7 @@ class AudioProcessor:
         # Ensure we have an even number of bytes for 16-bit samples
         if len(audio_data) % 2 != 0:
             audio_data = audio_data[:-1]  # Remove last byte if odd length
-        
+
         if len(audio_data) < 2:
             return 0.0  # Not enough data for a 16-bit sample
 
