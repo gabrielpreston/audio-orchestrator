@@ -215,7 +215,7 @@ def trace_audio_processing(operation_name: str) -> Any:
                     # Handle async functions
                     if inspect.iscoroutine(result):
 
-                        async def async_wrapper():
+                        async def async_wrapper() -> Any:
                             try:
                                 result_value = await result
                                 span.set_attribute("status", "success")
@@ -260,7 +260,7 @@ def trace_service_call(service_name: str, operation: str) -> Any:
                     # Handle async functions
                     if inspect.iscoroutine(result):
 
-                        async def async_wrapper():
+                        async def async_wrapper() -> Any:
                             try:
                                 result_value = await result
                                 span.set_attribute("status", "success")
