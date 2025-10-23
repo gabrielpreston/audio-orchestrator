@@ -12,35 +12,21 @@ from fastapi.responses import JSONResponse
 from llama_cpp import Llama
 from pydantic import BaseModel
 
-from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.config import (
+    ServiceConfig,
+    load_config_from_env,
+    get_service_preset,
+)
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
-from services.common.service_configs import (
-    HttpConfig,
-    LlamaConfig,
-    LLMServiceConfig,
-    LoggingConfig,
-    PortConfig,
-    TelemetryConfig,
-    TTSClientConfig,
-)
+# Configuration classes are now handled by the new config system
 
 
 app = FastAPI(title="Local LLM Service")
 
-_cfg: ServiceConfig = (
-    ConfigBuilder.for_service("llm", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("port", PortConfig)
-    .add_config("llama", LlamaConfig)
-    .add_config("service", LLMServiceConfig)
-    .add_config("tts", TTSClientConfig)
-    .add_config("telemetry", TelemetryConfig)
-    .load()
-)
+_cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("llm"))
 
 configure_logging(
     _cfg.logging.level,  # type: ignore[attr-defined]

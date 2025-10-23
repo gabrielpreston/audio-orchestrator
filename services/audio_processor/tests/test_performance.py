@@ -134,6 +134,7 @@ class TestAudioProcessorPerformance:
             for _ in range(100):
                 start = time.perf_counter()
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 latencies.append(time.perf_counter() - start)
 
             p50 = np.percentile(latencies, 50)
@@ -158,6 +159,7 @@ class TestAudioProcessorPerformance:
             for _ in range(50):
                 start = time.perf_counter()
                 response = client.post("/enhance/audio", content=wav_data)
+                assert response.status_code == 200
                 latencies.append(time.perf_counter() - start)
 
             p50 = np.percentile(latencies, 50)
@@ -183,6 +185,7 @@ class TestAudioProcessorPerformance:
 
             async def make_request():
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 return response
 
             tasks = [make_request() for _ in range(10)]
@@ -192,9 +195,9 @@ class TestAudioProcessorPerformance:
             total_time = time.perf_counter() - start
 
             assert all(r.status_code == 200 for r in responses)
-            assert total_time < 0.100, (
-                f"10 concurrent requests took {total_time * 1000:.1f}ms"
-            )
+            assert (
+                total_time < 0.100
+            ), f"10 concurrent requests took {total_time * 1000:.1f}ms"
 
     @pytest.mark.asyncio
     async def test_concurrent_load_50_requests(self, client):
@@ -213,6 +216,7 @@ class TestAudioProcessorPerformance:
 
             async def make_request():
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 return response
 
             tasks = [make_request() for _ in range(50)]
@@ -222,9 +226,9 @@ class TestAudioProcessorPerformance:
             total_time = time.perf_counter() - start
 
             assert all(r.status_code == 200 for r in responses)
-            assert total_time < 0.500, (
-                f"50 concurrent requests took {total_time * 1000:.1f}ms"
-            )
+            assert (
+                total_time < 0.500
+            ), f"50 concurrent requests took {total_time * 1000:.1f}ms"
 
     @pytest.mark.asyncio
     async def test_memory_stability_under_load(self, client):
@@ -252,6 +256,7 @@ class TestAudioProcessorPerformance:
             # Process 1000 frames
             for _ in range(1000):
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 assert response.status_code == 200
 
             final_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -291,9 +296,9 @@ class TestAudioProcessorPerformance:
 
             total_latency = time.perf_counter() - start
 
-            assert total_latency < 0.100, (
-                f"E2E pipeline took {total_latency * 1000:.1f}ms"
-            )
+            assert (
+                total_latency < 0.100
+            ), f"E2E pipeline took {total_latency * 1000:.1f}ms"
 
     def test_processing_time_consistency(self, client):
         """Test that processing time is consistent across requests."""
@@ -313,6 +318,7 @@ class TestAudioProcessorPerformance:
             for _ in range(20):
                 response = client.post("/process/frame", json=frame_data)
                 assert response.status_code == 200
+                assert response.status_code == 200
 
                 data = response.json()
                 processing_times.append(data["processing_time_ms"])
@@ -321,12 +327,12 @@ class TestAudioProcessorPerformance:
             avg_time = np.mean(processing_times)
             std_time = np.std(processing_times)
 
-            assert avg_time < 50, (
-                f"Average processing time {avg_time:.1f}ms is too high"
-            )
-            assert std_time < avg_time * 0.5, (
-                f"Processing time variance {std_time:.1f}ms is too high"
-            )
+            assert (
+                avg_time < 50
+            ), f"Average processing time {avg_time:.1f}ms is too high"
+            assert (
+                std_time < avg_time * 0.5
+            ), f"Processing time variance {std_time:.1f}ms is too high"
 
     def test_throughput_under_load(self, client):
         """Test throughput under sustained load."""
@@ -346,6 +352,7 @@ class TestAudioProcessorPerformance:
             # Process 100 frames
             for _ in range(100):
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 assert response.status_code == 200
 
             total_time = time.perf_counter() - start_time
@@ -371,6 +378,7 @@ class TestAudioProcessorPerformance:
             for _ in range(200):
                 start = time.perf_counter()
                 response = client.post("/process/frame", json=frame_data)
+                assert response.status_code == 200
                 latencies.append(time.perf_counter() - start)
 
             p50 = np.percentile(latencies, 50)

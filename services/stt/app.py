@@ -10,32 +10,25 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
-from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.config import (
+    ServiceConfig,
+    get_service_preset,
+    load_config_from_env,
+)
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
-# from services.common.metrics import MetricsCollector, init_metrics_registry
-from services.common.service_configs import (
-    FasterWhisperConfig,
-    HttpConfig,
-    LoggingConfig,
-    TelemetryConfig,
-)
-
 from .audio_processor_client import STTAudioProcessorClient
+
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
+# Configuration classes are now handled by the new config system
 
 
 app = FastAPI(title="audio-orchestrator STT (faster-whisper)")
 
 # Centralized configuration
-_cfg: ServiceConfig = (
-    ConfigBuilder.for_service("stt", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("faster_whisper", FasterWhisperConfig)
-    .add_config("telemetry", TelemetryConfig)
-    .load()
-)
+_cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("stt"))
 
 MODEL_NAME = _cfg.faster_whisper.model  # type: ignore[attr-defined]
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[attr-defined]

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 import io
 import json
 import os
 import re
 import time
-from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -15,30 +15,23 @@ from piper import PiperVoice
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.config import (
+    ServiceConfig,
+    get_service_preset,
+    load_config_from_env,
+)
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
+
 # from services.common.metrics import MetricsCollector, init_metrics_registry
-from services.common.service_configs import (
-    HttpConfig,
-    LoggingConfig,
-    TelemetryConfig,
-    TTSConfig,
-)
+# Configuration classes are now handled by the new config system
 
 
 # Deprecated helpers retained for backward compat in tests; prefer config values
 
 
-_cfg: ServiceConfig = (
-    ConfigBuilder.for_service("tts", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("tts", TTSConfig)
-    .add_config("telemetry", TelemetryConfig)
-    .load()
-)
+_cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("tts"))
 
 configure_logging(
     _cfg.logging.level,  # type: ignore[attr-defined]

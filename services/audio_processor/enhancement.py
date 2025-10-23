@@ -195,7 +195,7 @@ class AudioEnhancer:
 
         return enhanced_audio
 
-    async def enhance_audio(self, audio_data: bytes) -> bytes:
+    async def enhance_audio_bytes(self, audio_data: bytes) -> bytes:
         """Enhance audio data (async wrapper for HTTP endpoint).
 
         Args:

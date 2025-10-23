@@ -20,11 +20,11 @@ run_command() {
     local cmd="$1"
     local output_file="$2"
     local description="$3"
-    
+
     echo "Running: $description"
     echo "Command: $cmd"
     echo "---"
-    
+
     if eval "$cmd" > "$output_file" 2>&1; then
         echo "✅ SUCCESS: $description"
         echo "Output saved to: $output_file"
@@ -40,11 +40,11 @@ run_command() {
 # Function to check service health
 check_service_health() {
     echo "=== Service Health Check ==="
-    
+
     # Check if STT service is running
     if curl -s "$STT_URL/health/ready" > /dev/null 2>&1; then
         echo "✅ STT service is running at $STT_URL"
-        
+
         # Get health details
         curl -s "$STT_URL/health/ready" | jq '.' > "$OUTPUT_DIR/health_check.json"
         echo "Health details saved to: $OUTPUT_DIR/health_check.json"
@@ -59,12 +59,12 @@ check_service_health() {
 # Function to run baseline measurements
 run_baseline_measurements() {
     echo "=== Baseline Measurements ==="
-    
+
     run_command \
         "python -m services.tests.measure_baseline --stt-url $STT_URL" \
         "$OUTPUT_DIR/baseline_measurements.log" \
         "Baseline performance measurements"
-    
+
     # Check if baseline results were generated
     if [ -f "$BASELINE_FILE" ]; then
         echo "✅ Baseline results generated: $BASELINE_FILE"
@@ -78,12 +78,12 @@ run_baseline_measurements() {
 # Function to run component tests
 run_component_tests() {
     echo "=== Component Tests ==="
-    
+
     run_command \
         "make test-component SERVICE=stt" \
         "$OUTPUT_DIR/component_tests.log" \
         "Component tests for STT service"
-    
+
     # Run specific enhancement component tests
     run_command \
         "pytest services/tests/component/test_enhancement_*.py -v" \
@@ -95,12 +95,12 @@ run_component_tests() {
 # Function to run integration tests
 run_integration_tests() {
     echo "=== Integration Tests ==="
-    
+
     run_command \
         "make test-integration SERVICE=stt" \
         "$OUTPUT_DIR/integration_tests.log" \
         "Integration tests for STT service"
-    
+
     # Run specific enhancement integration tests
     run_command \
         "pytest services/tests/integration/test_stt_enhancement_integration.py -v" \
@@ -112,12 +112,12 @@ run_integration_tests() {
 # Function to run quality tests
 run_quality_tests() {
     echo "=== Quality Tests ==="
-    
+
     run_command \
         "pytest services/tests/quality/test_audio_quality.py -v" \
         "$OUTPUT_DIR/quality_tests.log" \
         "Audio quality tests"
-    
+
     # Run WER calculator tests
     run_command \
         "pytest services/tests/quality/wer_calculator.py -v" \
@@ -129,7 +129,7 @@ run_quality_tests() {
 # Function to run performance tests
 run_performance_tests() {
     echo "=== Performance Tests ==="
-    
+
     run_command \
         "pytest services/tests/component/test_enhancement_performance.py -v" \
         "$OUTPUT_DIR/performance_tests.log" \
@@ -140,12 +140,12 @@ run_performance_tests() {
 # Function to run error handling tests
 run_error_tests() {
     echo "=== Error Handling Tests ==="
-    
+
     run_command \
         "pytest services/tests/component/test_enhancement_errors.py -v" \
         "$OUTPUT_DIR/error_tests.log" \
         "Enhancement error handling tests"
-    
+
     run_command \
         "pytest services/tests/component/test_enhancement_config.py -v" \
         "$OUTPUT_DIR/config_tests.log" \
@@ -156,7 +156,7 @@ run_error_tests() {
 # Function to run audio format tests
 run_audio_format_tests() {
     echo "=== Audio Format Tests ==="
-    
+
     run_command \
         "pytest services/tests/component/test_enhancement_audio_formats.py -v" \
         "$OUTPUT_DIR/audio_format_tests.log" \
@@ -167,9 +167,9 @@ run_audio_format_tests() {
 # Function to generate summary report
 generate_summary_report() {
     echo "=== Generating Summary Report ==="
-    
+
     local report_file="$OUTPUT_DIR/validation_summary.md"
-    
+
     cat > "$report_file" << EOF
 # Audio Pipeline Validation Summary
 
@@ -220,7 +220,7 @@ EOF
 
     # List all generated files
     find "$OUTPUT_DIR" -type f -name "*.log" -o -name "*.json" -o -name "*.md" | sort >> "$report_file"
-    
+
     echo "✅ Summary report generated: $report_file"
     echo ""
 }
@@ -228,7 +228,7 @@ EOF
 # Function to check dependencies
 check_dependencies() {
     echo "=== Checking Dependencies ==="
-    
+
     # Check required commands
     local required_commands=("python" "pytest" "make" "curl" "jq")
     for cmd in "${required_commands[@]}"; do
@@ -239,7 +239,7 @@ check_dependencies() {
             exit 1
         fi
     done
-    
+
     # Check Python packages
     if python -c "import services.tests.fixtures.audio_samples" 2>/dev/null; then
         echo "✅ Audio test fixtures available"
@@ -247,7 +247,7 @@ check_dependencies() {
         echo "❌ Audio test fixtures not available"
         exit 1
     fi
-    
+
     echo ""
 }
 
@@ -255,13 +255,13 @@ check_dependencies() {
 main() {
     echo "Starting audio pipeline validation..."
     echo ""
-    
+
     # Check dependencies
     check_dependencies
-    
+
     # Check service health
     check_service_health
-    
+
     # Run all test categories
     run_baseline_measurements
     run_component_tests
@@ -270,15 +270,15 @@ main() {
     run_performance_tests
     run_error_tests
     run_audio_format_tests
-    
+
     # Generate summary report
     generate_summary_report
-    
+
     echo "=== Validation Complete ==="
     echo "Results saved to: $OUTPUT_DIR"
     echo "Summary report: $OUTPUT_DIR/validation_summary.md"
     echo ""
-    
+
     # Check if any tests failed
     local failed_tests=0
     for log_file in "$OUTPUT_DIR"/*.log; do
@@ -286,7 +286,7 @@ main() {
             failed_tests=$((failed_tests + 1))
         fi
     done
-    
+
     if [ $failed_tests -eq 0 ]; then
         echo "🎉 All tests passed!"
         exit 0

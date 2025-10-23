@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from services.common.config import ConfigBuilder, Environment
+from services.common.config import load_config_from_env, get_service_preset
 from services.common.config import ServiceConfig as BotConfig
 from services.common.service_configs import (
     AudioConfig,
@@ -18,18 +18,7 @@ from services.common.service_configs import (
 
 def load_config() -> BotConfig:
     """Load Discord configuration via shared configuration library."""
-    return (
-        ConfigBuilder.for_service("discord", Environment.DOCKER)
-        .add_config("discord", DiscordConfig)
-        .add_config("audio", AudioConfig)
-        .add_config("stt", STTConfig)
-        .add_config("wake", WakeConfig)
-        .add_config("mcp", MCPConfig)
-        .add_config("telemetry", TelemetryConfig)
-        .add_config("orchestrator", OrchestratorClientConfig)
-        .add_config("runtime", DiscordRuntimeConfig)
-        .load()
-    )
+    return load_config_from_env(BotConfig, **get_service_preset("discord"))
 
 
 __all__ = [

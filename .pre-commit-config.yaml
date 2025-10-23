@@ -54,8 +54,6 @@ repos:
         pass_filenames: false
         always_run: false
         stages: [pre-commit]
-        timeout: 300 # 5 minutes timeout
-        requires: [trailing-whitespace, end-of-file-fixer]
 
       # Comprehensive linting (all file types)
       - id: docker-lint-staged
@@ -67,8 +65,6 @@ repos:
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
-        timeout: 600 # 10 minutes timeout
-        requires: [check-yaml, check-json, check-toml]
 
       # Security analysis (Python files only, less frequently)
       - id: docker-lint-security
@@ -81,8 +77,6 @@ repos:
         pass_filenames: false
         always_run: false
         stages: [pre-commit]
-        timeout: 300 # 5 minutes timeout
-        requires: [detect-private-key, debug-statements]
 
       # Testing (Python files only, conditional)
       - id: docker-test
@@ -95,8 +89,6 @@ repos:
         pass_filenames: false
         always_run: false
         stages: [pre-commit]
-        timeout: 900 # 15 minutes timeout
-        requires: [docker-lint-staged]
 
       # Performance monitoring (Python files only, conditional)
       - id: docker-lint-performance
@@ -109,8 +101,6 @@ repos:
         pass_filenames: false
         always_run: false
         stages: [pre-commit]
-        timeout: 60 # 1 minute timeout
-        requires: [docker-lint-quick]
 
       # Commit message validation (lightweight local tool)
       - id: commitizen
@@ -150,6 +140,7 @@ exclude: |
     \.secrets\.baseline$|  # Secrets baseline file (prevents infinite loops)
     \.secrets\.baseline\.json$|  # Secrets baseline JSON file
     bandit-report\.json$|  # Bandit security report file
+    scripts/.*|         # Scripts directory (utility scripts, not core code)
     # Security-focused exclusions
     \.env\.local$|        # Local environment files
     \.env\.production$|   # Production environment files

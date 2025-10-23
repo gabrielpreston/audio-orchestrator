@@ -2,34 +2,28 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
-from .base import (
-    AudioConfig,
-    HttpConfig,
-    LoggingConfig,
-    ServiceConfig,
-    TelemetryConfig
-)
+from .base import AudioConfig, HttpConfig, LoggingConfig, ServiceConfig, TelemetryConfig
 
 
 class DiscordConfig:
     """Discord service configuration."""
-    
+
     def __init__(
         self,
         token: str = "",
         guild_id: int = 0,
         voice_channel_id: int = 0,
         auto_join: bool = False,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize Discord configuration."""
         self.token = token
         self.guild_id = guild_id
         self.voice_channel_id = voice_channel_id
         self.auto_join = auto_join
-        
+
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
         self.http = HttpConfig(**kwargs.get("http", {}))
@@ -40,19 +34,19 @@ class DiscordConfig:
 
 class STTConfig:
     """STT service configuration."""
-    
+
     def __init__(
         self,
         model: str = "medium.en",
         device: str = "cpu",
         model_path: str = "/app/models",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize STT configuration."""
         self.model = model
         self.device = device
         self.model_path = model_path
-        
+
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
         self.http = HttpConfig(**kwargs.get("http", {}))
@@ -63,17 +57,17 @@ class STTConfig:
 
 class TTSConfig:
     """TTS service configuration."""
-    
+
     def __init__(
         self,
         model_path: str = "/app/models/piper",
         voice: str = "en_US-lessac-medium",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize TTS configuration."""
         self.model_path = model_path
         self.voice = voice
-        
+
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
         self.http = HttpConfig(**kwargs.get("http", {}))
@@ -84,17 +78,17 @@ class TTSConfig:
 
 class OrchestratorConfig:
     """Orchestrator service configuration."""
-    
+
     def __init__(
         self,
         llm_url: str = "http://llm:8000",
         tts_url: str = "http://tts:8000",
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize Orchestrator configuration."""
         self.llm_url = llm_url
         self.tts_url = tts_url
-        
+
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
         self.http = HttpConfig(**kwargs.get("http", {}))
@@ -103,12 +97,12 @@ class OrchestratorConfig:
         self.telemetry = TelemetryConfig(**kwargs.get("telemetry", {}))
 
 
-def get_service_preset(service_name: str) -> Dict[str, Any]:
+def get_service_preset(service_name: str) -> dict[str, Any]:
     """Get configuration preset for a service.
-    
+
     Args:
         service_name: Name of the service
-        
+
     Returns:
         Configuration preset dictionary
     """
@@ -122,10 +116,10 @@ def get_service_preset(service_name: str) -> Dict[str, Any]:
                 "enable_enhancement": True,
                 "enable_vad": True,
                 "service_url": "http://audio-processor:9100",
-                "service_timeout": 20
+                "service_timeout": 20,
             },
             "service": {"port": 8001, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9091, "jaeger_endpoint": ""}
+            "telemetry": {"enabled": True, "metrics_port": 9091, "jaeger_endpoint": ""},
         },
         "stt": {
             "logging": {"level": "INFO", "json_logs": True, "service_name": "stt"},
@@ -136,10 +130,10 @@ def get_service_preset(service_name: str) -> Dict[str, Any]:
                 "enable_enhancement": True,
                 "enable_vad": False,
                 "service_url": "http://audio-processor:9100",
-                "service_timeout": 50
+                "service_timeout": 50,
             },
             "service": {"port": 9000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9092, "jaeger_endpoint": ""}
+            "telemetry": {"enabled": True, "metrics_port": 9092, "jaeger_endpoint": ""},
         },
         "tts": {
             "logging": {"level": "INFO", "json_logs": True, "service_name": "tts"},
@@ -150,13 +144,17 @@ def get_service_preset(service_name: str) -> Dict[str, Any]:
                 "enable_enhancement": False,
                 "enable_vad": False,
                 "service_url": "http://audio-processor:9100",
-                "service_timeout": 100
+                "service_timeout": 100,
             },
             "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9093, "jaeger_endpoint": ""}
+            "telemetry": {"enabled": True, "metrics_port": 9093, "jaeger_endpoint": ""},
         },
         "orchestrator": {
-            "logging": {"level": "INFO", "json_logs": True, "service_name": "orchestrator"},
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "orchestrator",
+            },
             "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
             "audio": {
                 "sample_rate": 16000,
@@ -164,13 +162,17 @@ def get_service_preset(service_name: str) -> Dict[str, Any]:
                 "enable_enhancement": False,
                 "enable_vad": False,
                 "service_url": "http://audio-processor:9100",
-                "service_timeout": 20
+                "service_timeout": 20,
             },
             "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9094, "jaeger_endpoint": ""}
+            "telemetry": {"enabled": True, "metrics_port": 9094, "jaeger_endpoint": ""},
         },
         "audio-processor": {
-            "logging": {"level": "INFO", "json_logs": True, "service_name": "audio-processor"},
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "audio-processor",
+            },
             "http": {"timeout": 5.0, "max_retries": 1, "retry_delay": 0.1},
             "audio": {
                 "sample_rate": 16000,
@@ -178,11 +180,11 @@ def get_service_preset(service_name: str) -> Dict[str, Any]:
                 "enable_enhancement": True,
                 "enable_vad": True,
                 "service_url": "http://localhost:9100",
-                "service_timeout": 20
+                "service_timeout": 20,
             },
             "service": {"port": 9100, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9095, "jaeger_endpoint": ""}
-        }
+            "telemetry": {"enabled": True, "metrics_port": 9095, "jaeger_endpoint": ""},
+        },
     }
-    
+
     return presets.get(service_name, presets["orchestrator"])

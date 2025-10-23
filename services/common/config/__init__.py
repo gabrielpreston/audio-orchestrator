@@ -19,6 +19,7 @@ from .base import (
     ServiceConfig,
     TelemetryConfig,
     ValidationError,
+    create_field_definition,
 )
 from .loader import (
     get_env_with_default,
@@ -57,31 +58,26 @@ __all__ = [
     "RequiredFieldError",
     "FieldDefinition",
     "Environment",
-    
     # Core configurations
     "LoggingConfig",
-    "HttpConfig", 
+    "HttpConfig",
     "AudioConfig",
     "ServiceConfig",
     "TelemetryConfig",
-    
     # Service configurations
     "DiscordConfig",
     "STTConfig",
     "TTSConfig",
     "OrchestratorConfig",
-    
     # Utilities
     "load_environment_variables",
     "load_config_from_env",
     "validate_required_env_vars",
     "get_env_with_default",
     "get_service_preset",
-    
     # Migration
     "ConfigMigrationValidator",
     "migrate_config_file",
-    
     # Validators
     "validate_url",
     "validate_port",
@@ -98,4 +94,6 @@ __all__ = [
     "validate_timeout_value",
     "validate_positive_integer",
     "validate_positive_float_value",
+    # Field definition utilities
+    "create_field_definition",
 ]

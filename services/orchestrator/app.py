@@ -6,20 +6,16 @@ import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel, field_validator
 
-from services.common.config import ConfigBuilder, Environment, ServiceConfig
+from services.common.config import (
+    ServiceConfig,
+    load_config_from_env,
+    get_service_preset,
+)
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
-from services.common.service_configs import (
-    HttpConfig,
-    LLMClientConfig,
-    LoggingConfig,
-    OrchestratorConfig,
-    PortConfig,
-    TelemetryConfig,
-    TTSClientConfig,
-)
+# Configuration classes are now handled by the new config system
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
@@ -38,16 +34,8 @@ app = FastAPI(title="Voice Assistant Orchestrator")
 # Initialize metrics collector (disabled for now)
 # _metrics_collector: MetricsCollector = init_metrics_registry("orchestrator", "1.0.0")
 
-_cfg: ServiceConfig = (
-    ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("port", PortConfig)
-    .add_config("llm_client", LLMClientConfig)
-    .add_config("tts_client", TTSClientConfig)
-    .add_config("orchestrator", OrchestratorConfig)
-    .add_config("telemetry", TelemetryConfig)
-    .load()
+_cfg: ServiceConfig = load_config_from_env(
+    ServiceConfig, **get_service_preset("orchestrator")
 )
 
 configure_logging(
