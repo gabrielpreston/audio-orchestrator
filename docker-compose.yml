@@ -1,5 +1,35 @@
 version: "3.8"
 services:
+  audio-processor:
+    build:
+      context: "."
+      dockerfile: "services/audio-processor/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/audio-processor:latest"
+    ports:
+      - "8010:9100"
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/audio-processor/.env.service"
+    volumes:
+      - "./debug:/app/debug"
+      - "./services/audio-processor/config:/app/config"
+    healthcheck:
+      test: >
+        ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   discord:
     build:
       context: "."
@@ -24,6 +54,8 @@ services:
       retries: 3
       start_period: 45s
     depends_on:
+      audio-processor:
+        condition: service_healthy
       stt:
         condition: service_healthy
       orchestrator:
@@ -59,6 +91,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    depends_on:
+      audio-processor:
+        condition: service_healthy
     restart: "unless-stopped"
     logging:
       driver: "json-file"

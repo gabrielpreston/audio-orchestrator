@@ -22,6 +22,8 @@ from services.common.service_configs import (
     TelemetryConfig,
 )
 
+from .audio_processor_client import STTAudioProcessorClient
+
 
 app = FastAPI(title="audio-orchestrator STT (faster-whisper)")
 
@@ -41,6 +43,8 @@ MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[att
 _model: Any = None
 # Audio enhancer for preprocessing
 _audio_enhancer: Any = None
+# Audio processor client for remote enhancement
+_audio_processor_client: STTAudioProcessorClient | None = None
 # Health manager for service resilience
 _health_manager = HealthManager("stt")
 # Metrics collector for performance monitoring (disabled for now)
@@ -95,13 +99,28 @@ def _update_enhancement_stats(
 @app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global _audio_enhancer
+    global _audio_enhancer, _audio_processor_client
 
     try:
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
 
-        # Load audio enhancer if enabled
+        # Initialize audio processor client for remote enhancement
+        try:
+            _audio_processor_client = STTAudioProcessorClient(
+                base_url=_cfg.faster_whisper.audio_service_url
+                or "http://audio-processor:9100",  # type: ignore[attr-defined]
+                timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,  # type: ignore[attr-defined]
+            )
+            logger.info("stt.audio_processor_client_initialized")
+        except Exception as exc:
+            logger.warning(
+                "stt.audio_processor_client_init_failed",
+                error=str(exc),
+            )
+            _audio_processor_client = None
+
+        # Load local audio enhancer if enabled (fallback)
         if _cfg.faster_whisper.enable_enhancement:  # type: ignore[attr-defined]
             try:
                 from services.common.audio_enhancement import AudioEnhancer
@@ -201,6 +220,7 @@ async def health_ready() -> dict[str, Any]:
             "enhancer_enabled": (
                 _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
             ),
+            "audio_processor_client_loaded": _audio_processor_client is not None,
             "startup_complete": _health_manager._startup_complete,
         },
         "dependencies": health_status.details.get("dependencies", {}),
@@ -333,7 +353,7 @@ async def _transcribe_request(
         correlation_id = request.headers.get(
             "X-Correlation-ID"
         ) or request.query_params.get("correlation_id")
-        wav_bytes = _enhance_audio_if_enabled(wav_bytes, correlation_id)
+        wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
 
         channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
@@ -603,7 +623,7 @@ async def asr(request: Request) -> dict[str, Any]:
     )
 
 
-def _enhance_audio_if_enabled(
+async def _enhance_audio_if_enabled(
     wav_bytes: bytes, correlation_id: str | None = None
 ) -> bytes:
     """Apply audio enhancement if enabled.
@@ -615,6 +635,28 @@ def _enhance_audio_if_enabled(
     Returns:
         Enhanced WAV audio or original if enhancement disabled
     """
+    # Try remote audio processor first
+    if _audio_processor_client is not None:
+        try:
+            enhanced_wav = await _audio_processor_client.enhance_audio(
+                wav_bytes, correlation_id
+            )
+            if enhanced_wav != wav_bytes:  # Enhancement was applied
+                logger.debug(
+                    "stt.audio_enhanced_remote",
+                    correlation_id=correlation_id,
+                    input_size=len(wav_bytes),
+                    output_size=len(enhanced_wav),
+                )
+                return enhanced_wav
+        except Exception as exc:
+            logger.warning(
+                "stt.remote_enhancement_failed",
+                correlation_id=correlation_id,
+                error=str(exc),
+            )
+
+    # Fallback to local enhancement
     if _audio_enhancer is None or not _audio_enhancer.is_enhancement_enabled:
         return wav_bytes
 
@@ -662,7 +704,7 @@ def _enhance_audio_if_enabled(
 
         # Log successful enhancement with metrics
         logger.debug(
-            "stt.audio_enhanced",
+            "stt.audio_enhanced_local",
             correlation_id=correlation_id,
             input_size=len(wav_bytes),
             output_size=len(enhanced_wav),

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import random
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
+import random
 from typing import Any
 
 import discord
@@ -16,7 +16,8 @@ import httpx
 from services.common.health import HealthManager
 from services.common.logging import get_logger
 
-from .audio import AudioPipeline, AudioSegment, rms_from_pcm
+from .audio import AudioSegment, rms_from_pcm
+from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import BotConfig, DiscordConfig
 from .mcp import MCPServer
 from .orchestrator_client import OrchestratorClient
@@ -66,14 +67,14 @@ class VoiceBot(discord.Client):
     def __init__(
         self,
         config: BotConfig,
-        audio_pipeline: AudioPipeline,
+        audio_processor_wrapper: AudioProcessorWrapper,
         wake_detector: WakeDetector,
         transcript_publisher: TranscriptPublisher,
     ) -> None:
         intents = self._build_intents(config.discord)  # type: ignore[arg-type]
         super().__init__(intents=intents)
         self.config = config
-        self.audio_pipeline = audio_pipeline
+        self.audio_processor_wrapper = audio_processor_wrapper
         self._wake_detector = wake_detector
         self._publish_transcript = transcript_publisher
         self._logger = get_logger(__name__, service_name="discord")
@@ -455,7 +456,8 @@ class VoiceBot(discord.Client):
             rms = float(audioop.rms(pcm, 2))
         except Exception:
             rms = rms_from_pcm(pcm)
-        segment = self.audio_pipeline.register_frame(
+        # Process frame with audio processor wrapper
+        segment = await self.audio_processor_wrapper.register_frame_async(
             user_id, pcm, rms, frame_duration, sample_rate
         )
         if not segment:
@@ -551,7 +553,7 @@ class VoiceBot(discord.Client):
                 interval=interval,
             )
             while not self._shutdown.is_set():
-                segments = self.audio_pipeline.flush_inactive()
+                segments = self.audio_processor_wrapper.flush_inactive()
                 for segment in segments:
                     await self._enqueue_segment(
                         segment,
@@ -957,10 +959,12 @@ class VoiceBot(discord.Client):
 async def run_bot(config: BotConfig) -> None:
     """Entrypoint that wires together all components."""
 
-    audio_pipeline = AudioPipeline(config.audio, config.telemetry)  # type: ignore[arg-type]
+    audio_processor_wrapper = AudioProcessorWrapper(config.audio, config.telemetry)  # type: ignore[arg-type]
     wake_detector = WakeDetector(config.wake)  # type: ignore[arg-type]
     server = MCPServer(config)
-    bot = VoiceBot(config, audio_pipeline, wake_detector, server.publish_transcript)
+    bot = VoiceBot(
+        config, audio_processor_wrapper, wake_detector, server.publish_transcript
+    )
     server.attach_voice_bot(bot)
 
     bot_task = asyncio.create_task(bot.start(config.discord.token))  # type: ignore[attr-defined]

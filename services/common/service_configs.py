@@ -2,6 +2,9 @@
 
 This module contains pre-built configuration classes for each service,
 demonstrating how to use the common configuration library.
+
+DEPRECATED: This module is being replaced by the new configuration system
+in services/common/config/ with hybrid approach (env vars + config files).
 """
 
 from __future__ import annotations

@@ -11,6 +11,7 @@ Key Features:
 - Comprehensive error reporting with clear messages
 - Service-specific configuration presets
 - Environment-aware configuration loading
+- Hybrid configuration approach (env vars + config files)
 
 Usage:
     from services.common.config import ConfigBuilder, ServiceConfig

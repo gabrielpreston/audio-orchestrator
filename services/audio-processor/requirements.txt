@@ -1,0 +1,32 @@
+# Audio Processor Service Dependencies
+
+# Core dependencies
+fastapi>=0.104.0,<1.0
+uvicorn[standard]>=0.24.0,<1.0
+pydantic>=2.0.0,<3.0
+
+# Audio processing
+numpy>=1.24.0,<2.0
+scipy>=1.11.0,<2.0
+webrtcvad>=2.0.10,<3.0
+
+# Audio enhancement
+speechbrain>=0.5.16,<1.0
+torch>=2.0.0,<3.0
+torchaudio>=2.0.0,<3.0
+
+# Common dependencies
+services.common
+
+# HTTP client
+httpx>=0.25.0,<1.0
+
+# Logging and monitoring
+structlog>=23.0.0,<24.0
+prometheus-client>=0.19.0,<1.0
+
+# Testing (development)
+pytest>=7.4.0,<8.0
+pytest-asyncio>=0.21.0,<1.0
+pytest-mock>=3.12.0,<4.0
+httpx>=0.25.0,<1.0
