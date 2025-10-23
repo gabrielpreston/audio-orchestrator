@@ -158,7 +158,7 @@ class STTAdapter(ABC):
         """
 
     @abstractmethod
-    async def transcribe_stream(
+    def transcribe_stream(
         self,
         audio_stream: AsyncGenerator[bytes, None],
         audio_format: AudioFormat,

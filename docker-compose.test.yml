@@ -1,6 +1,6 @@
 # Test-specific Docker Compose configuration
 # Optimized for integration testing with fast startup and isolated network
-version: '3.8'
+version: "3.8"
 
 networks:
   test-network:
@@ -8,6 +8,21 @@ networks:
     name: audio-orchestrator-test
 
 services:
+  audio-processor:
+    extends:
+      file: docker-compose.yml
+      service: audio-processor
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
   stt:
     extends:
       file: docker-compose.yml
@@ -15,10 +30,18 @@ services:
     networks:
       - test-network
     environment:
-      - FW_MODEL=tiny  # Fast model for tests
+      - FW_MODEL=tiny # Fast model for tests
       - LOG_LEVEL=INFO
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:9000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -36,7 +59,15 @@ services:
       - LOG_LEVEL=INFO
       - TTS_AUTH_TOKEN=test-token
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:7000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -54,7 +85,15 @@ services:
       - LOG_LEVEL=INFO
       - LLM_AUTH_TOKEN=test-token
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -62,8 +101,8 @@ services:
 
   orchestrator:
     build:
-      context: '.'
-      dockerfile: 'services/orchestrator/Dockerfile'
+      context: "."
+      dockerfile: "services/orchestrator/Dockerfile"
     networks:
       - test-network
     environment:
@@ -71,7 +110,15 @@ services:
       - LLM_AUTH_TOKEN=test-token
       - TTS_AUTH_TOKEN=test-token
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -90,17 +137,25 @@ services:
     networks:
       - test-network
     ports:
-      - "8001:8001"  # Discord HTTP API port
+      - "8001:8001" # Discord HTTP API port
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN:-dummy-token-for-testing}
-      - DISCORD_FULL_BOT=false  # HTTP mode by default (correct env var name)
+      - DISCORD_FULL_BOT=false # HTTP mode by default (correct env var name)
       - DISCORD_GUILD_ID=123456789
       - DISCORD_VOICE_CHANNEL_ID=987654321
       - STT_BASE_URL=http://stt:9000
       - ORCHESTRATOR_BASE_URL=http://orchestrator:8000
       - LOG_LEVEL=INFO
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8001/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8001/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5

@@ -77,7 +77,7 @@ class AudioEnhancer:
         audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
         cutoff_freq: float = 80.0,
-    ) -> np.ndarray[Any, np.dtype[np.float32]]:
+    ) -> Any:
         """Apply high-pass filter to remove low-frequency noise.
 
         Args:
@@ -102,7 +102,7 @@ class AudioEnhancer:
             filtered_audio = signal.filtfilt(b, a, audio)
 
             logger.debug("audio_enhancer.high_pass_applied: %s", cutoff_freq)
-            return filtered_audio
+            return np.asarray(filtered_audio, dtype=np.float32)
 
         except (ValueError, RuntimeError) as exc:
             logger.error(
@@ -115,7 +115,7 @@ class AudioEnhancer:
         self,
         audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
-    ) -> np.ndarray[Any, np.dtype[np.float32]]:
+    ) -> Any:
         """Apply MetricGAN+ enhancement to audio.
 
         Args:
@@ -146,7 +146,7 @@ class AudioEnhancer:
             enhanced_audio = enhanced_tensor.squeeze(0).detach().cpu().numpy()
 
             logger.debug("audio_enhancer.enhancement_applied")
-            return enhanced_audio
+            return np.asarray(enhanced_audio, dtype=np.float32)
 
         except (ImportError, RuntimeError, OSError, MemoryError) as exc:
             logger.error(

@@ -99,7 +99,7 @@ class ConversationAgent(BaseAgent):
                 response = await client.post(
                     f"{self.llm_url}/v1/chat/completions",
                     json={
-                        "model": "gpt-3.5-turbo",  # TODO: Make configurable
+                        "model": "gpt-3.5-turbo",
                         "messages": messages,
                         "max_tokens": 150,
                         "temperature": 0.7,

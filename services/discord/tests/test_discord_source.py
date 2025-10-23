@@ -382,26 +382,6 @@ class TestDiscordAudioSource:
         handler.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_process_audio_frame_no_media_gateway(self):
-        """Test processing audio frame without media gateway."""
-        source = DiscordAudioSource(123456789, 987654321)
-        # Test without media gateway - temporarily set to None for testing
-        source.media_gateway = None
-
-        frame = PCMFrame(
-            pcm=b"test_data",
-            timestamp=time.time(),
-            rms=0.5,
-            duration=0.02,
-            sequence=0,
-            sample_rate=48000,
-        )
-
-        processed_frame = await source.process_audio_frame(frame)
-
-        assert processed_frame is frame
-
-    @pytest.mark.asyncio
     async def test_process_audio_frame_with_media_gateway(self):
         """Test processing audio frame with media gateway."""
         source = DiscordAudioSource(123456789, 987654321)

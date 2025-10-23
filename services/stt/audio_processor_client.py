@@ -14,7 +14,6 @@ import httpx
 
 from services.common.logging import get_logger
 
-
 logger = get_logger(__name__)
 
 
@@ -92,7 +91,7 @@ class STTAudioProcessorClient:
                     output_size=len(response.content),
                     enhancement_duration_ms=enhancement_duration,
                 )
-                return response.content
+                return bytes(response.content)
             else:
                 self._logger.warning(
                     "stt_audio_processor_client.enhancement_failed",
@@ -119,7 +118,7 @@ class STTAudioProcessorClient:
         """
         try:
             response = await self._client.get(f"{self.base_url}/health/ready")
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except Exception as exc:
             self._logger.warning(
                 "stt_audio_processor_client.health_check_failed", error=str(exc)

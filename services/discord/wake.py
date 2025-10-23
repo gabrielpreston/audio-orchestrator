@@ -13,7 +13,6 @@ from rapidfuzz import fuzz, process, utils
 
 from services.common.logging import get_logger
 
-
 try:  # pragma: no cover - optional dependency import guard
     from openwakeword import Model as WakeWordModel
 except Exception:  # pragma: no cover - gracefully degrade when package missing
@@ -51,7 +50,7 @@ class WakeDetector:
         ]
         self._target_sample_rate = config.target_sample_rate_hz
         self._threshold = config.activation_threshold
-        self._model = self._load_model(config.model_paths)
+        self._model = self._load_model([Path(p) for p in config.model_paths])
 
     def _load_model(self, paths: Iterable[Path]) -> Any:
         model_paths = [str(path) for path in paths if path]

@@ -8,11 +8,10 @@ from typing import Any
 
 import httpx
 
+from services.common.config import OrchestratorConfig
 from services.common.logging import get_logger
-from services.common.service_configs import LLMClientConfig, TTSClientConfig
 
 from .mcp_manager import MCPManager
-
 
 logger = get_logger(__name__, service_name="orchestrator")
 
@@ -23,19 +22,17 @@ class Orchestrator:
     def __init__(
         self,
         mcp_manager: MCPManager,
-        llm_config: LLMClientConfig,
-        tts_config: TTSClientConfig,
+        config: OrchestratorConfig,
     ):
         self.mcp_manager = mcp_manager
-        self.llm_config = llm_config
-        self.tts_config = tts_config
+        self.config = config
         self._logger = get_logger(__name__, service_name="orchestrator")
         self._http_client: httpx.AsyncClient | None = None
         self._available_tools: dict[str, list[dict[str, Any]]] = {}
 
     async def initialize(self) -> None:
         """Initialize the orchestrator."""
-        if self.tts_config.base_url or self.llm_config.base_url:
+        if self.config.tts_url or self.config.llm_url:
             self._http_client = httpx.AsyncClient(timeout=60.0)
 
         # Load available tools from all MCP clients
@@ -254,12 +251,12 @@ class Orchestrator:
                 "orchestrator.response_generated",
                 response_length=len(response) if response else 0,
                 response_preview=response[:100] if response else "None",
-                tts_base_url=self.tts_config.base_url,
+                tts_base_url=self.config.tts_url,
                 correlation_id=correlation_id,
             )
 
             # Synthesize and play audio if TTS is available
-            if self.tts_config.base_url and response:
+            if self.config.tts_url and response:
                 self._logger.info(
                     "orchestrator.calling_tts",
                     correlation_id=correlation_id,
@@ -268,7 +265,7 @@ class Orchestrator:
             else:
                 self._logger.warning(
                     "orchestrator.tts_skipped",
-                    tts_base_url=self.tts_config.base_url,
+                    tts_base_url=self.config.tts_url,
                     has_response=bool(response),
                     correlation_id=correlation_id,
                 )
@@ -281,8 +278,8 @@ class Orchestrator:
             )
 
     async def _generate_response(self, transcript: str) -> str:
-        """Generate a response using LLM service via HTTP."""
-        if not self.llm_config.base_url or not self._http_client:
+        """Generate a response using LLM service via HTTP with primary/fallback logic."""
+        if not self._http_client:
             self._logger.warning("orchestrator.llm_unavailable")
             return "I'm sorry, but the language model is currently unavailable."
 
@@ -298,76 +295,107 @@ class Orchestrator:
             messages_count=len(messages),
         )
 
-        try:
-            # Call LLM service
-            headers = {}
-            if self.llm_config.auth_token:
-                headers["Authorization"] = f"Bearer {self.llm_config.auth_token}"
+        # Try primary LLM (FLAN-T5) first, then fallback to existing LLM
+        import os
 
-            response = await self._http_client.post(
-                f"{self.llm_config.base_url}/v1/chat/completions",
-                json={
-                    "model": "local-llama",
-                    "messages": messages,
-                    # Use config parameters for LLM request
-                    "max_tokens": self.llm_config.max_tokens,
-                    "temperature": self.llm_config.temperature,
-                    "top_p": self.llm_config.top_p,
-                    "repeat_penalty": self.llm_config.repeat_penalty,
-                },
-                headers=headers,
-                timeout=60.0,
-            )
-            response.raise_for_status()
+        fallback_url = os.getenv("LLM_FALLBACK_URL", "http://llm:8000")
+        llm_urls = [
+            ("primary", self.config.llm_url),  # FLAN-T5
+            ("fallback", fallback_url),  # Existing LLM
+        ]
 
-            result = response.json()
-            choices = result.get("choices", [])
-            if choices:
-                content = choices[0].get("message", {}).get("content", "")
+        for llm_type, llm_url in llm_urls:
+            if not llm_url:
+                continue
 
-                # Clean the response content to remove special tokens
-                if content:
-                    import re
-
-                    # Remove various special tokens and formatting
-                    content = re.sub(
-                        r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]",
-                        "",
-                        content,
-                    )
-                    # Remove any remaining special characters and normalize whitespace
-                    content = re.sub(r'[^\w\s.,!?;:\'"-]', "", content)
-                    content = re.sub(r"\s+", " ", content).strip()
-                    # If the response is too short or empty after cleaning, provide a fallback
-                    if len(content) < 10:
-                        content = "I understand your message. How can I help you?"
-
+            try:
                 self._logger.info(
-                    "orchestrator.llm_response",
-                    response_length=len(content),
-                    response_preview=content[:100] if content else "Empty",
+                    f"orchestrator.trying_{llm_type}_llm", llm_url=llm_url
                 )
 
-                return str(content)
-            else:
-                self._logger.warning("orchestrator.llm_empty_response")
-                return "I understand your message. How can I help you?"
+                # Call LLM service
+                headers = {}
+                if self.config.llm_auth_token:
+                    headers["Authorization"] = f"Bearer {self.config.llm_auth_token}"
 
-        except Exception as exc:
-            self._logger.error(
-                "orchestrator.llm_generation_failed",
-                error=str(exc),
-            )
-            return f"I apologize, but I encountered an error processing your request: {exc!s}"
+                # Use different model names for different LLM services
+                model_name = "flan-t5-large" if "llm-flan" in llm_url else "local-llama"
+
+                response = await self._http_client.post(
+                    f"{llm_url}/v1/chat/completions",
+                    json={
+                        "model": model_name,
+                        "messages": messages,
+                        # Use config parameters for LLM request
+                        "max_tokens": self.config.llm_max_tokens,
+                        "temperature": self.config.llm_temperature,
+                        "top_p": self.config.llm_top_p,
+                        "repeat_penalty": self.config.llm_repeat_penalty,
+                    },
+                    headers=headers,
+                    timeout=60.0,
+                )
+                response.raise_for_status()
+
+                result = response.json()
+                choices = result.get("choices", [])
+                if choices:
+                    content = choices[0].get("message", {}).get("content", "")
+
+                    # Clean the response content to remove special tokens
+                    if content:
+                        import re
+
+                        # Remove various special tokens and formatting
+                        content = re.sub(
+                            r"\[INST\]|\[/INST\]|<<SYS>>|<<\/SYS>>|\[/SYS\]|<<SYS\]",
+                            "",
+                            content,
+                        )
+                        # Remove any remaining special characters and normalize whitespace
+                        content = re.sub(r'[^\w\s.,!?;:\'"-]', "", content)
+                        content = re.sub(r"\s+", " ", content).strip()
+                        # If the response is too short or empty after cleaning, provide a fallback
+                        if len(content) < 10:
+                            content = "I understand your message. How can I help you?"
+
+                    self._logger.info(
+                        "orchestrator.llm_response",
+                        llm_type=llm_type,
+                        llm_url=llm_url,
+                        response_length=len(content),
+                        response_preview=content[:100] if content else "Empty",
+                    )
+
+                    return str(content)
+                else:
+                    self._logger.warning(
+                        "orchestrator.llm_empty_response",
+                        llm_type=llm_type,
+                        llm_url=llm_url,
+                    )
+                    continue  # Try next LLM
+
+            except Exception as exc:
+                self._logger.warning(
+                    f"orchestrator.{llm_type}_llm_failed",
+                    llm_url=llm_url,
+                    error=str(exc),
+                )
+                continue  # Try next LLM
+
+        # If all LLMs failed
+        self._logger.error("orchestrator.all_llms_failed")
+        return "I apologize, but I'm currently unable to process your request. Please try again later."
 
     async def _synthesize_and_play(self, text: str, context: dict[str, Any]) -> None:
         """Synthesize text to speech and play it in Discord."""
-        if not self._http_client or not self.tts_config.base_url:
+        if not self._http_client or not self.config.tts_url:
             return
 
         try:
             # Get TTS auth token from config
-            tts_auth_token = self.tts_config.auth_token
+            tts_auth_token = self.config.tts_auth_token
             headers = {}
             if tts_auth_token:
                 headers["Authorization"] = f"Bearer {tts_auth_token}"
@@ -379,7 +407,7 @@ class Orchestrator:
 
             # Call TTS service
             response = await self._http_client.post(
-                f"{self.tts_config.base_url}/synthesize",
+                f"{self.config.tts_url}/synthesize",
                 json={
                     "text": text,
                     "voice": "default",
@@ -412,4 +440,5 @@ class Orchestrator:
             )
 
 
+__all__ = ["Orchestrator"]
 __all__ = ["Orchestrator"]

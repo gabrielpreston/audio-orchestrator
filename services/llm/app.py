@@ -14,8 +14,8 @@ from pydantic import BaseModel
 
 from services.common.config import (
     ServiceConfig,
-    load_config_from_env,
     get_service_preset,
+    load_config_from_env,
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
@@ -152,7 +152,7 @@ async def _synthesize_tts(text: str) -> dict[str, Any] | None:
     }
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize LLM model on startup."""
     try:
@@ -184,7 +184,7 @@ async def _check_tts_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown LLM service."""
     global _TTS_CLIENT
@@ -209,11 +209,11 @@ class ChatRequest(BaseModel):
     repeat_penalty: float | None = None
 
 
-@app.post("/v1/chat/completions")
+@app.post("/v1/chat/completions")  # type: ignore[misc]
 async def chat_completions(
     req: ChatRequest,
     authorization: str | None = Header(None),
-) -> dict[str, Any]:
+) -> JSONResponse:
     req_start = time.time()
 
     expected = _cfg.service.auth_token
@@ -344,13 +344,13 @@ async def chat_completions(
     return JSONResponse(response, headers=headers)
 
 
-@app.get("/health/live")
+@app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "llm"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready")  # type: ignore[misc]
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _LLAMA is None:
@@ -382,4 +382,5 @@ async def health_ready() -> dict[str, Any]:
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)
     uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)

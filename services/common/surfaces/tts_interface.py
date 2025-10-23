@@ -165,7 +165,7 @@ class TTSAdapter(ABC):
         ...
 
     @abstractmethod
-    async def synthesize_stream(
+    def synthesize_stream(
         self, text: str, voice: str | None = None, language: str | None = None
     ) -> AsyncGenerator[TTSResult, None]:
         """

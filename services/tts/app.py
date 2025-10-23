@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import io
 import json
 import os
 import re
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
@@ -22,7 +22,6 @@ from services.common.config import (
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
-
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
 # Configuration classes are now handled by the new config system
@@ -110,7 +109,7 @@ class SynthesisRequest(BaseModel):
     noise_w: float | None = Field(None, ge=0.0, le=2.0)
     correlation_id: str | None = None
 
-    @field_validator("correlation_id")
+    @field_validator("correlation_id")  # type: ignore[misc]
     @classmethod
     def validate_correlation_id_field(cls, v: str | None) -> str | None:
         if v is not None:
@@ -121,7 +120,7 @@ class SynthesisRequest(BaseModel):
                 raise ValueError(error_msg)
         return v
 
-    @model_validator(mode="before")
+    @model_validator(mode="before")  # type: ignore[misc]
     @classmethod
     def _check_text_or_ssml(cls, data: Any) -> Any:
         if isinstance(data, dict):
@@ -344,7 +343,7 @@ def _synthesize_audio(
     return audio_bytes, getattr(_VOICE, "sample_rate", _VOICE_SAMPLE_RATE)
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     await asyncio.to_thread(_load_voice)
     _health_manager.mark_startup_complete()  # ADD THIS
@@ -356,13 +355,13 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health/live")
+@app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "tts"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready")  # type: ignore[misc]
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _VOICE is None:
@@ -392,12 +391,12 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.get("/metrics")
+@app.get("/metrics")  # type: ignore[misc]
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/voices", response_model=VoiceListResponse)
+@app.get("/voices", response_model=VoiceListResponse)  # type: ignore[misc]
 async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     if not _VOICE_OPTIONS:
         # Return a default voice option when no model is loaded
@@ -408,12 +407,12 @@ async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     return VoiceListResponse(sample_rate=_VOICE_SAMPLE_RATE, voices=voices)
 
 
-@app.post("/synthesize")
+@app.post("/synthesize")  # type: ignore[misc]
 async def synthesize(
     payload: SynthesisRequest,
     _: None = Depends(_require_auth),
     __: None = Depends(_enforce_rate_limit),
-) -> dict[str, Any]:
+) -> StreamingResponse:
     from services.common.logging import correlation_context
 
     with correlation_context(payload.correlation_id) as request_logger:

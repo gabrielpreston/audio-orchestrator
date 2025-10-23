@@ -34,11 +34,12 @@ from .presets import (
     OrchestratorConfig,
     STTConfig,
     TTSConfig,
+    WakeConfig,
     get_service_preset,
 )
 from .validator import (
     create_validator,
-    validate_audio_channels,
+    validate_audio_channels_validator,
     validate_audio_sample_rate,
     validate_choice,
     validate_http_url,
@@ -71,6 +72,7 @@ __all__ = [
     "STTConfig",
     "TTSConfig",
     "OrchestratorConfig",
+    "WakeConfig",
     # Utilities
     "load_environment_variables",
     "load_config_from_env",
@@ -84,7 +86,7 @@ __all__ = [
     "validate_url",
     "validate_port",
     "validate_audio_sample_rate",
-    "validate_audio_channels",
+    "validate_audio_channels_validator",
     "validate_timeout",
     "validate_positive_int",
     "validate_positive_float",

@@ -13,9 +13,9 @@ import base64
 import time
 from typing import Any
 
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-import uvicorn
 
 from services.common.config import (
     AudioConfig,
@@ -34,7 +34,6 @@ from services.discord.audio import AudioSegment, PCMFrame
 from .enhancement import AudioEnhancer
 from .processor import AudioProcessor
 
-
 app = FastAPI(
     title="Audio Processor Service",
     description="Unified audio processing service for audio-orchestrator",
@@ -45,7 +44,7 @@ app = FastAPI(
 _audio_processor: AudioProcessor | None = None
 _audio_enhancer: AudioEnhancer | None = None
 _health_manager = HealthManager("audio-processor")
-_logger = get_logger(__name__, service_name="audio-processor")
+_logger = get_logger(__name__, service_name="audio_processor")
 
 # Load configuration
 _config_preset = get_service_preset("audio-processor")
@@ -59,7 +58,7 @@ _telemetry_config = TelemetryConfig(**_config_preset["telemetry"])
 configure_logging(
     _logging_config.level,
     json_logs=_logging_config.json_logs,
-    service_name="audio-processor",
+    service_name="audio_processor",
 )
 
 
@@ -96,7 +95,7 @@ class ProcessingResponse(BaseModel):
     error: str | None = None
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Initialize audio processor and enhancer on startup."""
     global _audio_processor, _audio_enhancer
@@ -131,7 +130,7 @@ async def startup_event() -> None:
         # Continue without crashing - service will report not_ready
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def shutdown_event() -> None:
     """Cleanup on shutdown."""
     try:
@@ -142,13 +141,13 @@ async def shutdown_event() -> None:
         _logger.error("audio_processor.shutdown_failed", error=str(exc))
 
 
-@app.get("/health/live")
+@app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "audio-processor"}
+    return {"status": "alive", "service": "audio_processor"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready")  # type: ignore[misc]
 async def health_ready() -> dict[str, Any]:
     """Readiness check with component status."""
     health_status = await _health_manager.get_health_status()
@@ -163,7 +162,7 @@ async def health_ready() -> dict[str, Any]:
 
     return {
         "status": status_str,
-        "service": "audio-processor",
+        "service": "audio_processor",
         "components": {
             "processor_loaded": _audio_processor is not None,
             "enhancer_loaded": _audio_enhancer is not None,
@@ -182,7 +181,7 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.post("/process/frame", response_model=ProcessingResponse)
+@app.post("/process/frame", response_model=ProcessingResponse)  # type: ignore[misc]
 async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
     """Process a single PCM frame with VAD and basic processing.
 
@@ -257,7 +256,7 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
         )
 
 
-@app.post("/process/segment", response_model=ProcessingResponse)
+@app.post("/process/segment", response_model=ProcessingResponse)  # type: ignore[misc]
 async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
     """Process an audio segment with full enhancement pipeline.
 
@@ -335,7 +334,7 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
         )
 
 
-@app.post("/enhance/audio")
+@app.post("/enhance/audio")  # type: ignore[misc]
 async def enhance_audio(request: Request) -> bytes:
     """Apply audio enhancement to WAV data.
 
@@ -357,7 +356,7 @@ async def enhance_audio(request: Request) -> bytes:
         audio_data = await request.body()
 
         # Apply enhancement
-        enhanced_data = await _audio_enhancer.enhance_audio(audio_data)
+        enhanced_data = _audio_enhancer.enhance_audio(audio_data)
 
         processing_time = (time.perf_counter() - start_time) * 1000
 
@@ -368,7 +367,7 @@ async def enhance_audio(request: Request) -> bytes:
             processing_time_ms=processing_time,
         )
 
-        return enhanced_data
+        return bytes(enhanced_data)
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
@@ -379,14 +378,14 @@ async def enhance_audio(request: Request) -> bytes:
         )
 
         # Return original data on failure
-        return await request.body()
+        return bytes(await request.body())
 
 
-@app.get("/metrics")
+@app.get("/metrics")  # type: ignore[misc]
 async def get_metrics() -> dict[str, Any]:
     """Get service metrics."""
     return {
-        "service": "audio-processor",
+        "service": "audio_processor",
         "uptime_seconds": time.time() - _health_manager._startup_time,
         "status": "ready" if _health_manager._startup_complete else "starting",
         "components": {

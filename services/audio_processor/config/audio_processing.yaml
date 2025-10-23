@@ -1,5 +1,5 @@
 # Audio Processing Configuration
-# This file contains application-specific configuration for the audio-processor service
+# This file contains application-specific configuration for the audio_processor service
 
 audio_processing:
   enhancement:

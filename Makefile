@@ -609,12 +609,21 @@ models-download: ## Download required models to ./services/models/ subdirectorie
 	else \
 		echo "STT model already exists, skipping download."; \
 	fi
+	@echo "Downloading FLAN-T5 model (flan-t5-large)..."
+	@if [ ! -d "./services/models/flan-t5" ]; then \
+		mkdir -p ./services/models/flan-t5; \
+		python3 scripts/download_flan_t5.py large || \
+		echo "Failed to download FLAN-T5 model. You may need to download it manually."; \
+	else \
+		echo "FLAN-T5 model already exists, skipping download."; \
+	fi
 	@printf "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)\n"
 	@echo "Models downloaded to:"
 	@echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
 	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
 	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
 	@echo "  - STT: ./services/models/stt/medium.en/"
+	@echo "  - FLAN-T5: ./services/models/flan-t5/"
 
 models-clean: ## Remove downloaded models from ./services/models/
 	@printf "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)\n"

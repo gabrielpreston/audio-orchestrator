@@ -8,8 +8,8 @@ providing a standardized way to capture audio from Discord voice channels.
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Callable
+import time
 from typing import Any
 
 from services.common.logging import get_logger
@@ -34,7 +34,7 @@ class DiscordAudioSource(AudioSource):
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.user_id = user_id
-        self.media_gateway = media_gateway or MediaGateway()
+        self.media_gateway: MediaGateway = media_gateway or MediaGateway()
 
         # Audio capture state
         self._is_capturing = False
@@ -223,9 +223,6 @@ class DiscordAudioSource(AudioSource):
 
     async def process_audio_frame(self, frame: PCMFrame) -> PCMFrame | None:
         """Process audio frame through media gateway."""
-        if not self.media_gateway:
-            return frame
-
         try:
             # Convert frame to format expected by media gateway
             audio_data = frame.pcm

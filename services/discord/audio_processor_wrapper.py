@@ -13,7 +13,6 @@ from services.common.logging import get_logger
 from services.discord.audio import AudioSegment, PCMFrame
 from services.discord.audio_processor_client import AudioProcessorClient
 
-
 logger = get_logger(__name__)
 
 

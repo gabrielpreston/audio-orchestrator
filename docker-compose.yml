@@ -1,9 +1,55 @@
 version: "3.8"
 services:
+  # Enhanced AI Services
+  llm-flan:
+    build:
+      context: "."
+      dockerfile: "services/llm_flan/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/llm-flan:latest"
+    ports:
+      - "8110:8100" # External: 8110, Internal: 8100
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/llm_flan/.env.service"
+    environment:
+      - MODEL_NAME=${FLAN_T5_MODEL_SIZE:-google/flan-t5-large}
+      - TRANSFORMERS_CACHE=/app/models
+    volumes:
+      - ./services/models/flan-t5:/app/models:ro
+      - ~/.cache/huggingface:/root/.cache/huggingface:ro
+    # No dependencies - FLAN-T5 is standalone
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8100/health/ready",
+          "--timeout",
+          "10",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    deploy:
+      resources:
+        limits:
+          memory: 12G # Increased for FLAN-T5 Large + overhead
+          cpus: "4"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
   audio-processor:
     build:
       context: "."
-      dockerfile: "services/audio-processor/Dockerfile"
+      dockerfile: "services/audio_processor/Dockerfile"
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/audio-processor:latest"
@@ -12,10 +58,10 @@ services:
     env_file:
       - "./.env.common"
       - "./.env.docker"
-      - "./services/audio-processor/.env.service"
+      - "./services/audio_processor/.env.service"
     volumes:
       - "./debug:/app/debug"
-      - "./services/audio-processor/config:/app/config"
+      - "./services/audio_processor/config:/app/config"
     healthcheck:
       test: >
         ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]

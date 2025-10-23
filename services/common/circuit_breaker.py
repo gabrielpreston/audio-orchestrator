@@ -64,10 +64,7 @@ class CircuitBreaker:
 
             return False
 
-        if self._state == CircuitState.HALF_OPEN:
-            return True
-
-        return False
+        return self._state == CircuitState.HALF_OPEN
 
     async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Execute function with circuit breaker protection."""

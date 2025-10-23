@@ -31,7 +31,8 @@
             "**/node_modules",
             "**/.venv"
         ],
-        "cursorpyright.analysis.typeCheckingMode": "basic"
+        "cursorpyright.analysis.typeCheckingMode": "basic",
+        "python.languageServer": "None"
     },
     "extensions": {
         "recommendations": [

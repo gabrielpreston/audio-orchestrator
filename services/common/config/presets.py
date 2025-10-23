@@ -16,6 +16,7 @@ class DiscordConfig:
         guild_id: int = 0,
         voice_channel_id: int = 0,
         auto_join: bool = False,
+        intents: Any = None,
         **kwargs: Any,
     ) -> None:
         """Initialize Discord configuration."""
@@ -23,6 +24,7 @@ class DiscordConfig:
         self.guild_id = guild_id
         self.voice_channel_id = voice_channel_id
         self.auto_join = auto_join
+        self.intents = intents
 
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
@@ -40,12 +42,22 @@ class STTConfig:
         model: str = "medium.en",
         device: str = "cpu",
         model_path: str = "/app/models",
+        base_url: str = "http://stt:9000",
+        forced_language: str | None = None,
+        beam_size: int = 5,
+        request_timeout_seconds: int = 30,
+        max_retries: int = 3,
         **kwargs: Any,
     ) -> None:
         """Initialize STT configuration."""
         self.model = model
         self.device = device
         self.model_path = model_path
+        self.base_url = base_url
+        self.forced_language = forced_language
+        self.beam_size = beam_size
+        self.request_timeout_seconds = request_timeout_seconds
+        self.max_retries = max_retries
 
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
@@ -76,6 +88,26 @@ class TTSConfig:
         self.telemetry = TelemetryConfig(**kwargs.get("telemetry", {}))
 
 
+class WakeConfig:
+    """Wake detection configuration."""
+
+    def __init__(
+        self,
+        wake_phrases: list[str] | None = None,
+        model_paths: list[str] | None = None,
+        activation_threshold: float = 0.5,
+        target_sample_rate_hz: int = 16000,
+        enabled: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Initialize Wake configuration."""
+        self.wake_phrases = wake_phrases or ["hey atlas", "ok atlas"]
+        self.model_paths = model_paths or []
+        self.activation_threshold = activation_threshold
+        self.target_sample_rate_hz = target_sample_rate_hz
+        self.enabled = enabled
+
+
 class OrchestratorConfig:
     """Orchestrator service configuration."""
 
@@ -83,11 +115,25 @@ class OrchestratorConfig:
         self,
         llm_url: str = "http://llm:8000",
         tts_url: str = "http://tts:8000",
+        llm_auth_token: str = "",
+        tts_auth_token: str = "",
+        llm_max_tokens: int = 1000,
+        llm_temperature: float = 0.7,
+        llm_top_p: float = 0.9,
+        llm_repeat_penalty: float = 1.1,
+        base_url: str = "http://orchestrator:8000",
         **kwargs: Any,
     ) -> None:
         """Initialize Orchestrator configuration."""
         self.llm_url = llm_url
         self.tts_url = tts_url
+        self.llm_auth_token = llm_auth_token
+        self.tts_auth_token = tts_auth_token
+        self.llm_max_tokens = llm_max_tokens
+        self.llm_temperature = llm_temperature
+        self.llm_top_p = llm_top_p
+        self.llm_repeat_penalty = llm_repeat_penalty
+        self.base_url = base_url
 
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))

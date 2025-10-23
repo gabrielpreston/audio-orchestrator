@@ -184,7 +184,7 @@ validate_http_url = create_validator(validate_url, "Invalid HTTP URL")
 validate_audio_sample_rate = create_validator(
     validate_sample_rate, "Invalid audio sample rate"
 )
-validate_audio_channels = create_validator(
+validate_audio_channels_validator = create_validator(
     validate_audio_channels, "Invalid audio channel count"
 )
 validate_timeout_value = create_validator(validate_timeout, "Invalid timeout value")

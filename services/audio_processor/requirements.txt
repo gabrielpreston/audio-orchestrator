@@ -15,8 +15,7 @@ speechbrain>=0.5.16,<1.0
 torch>=2.0.0,<3.0
 torchaudio>=2.0.0,<3.0
 
-# Common dependencies
-services.common
+# Common dependencies (installed via base requirements)
 
 # HTTP client
 httpx>=0.25.0,<1.0

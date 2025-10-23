@@ -38,6 +38,7 @@ class HealthManager:
         self._service_name = service_name
         self._dependencies: dict[str, Callable[[], Any]] = {}
         self._startup_complete = False
+        self._startup_time = time.time()
         self._logger = get_logger(__name__, service_name=service_name)
 
         # Add health metrics - use service name as prefix to avoid conflicts

@@ -59,7 +59,7 @@ class CorrelationIDGenerator:
 
     @staticmethod
     def generate_discord_correlation_id(
-        user_id: int, guild_id: int | None = None
+        user_id: int | None, guild_id: int | None = None
     ) -> str:
         """
         Generate a correlation ID for Discord voice interactions.
@@ -282,7 +282,7 @@ class CorrelationIDGenerator:
         return str(parsed["service"])
 
     @staticmethod
-    def is_valid_correlation_id(correlation_id: str) -> bool:
+    def is_valid_correlation_id(correlation_id: str | None) -> bool:
         """
         Check if a correlation ID follows the expected format.
 
@@ -297,7 +297,9 @@ class CorrelationIDGenerator:
 
 
 # Convenience functions for backward compatibility
-def generate_discord_correlation_id(user_id: int, guild_id: int | None = None) -> str:
+def generate_discord_correlation_id(
+    user_id: int | None, guild_id: int | None = None
+) -> str:
     """Generate a Discord correlation ID."""
     return CorrelationIDGenerator.generate_discord_correlation_id(user_id, guild_id)
 
@@ -345,7 +347,7 @@ def get_service_from_correlation_id(correlation_id: str) -> str:
     return CorrelationIDGenerator.get_service_from_correlation_id(correlation_id)
 
 
-def is_valid_correlation_id(correlation_id: str) -> bool:
+def is_valid_correlation_id(correlation_id: str | None) -> bool:
     """Check if correlation ID is valid."""
     return CorrelationIDGenerator.is_valid_correlation_id(correlation_id)
 

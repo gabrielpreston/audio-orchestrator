@@ -10,7 +10,6 @@ from services.common.logging import get_logger
 from .mcp_client import StdioMCPClient
 from .mcp_config import MCPConfig
 
-
 logger = get_logger(__name__, service_name="orchestrator")
 
 
@@ -114,7 +113,7 @@ class MCPManager:
                             timeout=30.0,
                         )
                         response.raise_for_status()
-                        return response.json()
+                        return dict(response.json())
 
                     else:
                         return {"error": f"Unknown tool: {name}"}
@@ -128,7 +127,7 @@ class MCPManager:
             async def disconnect(self) -> None:
                 """Clean up HTTP client."""
                 if self._http_client:
-                    await self._http_client.aclose()
+                    await self._http_client.aclose()  # type: ignore[unreachable]
                     self._http_client = None
 
         client = HTTPDiscordClient()
@@ -244,7 +243,7 @@ class MCPManager:
                 client=client_name,
                 tool=tool_name,
             )
-            return result
+            return dict(result) if isinstance(result, dict) else {"result": result}
         except Exception as exc:
             self._logger.error(
                 "mcp.tool_call_failed",

@@ -8,17 +8,17 @@ from pydantic import BaseModel, field_validator
 
 from services.common.config import (
     ServiceConfig,
-    load_config_from_env,
     get_service_preset,
+    load_config_from_env,
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
-# from services.common.metrics import MetricsCollector, init_metrics_registry
-# Configuration classes are now handled by the new config system
-
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
+# Configuration classes are now handled by the new config system
 
 
 # Prometheus metrics
@@ -69,7 +69,7 @@ async def _ensure_llm_client() -> httpx.AsyncClient | None:
     return _LLM_CLIENT
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _startup_event() -> None:
     """Initialize MCP manager and orchestrator on startup."""
     global _MCP_MANAGER, _ORCHESTRATOR
@@ -86,7 +86,7 @@ async def _startup_event() -> None:
         await _MCP_MANAGER.initialize()
 
         # Initialize orchestrator
-        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.llm_client, _cfg.tts_client)
+        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.orchestrator)
         await _ORCHESTRATOR.initialize()
 
         _health_manager.mark_startup_complete()  # ADD THIS
@@ -123,7 +123,7 @@ async def _check_tts_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")
+@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown_event() -> None:
     """Shutdown MCP manager and orchestrator."""
     global _LLM_CLIENT, _MCP_MANAGER, _ORCHESTRATOR
@@ -148,7 +148,7 @@ class TranscriptRequest(BaseModel):
     transcript: str
     correlation_id: str | None = None
 
-    @field_validator("correlation_id")
+    @field_validator("correlation_id")  # type: ignore[misc]
     @classmethod
     def validate_correlation_id_field(cls, v: str | None) -> str | None:
         if v is not None:
@@ -160,7 +160,7 @@ class TranscriptRequest(BaseModel):
         return v
 
 
-@app.post("/mcp/transcript")
+@app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     from services.common.logging import correlation_context
@@ -222,7 +222,7 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
             return {"error": str(exc)}
 
 
-@app.get("/mcp/tools")
+@app.get("/mcp/tools")  # type: ignore[misc]
 async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
@@ -235,7 +235,7 @@ async def list_mcp_tools() -> dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/connections")
+@app.get("/mcp/connections")  # type: ignore[misc]
 async def list_mcp_connections() -> dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
@@ -244,13 +244,13 @@ async def list_mcp_connections() -> dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health/live")
+@app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "orchestrator"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready")  # type: ignore[misc]
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _ORCHESTRATOR is None:

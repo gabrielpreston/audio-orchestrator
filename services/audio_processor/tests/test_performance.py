@@ -5,9 +5,9 @@ import base64
 import time
 from unittest.mock import Mock, patch
 
-from fastapi.testclient import TestClient
 import numpy as np
 import pytest
+from fastapi.testclient import TestClient
 
 from services.audio_processor.app import app
 
@@ -281,7 +281,7 @@ class TestAudioProcessorPerformance:
             }
             mock_enhancer.enhance_audio.return_value = self.create_test_wav()
 
-            # Simulate: Discord capture → audio-processor → STT
+            # Simulate: Discord capture → audio_processor → STT
             start = time.perf_counter()
 
             # 1. Process frame

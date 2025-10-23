@@ -143,8 +143,8 @@ class TestEnhancementConfig:
         for config in config_scenarios:
             # Test that configuration is handled appropriately
             # This is more of a documentation test
-            assert isinstance(config["enabled"], bool)
-            assert config["model_path"] is None or isinstance(config["model_path"], str)
+            assert isinstance(config["enabled"], bool)  # type: ignore[index]
+            assert config["model_path"] is None or isinstance(config["model_path"], str)  # type: ignore[index]
 
     def test_enhancement_startup_sequence(self):
         """Test enhancement startup sequence and error handling."""

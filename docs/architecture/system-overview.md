@@ -1,6 +1,6 @@
 ---
 title: System Overview
-author: Discord Voice Lab Team
+author: Audio Orchestrator Team
 status: active
 last-updated: 2025-10-18
 ---

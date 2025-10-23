@@ -11,7 +11,6 @@ from mcp.client.stdio import stdio_client
 
 from services.common.logging import get_logger
 
-
 logger = get_logger(__name__, service_name="orchestrator")
 
 
@@ -30,7 +29,7 @@ class StdioMCPClient:
         self.args = args or []
         self.env = env or {}
         self._session: ClientSession | None = None
-        self._client = None
+        self._client: Any | None = None
         self._logger = get_logger(__name__, service_name="orchestrator")
         self._notification_handlers: list[
             Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -84,9 +83,11 @@ class StdioMCPClient:
 
     async def disconnect(self) -> None:
         """Disconnect from the MCP server."""
-        if self._client:
+        client = self._client
+        if client is not None:
             try:
-                await self._client.__aexit__(None, None, None)
+                # Use proper context manager exit
+                await client.__aexit__(None, None, None)
                 self._logger.info("mcp.client_disconnected", name=self.name)
             except Exception as exc:
                 self._logger.error(
@@ -166,22 +167,14 @@ class StdioMCPClient:
         if not self._session:
             return
 
-        try:
-            # The MCP SDK handles notification listening internally
-            # We need to implement a custom notification handler
-            # For now, we'll use a polling approach or implement custom notification handling
-            self._logger.debug("mcp.notification_listener_started", name=self.name)
+        # The MCP SDK handles notification listening internally
+        # We need to implement a custom notification handler
+        # For now, we'll use a polling approach or implement custom notification handling
+        self._logger.debug("mcp.notification_listener_started", name=self.name)
 
-            # Note: The official MCP SDK may not expose direct notification handling
-            # We may need to implement this differently or use the server's notification system
-            # This is a placeholder for the notification handling mechanism
-
-        except Exception as exc:
-            self._logger.error(
-                "mcp.notification_listener_failed",
-                name=self.name,
-                error=str(exc),
-            )
+        # Note: The official MCP SDK may not expose direct notification handling
+        # We may need to implement this differently or use the server's notification system
+        # This is a placeholder for the notification handling mechanism
 
     async def _handle_notification(self, method: str, params: dict[str, Any]) -> None:
         """Handle incoming notifications."""

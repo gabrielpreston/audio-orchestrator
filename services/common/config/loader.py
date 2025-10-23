@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, TypeVar
 
 from services.common.logging import get_logger
+
+T = TypeVar("T")
 
 logger = get_logger(__name__)
 
@@ -35,7 +37,7 @@ def get_environment_type() -> str:
     return os.getenv("ENVIRONMENT", "docker").lower()
 
 
-def load_config_from_env(config_class: type[Any], **overrides: Any) -> Any:
+def load_config_from_env(config_class: type[T], **overrides: Any) -> T:
     """Load configuration from environment variables.
 
     Args:
@@ -54,7 +56,7 @@ def load_config_from_env(config_class: type[Any], **overrides: Any) -> Any:
             env_overrides = _get_env_overrides()
             overrides.update(env_overrides)
 
-            return NestedConfig(**overrides)
+            return NestedConfig(**overrides)  # type: ignore[return-value]
         return config_class(**overrides)
     except Exception as exc:
         logger.error(

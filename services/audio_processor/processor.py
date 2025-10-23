@@ -20,7 +20,6 @@ from services.common.audio import AudioProcessor as CommonAudioProcessor
 from services.common.logging import get_logger
 from services.discord.audio import AudioSegment, PCMFrame
 
-
 logger = get_logger(__name__)
 
 
@@ -42,7 +41,7 @@ class AudioProcessor:
         )
 
         # Initialize common audio processor
-        self._common_processor = CommonAudioProcessor("audio-processor")
+        self._common_processor = CommonAudioProcessor("audio_processor")
 
         # Performance tracking
         self._processing_stats = {

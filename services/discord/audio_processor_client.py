@@ -14,7 +14,6 @@ import httpx
 from services.common.logging import get_logger
 from services.discord.audio import AudioSegment, PCMFrame
 
-
 logger = get_logger(__name__)
 
 
@@ -241,7 +240,7 @@ class AudioProcessorClient:
                     input_size=len(audio_data),
                     output_size=len(response.content),
                 )
-                return response.content
+                return bytes(response.content)
             else:
                 self._logger.warning(
                     "audio_processor_client.enhancement_failed",
@@ -266,7 +265,7 @@ class AudioProcessorClient:
         """
         try:
             response = await self._client.get(f"{self.base_url}/health/ready")
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except Exception as exc:
             self._logger.warning(
                 "audio_processor_client.health_check_failed", error=str(exc)

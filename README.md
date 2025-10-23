@@ -1,4 +1,4 @@
-# Discord Voice Lab
+# Audio Orchestrator
 
 [![CI][ci-badge]][ci-workflow]
 

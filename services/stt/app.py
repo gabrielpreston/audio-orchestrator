@@ -1,9 +1,9 @@
-from collections.abc import Iterable
 import io
 import os
 import time
-from typing import Any, cast
 import wave
+from collections.abc import Iterable
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -19,7 +19,6 @@ from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
 from .audio_processor_client import STTAudioProcessorClient
-
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
 # Configuration classes are now handled by the new config system
@@ -89,7 +88,7 @@ def _update_enhancement_stats(
         _enhancement_stats["last_error_time"] = time.time()
 
 
-@app.on_event("startup")
+@app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
     global _audio_enhancer, _audio_processor_client
@@ -164,8 +163,8 @@ async def _warm_model() -> None:
             except Exception as _exc:  # best-effort
                 logger.debug("stt.warmup_skipped", reason=str(_exc))
             finally:
-                from contextlib import suppress
                 import os as _os
+                from contextlib import suppress
 
                 with suppress(Exception):
                     _os.unlink(tmp_path)
@@ -181,13 +180,13 @@ async def _warm_model() -> None:
         raise
 
 
-@app.get("/health/live")
+@app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "stt"}
 
 
-@app.get("/health/ready")
+@app.get("/health/ready")  # type: ignore[misc]
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _model is None:
@@ -598,8 +597,8 @@ async def _transcribe_request(
     return JSONResponse(resp, headers=headers)
 
 
-@app.post("/asr")
-async def asr(request: Request) -> dict[str, Any]:
+@app.post("/asr")  # type: ignore[misc]
+async def asr(request: Request) -> JSONResponse:
     # Expect raw WAV bytes in the request body
     body = await request.body()
     logger.info(
@@ -735,8 +734,8 @@ async def _enhance_audio_if_enabled(
         return wav_bytes
 
 
-@app.post("/transcribe")
-async def transcribe(request: Request) -> dict[str, Any]:
+@app.post("/transcribe")  # type: ignore[misc]
+async def transcribe(request: Request) -> JSONResponse:
     try:
         form = await request.form()
     except ClientDisconnect:

@@ -1,6 +1,6 @@
 ---
 title: Documentation Hub
-author: Discord Voice Lab Team
+author: Audio Orchestrator Team
 status: active
 last-updated: 2025-10-16
 ---
@@ -8,7 +8,7 @@ last-updated: 2025-10-16
 <!-- markdownlint-disable-next-line MD041 -->
 > Docs ▸ Index
 
-# Discord Voice Lab Documentation Hub
+# Audio Orchestrator Documentation Hub
 
 This hub orients contributors, operators, and integrators around the voice-first Discord
 assistant. Use the navigation table to jump into onboarding, architecture, operations,
