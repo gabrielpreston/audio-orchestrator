@@ -1,6 +1,98 @@
 version: "3.8"
 services:
   # Enhanced AI Services
+  guardrails:
+    build:
+      context: "."
+      dockerfile: "services/guardrails/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/guardrails:latest"
+    ports:
+      - "9310:9300" # External: 9310, Internal: 9300
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/guardrails/.env.service"
+    environment:
+      - TOXICITY_MODEL=unitary/toxic-bert
+      - ENABLE_PII_DETECTION=true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9300/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G # Toxicity detection
+          cpus: "1"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  orchestrator-enhanced:
+    build:
+      context: "."
+      dockerfile: "services/orchestrator_enhanced/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/orchestrator-enhanced:latest"
+    ports:
+      - "8220:8200" # External: 8220, Internal: 8200
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/orchestrator_enhanced/.env.service"
+    environment:
+      - LLM_PRIMARY_URL=http://llm-flan:8100
+      - LLM_FALLBACK_URL=http://llm:8000
+      - GUARDRAILS_URL=http://guardrails:9300
+    depends_on:
+      llm-flan:
+        condition: service_healthy
+      audio-processor:
+        condition: service_healthy
+      stt:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8200/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 2G # LangChain + overhead
+          cpus: "2"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   llm-flan:
     build:
       context: "."
@@ -239,6 +331,99 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Audio Preprocessing Service
+  audio-preprocessor:
+    build:
+      context: "."
+      dockerfile: "services/audio_preprocessor/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/audio-preprocessor:latest"
+    ports:
+      - "9210:9200" # External: 9210, Internal: 9200
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/audio_preprocessor/.env.service"
+    environment:
+      - METRICGAN_MODEL_PATH=/app/models/metricgan
+    volumes:
+      - ./services/models/metricgan:/app/models/metricgan:ro
+    depends_on:
+      audio-processor:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9200/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 4G # For MetricGAN+
+          cpus: "2"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # Bark TTS Service
+  tts-bark:
+    build:
+      context: "."
+      dockerfile: "services/tts_bark/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/tts-bark:latest"
+    ports:
+      - "7120:7100" # External: 7120, Internal: 7100
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+      - "./services/tts_bark/.env.service"
+    environment:
+      - BARK_USE_SMALL_MODELS=false
+      - PIPER_FALLBACK_URL=http://tts:7000
+    depends_on:
+      tts:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:7100/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 6G # Increased for Bark
+          cpus: "2"
     restart: "unless-stopped"
     logging:
       driver: "json-file"

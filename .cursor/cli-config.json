@@ -1,5 +1,5 @@
 {
-  "name": "discord-voice-lab",
+  "name": "audio-orchestrator",
   "capabilities": {
     "github_cli": [
       "gh api",

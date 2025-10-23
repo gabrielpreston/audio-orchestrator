@@ -1,54 +1,138 @@
-# Contributor Playbook — `audio-orchestrator`
+# AI Agent Playbook — `audio-orchestrator`
 
-This guide consolidates the expectations from every previous `AGENTS.md` file and aligns
-them with the current repository layout. Follow these conventions for all changes,
-regardless of scope.
+This guide provides AI agents with essential context for solo development with AI assistance.
+Follow these conventions for all changes, optimized for rapid iteration and AI-human collaboration.
 
-## 1. Identity & operational doctrine
+## Quick Reference for AI Agents
 
-### Sovereign architect identity
+### Common Tasks
 
--  Operate as the autonomous principal engineering agent for this repository with full
-  ownership, combining technical excellence, architectural judgment, pragmatic execution,
-  and accountability.
+-  **New Feature**: See sections 1, 3, 6, 8
+-  **Bug Fix**: See sections 1, 7, 11
+-  **Service Integration**: See sections 3, 8, 9
+-  **Testing**: See section 11.1
 
-### Phase 0 — reconnaissance (read only)
+### AI Review Process
 
-Before planning or modifying artifacts:
+1.  **Create feature branch** from `main`
+2.  **Implement changes** following existing patterns
+3.  **Create PR** with detailed description
+4.  **Tag AI reviewers**: `@codex review` and `@cursor review`
+5.  **Address AI review feedback** with fixes
+6.  **Human reviews** for business logic and final validation
 
--  Inventory the repository structure, languages, frameworks, and architectural seams.
--  Map dependency manifests to understand internal and external libraries.
--  Consolidate configuration sources (environment files, CI/CD definitions, IaC).
--  Study existing code to infer idioms, layering, and test strategies—the code is the
-   ultimate source of truth.
--  Determine operational substrates (containerization, process managers, cloud hooks).
--  Identify quality gates (linters, tests, security scanners, other automation).
--  Produce a ≤200-line reconnaissance digest that captures the mental model and anchors
-   subsequent actions.
+## 1. Solo AI-Human Collaboration Workflow
 
-### Operational ethos
+### Core Workflow for Solo Development
 
--  Execute autonomously once reconnaissance is complete; avoid unnecessary user input.
--  Base every decision on observable evidence; verify assumptions against the current repo
-  state or command output.
--  Practice proactive stewardship: resolve related issues, update dependent components, and
-  leave the system in a more consistent state.
+When working on this project, follow this streamlined workflow optimized for solo development with AI assistance:
 
-### Clarification threshold
+#### Solo Development Workflow Steps
 
-Consult the user only when:
+1.  **Create feature branch** from `main` for significant changes
+2.  **Plan Phase**: Analyze existing patterns and decompose task into logical chunks
+3.  **Do Phase**: Implement changes following existing patterns with clear commits
+4.  **Check Phase**: Run basic quality checks (`make test` and `make lint`)
+5.  **Create Pull Request** with detailed description
+6.  **Tag AI reviewers**: `@codex review` and `@cursor review`
+7.  **Address AI review feedback** with fixes
+8.  **Human reviews** for business logic and final validation
+9.  **Human merges** when satisfied
 
--  Authoritative sources conflict irreconcilably.
--  Critical resources remain inaccessible after exhaustive search.
--  A planned action risks irreversible data loss or production jeopardy.
--  All investigative avenues are exhausted and material ambiguity persists.
+#### Absolute Requirements
 
-## 2. Communication standards
+-  ✅ **DO**: Create branches for features (not every small change)
+-  ✅ **DO**: Run basic tests before pushing (`make test`)
+-  ✅ **DO**: Tag both AI bots for review
+-  ✅ **DO**: Address AI review feedback before human review
+-  ✅ **DO**: Follow simplified PDCA framework
+-  ✅ **DO**: Include context analysis before AI tasks
+-  ✅ **DO**: Use structured prompts with existing patterns
+-  ✅ **DO**: Create comprehensive PR descriptions for AI context
+-  ❌ **DON'T**: Work directly on main branch for features
+-  ❌ **DON'T**: Skip basic quality checks
+-  ❌ **DON'T**: Skip AI review process
+-  ❌ **DON'T**: Skip context analysis before AI tasks
+-  ❌ **DON'T**: Use unstructured AI prompts
+-  ❌ **DON'T**: Skip addressing AI review feedback
+
+### Simplified PDCA for Solo Development
+
+#### Plan Phase (AI Analysis)
+
+-  **Codebase Analysis**: Analyze existing patterns and similar implementations
+-  **Task Decomposition**: Break features into logical chunks (not atomic)
+-  **Pattern Recognition**: Identify existing code patterns to follow
+-  **Success Criteria**: Define functional outcomes (not statistical)
+
+#### Do Phase (AI Implementation)
+
+-  **Structured Prompts**: Use context-rich prompts with existing patterns
+-  **Follow Patterns**: Implement changes following established codebase patterns
+-  **Clear Commits**: Each commit should have descriptive messages
+-  **Basic Testing**: Ensure code runs without crashing
+
+#### Check Phase (AI + Human Review)
+
+-  **AI Review**: Address feedback from `@codex review` and `@cursor review`
+-  **Quality Gates**: Run basic validations (`make test`, `make lint`)
+-  **Pattern Verification**: Ensure code follows existing patterns
+-  **Human Review**: Business logic validation and final approval
+
+#### Act Phase (Implementation)
+
+-  **Address Feedback**: Fix issues identified by AI and human reviewers
+-  **Merge Changes**: Human merges when satisfied
+-  **Document Lessons**: Capture successful patterns for future reference
+
+### AI Collaboration Standards
+
+#### Structured Prompting Framework
+
+```markdown
+## AI Task: [Specific Task]
+
+### Context Analysis Required
+- Analyze existing codebase patterns
+- Identify similar implementations
+- Review architectural constraints
+- Assess integration points
+
+### Task Decomposition
+- Break into atomic, testable chunks
+- Identify dependencies and order
+- Define success criteria for each chunk
+- Plan validation checkpoints
+
+### Implementation Strategy
+- Follow existing patterns
+- Write tests first (red-green cycle)
+- Implement incrementally
+- Validate at each checkpoint
+```
+
+#### AI Code Generation Quality Gates
+
+-  **Pattern Analysis**: AI must analyze existing patterns before generating code
+-  **Test-First**: AI must write failing tests before implementation
+-  **Atomic Commits**: Each AI-generated change must be independently testable
+-  **Validation Checkpoints**: AI must include validation steps in workflows
+
+#### AI Collaboration Anti-Patterns
+
+-  ❌ **Don't**: Accept AI code without pattern analysis
+-  ❌ **Don't**: Skip test-first approach with AI
+-  ❌ **Don't**: Allow AI to make architectural decisions without human review
+-  ✅ **Do**: Use structured prompts that include existing code patterns
+-  ✅ **Do**: Require AI to write tests before implementation
+-  ✅ **Do**: Include validation checkpoints in AI workflows
+
+## 2. Communication Standards
 
 ### Non-negotiable rules
 
 -  **Eliminate conversational filler.** Begin directly with the action, plan, or report; avoid
-   prefatory phrases such as “Certainly,” “Here is the plan,” or “I hope this helps.”
+   prefatory phrases such as "Certainly," "Here is the plan," or "I hope this helps."
 -  **Lead with the conclusion.** Present the key finding or result first, then provide supporting
    evidence.
 -  **Prefer structured data.** Use lists, tables, or code blocks for steps, findings, and data
@@ -58,16 +142,18 @@ Consult the user only when:
 
 ### Tone
 
--  Keep responses professional and technically focused; avoid affirmations that imply the user’s
+-  Keep responses professional and technically focused; avoid affirmations that imply the user's
   statements are correct or incorrect.
 -  Emphasize understanding the request and executing on it rather than offering praise or
   validation.
 -  Refrain from reframing user input as claims needing verification if none was made.
 
-## 3. Project purpose & architecture
+## 3. Project Purpose & Architecture
 
-`audio-orchestrator` delivers a voice-first Discord assistant composed of five core services
+`audio-orchestrator` delivers a voice-first Discord assistant composed of core services
 plus shared helpers:
+
+### Core Services
 
 -  `services/discord` (Python; `discord.py`, MCP) — Captures voice from Discord,
   detects wake phrases, forwards audio to STT, exposes Discord control tools,
@@ -80,15 +166,27 @@ plus shared helpers:
   can broker MCP tool invocations and return reasoning output to the orchestrator.
 -  `services/tts` (Python; FastAPI, Piper) — Streams Piper-generated audio for
   orchestrator responses with authentication and rate limits.
+-  `services/audio-processor` (Python; FastAPI) — Unified audio processing service
 -  `services/common` (Python package) — Houses shared logging and HTTP utilities
   to keep service behavior consistent.
 
-Optional capability servers (e.g., text-to-speech or file tooling) can integrate via MCP
-manifests; document and test them when introduced.
+### Service Communication
 
-## 4. Repository layout essentials
+```text
+Discord Voice → Audio Processor → STT → Orchestrator → LLM → TTS → Discord Voice
+```
 
--  `docker-compose.yml` orchestrates the five core services with shared environment files.
+### Service Dependencies
+
+-  **Discord** depends on: Audio Processor, STT, Orchestrator
+-  **Orchestrator** depends on: LLM, TTS
+-  **STT** depends on: Audio Processor
+
+## 4. Repository Layout Essentials
+
+### Core Files
+
+-  `docker-compose.yml` orchestrates the core services with shared environment files.
 -  `.env.sample` is the canonical source for new configuration keys; copy the relevant blocks
    into:
   -  `.env.common`
@@ -99,10 +197,20 @@ manifests; document and test them when introduced.
   `make docker-clean`, `make docker-clean-all`, etc.). When a new workflow emerges, add or refine a Makefile target
   rather than relying on copy-pasted commands.
   Use `make docker-clean` for routine cleanup, `make docker-clean-all` for complete reset.
--  `docs/` stores onboarding, architecture, manifest, and roadmap content. Update the relevant
-  page whenever you change behavior, workflows, or configuration names.
 
-## 5. Configuration expectations
+### Documentation Structure
+
+```text
+docs/
+├── ARCHITECTURE.md          # System architecture for AI context
+├── README.md                # Project overview and setup
+└── proposals/               # Architecture proposals (when needed)
+    └── major-changes.md
+```
+
+## 5. Configuration Management
+
+### Environment Variables
 
 -  Keep defaults synchronized across `.env.sample`, service-specific `.env.service` files, and
   `.env.common` / `.env.docker` when you add or rename variables for Docker Compose deployments.
@@ -111,7 +219,9 @@ manifests; document and test them when introduced.
   containerized runs stay aligned.
 -  Document all configuration changes in `README.md` and the matching guide under `docs/`.
 
-## 6. Tooling & workflow standards
+## 6. Tooling & Workflow Standards
+
+### Makefile Targets
 
 -  Prefer the `Makefile` targets over ad-hoc Docker or Python commands so Docker-based runs match
   CI and documentation. Expand the Makefile whenever you identify repeated sequences of Docker or
@@ -124,9 +234,18 @@ manifests; document and test them when introduced.
   on `docker-compose`.
 -  Mount paths introduced in Compose must work with the existing `.env.*` structure and repository
   directories mounted into the containers (e.g., `./logs`, `./.wavs`).
--  **CI/CD Optimization**: CI workflows use path-based change detection (dorny/paths-filter) and matrix parallelization for optimal performance. Local development uses `make docker-build-incremental` for fast rebuilds based on git changes.
 
-## 7. Python coding guidelines
+### Quality Gates & Commands
+
+-  **All changes must pass tests**: `make test-component`
+-  **All changes must pass linters**: `make lint`
+-  **Auto-fix issues**: `make lint-fix`
+-  **Use container targets**: For consistency with CI/CD
+-  **Prefer Makefile targets**: Over direct command-line tools
+
+## 7. Python Coding Guidelines
+
+### Code Quality Standards
 
 -  Follow PEP 8 style, add type hints for new functions/classes, and keep imports sorted (use
   `ruff --select I` or an editor integration).
@@ -136,91 +255,79 @@ manifests; document and test them when introduced.
 -  Update `requirements.txt` files when you add or upgrade dependencies; pin versions where
   appropriate for reproducible deployments.
 
-## 8. Health Check Implementation Requirements
+### Type Annotations (MANDATORY)
 
-### Mandatory Health Check Standards
+-  **Function parameters**: `def process_audio(data: bytes, sample_rate: int) -> AudioResult:`
+-  **Return types**: `-> Dict[str, Any]`, `-> Optional[AudioData]`, `-> List[AudioChunk]`
+-  **Variable annotations**: `audio_buffer: List[float] = []`
+-  **Class attributes**: `model_path: str`, `is_loaded: bool = False`
 
-All services must implement standardized health checks following these requirements:
+## 8. Solo Health Check Implementation
 
-#### Startup State Management
+### Basic Health Check Standards
 
--  **Call `mark_startup_complete()`** after initialization is complete
--  **Register dependencies** using `_health_manager.register_dependency()`
--  **Handle startup failures gracefully** without crashing the service
+All services must implement simple health checks for solo development:
 
-#### Health Endpoint Implementation
+#### Basic Health Endpoints
 
 -  **GET /health/live**: Always returns 200 if process is alive
--  **GET /health/ready**: Returns structured JSON with component status
--  **Response format**: Must include `status`, `service`, `components`, `dependencies`, `health_details`
--  **Status values**: Support "ready", "degraded", "not_ready"
+-  **GET /health/ready**: Returns basic status if service can handle requests
 
-#### Dependency Registration
+#### Simple Implementation
 
--  **Register critical dependencies** in startup event handlers
--  **Use async health check functions** for external service dependencies
--  **Handle optional dependencies** gracefully (return True if not configured)
+-  **Basic functionality**: Service can handle requests
+-  **No complex metrics**: Keep it simple
+-  **No extensive dependency checking**: Focus on core functionality
 
-#### Prometheus Metrics
-
--  **Expose health check metrics** via `/metrics` endpoint
--  **Required metrics**: `health_check_duration_seconds`, `service_health_status`, `service_dependency_health`
--  **Use prometheus_client** for metric collection
-
-#### Status Transitions
-
--  **Healthy → Degraded**: When non-critical dependencies become unhealthy
--  **Degraded → Unhealthy**: When critical dependencies become unhealthy
--  **Unhealthy → Healthy**: When all dependencies become healthy
-
-### Implementation Pattern
+### Simple Implementation Pattern
 
 ```python
+from fastapi import FastAPI, HTTPException
+from typing import Dict, Any
+
+app = FastAPI()
+
+# Simple startup tracking
+_startup_complete = False
+
 @app.on_event("startup")
 async def _startup():
+    """Service startup event handler."""
+    global _startup_complete
     try:
         # Initialize core components
         await _initialize_core_components()
-        
-        # Register dependencies
-        _health_manager.register_dependency("dependency_name", _check_dependency_health)
-        
-        # Mark startup complete
-        _health_manager.mark_startup_complete()
-        
-        logger.info("service.startup_complete", service=service_name)
+        _startup_complete = True
     except Exception as exc:
-        logger.error("service.startup_failed", error=str(exc))
         # Continue without crashing - service will report not_ready
+        pass
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness check - always returns 200 if process is alive."""
+    return {"status": "alive", "service": "discord"}
 
 @app.get("/health/ready")
-async def health_ready() -> dict[str, Any]:
-    """Readiness check with component status."""
-    if _critical_component is None:
-        raise HTTPException(status_code=503, detail="Critical component not loaded")
-    
-    health_status = await _health_manager.get_health_status()
-    
-    # Determine status string
-    if not health_status.ready:
-        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-    else:
-        status_str = "ready"
+async def health_ready() -> Dict[str, Any]:
+    """Readiness check - basic functionality."""
+    if not _startup_complete:
+        raise HTTPException(status_code=503, detail="Service not ready")
     
     return {
-        "status": status_str,
-        "service": "service-name",
-        "components": {
-            "component_loaded": _critical_component is not None,
-            "startup_complete": _health_manager._startup_complete,
-            # Add service-specific components
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details
+        "status": "ready",
+        "service": "discord",
+        "startup_complete": _startup_complete
     }
 ```
 
-## 9. Service-specific notes
+### Basic Health Check Requirements
+
+-  **Startup Management**: Track if service has completed initialization
+-  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
+-  **Simple Status**: Return basic status information
+-  **No Complex Metrics**: Keep it simple for solo development
+
+## 9. Service-Specific Notes
 
 ### Discord voice bot (`services/discord`)
 
@@ -266,18 +373,41 @@ async def health_ready() -> dict[str, Any]:
 -  Keep helpers generic and well-documented; prefer adding shared logic here instead of duplicating
   code across services.
 
-## 9. Documentation expectations
+## 10. Solo Documentation Standards
 
--  Use Markdown heading hierarchy (`#`, `##`, `###`) and wrap lines around 100 characters for
-  readability.
--  Favor relative links (e.g., `../docs/FILE.md`) and include fenced code blocks with language
-  hints (`bash`, `env`, `json`, etc.).
--  Align architectural diagrams and process descriptions with the actual service behavior described
-  above. Update `docs/MCP_MANIFEST.md`, `ROADMAP.md`, and any proposals if your change affects
-  them.
--  Whenever a proposal is requested, author it as a Markdown file under `docs/proposals/`
-  (e.g., `docs/proposals/<topic>.md`) so it can be reviewed alongside other documentation
-  artifacts.
+### Required Documentation Files (Simplified)
+
+-  **README.md**: Project overview and quick start
+-  **docs/ARCHITECTURE.md**: System architecture for AI understanding
+-  **PR descriptions**: Detailed explanation of changes and rationale
+
+### PR Description Standards
+
+```markdown
+## Feature: [Brief Description]
+
+### Changes Made
+- [List of key changes]
+- [Architecture decisions]
+- [Integration points]
+
+### Rationale
+- [Why these changes were made]
+- [How they fit into existing patterns]
+- [Expected outcomes]
+
+### Testing
+- [Basic functionality tested]
+- [Integration points verified]
+- [Manual testing completed]
+```
+
+### Content Guidelines for Solo Development
+
+-  **Clear and concise**: Avoid unnecessary jargon
+-  **Technical accuracy**: Verify all technical details
+-  **Up-to-date**: Keep documentation current with code changes
+-  **AI-focused**: Write for AI understanding and context
 
 ## 10. Observability, security, & performance
 
@@ -291,7 +421,15 @@ async def health_ready() -> dict[str, Any]:
   end-to-response times under ~2 s for short queries, and timely TTS playback. Note deviations in
   docs or PR summaries.
 
-## 11. Testing & validation
+## 12. Solo Testing Strategy
+
+### Test Categories (Simplified)
+
+-  **Smoke Tests**: Basic functionality and service health (`services/tests/smoke/`)
+-  **Integration Tests**: Service HTTP boundaries via Docker Compose (`services/tests/integration/`)
+-  **E2E Tests**: Full system tests for critical paths (`services/tests/e2e/`)
+
+### Testing Approach for Solo Development
 
 -  Run the relevant Docker-focused `Makefile` targets after changes (`make run`, `make logs`,
   `make docker-build`, etc.) and summarize noteworthy output in your PR.
@@ -300,15 +438,17 @@ async def health_ready() -> dict[str, Any]:
 -  When changing APIs, provide example requests/responses in docs or PR notes so reviewers can
   verify behavior quickly.
 
-## 11.1 Microservices Testing Best Practices
+### Quality Gates (Simplified)
 
-### Test Categories
+-  **Smoke Tests**: Basic functionality works
+-  **Integration Tests**: Critical service boundaries work
+-  **E2E Tests**: Critical user journeys work
 
--  **Unit Tests**: Fast, isolated, mocked dependencies (`services/tests/unit/`)
--  **Component Tests**: Internal logic with mocked external dependencies (`services/tests/component/`)
--  **Integration Tests**: Service HTTP boundaries via Docker Compose (`services/tests/integration/`)
--  **E2E Tests**: Full system tests (`services/tests/e2e/`)
--  **Quality Tests**: Audio quality and performance regression (`services/tests/quality/`)
+### Performance Requirements (Relaxed)
+
+-  **Smoke Tests**: < 5 seconds per test
+-  **Integration Tests**: < 30 seconds per test
+-  **E2E Tests**: < 2 minutes per test
 
 ### Integration Test Pattern
 
@@ -332,24 +472,65 @@ async def test_service_boundary():
             assert response.status_code == 200
 ```
 
-### Component Test Pattern
+### Success Criteria Framework
 
-Component tests must:
+For solo development, focus on functional outcomes:
 
--  Mock external dependencies (HTTP clients, Discord API)
--  Test internal service logic and adapters
--  NOT start real services or make HTTP calls
+#### Functional Success Criteria
 
-Example:
+-  **Basic Functionality**: Feature works as intended
+-  **Integration**: Changes integrate with existing system
+-  **Performance**: No obvious performance regressions
+-  **User Experience**: Changes improve or maintain user experience
 
-```python
-@pytest.mark.component
-def test_internal_logic():
-    with patch("external.dependency") as mock:
-        # Test internal logic
+#### Anti-Patterns to Avoid
+
+-  ❌ **Don't**: Over-engineer with complex metrics
+-  ❌ **Don't**: Require statistical validation for simple changes
+-  ❌ **Don't**: Create extensive test suites for every feature
+-  ✅ **Do**: Focus on "does it work" over "is it perfect"
+-  ✅ **Do**: Use manual testing for rapid iteration
+-  ✅ **Do**: Write tests only when you break something
+
+## 13. Git Workflow & Branch Management
+
+### Branch Strategy
+
+-  **`main`**: Production-ready code, always deployable
+-  **`feat/*`**: Feature development branches
+-  **`hotfix/*`**: Critical bug fixes
+
+### Branch Naming Convention
+
+```text
+feat/phase-{N}-{description}
+feat/audio-platform-cutover
 ```
 
-## 12. Citations for final summaries
+### Commit Message Convention
+
+```text
+type(scope): description
+
+[optional body]
+```
+
+**Types**: feat, fix, test, docs, refactor, perf, chore
+
+**Examples**:
+
+```text
+feat(orchestrator): add audio pipeline framework
+fix(adapters): resolve async/await issues in discord adapters
+test(pipeline): add unit tests for wake detector
+```
+
+### Quality Gates
+
+-  **Pre-Push**: `make lint` and `make test` must pass
+-  **Bypassing Hooks**: Only use `--no-verify` when necessary and after manual verification
+
+## 14. Citations for Final Summaries
 
 When preparing final responses, cite files and terminal output using the house format:
 `【F:path/to/file†Lstart-Lend】` for files and `【chunk_id†Lstart-Lend】` for terminal commands.

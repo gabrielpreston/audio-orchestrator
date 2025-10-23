@@ -1,0 +1,6 @@
+# Include base requirements
+-r ../requirements-base.txt
+
+# Audio preprocessing specific dependencies
+speechbrain>=0.5.16,<1.0
+torchaudio>=2.9,<3.0
