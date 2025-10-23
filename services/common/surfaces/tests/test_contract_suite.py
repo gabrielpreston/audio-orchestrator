@@ -33,7 +33,7 @@ class TestSurfaceAdapterContractTester:
         adapter.connect.return_value = True
         adapter.disconnect.return_value = None
         # Make isinstance() checks work
-        adapter.__class__ = AudioSource  # type: ignore[assignment]
+        adapter.__class__ = AudioSource
         adapter.read_audio_frame.return_value = [
             PCMFrame(
                 pcm=b"\x00" * 1024,
@@ -55,7 +55,7 @@ class TestSurfaceAdapterContractTester:
         adapter.connect.return_value = True
         adapter.disconnect.return_value = None
         # Make isinstance() checks work
-        adapter.__class__ = AudioSink  # type: ignore[assignment]
+        adapter.__class__ = AudioSink
         adapter.play_audio_chunk.return_value = None
         adapter.get_telemetry.return_value = {"status": "healthy"}
         return adapter
@@ -199,7 +199,7 @@ class TestSurfaceAdapterContractTester:
         """Test comprehensive test suite with mixed results."""
         # Create one successful adapter
         successful_adapter = AsyncMock()
-        successful_adapter.__class__ = AudioSource  # type: ignore[assignment]
+        successful_adapter.__class__ = AudioSource
         successful_adapter.initialize.return_value = True
         successful_adapter.connect.return_value = True
         successful_adapter.disconnect.return_value = None
@@ -208,7 +208,7 @@ class TestSurfaceAdapterContractTester:
 
         # Create one failing adapter
         failing_adapter = AsyncMock()
-        failing_adapter.__class__ = AudioSink  # type: ignore[assignment]
+        failing_adapter.__class__ = AudioSink
         failing_adapter.initialize.return_value = False
         failing_adapter.connect.return_value = False
         failing_adapter.disconnect.return_value = None

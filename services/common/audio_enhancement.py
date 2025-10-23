@@ -74,10 +74,10 @@ class AudioEnhancer:
 
     def apply_high_pass_filter(
         self,
-        audio: np.ndarray,  # type: ignore[type-arg]
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
         cutoff_freq: float = 80.0,
-    ) -> np.ndarray:  # type: ignore[type-arg]
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Apply high-pass filter to remove low-frequency noise.
 
         Args:
@@ -102,7 +102,7 @@ class AudioEnhancer:
             filtered_audio = signal.filtfilt(b, a, audio)
 
             logger.debug("audio_enhancer.high_pass_applied: %s", cutoff_freq)
-            return filtered_audio  # type: ignore[no-any-return]
+            return filtered_audio
 
         except (ValueError, RuntimeError) as exc:
             logger.error(
@@ -113,9 +113,9 @@ class AudioEnhancer:
 
     def enhance_audio(
         self,
-        audio: np.ndarray,  # type: ignore[type-arg]
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
-    ) -> np.ndarray:  # type: ignore[type-arg]
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Apply MetricGAN+ enhancement to audio.
 
         Args:
@@ -146,7 +146,7 @@ class AudioEnhancer:
             enhanced_audio = enhanced_tensor.squeeze(0).detach().cpu().numpy()
 
             logger.debug("audio_enhancer.enhancement_applied")
-            return enhanced_audio  # type: ignore[no-any-return]
+            return enhanced_audio
 
         except (ImportError, RuntimeError, OSError, MemoryError) as exc:
             logger.error(
@@ -158,11 +158,11 @@ class AudioEnhancer:
 
     def enhance_audio_pipeline(
         self,
-        audio: np.ndarray,  # type: ignore[type-arg]
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
         apply_high_pass: bool = True,
         high_pass_cutoff: float = 80.0,
-    ) -> np.ndarray:  # type: ignore[type-arg]
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Complete audio enhancement pipeline.
 
         Args:

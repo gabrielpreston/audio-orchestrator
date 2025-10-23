@@ -143,11 +143,8 @@ class TestEnhancementConfig:
         for config in config_scenarios:
             # Test that configuration is handled appropriately
             # This is more of a documentation test
-            config_dict = dict(config)  # type: ignore[call-overload]
-            assert isinstance(config_dict["enabled"], bool)
-            assert config_dict["model_path"] is None or isinstance(
-                config_dict["model_path"], str
-            )
+            assert isinstance(config["enabled"], bool)
+            assert config["model_path"] is None or isinstance(config["model_path"], str)
 
     def test_enhancement_startup_sequence(self):
         """Test enhancement startup sequence and error handling."""
@@ -176,7 +173,7 @@ class TestEnhancementConfig:
                 # This is more of a documentation test
                 assert isinstance(env_vars, dict)
 
-    def test_enhancement_logging_configuration(self):
+    async def test_enhancement_logging_configuration(self):
         """Test enhancement logging configuration."""
         # Test that enhancement errors are logged appropriately
         with (
@@ -190,7 +187,7 @@ class TestEnhancementConfig:
             from services.stt.app import _enhance_audio_if_enabled
 
             test_audio = b"test_audio_data"
-            result = _enhance_audio_if_enabled(test_audio)
+            result = await _enhance_audio_if_enabled(test_audio)
 
             # Should log the error
             assert mock_logger.error.called
@@ -207,7 +204,7 @@ class TestEnhancementConfig:
             _audio_enhancer, "is_enhancement_enabled"
         )
 
-    def test_enhancement_graceful_degradation_chain(self):
+    async def test_enhancement_graceful_degradation_chain(self):
         """Test enhancement graceful degradation through error chain."""
         error_chain = [
             ImportError("speechbrain not available"),
@@ -226,7 +223,7 @@ class TestEnhancementConfig:
                 from services.stt.app import _enhance_audio_if_enabled
 
                 test_audio = b"test_audio_data"
-                result = _enhance_audio_if_enabled(test_audio)
+                result = await _enhance_audio_if_enabled(test_audio)
 
                 # Should always return original audio on error
                 assert result == test_audio
@@ -248,7 +245,7 @@ class TestEnhancementConfig:
             )
             assert current_state == initial_state
 
-    def test_enhancement_resource_cleanup(self):
+    async def test_enhancement_resource_cleanup(self):
         """Test enhancement resource cleanup on errors."""
         with patch("services.stt.app._audio_enhancer") as mock_enhancer:
             # Configure mock to raise error
@@ -258,7 +255,7 @@ class TestEnhancementConfig:
             from services.stt.app import _enhance_audio_if_enabled
 
             test_audio = b"test_audio_data"
-            result = _enhance_audio_if_enabled(test_audio)
+            result = await _enhance_audio_if_enabled(test_audio)
 
             # Should clean up resources and return original audio
             assert result == test_audio

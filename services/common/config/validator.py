@@ -61,7 +61,7 @@ def validate_sample_rate(rate: int) -> bool:
     return rate in valid_rates
 
 
-def validate_audio_channels(channels: int) -> bool:
+def validate_audio_channels(channels: Any) -> bool:
     """Validate audio channel count.
 
     Args:
@@ -70,6 +70,8 @@ def validate_audio_channels(channels: int) -> bool:
     Returns:
         True if valid channel count, False otherwise
     """
+    if not isinstance(channels, int):
+        return False
     return channels in [1, 2]
 
 

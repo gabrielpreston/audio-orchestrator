@@ -120,6 +120,12 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             },
             "service": {"port": 8001, "host": "0.0.0.0", "workers": 1},
             "telemetry": {"enabled": True, "metrics_port": 9091, "jaeger_endpoint": ""},
+            "wake": {
+                "enabled": True,
+                "wake_phrases": ["hey atlas", "ok atlas"],
+                "model_paths": [],
+                "activation_threshold": 0.5,
+            },
         },
         "stt": {
             "logging": {"level": "INFO", "json_logs": True, "service_name": "stt"},
@@ -133,7 +139,22 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "service_timeout": 50,
             },
             "service": {"port": 9000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9092, "jaeger_endpoint": ""},
+            "telemetry": {
+                "enabled": True,
+                "metrics_port": 9092,
+                "jaeger_endpoint": "",
+                "stt_warmup": False,
+                "log_sample_stt_request_n": 25,
+            },
+            "faster_whisper": {
+                "model": "medium.en",
+                "model_path": "/app/models",
+                "device": "cpu",
+                "compute_type": "float16",
+                "audio_service_url": "http://audio-processor:9100",
+                "audio_service_timeout": 50.0,
+                "enable_enhancement": True,
+            },
         },
         "tts": {
             "logging": {"level": "INFO", "json_logs": True, "service_name": "tts"},
@@ -148,6 +169,18 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             },
             "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
             "telemetry": {"enabled": True, "metrics_port": 9093, "jaeger_endpoint": ""},
+            "tts": {
+                "model_path": "/app/models/piper",
+                "model_config_path": "/app/models/piper/config.json",
+                "default_voice": "en_US-lessac-medium",
+                "max_text_length": 1000,
+                "max_concurrency": 4,
+                "rate_limit_per_minute": 60,
+                "auth_token": "",
+                "length_scale": 1.0,
+                "noise_scale": 0.667,
+                "noise_w": 0.8,
+            },
         },
         "orchestrator": {
             "logging": {

@@ -345,6 +345,35 @@ class ServiceConfig(BaseConfig):
         ]
 
 
+class NestedConfig:
+    """Configuration class that supports nested dictionary access."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        """Initialize with nested configuration data."""
+        self._data = kwargs
+
+    def __getattr__(self, name: str) -> Any:
+        """Get nested configuration value."""
+        if name in self._data:
+            value = self._data[name]
+            if isinstance(value, dict):
+                return NestedConfig(**value)
+            return value
+        raise AttributeError(f"Configuration field '{name}' not found")
+
+    def __getitem__(self, key: str) -> Any:
+        """Get configuration value by key."""
+        return self._data[key]
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get configuration value with default."""
+        return self._data.get(key, default)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary."""
+        return self._data.copy()
+
+
 class TelemetryConfig(BaseConfig):
     """Telemetry configuration."""
 

@@ -12,15 +12,15 @@ from .config import load_config
 def main() -> None:
     config = load_config()
     configure_logging(
-        config.telemetry.log_level,  # type: ignore[attr-defined]
-        json_logs=config.telemetry.log_json,  # type: ignore[attr-defined]
+        config.telemetry.log_level,
+        json_logs=config.telemetry.log_json,
         service_name="discord",
     )
 
     # Check running mode
-    mcp_mode = config.runtime.mcp_mode  # type: ignore[attr-defined]
-    http_mode = config.runtime.http_mode  # type: ignore[attr-defined]
-    full_bot_mode = config.runtime.full_bot  # type: ignore[attr-defined]
+    mcp_mode = config.runtime.mcp_mode
+    http_mode = config.runtime.http_mode
+    full_bot_mode = config.runtime.full_bot
 
     if mcp_mode:
         # Run as MCP server subprocess

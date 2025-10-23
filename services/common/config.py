@@ -435,7 +435,7 @@ class EnvironmentLoader:
 
     def load_config(self, config_class: type[T]) -> T:
         """Load configuration for a given class from environment variables."""
-        field_definitions = config_class.get_field_definitions()  # type: ignore[attr-defined]
+        field_definitions = config_class.get_field_definitions()
         kwargs = {}
 
         for field_def in field_definitions:

@@ -83,10 +83,10 @@ class AudioEnhancer:
 
     def apply_high_pass_filter(
         self,
-        audio: np.ndarray,
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
         cutoff_freq: float = 80.0,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Apply high-pass filter to remove low-frequency noise.
 
         Args:
@@ -119,9 +119,9 @@ class AudioEnhancer:
 
     def enhance_audio(
         self,
-        audio: np.ndarray,
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Apply MetricGAN+ enhancement to audio.
 
         Args:
@@ -161,11 +161,11 @@ class AudioEnhancer:
 
     def enhance_audio_pipeline(
         self,
-        audio: np.ndarray,
+        audio: np.ndarray[Any, np.dtype[np.float32]],
         sample_rate: int = 16000,
         apply_high_pass: bool = True,
         high_pass_cutoff: float = 80.0,
-    ) -> np.ndarray:
+    ) -> np.ndarray[Any, np.dtype[np.float32]]:
         """Complete audio enhancement pipeline.
 
         Args:

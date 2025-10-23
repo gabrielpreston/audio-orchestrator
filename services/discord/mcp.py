@@ -162,8 +162,8 @@ class MCPServer:
                 "notifications": {"subscriptions": ["discord/transcript"]},
             },
             "discord": {
-                "defaultGuildId": self._config.discord.guild_id,  # type: ignore[attr-defined]
-                "defaultVoiceChannelId": self._config.discord.voice_channel_id,  # type: ignore[attr-defined]
+                "defaultGuildId": self._config.discord.guild_id,
+                "defaultVoiceChannelId": self._config.discord.voice_channel_id,
             },
         }
         await self._send_response(request_id, result)

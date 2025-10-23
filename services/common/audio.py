@@ -76,7 +76,7 @@ class AudioProcessor:
     def _log(self, level: str, message: str, **kwargs: Any) -> None:
         """Log audio processing operations."""
         if self._logger:
-            getattr(self._logger, level)(message, **kwargs)  # type: ignore[unreachable]
+            getattr(self._logger, level)(message, **kwargs)
 
     def extract_metadata(
         self, audio_data: bytes, format_hint: str = "wav"

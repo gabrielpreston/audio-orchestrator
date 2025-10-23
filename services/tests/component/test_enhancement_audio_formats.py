@@ -13,7 +13,7 @@ from services.tests.fixtures.audio_samples import AudioSampleGenerator
 class TestEnhancementAudioFormats:
     """Test enhancement with various audio format edge cases."""
 
-    def test_enhancement_with_different_sample_rates(self):
+    async def test_enhancement_with_different_sample_rates(self):
         """Test enhancement with various sample rates."""
         sample_rates = [8000, 16000, 22050, 44100, 48000]
 
@@ -25,11 +25,11 @@ class TestEnhancementAudioFormats:
             from services.stt.app import _enhance_audio_if_enabled
 
             # Should handle different sample rates
-            result = _enhance_audio_if_enabled(sample.data)
+            result = await _enhance_audio_if_enabled(sample.data)
             assert result is not None
             assert len(result) > 0
 
-    def test_enhancement_with_stereo_audio(self):
+    async def test_enhancement_with_stereo_audio(self):
         """Test enhancement with stereo input."""
         # Create stereo audio sample
         generator = AudioSampleGenerator()
@@ -41,11 +41,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle stereo audio
-        result = _enhance_audio_if_enabled(stereo_data)
+        result = await _enhance_audio_if_enabled(stereo_data)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_mono_audio(self):
+    async def test_enhancement_with_mono_audio(self):
         """Test enhancement with mono audio."""
         generator = AudioSampleGenerator()
         mono_sample = generator.generate_clean_speech()
@@ -53,11 +53,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle mono audio
-        result = _enhance_audio_if_enabled(mono_sample.data)
+        result = await _enhance_audio_if_enabled(mono_sample.data)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_very_short_audio(self):
+    async def test_enhancement_with_very_short_audio(self):
         """Test enhancement with very short audio."""
         # Create very short audio (100ms)
         generator = AudioSampleGenerator(duration_seconds=0.1)
@@ -66,11 +66,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle very short audio
-        result = _enhance_audio_if_enabled(short_sample.data)
+        result = await _enhance_audio_if_enabled(short_sample.data)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_very_long_audio(self):
+    async def test_enhancement_with_very_long_audio(self):
         """Test enhancement with very long audio."""
         # Create very long audio (30 seconds)
         generator = AudioSampleGenerator(duration_seconds=30.0)
@@ -79,11 +79,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle very long audio
-        result = _enhance_audio_if_enabled(long_sample.data)
+        result = await _enhance_audio_if_enabled(long_sample.data)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_silent_audio(self):
+    async def test_enhancement_with_silent_audio(self):
         """Test enhancement with silent audio."""
         # Create silent audio
         silent_audio = self._create_silent_audio()
@@ -91,11 +91,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle silent audio
-        result = _enhance_audio_if_enabled(silent_audio)
+        result = await _enhance_audio_if_enabled(silent_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_maximum_amplitude_audio(self):
+    async def test_enhancement_with_maximum_amplitude_audio(self):
         """Test enhancement with maximum amplitude audio."""
         # Create audio at maximum amplitude
         max_amp_audio = self._create_max_amplitude_audio()
@@ -103,11 +103,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle maximum amplitude audio
-        result = _enhance_audio_if_enabled(max_amp_audio)
+        result = await _enhance_audio_if_enabled(max_amp_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_dc_offset_audio(self):
+    async def test_enhancement_with_dc_offset_audio(self):
         """Test enhancement with DC offset audio."""
         # Create audio with DC offset
         dc_offset_audio = self._create_dc_offset_audio()
@@ -115,11 +115,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle DC offset audio
-        result = _enhance_audio_if_enabled(dc_offset_audio)
+        result = await _enhance_audio_if_enabled(dc_offset_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_clipped_audio(self):
+    async def test_enhancement_with_clipped_audio(self):
         """Test enhancement with clipped audio."""
         # Create clipped audio
         clipped_audio = self._create_clipped_audio()
@@ -127,11 +127,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle clipped audio
-        result = _enhance_audio_if_enabled(clipped_audio)
+        result = await _enhance_audio_if_enabled(clipped_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_low_bitrate_audio(self):
+    async def test_enhancement_with_low_bitrate_audio(self):
         """Test enhancement with low bitrate audio."""
         # Create low bitrate audio
         low_bitrate_audio = self._create_low_bitrate_audio()
@@ -139,11 +139,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle low bitrate audio
-        result = _enhance_audio_if_enabled(low_bitrate_audio)
+        result = await _enhance_audio_if_enabled(low_bitrate_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_high_frequency_audio(self):
+    async def test_enhancement_with_high_frequency_audio(self):
         """Test enhancement with high frequency audio."""
         # Create high frequency audio
         high_freq_audio = self._create_high_frequency_audio()
@@ -151,11 +151,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle high frequency audio
-        result = _enhance_audio_if_enabled(high_freq_audio)
+        result = await _enhance_audio_if_enabled(high_freq_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_low_frequency_audio(self):
+    async def test_enhancement_with_low_frequency_audio(self):
         """Test enhancement with low frequency audio."""
         # Create low frequency audio
         low_freq_audio = self._create_low_frequency_audio()
@@ -163,11 +163,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle low frequency audio
-        result = _enhance_audio_if_enabled(low_freq_audio)
+        result = await _enhance_audio_if_enabled(low_freq_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_impulse_audio(self):
+    async def test_enhancement_with_impulse_audio(self):
         """Test enhancement with impulse audio."""
         # Create impulse audio
         impulse_audio = self._create_impulse_audio()
@@ -175,11 +175,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle impulse audio
-        result = _enhance_audio_if_enabled(impulse_audio)
+        result = await _enhance_audio_if_enabled(impulse_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_white_noise_audio(self):
+    async def test_enhancement_with_white_noise_audio(self):
         """Test enhancement with white noise audio."""
         # Create white noise audio
         noise_audio = self._create_white_noise_audio()
@@ -187,11 +187,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle white noise audio
-        result = _enhance_audio_if_enabled(noise_audio)
+        result = await _enhance_audio_if_enabled(noise_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_empty_audio(self):
+    async def test_enhancement_with_empty_audio(self):
         """Test enhancement with empty audio."""
         # Create empty audio
         empty_audio = b""
@@ -199,10 +199,10 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle empty audio gracefully
-        result = _enhance_audio_if_enabled(empty_audio)
+        result = await _enhance_audio_if_enabled(empty_audio)
         assert result == empty_audio
 
-    def test_enhancement_with_corrupted_wav_header(self):
+    async def test_enhancement_with_corrupted_wav_header(self):
         """Test enhancement with corrupted WAV header."""
         # Create corrupted WAV header
         corrupted_audio = b"RIFF\x00\x00\x00\x00WAVE"  # Minimal corrupted header
@@ -210,10 +210,10 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle corrupted header gracefully
-        result = _enhance_audio_if_enabled(corrupted_audio)
+        result = await _enhance_audio_if_enabled(corrupted_audio)
         assert result == corrupted_audio
 
-    def test_enhancement_with_unsupported_format(self):
+    async def test_enhancement_with_unsupported_format(self):
         """Test enhancement with unsupported audio format."""
         # Create unsupported format
         unsupported_audio = b"NOT_A_WAV_FILE"
@@ -221,10 +221,10 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle unsupported format gracefully
-        result = _enhance_audio_if_enabled(unsupported_audio)
+        result = await _enhance_audio_if_enabled(unsupported_audio)
         assert result == unsupported_audio
 
-    def test_enhancement_with_very_large_audio(self):
+    async def test_enhancement_with_very_large_audio(self):
         """Test enhancement with very large audio file."""
         # Create very large audio (10MB)
         large_audio = self._create_large_audio()
@@ -232,11 +232,11 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle very large audio
-        result = _enhance_audio_if_enabled(large_audio)
+        result = await _enhance_audio_if_enabled(large_audio)
         assert result is not None
         assert len(result) > 0
 
-    def test_enhancement_with_very_small_audio(self):
+    async def test_enhancement_with_very_small_audio(self):
         """Test enhancement with very small audio file."""
         # Create very small audio (1KB)
         small_audio = self._create_small_audio()
@@ -244,7 +244,7 @@ class TestEnhancementAudioFormats:
         from services.stt.app import _enhance_audio_if_enabled
 
         # Should handle very small audio
-        result = _enhance_audio_if_enabled(small_audio)
+        result = await _enhance_audio_if_enabled(small_audio)
         assert result is not None
         assert len(result) > 0
 

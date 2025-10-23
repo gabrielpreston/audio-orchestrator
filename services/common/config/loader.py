@@ -46,12 +46,40 @@ def load_config_from_env(config_class: type[Any], **overrides: Any) -> Any:
         Configured instance
     """
     try:
+        # Use NestedConfig for complex nested structures
+        if config_class.__name__ == "ServiceConfig":
+            from .base import NestedConfig
+
+            # Apply environment variable overrides
+            env_overrides = _get_env_overrides()
+            overrides.update(env_overrides)
+
+            return NestedConfig(**overrides)
         return config_class(**overrides)
     except Exception as exc:
         logger.error(
             "config.load_failed", config_class=config_class.__name__, error=str(exc)
         )
         raise
+
+
+def _get_env_overrides() -> dict[str, Any]:
+    """Get environment variable overrides for configuration."""
+    overrides: dict[str, Any] = {}
+
+    # Wake detection configuration
+    wake_enabled = os.getenv("WAKE_DETECTION_ENABLED")
+    if wake_enabled is not None:
+        # Handle explicit true/false values
+        if wake_enabled.lower() in ("true", "1", "yes", "on"):
+            overrides.setdefault("wake", {})["enabled"] = True
+        elif wake_enabled.lower() in ("false", "0", "no", "off"):
+            overrides.setdefault("wake", {})["enabled"] = False
+        else:
+            # Empty string or invalid values are treated as false
+            overrides.setdefault("wake", {})["enabled"] = False
+
+    return overrides
 
 
 def validate_required_env_vars(required_vars: list[str]) -> None:

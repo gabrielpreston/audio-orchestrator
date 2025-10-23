@@ -194,7 +194,7 @@ class PiperAdapter(TTSAdapter):
             self._telemetry["error_count"] += 1
             raise
 
-    async def synthesize_stream(  # type: ignore[override]
+    async def synthesize_stream(
         self, text: str, voice: str | None = None, language: str | None = None
     ) -> AsyncGenerator[TTSResult, None]:
         """

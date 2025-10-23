@@ -5,14 +5,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from services.common.config import NestedConfig
 from services.discord.audio import AudioSegment
-from services.discord.config import (
-    AudioConfig,
-    BotConfig,
-    STTConfig,
-    TelemetryConfig,
-    WakeConfig,
-)
+from services.discord.config import AudioConfig, BotConfig, TelemetryConfig, WakeConfig
 from services.discord.discord_voice import VoiceBot
 from services.discord.transcription import TranscriptionClient
 from services.discord.wake import WakeDetector
@@ -36,7 +31,7 @@ class TestAudioPipelineE2E:
             vad_aggressiveness=2,
         )
 
-        stt_config = STTConfig(
+        stt_config = NestedConfig(
             base_url="http://test-stt:9000",
             request_timeout_seconds=45,
             max_retries=3,

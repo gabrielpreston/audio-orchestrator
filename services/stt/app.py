@@ -30,8 +30,8 @@ app = FastAPI(title="audio-orchestrator STT (faster-whisper)")
 # Centralized configuration
 _cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("stt"))
 
-MODEL_NAME = _cfg.faster_whisper.model  # type: ignore[attr-defined]
-MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"  # type: ignore[attr-defined]
+MODEL_NAME = _cfg.faster_whisper.model
+MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
 # Module-level cached model to avoid repeated loads
 _model: Any = None
 # Audio enhancer for preprocessing
@@ -56,8 +56,8 @@ _enhancement_stats: dict[str, int | float | str | None] = {
 
 
 configure_logging(
-    _cfg.logging.level,  # type: ignore[attr-defined]
-    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
+    _cfg.logging.level,
+    json_logs=_cfg.logging.json_logs,
     service_name="stt",
 )
 logger = get_logger(__name__, service_name="stt")
@@ -89,7 +89,7 @@ def _update_enhancement_stats(
         _enhancement_stats["last_error_time"] = time.time()
 
 
-@app.on_event("startup")  # type: ignore[misc]
+@app.on_event("startup")
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
     global _audio_enhancer, _audio_processor_client
@@ -102,8 +102,8 @@ async def _warm_model() -> None:
         try:
             _audio_processor_client = STTAudioProcessorClient(
                 base_url=_cfg.faster_whisper.audio_service_url
-                or "http://audio-processor:9100",  # type: ignore[attr-defined]
-                timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,  # type: ignore[attr-defined]
+                or "http://audio-processor:9100",
+                timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
             )
             logger.info("stt.audio_processor_client_initialized")
         except Exception as exc:
@@ -114,13 +114,13 @@ async def _warm_model() -> None:
             _audio_processor_client = None
 
         # Load local audio enhancer if enabled (fallback)
-        if _cfg.faster_whisper.enable_enhancement:  # type: ignore[attr-defined]
+        if _cfg.faster_whisper.enable_enhancement:
             try:
                 from services.common.audio_enhancement import AudioEnhancer
 
                 _audio_enhancer = AudioEnhancer(
                     enable_metricgan=True,
-                    device=_cfg.faster_whisper.device,  # type: ignore[attr-defined]
+                    device=_cfg.faster_whisper.device,
                     enhancement_class=None,  # Explicit: use real speechbrain in production
                 )
 
@@ -138,7 +138,7 @@ async def _warm_model() -> None:
 
         _health_manager.mark_startup_complete()  # Mark as ready
         # Optional warm-up inference to avoid first-request latency
-        warmup = _cfg.telemetry.stt_warmup  # type: ignore[attr-defined]
+        warmup = _cfg.telemetry.stt_warmup
         if warmup:
             import tempfile
             import time as _time
@@ -181,13 +181,13 @@ async def _warm_model() -> None:
         raise
 
 
-@app.get("/health/live")  # type: ignore[misc]
+@app.get("/health/live")
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "stt"}
 
 
-@app.get("/health/ready")  # type: ignore[misc]
+@app.get("/health/ready")
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _model is None:
@@ -256,8 +256,8 @@ def _lazy_load_model() -> Any:
         logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
         return _model
 
-    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-    compute_type = _cfg.faster_whisper.compute_type  # type: ignore[attr-defined]
+    device = _cfg.faster_whisper.device
+    compute_type = _cfg.faster_whisper.compute_type
     # Check if we have a local model directory
     local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
     model_path_or_name = (
@@ -351,7 +351,7 @@ async def _transcribe_request(
         channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
     model = _lazy_load_model()
-    device = _cfg.faster_whisper.device  # type: ignore[attr-defined]
+    device = _cfg.faster_whisper.device
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
 
@@ -598,7 +598,7 @@ async def _transcribe_request(
     return JSONResponse(resp, headers=headers)
 
 
-@app.post("/asr")  # type: ignore[misc]
+@app.post("/asr")
 async def asr(request: Request) -> dict[str, Any]:
     # Expect raw WAV bytes in the request body
     body = await request.body()
@@ -607,7 +607,7 @@ async def asr(request: Request) -> dict[str, Any]:
         content_length=len(body),
         correlation_id=request.headers.get("X-Correlation-ID"),
     )
-    return await _transcribe_request(  # type: ignore[no-any-return]
+    return await _transcribe_request(
         request,
         body,
         correlation_id=request.headers.get("X-Correlation-ID")
@@ -735,7 +735,7 @@ async def _enhance_audio_if_enabled(
         return wav_bytes
 
 
-@app.post("/transcribe")  # type: ignore[misc]
+@app.post("/transcribe")
 async def transcribe(request: Request) -> dict[str, Any]:
     try:
         form = await request.form()
@@ -748,7 +748,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
             correlation_id=correlation_id,
             detail="client closed connection during multipart parse",
         )
-        return JSONResponse({"detail": "client disconnected"}, status_code=499)  # type: ignore[no-any-return]
+        return JSONResponse({"detail": "client disconnected"}, status_code=499)
     upload = form.get("file")
     if upload is None:
         logger.warning(
@@ -776,7 +776,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
 
     # Sample noisy request logs to reduce verbosity in production
     try:
-        sample_n = _cfg.telemetry.log_sample_stt_request_n or 25  # type: ignore[attr-defined]
+        sample_n = _cfg.telemetry.log_sample_stt_request_n or 25
     except Exception:
         sample_n = 25
     from services.common.logging import should_sample
@@ -789,7 +789,7 @@ async def transcribe(request: Request) -> dict[str, Any]:
             correlation_id=metadata_value,
         )
 
-    return await _transcribe_request(  # type: ignore[no-any-return]
+    return await _transcribe_request(
         request,
         wav_bytes,
         correlation_id=metadata_value,

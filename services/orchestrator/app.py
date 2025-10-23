@@ -39,8 +39,8 @@ _cfg: ServiceConfig = load_config_from_env(
 )
 
 configure_logging(
-    _cfg.logging.level,  # type: ignore[attr-defined]
-    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
+    _cfg.logging.level,
+    json_logs=_cfg.logging.json_logs,
     service_name="orchestrator",
 )
 logger = get_logger(__name__, service_name="orchestrator")
@@ -50,11 +50,11 @@ _MCP_MANAGER: MCPManager | None = None
 _LLM_CLIENT: httpx.AsyncClient | None = None
 _health_manager = HealthManager("orchestrator")
 
-_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm:8000"  # type: ignore[attr-defined]
-_LLM_AUTH_TOKEN = _cfg.llm_client.auth_token  # type: ignore[attr-defined]
-_TTS_BASE_URL = _cfg.tts_client.base_url  # type: ignore[attr-defined]
-_TTS_AUTH_TOKEN = _cfg.tts_client.auth_token  # type: ignore[attr-defined]
-_MCP_CONFIG_PATH = _cfg.orchestrator.mcp_config_path  # type: ignore[attr-defined]
+_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm:8000"
+_LLM_AUTH_TOKEN = _cfg.llm_client.auth_token
+_TTS_BASE_URL = _cfg.tts_client.base_url
+_TTS_AUTH_TOKEN = _cfg.tts_client.auth_token
+_MCP_CONFIG_PATH = _cfg.orchestrator.mcp_config_path
 
 # Deprecated helper retained for backward compat; prefer config values
 
@@ -69,7 +69,7 @@ async def _ensure_llm_client() -> httpx.AsyncClient | None:
     return _LLM_CLIENT
 
 
-@app.on_event("startup")  # type: ignore[misc]
+@app.on_event("startup")
 async def _startup_event() -> None:
     """Initialize MCP manager and orchestrator on startup."""
     global _MCP_MANAGER, _ORCHESTRATOR
@@ -86,7 +86,7 @@ async def _startup_event() -> None:
         await _MCP_MANAGER.initialize()
 
         # Initialize orchestrator
-        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.llm_client, _cfg.tts_client)  # type: ignore[arg-type]
+        _ORCHESTRATOR = Orchestrator(_MCP_MANAGER, _cfg.llm_client, _cfg.tts_client)
         await _ORCHESTRATOR.initialize()
 
         _health_manager.mark_startup_complete()  # ADD THIS
@@ -123,7 +123,7 @@ async def _check_tts_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
+@app.on_event("shutdown")
 async def _shutdown_event() -> None:
     """Shutdown MCP manager and orchestrator."""
     global _LLM_CLIENT, _MCP_MANAGER, _ORCHESTRATOR
@@ -148,7 +148,7 @@ class TranscriptRequest(BaseModel):
     transcript: str
     correlation_id: str | None = None
 
-    @field_validator("correlation_id")  # type: ignore[misc]
+    @field_validator("correlation_id")
     @classmethod
     def validate_correlation_id_field(cls, v: str | None) -> str | None:
         if v is not None:
@@ -160,7 +160,7 @@ class TranscriptRequest(BaseModel):
         return v
 
 
-@app.post("/mcp/transcript")  # type: ignore[misc]
+@app.post("/mcp/transcript")
 async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
     """Handle transcript from Discord service."""
     from services.common.logging import correlation_context
@@ -222,7 +222,7 @@ async def handle_transcript(request: TranscriptRequest) -> dict[str, Any]:
             return {"error": str(exc)}
 
 
-@app.get("/mcp/tools")  # type: ignore[misc]
+@app.get("/mcp/tools")
 async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     if not _MCP_MANAGER:
@@ -235,7 +235,7 @@ async def list_mcp_tools() -> dict[str, Any]:
         return {"error": str(exc)}
 
 
-@app.get("/mcp/connections")  # type: ignore[misc]
+@app.get("/mcp/connections")
 async def list_mcp_connections() -> dict[str, Any]:
     """List MCP connection status."""
     if not _MCP_MANAGER:
@@ -244,13 +244,13 @@ async def list_mcp_connections() -> dict[str, Any]:
     return {"connections": _MCP_MANAGER.get_client_status()}
 
 
-@app.get("/health/live")  # type: ignore[misc]
+@app.get("/health/live")
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "orchestrator"}
 
 
-@app.get("/health/ready")  # type: ignore[misc]
+@app.get("/health/ready")
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _ORCHESTRATOR is None:
@@ -296,4 +296,4 @@ if PROMETHEUS_AVAILABLE:
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)  # type: ignore[attr-defined]
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)

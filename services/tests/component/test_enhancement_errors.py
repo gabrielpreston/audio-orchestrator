@@ -47,7 +47,7 @@ class TestEnhancementErrorRecovery:
         result = enhancer.enhance_audio(audio_np)
         np.testing.assert_array_equal(result, audio_np)
 
-    def test_enhancement_with_invalid_audio(self):
+    async def test_enhancement_with_invalid_audio(self):
         """Test enhancement handles malformed audio."""
         from services.stt.app import _enhance_audio_if_enabled
 
@@ -61,12 +61,12 @@ class TestEnhancementErrorRecovery:
 
         for invalid_audio in invalid_inputs:
             # Should not crash
-            result = _enhance_audio_if_enabled(invalid_audio)
+            result = await _enhance_audio_if_enabled(invalid_audio)
 
             # Should return original audio (fallback behavior)
             assert result == invalid_audio
 
-    def test_enhancement_memory_error(self):
+    async def test_enhancement_memory_error(self):
         """Test enhancement handles memory errors gracefully."""
         from services.common.audio_enhancement import AudioEnhancer
 
@@ -98,7 +98,7 @@ class TestEnhancementErrorRecovery:
         result = enhancer.enhance_audio(audio_np)
         np.testing.assert_array_equal(result, audio_np)
 
-    def test_enhancement_import_error(self):
+    async def test_enhancement_import_error(self):
         """Test graceful handling when speechbrain not installed."""
         from services.common.audio_enhancement import AudioEnhancer
 
@@ -124,7 +124,7 @@ class TestEnhancementErrorRecovery:
         # Enhancement should be disabled
         assert not enhancer.is_enhancement_enabled
 
-    def test_enhancement_timeout_error(self):
+    async def test_enhancement_timeout_error(self):
         """Test enhancement handles timeout errors."""
         import asyncio
         from unittest.mock import patch
@@ -146,10 +146,10 @@ class TestEnhancementErrorRecovery:
             sample = get_clean_sample()
 
             # Should not crash, should return original audio
-            result = _enhance_audio_if_enabled(sample.data)
+            result = await _enhance_audio_if_enabled(sample.data)
             assert result == sample.data
 
-    def test_enhancement_corrupted_model(self):
+    async def test_enhancement_corrupted_model(self):
         """Test enhancement handles corrupted model files."""
         from services.common.audio_enhancement import AudioEnhancer
 
@@ -182,7 +182,7 @@ class TestEnhancementErrorRecovery:
         result = enhancer.enhance_audio(audio_np)
         np.testing.assert_array_equal(result, audio_np)
 
-    def test_enhancement_partial_failure(self):
+    async def test_enhancement_partial_failure(self):
         """Test enhancement handles partial processing failures."""
         with patch("services.stt.app._audio_enhancer") as mock_enhancer:
             # Configure mock to fail on specific audio types
@@ -199,15 +199,15 @@ class TestEnhancementErrorRecovery:
 
             # Test with short audio (should fail)
             short_audio = b"short"
-            result = _enhance_audio_if_enabled(short_audio)
+            result = await _enhance_audio_if_enabled(short_audio)
             assert result == short_audio  # Should return original
 
             # Test with normal audio (should work)
             sample = get_clean_sample()
-            result = _enhance_audio_if_enabled(sample.data)
+            result = await _enhance_audio_if_enabled(sample.data)
             # Should either be enhanced or original (depending on implementation)
 
-    def test_enhancement_concurrent_failure(self):
+    async def test_enhancement_concurrent_failure(self):
         """Test enhancement handles concurrent processing failures."""
         import threading
         import time
@@ -263,7 +263,7 @@ class TestEnhancementErrorRecovery:
         assert len(errors) == 4
         assert len(errors) < 10  # Should not be too many errors
 
-    def test_enhancement_resource_exhaustion(self):
+    async def test_enhancement_resource_exhaustion(self):
         """Test enhancement handles resource exhaustion."""
         with patch("services.stt.app._audio_enhancer") as mock_enhancer:
             # Configure mock to raise resource exhaustion error
@@ -275,10 +275,10 @@ class TestEnhancementErrorRecovery:
             sample = get_clean_sample()
 
             # Should not crash, should return original audio
-            result = _enhance_audio_if_enabled(sample.data)
+            result = await _enhance_audio_if_enabled(sample.data)
             assert result == sample.data
 
-    def test_enhancement_network_error(self):
+    async def test_enhancement_network_error(self):
         """Test enhancement handles network-related errors."""
         from services.common.audio_enhancement import AudioEnhancer
 
@@ -310,7 +310,7 @@ class TestEnhancementErrorRecovery:
         result = enhancer.enhance_audio(audio_np)
         np.testing.assert_array_equal(result, audio_np)
 
-    def test_enhancement_error_logging(self):
+    async def test_enhancement_error_logging(self):
         """Test that enhancement errors are properly logged."""
         from unittest.mock import patch
 
@@ -333,13 +333,13 @@ class TestEnhancementErrorRecovery:
             from services.stt.app import _enhance_audio_if_enabled
 
             sample = get_clean_sample()
-            _enhance_audio_if_enabled(sample.data)
+            await _enhance_audio_if_enabled(sample.data)
 
             # Should log the error
             assert len(log_messages) > 0
             assert any("stt.enhancement_error" in str(msg) for msg, _ in log_messages)
 
-    def test_enhancement_graceful_degradation_chain(self):
+    async def test_enhancement_graceful_degradation_chain(self):
         """Test enhancement gracefully degrades through error chain."""
         with patch("services.stt.app._audio_enhancer") as mock_enhancer:
             # Configure mock to fail in different ways
@@ -363,14 +363,14 @@ class TestEnhancementErrorRecovery:
             sample = get_clean_sample()
 
             # First call should fail gracefully
-            result1 = _enhance_audio_if_enabled(sample.data)
+            result1 = await _enhance_audio_if_enabled(sample.data)
             assert result1 == sample.data  # Should return original
 
             # Second call should also fail gracefully
-            result2 = _enhance_audio_if_enabled(sample.data)
+            result2 = await _enhance_audio_if_enabled(sample.data)
             assert result2 == sample.data  # Should return original
 
             # Third call should work (if implementation allows retry)
-            result3 = _enhance_audio_if_enabled(sample.data)
+            result3 = await _enhance_audio_if_enabled(sample.data)
             # Should either work or return original
             assert result3 is not None

@@ -6,17 +6,20 @@ import asyncio
 import os
 from typing import Any
 
-import httpx
 from fastapi import FastAPI, HTTPException
+import httpx
 from pydantic import BaseModel
 
 from services.common.health import HealthManager, HealthStatus
-# from services.common.metrics import MetricsCollector, init_metrics_registry
 
 # Configure logging
 from services.common.logging import get_logger
 
+from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
+
+
+# from services.common.metrics import MetricsCollector, init_metrics_registry
 
 
 logger = get_logger(__name__, service_name="discord")
@@ -44,7 +47,7 @@ class TranscriptNotification(BaseModel):
     correlation_id: str | None = None
 
 
-@app.on_event("startup")  # type: ignore[misc]
+@app.on_event("startup")
 async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
     global _bot
@@ -60,7 +63,7 @@ async def startup_event() -> None:
         _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
 
         # Check if we should run the full Discord bot
-        run_full_bot = config.runtime.full_bot  # type: ignore[attr-defined]
+        run_full_bot = config.runtime.full_bot
         logger.info("discord.full_bot_check", run_full_bot=run_full_bot)
 
         if run_full_bot:
@@ -68,22 +71,23 @@ async def startup_event() -> None:
             logger.info("discord.full_bot_starting")
             from services.common.logging import configure_logging
 
-            from .audio import AudioPipeline
             from .discord_voice import VoiceBot
             from .wake import WakeDetector
 
             logger.info("discord.imports_complete")
             logger.info("discord.config_loaded")
             configure_logging(
-                config.telemetry.log_level,  # type: ignore[attr-defined]
-                json_logs=config.telemetry.log_json,  # type: ignore[attr-defined]
+                config.telemetry.log_level,
+                json_logs=config.telemetry.log_json,
                 service_name="discord",
             )
             logger.info("discord.logging_configured")
 
-            audio_pipeline = AudioPipeline(config.audio, config.telemetry)  # type: ignore[arg-type]
-            logger.info("discord.audio_pipeline_created")
-            wake_detector = WakeDetector(config.wake)  # type: ignore[arg-type]
+            audio_processor_wrapper = AudioProcessorWrapper(
+                config.audio, config.telemetry
+            )
+            logger.info("discord.audio_processor_wrapper_created")
+            wake_detector = WakeDetector(config.wake)
             logger.info("discord.wake_detector_created")
 
             async def dummy_transcript_publisher(
@@ -93,13 +97,13 @@ async def startup_event() -> None:
 
             _bot = VoiceBot(
                 config=config,
-                audio_pipeline=audio_pipeline,
+                audio_processor_wrapper=audio_processor_wrapper,
                 wake_detector=wake_detector,
                 transcript_publisher=dummy_transcript_publisher,
             )
             logger.info("discord.voicebot_created")
 
-            _bot_task = asyncio.create_task(_bot.start(config.discord.token))  # type: ignore[attr-defined]
+            _bot_task = asyncio.create_task(_bot.start(config.discord.token))
             # Store reference to prevent garbage collection
             # Store reference to prevent garbage collection
             logger.info("discord.full_bot_started")
@@ -140,7 +144,7 @@ async def _check_orchestrator_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
+@app.on_event("shutdown")
 async def shutdown_event() -> None:
     """Shutdown HTTP API."""
     global _bot
@@ -150,13 +154,13 @@ async def shutdown_event() -> None:
         logger.info("discord.http_api_shutdown")
 
 
-@app.get("/health/live")  # type: ignore[misc]
+@app.get("/health/live")
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "discord"}
 
 
-@app.get("/health/ready")  # type: ignore[misc]
+@app.get("/health/ready")
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _bot is None:
@@ -185,7 +189,7 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.post("/mcp/send_message")  # type: ignore[misc]
+@app.post("/mcp/send_message")
 async def send_message(request: SendMessageRequest) -> dict[str, Any]:
     """Send text message to Discord channel via MCP."""
     if not _bot:
@@ -220,7 +224,7 @@ async def send_message(request: SendMessageRequest) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/transcript")  # type: ignore[misc]
+@app.post("/mcp/transcript")
 async def handle_transcript(notification: TranscriptNotification) -> dict[str, Any]:
     """Handle transcript notification from orchestrator."""
     if not _bot:
@@ -257,7 +261,7 @@ async def handle_transcript(notification: TranscriptNotification) -> dict[str, A
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/mcp/tools")  # type: ignore[misc]
+@app.get("/mcp/tools")
 async def list_mcp_tools() -> dict[str, Any]:
     """List available MCP tools."""
     return {

@@ -114,7 +114,7 @@ class MCPManager:
                             timeout=30.0,
                         )
                         response.raise_for_status()
-                        return response.json()  # type: ignore[no-any-return]
+                        return response.json()
 
                     else:
                         return {"error": f"Unknown tool: {name}"}
@@ -128,7 +128,7 @@ class MCPManager:
             async def disconnect(self) -> None:
                 """Clean up HTTP client."""
                 if self._http_client:
-                    await self._http_client.aclose()  # type: ignore[unreachable]
+                    await self._http_client.aclose()
                     self._http_client = None
 
         client = HTTPDiscordClient()
@@ -244,7 +244,7 @@ class MCPManager:
                 client=client_name,
                 tool=tool_name,
             )
-            return result  # type: ignore[no-any-return]
+            return result
         except Exception as exc:
             self._logger.error(
                 "mcp.tool_call_failed",

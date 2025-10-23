@@ -386,7 +386,7 @@ class TestDiscordAudioSource:
         """Test processing audio frame without media gateway."""
         source = DiscordAudioSource(123456789, 987654321)
         # Test without media gateway - temporarily set to None for testing
-        source.media_gateway = None  # type: ignore[assignment]
+        source.media_gateway = None
 
         frame = PCMFrame(
             pcm=b"test_data",

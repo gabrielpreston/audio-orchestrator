@@ -34,7 +34,7 @@ class TestCorrelationIDGeneration:
     def test_discord_correlation_id_validation(self):
         """Test Discord correlation ID input validation."""
         with pytest.raises(ValueError, match="user_id cannot be None"):
-            generate_discord_correlation_id(None)  # type: ignore[arg-type]
+            generate_discord_correlation_id(None)
 
         result = generate_discord_correlation_id(123456, 789012)
         assert result.startswith("discord-123456-789012-")

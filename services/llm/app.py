@@ -29,8 +29,8 @@ app = FastAPI(title="Local LLM Service")
 _cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("llm"))
 
 configure_logging(
-    _cfg.logging.level,  # type: ignore[attr-defined]
-    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
+    _cfg.logging.level,
+    json_logs=_cfg.logging.json_logs,
     service_name="llm",
 )
 logger = get_logger(__name__, service_name="llm")
@@ -38,20 +38,20 @@ logger = get_logger(__name__, service_name="llm")
 _LLAMA: Llama | None = None
 _LLAMA_INFO: dict[str, Any] = {}
 _TTS_CLIENT: httpx.AsyncClient | None = None
-_TTS_VOICE = _cfg.tts.voice  # type: ignore[attr-defined]
-_TTS_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
+_TTS_VOICE = _cfg.tts.voice
+_TTS_AUTH_TOKEN = _cfg.tts.auth_token
 _health_manager = HealthManager("llm")
 # Metrics collector for performance monitoring (disabled for now)
 # _metrics_collector: MetricsCollector = init_metrics_registry("llm", "1.0.0")
 
-_TTS_BASE_URL = _cfg.tts.base_url  # type: ignore[attr-defined]
+_TTS_BASE_URL = _cfg.tts.base_url
 
 # Deprecated helper retained for backward compat; prefer config values
 
 
 def _tts_timeout() -> float:
     try:
-        return float(_cfg.tts.timeout)  # type: ignore[attr-defined]
+        return float(_cfg.tts.timeout)
     except Exception:
         return 30.0
 
@@ -61,14 +61,14 @@ def _load_llama() -> Llama | None:
     if _LLAMA is not None:
         return _LLAMA
 
-    model_path = _cfg.llama.model_path  # type: ignore[attr-defined]
+    model_path = _cfg.llama.model_path
     if not os.path.exists(model_path):
         logger.critical("llm.model_missing", model_path=model_path)
         raise RuntimeError(f"LLM model not found at {model_path}")
 
-    ctx = _cfg.llama.context_length  # type: ignore[attr-defined]
+    ctx = _cfg.llama.context_length
     try:
-        threads = _cfg.llama.threads  # type: ignore[attr-defined]
+        threads = _cfg.llama.threads
     except Exception:
         threads = max(os.cpu_count() or 1, 1)
 
@@ -152,7 +152,7 @@ async def _synthesize_tts(text: str) -> dict[str, Any] | None:
     }
 
 
-@app.on_event("startup")  # type: ignore[misc]
+@app.on_event("startup")
 async def _startup_event() -> None:
     """Initialize LLM model on startup."""
     try:
@@ -184,7 +184,7 @@ async def _check_tts_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
+@app.on_event("shutdown")
 async def _shutdown_event() -> None:
     """Shutdown LLM service."""
     global _TTS_CLIENT
@@ -209,14 +209,14 @@ class ChatRequest(BaseModel):
     repeat_penalty: float | None = None
 
 
-@app.post("/v1/chat/completions")  # type: ignore[misc]
+@app.post("/v1/chat/completions")
 async def chat_completions(
     req: ChatRequest,
     authorization: str | None = Header(None),
 ) -> dict[str, Any]:
     req_start = time.time()
 
-    expected = _cfg.service.auth_token  # type: ignore[attr-defined]
+    expected = _cfg.service.auth_token
     if expected and (
         not authorization
         or not authorization.startswith("Bearer ")
@@ -341,16 +341,16 @@ async def chat_completions(
         headers["X-Audio-Size"] = str(audio["size_bytes"])
     if audio and audio.get("content_type"):
         headers["X-Audio-Content-Type"] = str(audio["content_type"])
-    return JSONResponse(response, headers=headers)  # type: ignore[no-any-return]
+    return JSONResponse(response, headers=headers)
 
 
-@app.get("/health/live")  # type: ignore[misc]
+@app.get("/health/live")
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "llm"}
 
 
-@app.get("/health/ready")  # type: ignore[misc]
+@app.get("/health/ready")
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _LLAMA is None:
@@ -382,4 +382,4 @@ async def health_ready() -> dict[str, Any]:
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)  # type: ignore[attr-defined]
+    uvicorn.run(app, host="0.0.0.0", port=_cfg.port.port)

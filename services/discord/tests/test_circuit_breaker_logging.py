@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from services.discord.config import STTConfig
+from services.common.config import NestedConfig
 from services.discord.transcription import TranscriptionClient
 
 
@@ -14,7 +14,7 @@ class TestCircuitBreakerLogging:
     @pytest.fixture
     def stt_config(self):
         """Create STT configuration for testing."""
-        return STTConfig(
+        return NestedConfig(
             base_url="http://test-stt:9000",
             request_timeout_seconds=45,
             max_retries=3,

@@ -34,8 +34,8 @@ from services.common.logging import configure_logging, get_logger
 _cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("tts"))
 
 configure_logging(
-    _cfg.logging.level,  # type: ignore[attr-defined]
-    json_logs=_cfg.logging.json_logs,  # type: ignore[attr-defined]
+    _cfg.logging.level,
+    json_logs=_cfg.logging.json_logs,
     service_name="tts",
 )
 logger = get_logger(__name__, service_name="tts")
@@ -45,16 +45,16 @@ app = FastAPI(title="Piper Text-to-Speech Service")
 # Initialize metrics collector (disabled for now)
 # _metrics_collector: MetricsCollector = init_metrics_registry("tts", "1.0.0")
 
-_MODEL_PATH = _cfg.tts.model_path  # type: ignore[attr-defined]
-_MODEL_CONFIG_PATH = _cfg.tts.model_config_path  # type: ignore[attr-defined]
-_DEFAULT_VOICE = _cfg.tts.default_voice  # type: ignore[attr-defined]
-_MAX_TEXT_LENGTH = _cfg.tts.max_text_length  # type: ignore[attr-defined]
-_MAX_CONCURRENCY = _cfg.tts.max_concurrency  # type: ignore[attr-defined]
-_RATE_LIMIT_PER_MINUTE = _cfg.tts.rate_limit_per_minute  # type: ignore[attr-defined]
-_AUTH_TOKEN = _cfg.tts.auth_token  # type: ignore[attr-defined]
-_DEFAULT_LENGTH_SCALE = _cfg.tts.length_scale  # type: ignore[attr-defined]
-_DEFAULT_NOISE_SCALE = _cfg.tts.noise_scale  # type: ignore[attr-defined]
-_DEFAULT_NOISE_W = _cfg.tts.noise_w  # type: ignore[attr-defined]
+_MODEL_PATH = _cfg.tts.model_path
+_MODEL_CONFIG_PATH = _cfg.tts.model_config_path
+_DEFAULT_VOICE = _cfg.tts.default_voice
+_MAX_TEXT_LENGTH = _cfg.tts.max_text_length
+_MAX_CONCURRENCY = _cfg.tts.max_concurrency
+_RATE_LIMIT_PER_MINUTE = _cfg.tts.rate_limit_per_minute
+_AUTH_TOKEN = _cfg.tts.auth_token
+_DEFAULT_LENGTH_SCALE = _cfg.tts.length_scale
+_DEFAULT_NOISE_SCALE = _cfg.tts.noise_scale
+_DEFAULT_NOISE_W = _cfg.tts.noise_w
 
 _CONCURRENCY_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
 _RATE_LIMIT_LOCK = asyncio.Lock()
@@ -110,7 +110,7 @@ class SynthesisRequest(BaseModel):
     noise_w: float | None = Field(None, ge=0.0, le=2.0)
     correlation_id: str | None = None
 
-    @field_validator("correlation_id")  # type: ignore[misc]
+    @field_validator("correlation_id")
     @classmethod
     def validate_correlation_id_field(cls, v: str | None) -> str | None:
         if v is not None:
@@ -121,7 +121,7 @@ class SynthesisRequest(BaseModel):
                 raise ValueError(error_msg)
         return v
 
-    @model_validator(mode="before")  # type: ignore[misc]
+    @model_validator(mode="before")
     @classmethod
     def _check_text_or_ssml(cls, data: Any) -> Any:
         if isinstance(data, dict):
@@ -344,7 +344,7 @@ def _synthesize_audio(
     return audio_bytes, getattr(_VOICE, "sample_rate", _VOICE_SAMPLE_RATE)
 
 
-@app.on_event("startup")  # type: ignore[misc]
+@app.on_event("startup")
 async def _startup() -> None:
     await asyncio.to_thread(_load_voice)
     _health_manager.mark_startup_complete()  # ADD THIS
@@ -356,13 +356,13 @@ async def _startup() -> None:
     )
 
 
-@app.get("/health/live")  # type: ignore[misc]
+@app.get("/health/live")
 async def health_live() -> dict[str, str]:
     """Liveness check - is process running."""
     return {"status": "alive", "service": "tts"}
 
 
-@app.get("/health/ready")  # type: ignore[misc]
+@app.get("/health/ready")
 async def health_ready() -> dict[str, Any]:
     """Readiness check - can serve requests."""
     if _VOICE is None:
@@ -392,12 +392,12 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.get("/metrics")  # type: ignore[misc]
+@app.get("/metrics")
 async def metrics() -> Response:
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
-@app.get("/voices", response_model=VoiceListResponse)  # type: ignore[misc]
+@app.get("/voices", response_model=VoiceListResponse)
 async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     if not _VOICE_OPTIONS:
         # Return a default voice option when no model is loaded
@@ -408,7 +408,7 @@ async def list_voices(_: None = Depends(_require_auth)) -> VoiceListResponse:
     return VoiceListResponse(sample_rate=_VOICE_SAMPLE_RATE, voices=voices)
 
 
-@app.post("/synthesize")  # type: ignore[misc]
+@app.post("/synthesize")
 async def synthesize(
     payload: SynthesisRequest,
     _: None = Depends(_require_auth),
@@ -489,7 +489,7 @@ async def synthesize(
             duration_ms=int(duration * 1000),
         )
 
-        return StreamingResponse(  # type: ignore[no-any-return]
+        return StreamingResponse(
             iter([audio_bytes]), media_type="audio/wav", headers=headers
         )
 

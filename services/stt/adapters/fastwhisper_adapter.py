@@ -254,7 +254,7 @@ class FastWhisperAdapter(STTAdapter):
             self._telemetry["error_count"] += 1
             raise
 
-    async def transcribe_stream(  # type: ignore[override]
+    async def transcribe_stream(
         self,
         audio_stream: AsyncGenerator[bytes, None],
         audio_format: AudioFormat,

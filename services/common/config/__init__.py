@@ -15,6 +15,7 @@ from .base import (
     FieldDefinition,
     HttpConfig,
     LoggingConfig,
+    NestedConfig,
     RequiredFieldError,
     ServiceConfig,
     TelemetryConfig,
@@ -64,6 +65,7 @@ __all__ = [
     "AudioConfig",
     "ServiceConfig",
     "TelemetryConfig",
+    "NestedConfig",
     # Service configurations
     "DiscordConfig",
     "STTConfig",

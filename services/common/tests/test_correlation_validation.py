@@ -86,7 +86,7 @@ class TestCorrelationIDValidation:
         assert not is_valid_correlation_id(invalid_id)
 
         # Test with None - should return False
-        assert not is_valid_correlation_id(None)  # type: ignore[arg-type]
+        assert not is_valid_correlation_id(None)
 
     @pytest.mark.unit
     def test_validation_performance(self):

@@ -195,7 +195,7 @@ class TranscriptionClient:
         if self._config.forced_language:
             params["language"] = self._config.forced_language
         if getattr(self._config, "beam_size", None):
-            params["beam_size"] = str(self._config.beam_size)  # type: ignore[attr-defined]
+            params["beam_size"] = str(self._config.beam_size)
         if getattr(self._config, "word_timestamps", False):
             params["word_timestamps"] = "true"
         # Add VAD filter if enabled
