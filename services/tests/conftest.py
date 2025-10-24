@@ -1,17 +1,17 @@
 """Global test configuration and fixtures for audio-orchestrator."""
 
+from collections.abc import Generator
 import os
+from pathlib import Path
 import random
 import shutil
 import tempfile
-from collections.abc import Generator
-from pathlib import Path
 from typing import Any
 from unittest import mock
 
+from freezegun import freeze_time
 import pytest
 import structlog
-from freezegun import freeze_time
 
 # Import integration test fixtures
 from services.tests.fixtures.integration_fixtures import *  # noqa: F401, F403
@@ -138,24 +138,155 @@ def mock_audio_file(temp_dir: Path, mock_audio_data: bytes) -> Path:
     return audio_file
 
 
+# Interface-first testing fixtures
+@pytest.fixture
+def service_contracts():
+    """Fixture for service contracts."""
+    from services.tests.contracts.audio_preprocessor_contract import (
+        AUDIO_PREPROCESSOR_CONTRACT,
+    )
+    from services.tests.contracts.audio_processor_contract import (
+        AUDIO_PROCESSOR_CONTRACT,
+    )
+    from services.tests.contracts.discord_contract import DISCORD_CONTRACT
+    from services.tests.contracts.guardrails_contract import GUARDRAILS_CONTRACT
+    from services.tests.contracts.llm_contract import LLM_CONTRACT
+    from services.tests.contracts.orchestrator_contract import ORCHESTRATOR_CONTRACT
+    from services.tests.contracts.stt_contract import STT_CONTRACT
+    from services.tests.contracts.tts_contract import TTS_CONTRACT
+
+    return {
+        "stt": STT_CONTRACT,
+        "llm": LLM_CONTRACT,
+        "tts": TTS_CONTRACT,
+        "orchestrator": ORCHESTRATOR_CONTRACT,
+        "audio_processor": AUDIO_PROCESSOR_CONTRACT,
+        "audio_preprocessor": AUDIO_PREPROCESSOR_CONTRACT,
+        "guardrails": GUARDRAILS_CONTRACT,
+        "discord": DISCORD_CONTRACT,
+    }
+
+
+@pytest.fixture
+def contract_validators():
+    """Fixture for contract validators."""
+    from services.tests.utils.contract_validators import ContractValidator
+
+    return ContractValidator
+
+
+@pytest.fixture
+def protocol_implementations():
+    """Fixture for protocol implementations."""
+    from services.common.surfaces.protocols import (
+        AudioCaptureProtocol,
+        AudioPlaybackProtocol,
+        SurfaceControlProtocol,
+        SurfaceTelemetryProtocol,
+    )
+    from services.tests.utils.protocol_testing import create_protocol_mock
+
+    return {
+        "AudioCaptureProtocol": AudioCaptureProtocol,
+        "AudioPlaybackProtocol": AudioPlaybackProtocol,
+        "SurfaceControlProtocol": SurfaceControlProtocol,
+        "SurfaceTelemetryProtocol": SurfaceTelemetryProtocol,
+        "create_mock": create_protocol_mock,
+    }
+
+
+@pytest.fixture
+def mock_pcm_frames():
+    """Fixture for mock PCMFrame objects."""
+    import time
+
+    from services.common.surfaces.types import PCMFrame
+
+    return [
+        PCMFrame(
+            pcm=b"\x00\x01\x02\x03" * 1000,
+            sample_rate=16000,
+            channels=1,
+            timestamp=time.time(),
+            rms=0.5,
+            duration=0.1,
+            sequence=1,
+        ),
+        PCMFrame(
+            pcm=b"\x04\x05\x06\x07" * 1000,
+            sample_rate=16000,
+            channels=1,
+            timestamp=time.time(),
+            rms=0.5,
+            duration=0.1,
+            sequence=2,
+        ),
+        PCMFrame(
+            pcm=b"\x08\x09\x0a\x0b" * 1000,
+            sample_rate=16000,
+            channels=1,
+            timestamp=time.time(),
+            rms=0.5,
+            duration=0.1,
+            sequence=3,
+        ),
+    ]
+
+
+@pytest.fixture
+def service_discovery_fixtures():
+    """Fixture for service discovery testing."""
+    return {
+        "stt_implementations": [
+            "http://stt:9000",
+            "http://stt-alternative:9000",
+            "http://stt-backup:9000",
+        ],
+        "llm_implementations": [
+            "http://llm:8100",
+            "http://llm-alternative:8100",
+            "http://llm-backup:8100",
+        ],
+        "tts_implementations": [
+            "http://tts:7100",
+            "http://tts-alternative:7100",
+            "http://tts-backup:7100",
+        ],
+    }
+
+
 # Pytest configuration
 def pytest_configure(config: pytest.Config) -> None:
     """Configure pytest with custom markers."""
+    # Industry-standard testing pyramid markers (primary)
     config.addinivalue_line(
-        "markers", "unit: Unit tests (fast, isolated, no external dependencies)"
+        "markers",
+        "unit: Unit tests (fast, isolated, no external dependencies) - 70% of tests",
     )
     config.addinivalue_line(
-        "markers", "component: Component tests (with mocked external dependencies)"
+        "markers",
+        "component: Component tests (with mocked external dependencies) - 20% of tests",
     )
     config.addinivalue_line(
-        "markers", "integration: Integration tests (require Docker Compose)"
+        "markers",
+        "integration: Integration tests (require Docker Compose) - 8% of tests",
     )
-    config.addinivalue_line("markers", "e2e: End-to-end tests (manual trigger only)")
+    config.addinivalue_line(
+        "markers", "e2e: End-to-end tests (manual trigger only) - 2% of tests"
+    )
+
+    # Interface-first testing markers (secondary)
+    config.addinivalue_line("markers", "interface: Interface compliance tests")
+    config.addinivalue_line("markers", "contract: Contract validation tests")
+    config.addinivalue_line("markers", "hot_swap: Hot-swap validation tests")
+    config.addinivalue_line("markers", "security: Security validation tests")
+    config.addinivalue_line("markers", "performance: Performance benchmark tests")
+
+    # Legacy markers (being phased out)
     config.addinivalue_line(
         "markers", "manual: Manual tests requiring human intervention"
     )
     config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
-    config.addinivalue_line("markers", "performance: Performance benchmark tests")
     config.addinivalue_line("markers", "concurrent: Concurrency and threading tests")
     config.addinivalue_line(
         "markers", "external: Tests requiring external services or network access"
@@ -173,32 +304,49 @@ def pytest_configure(config: pytest.Config) -> None:
 def pytest_collection_modifyitems(
     config: pytest.Config, items: list[pytest.Item]
 ) -> None:
-    """Modify test collection to add markers based on test location."""
+    """Automatically assign markers based on test file location and industry standards."""
     for item in items:
-        # Add markers based on test file location
-        if "unit" in str(item.fspath):
+        # Get the test file path relative to the tests directory
+        test_path = str(item.fspath)
+        if "services/tests/" in test_path:
+            relative_path = test_path.split("services/tests/")[1]
+        else:
+            continue
+
+        # Primary markers based on industry-standard directory structure
+        if relative_path.startswith("unit/"):
             item.add_marker(pytest.mark.unit)
-        elif "component" in str(item.fspath):
+        elif relative_path.startswith("component/"):
             item.add_marker(pytest.mark.component)
-        elif "integration" in str(item.fspath):
+        elif relative_path.startswith("integration/"):
             item.add_marker(pytest.mark.integration)
-        elif "e2e" in str(item.fspath):
+        elif relative_path.startswith("e2e/"):
             item.add_marker(pytest.mark.e2e)
 
-        # Add service-specific markers
-        if "discord" in str(item.fspath):
-            item.add_marker(pytest.mark.discord)
-        elif "stt" in str(item.fspath):
-            item.add_marker(pytest.mark.stt)
-        elif "tts" in str(item.fspath):
-            item.add_marker(pytest.mark.tts)
-        elif "llm" in str(item.fspath):
-            item.add_marker(pytest.mark.llm)
-        elif "orchestrator" in str(item.fspath):
-            item.add_marker(pytest.mark.orchestrator)
+        # Secondary markers for interface-first testing (dual marking)
+        if relative_path.startswith("component/interfaces/"):
+            item.add_marker(pytest.mark.interface)
+        elif relative_path.startswith("integration/contracts/"):
+            item.add_marker(pytest.mark.contract)
+        elif relative_path.startswith("integration/hot_swap/"):
+            item.add_marker(pytest.mark.hot_swap)
+        elif relative_path.startswith("integration/security/"):
+            item.add_marker(pytest.mark.security)
+        elif relative_path.startswith("integration/performance/"):
+            item.add_marker(pytest.mark.performance)
 
-        # Add audio marker for audio-related tests
-        if "audio" in str(item.fspath) or "audio" in item.name:
+        # Service-specific markers (legacy - being phased out)
+        if "discord" in relative_path:
+            item.add_marker(pytest.mark.discord)
+        if "stt" in relative_path:
+            item.add_marker(pytest.mark.stt)
+        if "tts" in relative_path:
+            item.add_marker(pytest.mark.tts)
+        if "llm" in relative_path:
+            item.add_marker(pytest.mark.llm)
+        if "orchestrator" in relative_path:
+            item.add_marker(pytest.mark.orchestrator)
+        if "audio" in relative_path or "audio" in item.name:
             item.add_marker(pytest.mark.audio)
 
 

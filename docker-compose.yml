@@ -58,7 +58,6 @@ services:
       - "./services/orchestrator_enhanced/.env.service"
     environment:
       - LLM_PRIMARY_URL=http://llm-flan:8100
-      - LLM_FALLBACK_URL=http://llm:8000
       - GUARDRAILS_URL=http://guardrails:9300
     depends_on:
       llm-flan:
@@ -239,152 +238,6 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  llm:
-    build:
-      context: "."
-      dockerfile: "services/llm/Dockerfile"
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/llm:latest"
-    env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/llm/.env.service"
-    ports:
-      - "8017:8000"
-    volumes:
-      - "./services/models/llm:/app/models:ro"
-      - "./debug:/app/debug"
-    healthcheck:
-      test: >
-        ["CMD", "python", "/app/scripts/health_check.py",
-         "http://localhost:8000/health/ready", "--timeout", "5"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  orchestrator:
-    build:
-      context: "."
-      dockerfile: "services/orchestrator/Dockerfile"
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/orchestrator:latest"
-    env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/orchestrator/.env.service"
-    ports:
-      - "8023:8000"
-    volumes:
-      - "./mcp.json:/app/mcp.json:ro"
-      - "./services/discord:/app/services/discord:ro"
-      - "./debug:/app/debug"
-    healthcheck:
-      test: >
-        ["CMD", "python", "/app/scripts/health_check.py",
-         "http://localhost:8000/health/ready", "--timeout", "5"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      llm:
-        condition: service_healthy
-      tts:
-        condition: service_healthy
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  tts:
-    build:
-      context: "."
-      dockerfile: "services/tts/Dockerfile"
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/tts:latest"
-    env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/tts/.env.service"
-    ports:
-      - "8027:7000"
-    volumes:
-      - "./services/models/tts:/app/models:ro"
-      - "./debug:/app/debug"
-    healthcheck:
-      test: >
-        ["CMD", "python", "/app/scripts/health_check.py",
-         "http://localhost:7000/health/ready", "--timeout", "5"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  # Audio Preprocessing Service
-  audio-preprocessor:
-    build:
-      context: "."
-      dockerfile: "services/audio_preprocessor/Dockerfile"
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/audio-preprocessor:latest"
-    ports:
-      - "9210:9200" # External: 9210, Internal: 9200
-    env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/audio_preprocessor/.env.service"
-    environment:
-      - METRICGAN_MODEL_PATH=/app/models/metricgan
-    volumes:
-      - ./services/models/metricgan:/app/models/metricgan:ro
-    depends_on:
-      audio-processor:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:9200/health/ready",
-          "--timeout",
-          "5",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          memory: 4G # For MetricGAN+
-          cpus: "2"
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
   # Bark TTS Service
   tts-bark:
     build:
@@ -401,10 +254,6 @@ services:
       - "./services/tts_bark/.env.service"
     environment:
       - BARK_USE_SMALL_MODELS=false
-      - PIPER_FALLBACK_URL=http://tts:7000
-    depends_on:
-      tts:
-        condition: service_healthy
     healthcheck:
       test:
         [
@@ -446,12 +295,12 @@ services:
     environment:
       - GRADIO_SERVER_NAME=0.0.0.0
       - GRADIO_SERVER_PORT=8080
-      - AUDIO_PREPROCESSOR_URL=http://audio-preprocessor:9200
+      - AUDIO_PREPROCESSOR_URL=http://audio-processor:9100
       - STT_URL=http://stt:9000
       - ORCHESTRATOR_URL=http://orchestrator-enhanced:8200
       - TTS_BARK_URL=http://tts-bark:7100
     depends_on:
-      audio-preprocessor:
+      audio-processor:
         condition: service_healthy
       stt:
         condition: service_healthy

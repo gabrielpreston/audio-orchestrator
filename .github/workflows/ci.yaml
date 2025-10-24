@@ -1,54 +1,54 @@
 # Workflow: CI
 # Purpose: Run linting, testing, security scanning, and Docker smoke tests
 # when code changes are detected.
-name: 'CI'
+name: "CI"
 on:
   push:
-    branches: ['main']
+    branches: ["main"]
   pull_request:
-    branches: ['main']
+    branches: ["main"]
   workflow_dispatch: {}
 permissions:
-  contents: 'read'
-  pull-requests: 'read'
-  packages: 'write'  # Required for GHCR publishing
+  contents: "read"
+  pull-requests: "read"
+  packages: "write" # Required for GHCR publishing
 
 concurrency:
-  group: 'ci-${{ github.ref }}'
+  group: "ci-${{ github.ref }}"
   cancel-in-progress: true
 
 env:
-  PIP_DISABLE_PIP_VERSION_CHECK: '1'
-  PIP_NO_PYTHON_VERSION_WARNING: '1'
-  PYTHONDONTWRITEBYTECODE: '1'
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_PYTHON_VERSION_WARNING: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   changes:
-    name: 'Detect affected areas'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    name: "Detect affected areas"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     outputs:
-      python: '${{ steps.filter.outputs.python }}'
-      docker: '${{ steps.filter.outputs.docker }}'
-      docs: '${{ steps.filter.outputs.docs }}'
-      default-ci-workflow: '${{ steps.filter.outputs.default-ci-workflow }}'
-      base-images-workflow: '${{ steps.filter.outputs.base-images-workflow }}'
-      security: '${{ steps.filter.outputs.security }}'
+      python: "${{ steps.filter.outputs.python }}"
+      docker: "${{ steps.filter.outputs.docker }}"
+      docs: "${{ steps.filter.outputs.docs }}"
+      default-ci-workflow: "${{ steps.filter.outputs.default-ci-workflow }}"
+      base-images-workflow: "${{ steps.filter.outputs.base-images-workflow }}"
+      security: "${{ steps.filter.outputs.security }}"
       # Per-service outputs
-      discord: '${{ steps.filter.outputs.discord }}'
-      stt: '${{ steps.filter.outputs.stt }}'
-      llm: '${{ steps.filter.outputs.llm }}'
-      orchestrator: '${{ steps.filter.outputs.orchestrator }}'
-      tts: '${{ steps.filter.outputs.tts }}'
-      base: '${{ steps.filter.outputs.base }}'
+      discord: "${{ steps.filter.outputs.discord }}"
+      stt: "${{ steps.filter.outputs.stt }}"
+      llm: "${{ steps.filter.outputs.llm }}"
+      orchestrator: "${{ steps.filter.outputs.orchestrator }}"
+      tts: "${{ steps.filter.outputs.tts }}"
+      base: "${{ steps.filter.outputs.base }}"
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
         with:
           fetch-depth: 2
-      - name: 'Filter paths'
-        id: 'filter'
-        uses: 'dorny/paths-filter@v3'
+      - name: "Filter paths"
+        id: "filter"
+        uses: "dorny/paths-filter@v3"
         with:
           filters: |
             python:
@@ -102,8 +102,8 @@ jobs:
               - 'requirements-test.txt'
 
   lint:
-    name: 'Lint'
-    needs: ['changes', 'build-base-images']
+    name: "Lint"
+    needs: ["changes", "build-base-images"]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
@@ -113,13 +113,13 @@ jobs:
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     timeout-minutes: 15
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Cache Python dependencies'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Cache Python dependencies"
         id: cache
         uses: actions/cache@v4
         with:
@@ -129,7 +129,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-
-      - name: 'Setup job context'
+      - name: "Setup job context"
         uses: actions/github-script@v7
         with:
           script: |
@@ -138,12 +138,12 @@ jobs:
             console.log('Ref:', context.ref)
             console.log('Workflow:', context.workflow)
             console.log('Run ID:', context.runId)
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Run unified lint suite'
+      - name: "Run unified lint suite"
         run: |
           echo "::group::Lint Execution"
           start_time=$(date +%s)
@@ -152,7 +152,7 @@ jobs:
           duration=$((end_time - start_time))
           echo "::endgroup::"
           echo "Lint completed in ${duration}s"
-      - name: 'Cleanup resources'
+      - name: "Cleanup resources"
         if: always()
         run: |
           echo "Cleaning Docker resources..."
@@ -161,36 +161,36 @@ jobs:
           echo "Cleanup complete"
 
   security-scan:
-    name: 'Security scan'
-    needs: ['changes', 'lint']
+    name: "Security scan"
+    needs: ["changes", "lint"]
     if: |
       (needs.changes.outputs.security == 'true' ||
        needs.changes.outputs.default-ci-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       (needs.lint.result == 'success' || needs.lint.result == 'skipped')
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     timeout-minutes: 15
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Run security scan'
-        run: 'make security'
-      - name: 'Upload pip-audit reports'
-        if: 'always()'
-        uses: 'actions/upload-artifact@v4'
+      - name: "Run security scan"
+        run: "make security"
+      - name: "Upload pip-audit reports"
+        if: "always()"
+        uses: "actions/upload-artifact@v4"
         with:
-          name: 'pip-audit-reports'
-          path: 'security-reports'
+          name: "pip-audit-reports"
+          path: "security-reports"
           retention-days: 30
-      - name: 'Security scan summary'
-        if: 'always()'
+      - name: "Security scan summary"
+        if: "always()"
         run: |
           if [ -d "security-reports" ]; then
             echo "## Security Scan Summary" >> $GITHUB_STEP_SUMMARY
@@ -206,8 +206,8 @@ jobs:
           fi
 
   test:
-    name: 'Tests'
-    needs: ['changes', 'lint']
+    name: "Tests (Unit + Component Only)"
+    needs: ["changes", "lint"]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.default-ci-workflow == 'true' ||
@@ -215,13 +215,13 @@ jobs:
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
       needs.lint.result == 'success'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
-    timeout-minutes: 20
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 15
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Cache Python dependencies'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Cache Python dependencies"
         id: cache
         uses: actions/cache@v4
         with:
@@ -231,7 +231,7 @@ jobs:
           key: ${{ runner.os }}-python-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-
-      - name: 'Setup job context'
+      - name: "Setup job context"
         uses: actions/github-script@v7
         with:
           script: |
@@ -240,50 +240,41 @@ jobs:
             console.log('Ref:', context.ref)
             console.log('Workflow:', context.workflow)
             console.log('Run ID:', context.runId)
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Run unit and component tests'
+      - name: "Run unit and component tests (90% of tests)"
         run: |
-          echo "::group::Test Execution"
+          echo "::group::Test Execution (Unit + Component)"
           start_time=$(date +%s)
-          make test | tee pytest.log
+          make test | tee test.log
           end_time=$(date +%s)
           duration=$((end_time - start_time))
           echo "::endgroup::"
           echo "Tests completed in ${duration}s"
-      - name: 'Run integration tests'
+      - name: "Skip integration tests (manual trigger only)"
         run: |
-          echo "::group::Integration Test Execution"
-          start_time=$(date +%s)
-          make test-integration | tee integration.log
-          end_time=$(date +%s)
-          duration=$((end_time - start_time))
-          echo "::endgroup::"
-          echo "Integration tests completed in ${duration}s"
-      - name: 'Upload pytest log'
-        if: 'always()'
-        uses: 'actions/upload-artifact@v4'
+          echo "::notice::Integration tests skipped in CI (use 'make test-all' locally for full test suite)"
+          echo "Integration tests require Docker Compose and external services"
+          echo "Run 'make test-integration' or 'make test-all' locally for integration testing"
+      - name: "Upload test logs"
+        if: "always()"
+        uses: "actions/upload-artifact@v4"
         with:
-          name: 'pytest-log'
-          path: 'pytest.log'
-      - name: 'Upload integration test log'
-        if: 'always()'
-        uses: 'actions/upload-artifact@v4'
+          name: "test-logs"
+          path: |
+            'test.log'
+      - name: "Upload coverage report"
+        if: "always()"
+        uses: "actions/upload-artifact@v4"
         with:
-          name: 'integration-log'
-          path: 'integration.log'
-      - name: 'Upload coverage report'
-        if: 'always()'
-        uses: 'actions/upload-artifact@v4'
-        with:
-          name: 'coverage-report'
+          name: "coverage-report"
           path: |
             'coverage.xml'
             'htmlcov/'
-      - name: 'Cleanup resources with reporting'
+      - name: "Cleanup resources with reporting"
         if: always()
         run: |
           echo "::group::Resource Cleanup Report"
@@ -307,7 +298,7 @@ jobs:
           echo "  Disk space: $before_space to $after_space"
           echo "  Images removed: $((before_images - after_images))"
           echo "::endgroup::"
-      - name: 'Job Status Summary'
+      - name: "Job Status Summary"
         if: always()
         run: |
           echo "::group::Job Status Summary"
@@ -320,39 +311,39 @@ jobs:
           echo "::endgroup::"
 
   docs-verify:
-    name: 'Documentation verification'
-    needs: ['changes']
+    name: "Documentation verification"
+    needs: ["changes"]
     if: |
       (needs.changes.outputs.docs == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     timeout-minutes: 10
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Verify documentation metadata'
-        run: 'make docs-verify'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Verify documentation metadata"
+        run: "make docs-verify"
 
   build-base-images:
-    name: 'Build Base Images'
-    needs: ['changes']
+    name: "Build Base Images"
+    needs: ["changes"]
     if: |
       (needs.changes.outputs.docker == 'true' ||
        needs.changes.outputs.base == 'true' ||
        needs.changes.outputs.base-images-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     timeout-minutes: 20
     env:
       ACTIONS_CACHE_SERVICE_V2: true
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Setup job context'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Setup job context"
         uses: actions/github-script@v7
         with:
           script: |
@@ -361,18 +352,18 @@ jobs:
             console.log('Ref:', context.ref)
             console.log('Workflow:', context.workflow)
             console.log('Run ID:', context.runId)
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Log in to GitHub Container Registry'
+      - name: "Log in to GitHub Container Registry"
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 'Build and push Python Base Image with retry'
+      - name: "Build and push Python Base Image with retry"
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
@@ -396,7 +387,7 @@ jobs:
             fi
 
             docker push ghcr.io/${{ github.repository_owner }}/python-base:latest
-      - name: 'Build and push Python Audio Base Image with retry'
+      - name: "Build and push Python Audio Base Image with retry"
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
@@ -410,7 +401,7 @@ jobs:
               --cache-to type=gha,mode=max,scope=base-images \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-audio:latest
-      - name: 'Build and push Python ML Base Image with retry'
+      - name: "Build and push Python ML Base Image with retry"
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
@@ -424,7 +415,7 @@ jobs:
               --cache-to type=gha,mode=max,scope=base-images \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml:latest
-      - name: 'Build and push Tools Base Image with retry'
+      - name: "Build and push Tools Base Image with retry"
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
@@ -438,7 +429,7 @@ jobs:
               --cache-to type=gha,mode=max,scope=base-images \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/tools:latest
-      - name: 'Build and push MCP Toolchain Base Image with retry'
+      - name: "Build and push MCP Toolchain Base Image with retry"
         uses: nick-fields/retry@v2
         with:
           timeout_minutes: 15
@@ -452,7 +443,7 @@ jobs:
               --cache-to type=gha,mode=max,scope=base-images \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
-      - name: 'Cleanup resources with reporting'
+      - name: "Cleanup resources with reporting"
         if: always()
         run: |
           echo "::group::Resource Cleanup Report"
@@ -476,7 +467,7 @@ jobs:
           echo "  Disk space: $before_space to $after_space"
           echo "  Images removed: $((before_images - after_images))"
           echo "::endgroup::"
-      - name: 'Job Status Summary'
+      - name: "Job Status Summary"
         if: always()
         run: |
           echo "::group::Job Status Summary"
@@ -489,8 +480,16 @@ jobs:
           echo "::endgroup::"
 
   docker-smoke:
-    name: 'Docker smoke'
-    needs: ['changes', 'lint', 'test', 'security-scan', 'docs-verify', 'build-base-images']
+    name: "Docker smoke"
+    needs:
+      [
+        "changes",
+        "lint",
+        "test",
+        "security-scan",
+        "docs-verify",
+        "build-base-images",
+      ]
     if: |
       needs.changes.result == 'success' &&
       needs.lint.result == 'success' &&
@@ -498,8 +497,8 @@ jobs:
       (needs.security-scan.result == 'success' || needs.security-scan.result == 'skipped') &&
       (needs.docs-verify.result == 'success' || needs.docs-verify.result == 'skipped') &&
       needs.build-base-images.result == 'success'
-    runs-on: 'ubuntu-latest'
-    environment: 'discord-voice-lab'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
     timeout-minutes: 30
     env:
       ACTIONS_CACHE_SERVICE_V2: true
@@ -507,9 +506,9 @@ jobs:
       matrix:
         service: [discord, stt, llm, orchestrator, tts]
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Setup job context'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Setup job context"
         uses: actions/github-script@v7
         with:
           script: |
@@ -518,20 +517,20 @@ jobs:
             console.log('Ref:', context.ref)
             console.log('Workflow:', context.workflow)
             console.log('Run ID:', context.runId)
-      - name: 'Prepare environment defaults'
-        run: 'python3 scripts/prepare_env_files.py --force'
-      - name: 'Set up Docker Buildx'
-        uses: 'docker/setup-buildx-action@v3'
+      - name: "Prepare environment defaults"
+        run: "python3 scripts/prepare_env_files.py --force"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
         with:
           driver-opts: |
             image=moby/buildkit:latest
-      - name: 'Log in to GitHub Container Registry'
+      - name: "Log in to GitHub Container Registry"
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: 'Validate Base Images Exist'
+      - name: "Validate Base Images Exist"
         run: |
           echo "::group::Base Image Validation for ${{ matrix.service }}"
           # Show available GHCR images (optional debugging)
@@ -573,7 +572,7 @@ jobs:
             fi
           done
           echo "::endgroup::"
-      - name: 'Check if service needs build'
+      - name: "Check if service needs build"
         id: check_service
         run: |
           SERVICE="${{ matrix.service }}"
@@ -622,7 +621,7 @@ jobs:
           else
             echo "Skipping $SERVICE (no changes detected)"
           fi
-      - name: 'Build and push ${{ matrix.service }} service with retry'
+      - name: "Build and push ${{ matrix.service }} service with retry"
         if: steps.check_service.outputs.build == 'true'
         uses: nick-fields/retry@v2
         with:
@@ -650,7 +649,7 @@ jobs:
             fi
 
             docker push ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
-      - name: 'Smoke test ${{ matrix.service }} service'
+      - name: "Smoke test ${{ matrix.service }} service"
         if: steps.check_service.outputs.build == 'true'
         run: |
           echo "::group::Smoke testing ${{ matrix.service }} service"
@@ -715,19 +714,19 @@ jobs:
 
           echo "✅ Smoke test passed for ${{ matrix.service }}"
           echo "::endgroup::"
-      - name: 'Service build skipped'
+      - name: "Service build skipped"
         if: steps.check_service.outputs.build == 'false'
         run: |
           echo "::notice::Skipped building ${{ matrix.service }} (no changes detected)"
-      - name: 'Upload ${{ matrix.service }} build artifacts'
-        uses: 'actions/upload-artifact@v4'
+      - name: "Upload ${{ matrix.service }} build artifacts"
+        uses: "actions/upload-artifact@v4"
         if: always() && steps.check_service.outputs.build == 'true'
         with:
-          name: '${{ matrix.service }}-build-artifacts'
+          name: "${{ matrix.service }}-build-artifacts"
           path: |
             docker-smoke.log
           retention-days: 7
-      - name: 'Generate reproduction guide'
+      - name: "Generate reproduction guide"
         if: failure() && steps.check_service.outputs.build == 'true'
         run: |
           cat << EOF >> $GITHUB_STEP_SUMMARY
@@ -759,14 +758,14 @@ jobs:
           - **Commit**: ${{ github.sha }}
           - **Branch**: ${{ github.ref_name }}
           EOF
-      - name: 'Cleanup resources'
+      - name: "Cleanup resources"
         if: always()
         run: |
           echo "Cleaning Docker resources..."
           docker system prune -f --volumes
           docker builder prune -f
           echo "Cleanup complete"
-      - name: 'Docker Smoke Job Status Summary'
+      - name: "Docker Smoke Job Status Summary"
         if: always()
         run: |
           echo "::group::Docker Smoke Job Status Summary"
@@ -780,22 +779,21 @@ jobs:
           echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
           echo "::endgroup::"
 
-
   docker-smoke-aggregate:
-    name: 'Docker smoke aggregate'
-    needs: ['docker-smoke']
+    name: "Docker smoke aggregate"
+    needs: ["docker-smoke"]
     if: always()
-    runs-on: 'ubuntu-latest'
+    runs-on: "ubuntu-latest"
     steps:
-      - name: 'Checkout repository'
-        uses: 'actions/checkout@v4.2.2'
-      - name: 'Prepare environment defaults'
-        run: 'python3 scripts/prepare_env_files.py --force'
-      - name: 'Download all build artifacts'
-        uses: 'actions/download-artifact@v4'
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Prepare environment defaults"
+        run: "python3 scripts/prepare_env_files.py --force"
+      - name: "Download all build artifacts"
+        uses: "actions/download-artifact@v4"
         with:
-          path: './artifacts'
-      - name: 'Aggregate build results'
+          path: "./artifacts"
+      - name: "Aggregate build results"
         run: |
           echo "## Docker Build Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -812,23 +810,32 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Note**: Services are only built when changes are detected in their respective directories."
-      - name: 'Capture rendered Compose config'
-        run: 'docker compose config > docker-compose.config.yaml'
-      - name: 'Upload diagnostics'
-        if: 'always()'
-        uses: 'actions/upload-artifact@v4'
+      - name: "Capture rendered Compose config"
+        run: "docker compose config > docker-compose.config.yaml"
+      - name: "Upload diagnostics"
+        if: "always()"
+        uses: "actions/upload-artifact@v4"
         with:
-          name: 'docker-smoke-artifacts'
-          path: 'docker-compose.config.yaml'
-
+          name: "docker-smoke-artifacts"
+          path: "docker-compose.config.yaml"
 
   workflow-status:
-    name: 'Workflow Status Dashboard'
-    needs: [changes, lint, test, security-scan, docs-verify, build-base-images, docker-smoke, docker-smoke-aggregate]
+    name: "Workflow Status Dashboard"
+    needs:
+      [
+        changes,
+        lint,
+        test,
+        security-scan,
+        docs-verify,
+        build-base-images,
+        docker-smoke,
+        docker-smoke-aggregate,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: 'Generate Status Dashboard'
+      - name: "Generate Status Dashboard"
         run: |
           echo "## Workflow Status Dashboard" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

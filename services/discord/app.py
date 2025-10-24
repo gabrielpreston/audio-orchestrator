@@ -6,8 +6,8 @@ import asyncio
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
 import httpx
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from services.common.health import HealthManager, HealthStatus
@@ -17,7 +17,6 @@ from services.common.logging import get_logger
 
 from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
-
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
 
@@ -135,7 +134,7 @@ async def _check_stt_health() -> bool:
 
 async def _check_orchestrator_health() -> bool:
     """Check Orchestrator service health."""
-    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8000")
+    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator-enhanced:8200")
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{orch_url}/health/ready", timeout=5.0)

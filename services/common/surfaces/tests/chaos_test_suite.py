@@ -15,11 +15,11 @@ from datetime import datetime
 from typing import Any
 
 from services.common.surfaces.events import WakeDetectedEvent
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.types import PCMFrame
 
@@ -478,9 +478,9 @@ class SurfaceAdapterChaosTester:
 
     async def _test_adapter_operation(self, adapter: Any) -> None:
         """Test adapter operation."""
-        if isinstance(adapter, AudioSource):
+        if isinstance(adapter, AudioCaptureProtocol):
             await adapter.read_audio_frame()
-        elif isinstance(adapter, AudioSink):
+        elif isinstance(adapter, AudioPlaybackProtocol):
             dummy_frame = PCMFrame(
                 pcm=b"\x00" * 1024,
                 timestamp=time.time(),
@@ -490,19 +490,19 @@ class SurfaceAdapterChaosTester:
                 sample_rate=16000,
             )
             await adapter.play_audio_chunk(dummy_frame)
-        elif isinstance(adapter, ControlChannel):
+        elif isinstance(adapter, SurfaceControlProtocol):
             dummy_event = WakeDetectedEvent(
                 timestamp=time.time(), confidence=0.9, ts_device=time.time()
             )
             await adapter.send_event(dummy_event)
-        elif isinstance(adapter, SurfaceLifecycle):
-            adapter.is_connected()
+        elif isinstance(adapter, SurfaceTelemetryProtocol):
+            _ = adapter.is_connected
 
     async def _check_adapter_recovery(self, adapter: Any) -> bool:
         """Check if adapter has recovered."""
         try:
-            if isinstance(adapter, SurfaceLifecycle):
-                return adapter.is_connected()
+            if isinstance(adapter, SurfaceTelemetryProtocol):
+                return adapter.is_connected
             else:
                 # For other adapters, try a simple operation
                 await self._test_adapter_operation(adapter)

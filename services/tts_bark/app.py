@@ -12,7 +12,6 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import httpx
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -95,7 +94,6 @@ async def _startup() -> None:
         _health_manager.register_dependency(
             "bark_synthesizer", _check_synthesizer_health
         )
-        _health_manager.register_dependency("piper_fallback", _check_piper_fallback)
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
@@ -166,11 +164,9 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
                 text=request.text, voice=request.voice, speed=request.speed
             )
         except Exception as bark_exc:
-            _logger.warning("bark.synthesis_failed", error=str(bark_exc))
-
-            # Fallback to Piper
-            audio_data, engine = await _bark_synthesizer.synthesize_with_piper(
-                text=request.text, voice=request.voice
+            _logger.error("bark.synthesis_failed", error=str(bark_exc))
+            raise HTTPException(
+                status_code=500, detail=f"Bark synthesis failed: {str(bark_exc)}"
             )
 
         processing_time = (time.time() - start_time) * 1000
@@ -215,20 +211,6 @@ async def get_metrics() -> dict[str, Any]:
 async def _check_synthesizer_health() -> bool:
     """Check if Bark synthesizer is healthy."""
     return _bark_synthesizer is not None and await _bark_synthesizer.is_healthy()
-
-
-async def _check_piper_fallback() -> bool:
-    """Check if Piper fallback is available."""
-    if _bark_synthesizer is None:
-        return False
-
-    try:
-        # Test Piper fallback availability
-        async with httpx.AsyncClient() as client:
-            response = await client.get("http://tts:7000/health/ready", timeout=5.0)
-            return bool(response.status_code == 200)
-    except Exception:
-        return False
 
 
 if __name__ == "__main__":

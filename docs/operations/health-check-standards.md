@@ -2,371 +2,188 @@
 title: Health Check Standards
 author: Discord Voice Lab Team
 status: active
-last-updated: 2025-10-20
+last-updated: 2025-01-27
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
 > Docs ▸ Operations ▸ Health Check Standards
 
-# Health Check Standards
+# Solo Health Check Standards
 
-This document defines the standardized health check contract for all services in the Discord Voice Lab system.
+This document defines simplified health check standards for solo development in the Discord Voice Lab system.
 
-## Endpoint Specifications
+## Basic Health Check Standards
 
-All services must implement two health check endpoints following Kubernetes best practices:
+All services must implement simple health checks for solo development:
 
-### GET /health/live
+### Basic Health Endpoints
 
--  **Purpose**: Liveness probe - indicates if the process is running
--  **Response**: Always returns 200 if the process is alive
--  **Format**: Simple JSON with service identification
+-  **GET /health/live**: Always returns 200 if process is alive
+-  **GET /health/ready**: Returns basic status if service can handle requests
 
-```json
-{
-  "status": "alive",
-  "service": "service-name"
-}
-```
+### Simple Implementation
 
-### GET /health/ready
+-  **Basic functionality**: Service can handle requests
+-  **No complex metrics**: Keep it simple
+-  **No extensive dependency checking**: Focus on core functionality
 
--  **Purpose**: Readiness probe - indicates if the service can handle requests
--  **Response**:
-  -  200 when service is ready to serve requests
-  -  503 when service is not ready (startup incomplete or dependencies unavailable)
--  **Format**: Detailed JSON with component status and dependencies
+## Simple Implementation Pattern
 
-## Response Format Requirements
-
-### Ready Response (200)
-
-```json
-{
-  "status": "ready|degraded|not_ready",
-  "service": "service-name",
-  "components": {
-    "component_name": true|false,
-    "startup_complete": true|false
-  },
-  "dependencies": {
-    "dependency_name": true|false
-  },
-  "health_details": {
-    "startup_complete": true|false,
-    "dependencies": {
-      "dependency_name": true|false
-    }
-  }
-}
-```
-
-### Not Ready Response (503)
-
-```json
-{
-  "detail": "Human-readable reason for not being ready"
-}
-```
-
-## Status Values
-
--  **ready**: Service is fully operational and all dependencies are healthy
--  **degraded**: Service is operational but some dependencies are unhealthy
--  **not_ready**: Service cannot serve requests (startup incomplete or critical failures)
-
-## Startup State Management Requirements
-
-### Mandatory Implementation
-
-All services must:
-
--  **Call `mark_startup_complete()`** after initialization is complete
--  **Register dependencies** using `_health_manager.register_dependency()`
--  **Handle startup failures gracefully** without crashing the service
-
-### Implementation Pattern
+### Basic Health Check Implementation
 
 ```python
+from fastapi import FastAPI, HTTPException
+from typing import Dict, Any
+
+app = FastAPI()
+
+# Simple startup tracking
+_startup_complete = False
+
 @app.on_event("startup")
 async def _startup():
+    """Service startup event handler."""
+    global _startup_complete
     try:
         # Initialize core components
         await _initialize_core_components()
-        
-        # Register dependencies
-        _health_manager.register_dependency("dependency_name", _check_dependency_health)
-        
-        # Mark startup complete
-        _health_manager.mark_startup_complete()
-        
-        logger.info("service.startup_complete", service=service_name)
+        _startup_complete = True
     except Exception as exc:
-        logger.error("service.startup_failed", error=str(exc))
         # Continue without crashing - service will report not_ready
+        pass
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness check - always returns 200 if process is alive."""
+    return {"status": "alive", "service": "discord"}
+
+@app.get("/health/ready")
+async def health_ready() -> Dict[str, Any]:
+    """Readiness check - basic functionality."""
+    if not _startup_complete:
+        raise HTTPException(status_code=503, detail="Service not ready")
+    
+    return {
+        "status": "ready",
+        "service": "discord",
+        "startup_complete": _startup_complete
+    }
 ```
 
-## Dependency Registration Patterns
-
-### Async Dependency Check
+### Optional Dependency Health Checks
 
 ```python
-async def _check_dependency_health() -> bool:
-    """Check external service health."""
+async def _check_stt_service() -> bool:
+    """Check STT service health (optional)."""
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{base_url}/health/ready", timeout=5.0)
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get("http://stt:9000/health/ready")
             return response.status_code == 200
     except Exception:
         return False
 
-# Register the dependency
-_health_manager.register_dependency("dependency_name", _check_dependency_health)
+async def _check_orchestrator() -> bool:
+    """Check orchestrator service health (optional)."""
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get("http://orchestrator-enhanced:8200/health/ready")
+            return response.status_code == 200
+    except Exception:
+        return False
 ```
 
-### Sync Dependency Check
+## Simple Health Check Best Practices
+
+### Basic Health Check Requirements
+
+-  **Startup Management**: Track if service has completed initialization
+-  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
+-  **Simple Status**: Return basic status information
+-  **No Complex Metrics**: Keep it simple for solo development
+
+## Service-Specific Health Checks (Simplified)
+
+### Discord Service Health
 
 ```python
-def _check_internal_component() -> bool:
-    """Check internal component health."""
-    return _component is not None and _component.is_healthy()
-
-# Register the dependency
-_health_manager.register_dependency("internal_component", _check_internal_component)
+# services/discord/health.py
+class DiscordHealthManager:
+    """Discord service specific health management."""
+    
+    def __init__(self):
+        self._discord_connected = False
+        self._voice_channel_ready = False
+    
+    def set_discord_connected(self, connected: bool):
+        """Set Discord connection status."""
+        self._discord_connected = connected
+    
+    def set_voice_channel_ready(self, ready: bool):
+        """Set voice channel readiness."""
+        self._voice_channel_ready = ready
 ```
 
-## Health Endpoint Implementation
-
-### Standard Implementation Pattern
+### STT Service Health
 
 ```python
-@app.get("/health/ready")
-async def health_ready() -> dict[str, Any]:
-    """Readiness check - can serve requests."""
-    if _critical_component is None:
-        raise HTTPException(status_code=503, detail="Critical component not loaded")
+# services/stt/health.py
+class STTHealthManager:
+    """STT service specific health management."""
     
-    health_status = await _health_manager.get_health_status()
+    def __init__(self):
+        self._model_loaded = False
+        self._processor_ready = False
     
-    # Determine status string
-    if not health_status.ready:
-        status_str = "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-    else:
-        status_str = "ready"
+    def set_model_loaded(self, loaded: bool):
+        """Set model loaded status."""
+        self._model_loaded = loaded
     
-    return {
-        "status": status_str,
-        "service": "service-name",
-        "components": {
-            "component_loaded": _critical_component is not None,
-            "startup_complete": _health_manager._startup_complete,
-            # Add service-specific components
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details
-    }
+    def set_processor_ready(self, ready: bool):
+        """Set processor readiness."""
+        self._processor_ready = ready
 ```
 
-## Metrics Requirements
+## Quality Gates (Simplified)
 
-All services expose the following Prometheus metrics for health checks:
+### Health Check Requirements
 
-### health_check_duration_seconds
+-  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
+-  **Startup Tracking**: Track if service has completed initialization
+-  **Simple Status**: Return basic status information
+-  **No Complex Metrics**: Keep it simple for solo development
 
--  **Type**: Histogram
--  **Description**: Health check execution duration
--  **Labels**: `service`, `check_type`
--  **Buckets**: Default Prometheus buckets
+## Simple Testing Requirements
 
-### service_health_status
-
--  **Type**: Gauge
--  **Description**: Current service health status
--  **Labels**: `service`, `component`
--  **Values**: 1=healthy, 0.5=degraded, 0=unhealthy
-
-### service_dependency_health
-
--  **Type**: Gauge
--  **Description**: Dependency health status
--  **Labels**: `service`, `dependency`
--  **Values**: 1=healthy, 0=unhealthy
-
-## Status Transitions
-
-### Healthy → Degraded
-
--  Occurs when a non-critical dependency becomes unhealthy
--  Service continues to operate with reduced functionality
--  Health endpoint returns 200 with `"status": "degraded"`
-
-### Degraded → Unhealthy
-
--  Occurs when a critical dependency becomes unhealthy
--  Service cannot serve requests
--  Health endpoint returns 503 with `"status": "not_ready"`
-
-### Unhealthy → Healthy
-
--  Occurs when all dependencies become healthy
--  Service is fully operational
--  Health endpoint returns 200 with `"status": "ready"`
-
-## Service-Specific Requirements
-
-### STT Service
-
--  **Components**: `model_loaded`, `model_name`, `startup_complete`
--  **Dependencies**: None (standalone service)
-
-### TTS Service
-
--  **Components**: `voice_loaded`, `sample_rate`, `max_concurrency`, `startup_complete`
--  **Dependencies**: None (standalone service)
-
-### LLM Service
-
--  **Components**: `llm_loaded`, `tts_available`, `startup_complete`
--  **Dependencies**: `tts` (optional)
-
-### Orchestrator Service
-
--  **Components**: `orchestrator_active`, `llm_available`, `tts_available`, `mcp_clients`, `startup_complete`
--  **Dependencies**: `llm`, `tts`
-
-### Discord Service
-
--  **Components**: `bot_connected`, `mode`, `startup_complete`
--  **Dependencies**: `stt`, `orchestrator`
-
-## Testing Requirements
-
-### Unit Tests
-
--  Mock `_health_manager.get_health_status()` using `AsyncMock`
--  Validate response structure includes all required fields
--  Test both ready and not-ready scenarios
-
-### Integration Tests
-
--  Validate health check response structure
--  Test dependency health tracking
--  Verify status transitions
-
-### Health Check Validation
+### Basic Health Check Tests
 
 ```python
-def _validate_health_response(data: dict, service_name: str) -> bool:
-    """Validate health check response structure."""
-    required_fields = ["status", "service", "components", "health_details"]
-    return (
-        all(field in data for field in required_fields) and
-        data["service"] == service_name and
-        data["status"] in ["ready", "not_ready", "degraded"]
-    )
+def test_health_live_endpoint():
+    """Test liveness endpoint returns 200."""
+    response = client.get("/health/live")
+    assert response.status_code == 200
+    assert response.json()["status"] == "alive"
+
+def test_health_ready_endpoint():
+    """Test readiness endpoint returns 200 when ready."""
+    response = client.get("/health/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
 ```
 
-## Monitoring and Alerting
+## Solo Development Notes
 
-### Key Metrics to Monitor
+### Simplified Approach
 
--  `service_health_status` - Overall service health
--  `service_dependency_health` - Dependency health
--  `health_check_duration_seconds` - Health check performance
+-  **No Complex Metrics**: Keep it simple for solo development
+-  **Basic Functionality**: Focus on "does it work" over comprehensive monitoring
+-  **Manual Testing**: Use manual testing for rapid iteration
+-  **Essential Coverage**: Critical paths covered only
 
-### Alerting Rules
+## Summary
 
--  Alert when `service_health_status` drops below 1 (degraded/unhealthy)
--  Alert when `service_dependency_health` drops below 1 for critical dependencies
--  Alert when `health_check_duration_seconds` exceeds threshold
+This simplified health check approach focuses on:
 
-### Dashboard Queries
-
-```promql
-# Service health status
-service_health_status{component="overall"}
-
-# Dependency health
-service_dependency_health
-
-# Health check duration
-histogram_quantile(0.95, health_check_duration_seconds_bucket)
-```
-
-## Migration Guide
-
-### Breaking Changes
-
--  **Response Format**: Changed from simple fields to structured components
--  **Status Values**: Now supports "degraded" status
--  **Startup Behavior**: All services must call `mark_startup_complete()`
--  **Dependency Tracking**: Services must register dependencies
--  **Metrics**: New Prometheus metrics exposed
-
-### Backward Compatibility
-
--  Old health check clients will need to be updated
--  Response format changes require client code updates
--  Status value changes may affect monitoring systems
-
-## Examples
-
-### Complete Health Check Response
-
-```json
-{
-  "status": "ready",
-  "service": "orchestrator",
-  "components": {
-    "orchestrator_active": true,
-    "llm_available": true,
-    "tts_available": true,
-    "mcp_clients": {
-      "file_tools": "connected",
-      "web_search": "connected"
-    },
-    "startup_complete": true
-  },
-  "dependencies": {
-    "llm": true,
-    "tts": true
-  },
-  "health_details": {
-    "startup_complete": true,
-    "dependencies": {
-      "llm": true,
-      "tts": true
-    }
-  }
-}
-```
-
-### Degraded Service Response
-
-```json
-{
-  "status": "degraded",
-  "service": "orchestrator",
-  "components": {
-    "orchestrator_active": true,
-    "llm_available": true,
-    "tts_available": false,
-    "mcp_clients": {
-      "file_tools": "connected",
-      "web_search": "disconnected"
-    },
-    "startup_complete": true
-  },
-  "dependencies": {
-    "llm": true,
-    "tts": false
-  },
-  "health_details": {
-    "startup_complete": true,
-    "dependencies": {
-      "llm": true,
-      "tts": false
-    }
-  }
-}
-```
+-  **Basic functionality**: Service can handle requests
+-  **Simple implementation**: No complex metrics or extensive dependency checking
+-  **Solo development**: Optimized for rapid iteration and manual testing
+-  **Essential coverage**: Critical paths covered without over-engineering

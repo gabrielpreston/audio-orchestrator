@@ -8,18 +8,18 @@ providing a standardized way to play audio to Discord voice channels.
 from __future__ import annotations
 
 import asyncio
-import time
 from collections.abc import Callable
+import time
 from typing import Any
 
 from services.common.logging import get_logger
-from services.common.surfaces.interfaces import AudioSink
 from services.common.surfaces.media_gateway import MediaGateway
+from services.common.surfaces.protocols import AudioPlaybackProtocol
 from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
 
-class DiscordAudioSink(AudioSink):
-    """Discord audio sink adapter implementing AudioSink interface."""
+class DiscordAudioSink(AudioPlaybackProtocol):
+    """Discord audio sink adapter implementing AudioPlaybackProtocol."""
 
     def __init__(
         self,
@@ -296,6 +296,13 @@ class DiscordAudioSink(AudioSink):
         self._logger.debug(
             "discord_sink.policy_updated", config_keys=list(policy_config.keys())
         )
+
+    async def set_volume(self, volume: float) -> None:
+        """Set the playback volume (0.0 to 1.0)."""
+        if not 0.0 <= volume <= 1.0:
+            raise ValueError("Volume must be between 0.0 and 1.0")
+        self._volume = volume
+        self._logger.info(f"Volume set to {volume}")
 
     def __repr__(self) -> str:
         """String representation of the audio sink."""

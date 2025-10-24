@@ -38,7 +38,7 @@ health_manager = HealthManager("testing-ui")
 client = httpx.AsyncClient(timeout=30.0)
 
 # Service URLs
-AUDIO_PREPROCESSOR_URL = "http://audio-preprocessor:9200"
+AUDIO_PREPROCESSOR_URL = "http://audio-processor:9100"
 STT_URL = "http://stt:9000"
 ORCHESTRATOR_URL = "http://orchestrator-enhanced:8200"
 TTS_BARK_URL = "http://tts-bark:7100"

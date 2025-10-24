@@ -8,8 +8,8 @@ providing a standardized way to handle control events between the agent and Disc
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
 import time
-from collections.abc import Callable
 from typing import Any
 
 from services.common.logging import get_logger
@@ -27,8 +27,9 @@ from services.common.surfaces.events import (
     VADStartSpeechEvent,
     WakeDetectedEvent,
 )
-from services.common.surfaces.interfaces import ControlChannel
+from services.common.surfaces.protocols import SurfaceControlProtocol
 from services.common.surfaces.types import (
+    ControlEvent,
     EndpointingState,
     PlaybackAction,
     SessionAction,
@@ -40,8 +41,8 @@ from services.common.surfaces.types import (
 logger = get_logger(__name__)
 
 
-class DiscordControlChannel(ControlChannel):
-    """Discord control channel adapter implementing ControlChannel interface."""
+class DiscordControlChannel(SurfaceControlProtocol):
+    """Discord control channel adapter implementing SurfaceControlProtocol."""
 
     def __init__(
         self,
@@ -56,7 +57,7 @@ class DiscordControlChannel(ControlChannel):
         # Connection state
         self._is_connected = False
         self._event_handlers: list[Callable[[dict[str, Any]], None]] = []
-        self._event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._event_queue: asyncio.Queue[ControlEvent] = asyncio.Queue()
 
         # Event tracking
         self._total_events_sent = 0
@@ -89,14 +90,17 @@ class DiscordControlChannel(ControlChannel):
             )
 
             # Send initial connection event
+            from services.common.surfaces.types import ControlEvent
+
             await self.send_event(
-                {
-                    "event_type": "connection.established",
-                    "timestamp": time.time(),
-                    "guild_id": self.guild_id,
-                    "channel_id": self.channel_id,
-                    "user_id": self.user_id,
-                }
+                ControlEvent(
+                    event_type="connection.established",
+                    metadata={
+                        "guild_id": self.guild_id,
+                        "channel_id": self.channel_id,
+                        "user_id": self.user_id,
+                    },
+                )
             )
 
         except (ValueError, TypeError, KeyError) as e:
@@ -115,13 +119,14 @@ class DiscordControlChannel(ControlChannel):
 
             # Send disconnect event
             await self.send_event(
-                {
-                    "event_type": "connection.closed",
-                    "timestamp": time.time(),
-                    "guild_id": self.guild_id,
-                    "channel_id": self.channel_id,
-                    "user_id": self.user_id,
-                }
+                ControlEvent(
+                    event_type="connection.closed",
+                    metadata={
+                        "guild_id": self.guild_id,
+                        "channel_id": self.channel_id,
+                        "user_id": self.user_id,
+                    },
+                )
             )
 
             self._logger.info(
@@ -136,19 +141,13 @@ class DiscordControlChannel(ControlChannel):
             self._logger.error("discord_control.disconnection_failed", error=str(e))
             raise
 
-    async def send_event(self, event: dict[str, Any]) -> None:
+    async def send_event(self, event: ControlEvent) -> None:
         """Send a control event to the connected client/agent."""
         if not self._is_connected:
             self._logger.warning("discord_control.not_connected")
             return
 
         try:
-            # Add metadata
-            event["timestamp"] = time.time()
-            event["guild_id"] = self.guild_id
-            event["channel_id"] = self.channel_id
-            event["user_id"] = self.user_id
-
             # Queue event for processing
             await self._event_queue.put(event)
             self._total_events_sent += 1
@@ -156,7 +155,7 @@ class DiscordControlChannel(ControlChannel):
 
             self._logger.debug(
                 "discord_control.event_sent",
-                event_type=event.get("event_type"),
+                event_type=event.event_type,
                 total_sent=self._total_events_sent,
             )
 
@@ -209,14 +208,14 @@ class DiscordControlChannel(ControlChannel):
             confidence=confidence,
             ts_device=ts_device or time.time(),
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_vad_start_speech(self, ts_device: float = 0.0) -> None:
         """Send VAD start speech event."""
         event = VADStartSpeechEvent(
             ts_device=ts_device or time.time(),
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_vad_end_speech(
         self, duration_ms: float, ts_device: float = 0.0
@@ -226,7 +225,7 @@ class DiscordControlChannel(ControlChannel):
             ts_device=ts_device or time.time(),
             duration_ms=duration_ms,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_barge_in_request(self, reason: str, ts_device: float = 0.0) -> None:
         """Send barge-in request event."""
@@ -234,14 +233,14 @@ class DiscordControlChannel(ControlChannel):
             reason=reason,
             ts_device=ts_device or time.time(),
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_session_state(self, action: SessionAction) -> None:
         """Send session state event."""
         event = SessionStateEvent(
             action=action,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_route_change(
         self, input_route: str | None, output_route: str | None
@@ -251,7 +250,7 @@ class DiscordControlChannel(ControlChannel):
             input=input_route or "unknown",
             output=output_route or "unknown",
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_playback_control(
         self, action: PlaybackAction, reason: str | None = None
@@ -261,14 +260,14 @@ class DiscordControlChannel(ControlChannel):
             action=action,
             reason=reason or "unknown",
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_endpointing(self, state: EndpointingState) -> None:
         """Send endpointing event."""
         event = EndpointingEvent(
             state=state,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_transcript_partial(
         self, text: str, confidence: float, ts_server: float = 0.0
@@ -279,7 +278,7 @@ class DiscordControlChannel(ControlChannel):
             confidence=confidence,
             ts_server=ts_server or time.time(),
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_transcript_final(
         self, text: str, words: list[WordTimestamp]
@@ -289,14 +288,14 @@ class DiscordControlChannel(ControlChannel):
             text=text,
             words=words,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_telemetry_snapshot(self, metrics: TelemetryMetrics) -> None:
         """Send telemetry snapshot event."""
         event = TelemetrySnapshotEvent(
             metrics=metrics,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     async def send_error(
         self, code: str, message: str, recoverable: bool = True
@@ -307,7 +306,7 @@ class DiscordControlChannel(ControlChannel):
             message=message,
             recoverable=recoverable,
         )
-        await self.send_event(event.to_dict())
+        await self.send_event(event)
 
     # Discord state management
 
@@ -406,6 +405,26 @@ class DiscordControlChannel(ControlChannel):
             "deaf": self._current_deaf,
             "mute": self._current_mute,
         }
+
+    async def send_control_event(self, event: ControlEvent) -> None:
+        """Send a control event."""
+        await self._event_queue.put(event)
+        self._total_events_sent += 1
+        self._last_event_time = time.time()
+        logger.info(f"Control event sent: {event}")
+
+    def get_control_events(self) -> AsyncIterator[ControlEvent]:
+        """Get control events as an async iterator."""
+
+        async def _event_generator() -> AsyncIterator[ControlEvent]:
+            while True:
+                try:
+                    event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
+                    yield event
+                except TimeoutError:
+                    break
+
+        return _event_generator()
 
     def update_policy(self, policy_config: dict[str, Any]) -> None:
         """Update surface-specific policies."""

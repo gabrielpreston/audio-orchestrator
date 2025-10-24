@@ -17,15 +17,39 @@
       "git push",
       "git remote"
     ],
+    "make": [
+      "make test",
+      "make lint",
+      "make lint-fix",
+      "make run",
+      "make stop",
+      "make logs",
+      "make docker-build",
+      "make docker-restart",
+      "make docker-shell",
+      "make docker-clean",
+      "make docker-clean-all"
+    ],
+    "docker": [
+      "docker-compose up",
+      "docker-compose down",
+      "docker-compose logs",
+      "docker-compose exec",
+      "docker-compose build"
+    ],
     "analysis": [
       "ci_failure_analysis",
       "root_cause_detection",
-      "automated_fixes"
+      "automated_fixes",
+      "type_checking_analysis"
     ]
   },
   "constraints": {
     "no_pr_creation": true,
     "update_existing_comments": true,
-    "minimal_changes_only": true
+    "minimal_changes_only": true,
+    "solo_development": true,
+    "prefer_make_commands": true,
+    "type_checking_required": true
   }
 }

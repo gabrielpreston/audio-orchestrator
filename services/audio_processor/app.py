@@ -381,6 +381,86 @@ async def enhance_audio(request: Request) -> bytes:
         return bytes(await request.body())
 
 
+@app.post("/denoise")  # type: ignore[misc]
+async def denoise_audio(request: Request) -> bytes:
+    """Denoise full audio file using MetricGAN+."""
+    start_time = time.perf_counter()
+
+    try:
+        if not _audio_enhancer:
+            raise HTTPException(
+                status_code=503, detail="Audio enhancer not initialized"
+            )
+
+        # Get audio data from request
+        audio_data = await request.body()
+
+        # Apply denoising enhancement
+        denoised_data = _audio_enhancer.enhance_audio(audio_data)
+
+        processing_time = (time.perf_counter() - start_time) * 1000
+
+        _logger.info(
+            "audio_processor.audio_denoised",
+            input_size=len(audio_data),
+            output_size=len(denoised_data),
+            processing_time_ms=processing_time,
+        )
+
+        return bytes(denoised_data)
+
+    except Exception as exc:
+        processing_time = (time.perf_counter() - start_time) * 1000
+        _logger.error(
+            "audio_processor.denoising_failed",
+            error=str(exc),
+            processing_time_ms=processing_time,
+        )
+
+        # Return original data on failure
+        return bytes(await request.body())
+
+
+@app.post("/denoise/streaming")  # type: ignore[misc]
+async def denoise_streaming(request: Request) -> bytes:
+    """Denoise streaming audio frames using MetricGAN+."""
+    start_time = time.perf_counter()
+
+    try:
+        if not _audio_enhancer:
+            raise HTTPException(
+                status_code=503, detail="Audio enhancer not initialized"
+            )
+
+        # Get audio data from request
+        audio_data = await request.body()
+
+        # Apply streaming denoising enhancement
+        denoised_data = _audio_enhancer.enhance_audio(audio_data)
+
+        processing_time = (time.perf_counter() - start_time) * 1000
+
+        _logger.info(
+            "audio_processor.streaming_denoised",
+            input_size=len(audio_data),
+            output_size=len(denoised_data),
+            processing_time_ms=processing_time,
+        )
+
+        return bytes(denoised_data)
+
+    except Exception as exc:
+        processing_time = (time.perf_counter() - start_time) * 1000
+        _logger.error(
+            "audio_processor.streaming_denoising_failed",
+            error=str(exc),
+            processing_time_ms=processing_time,
+        )
+
+        # Return original data on failure
+        return bytes(await request.body())
+
+
 @app.get("/metrics")  # type: ignore[misc]
 async def get_metrics() -> dict[str, Any]:
     """Get service metrics."""

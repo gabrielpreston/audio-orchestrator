@@ -8,25 +8,152 @@ last-updated: 2025-10-20
 
 This document provides comprehensive guidance for testing the audio-orchestrator audio pipeline.
 
-## Test Categories
+## Protocol-Based Testing
 
-### Unit Tests
+The audio-orchestrator project uses Protocol-based architecture throughout, replacing Abstract Base Classes (ABCs) with Protocols. This enables structural subtyping and composition over inheritance, creating more flexible and testable code.
+
+### Current Testing Architecture
+
+The project uses Protocol-Based Architecture with focused testing on high-value areas:
+
+**Core Testing Categories**:
+
+-  ✅ **Protocol Compliance Tests** - Validate interface implementation
+-  ✅ **Integration Tests** - Test real system behavior  
+-  ✅ **Business Logic Tests** - Test critical decision-making
+-  ✅ **Performance/Chaos Tests** - Test system resilience
+
+### Protocol Testing Utilities
+
+**Location**: `services/tests/utils/protocol_testing.py`
+
+**Key Functions**:
+
+-  `assert_implements_protocol(obj, protocol)` - Assert object implements protocol
+-  `create_protocol_mock(protocol)` - Create mock object implementing protocol
+-  `validate_protocol_compliance(obj, protocol)` - Validate protocol compliance
+-  `assert_protocol_composition(obj, protocols)` - Assert object implements multiple protocols
+
+**Example Usage**:
+
+```python
+from services.tests.utils.protocol_testing import assert_implements_protocol
+from services.common.surfaces.protocols import AudioCaptureProtocol
+
+def test_audio_adapter_compliance():
+    """Test that audio adapter implements required protocols."""
+    adapter = AudioAdapter()
+    assert_implements_protocol(adapter, AudioCaptureProtocol)
+```
+
+### Protocol Compliance Testing
+
+**Location**: `services/tests/unit/interfaces/test_interface_contracts.py`
+
+**Purpose**: Validate that protocols are properly defined and implementations comply
+
+**Key Tests**:
+
+-  Protocol structure validation
+-  Method signature verification
+-  Protocol compliance checking
+-  Mock object creation and validation
+
+**Example**:
+
+```python
+@pytest.mark.parametrize(
+    "protocol,protocol_name,expected_methods",
+    [
+        (AudioCaptureProtocol, "AudioCaptureProtocol", ["start_capture", "stop_capture"]),
+        (AudioPlaybackProtocol, "AudioPlaybackProtocol", ["play_audio_chunk", "pause_playback"]),
+    ],
+)
+class TestProtocolContracts:
+    def test_protocol_compliance(self, protocol, protocol_name, expected_methods):
+        """Test that protocol is properly defined."""
+        assert hasattr(protocol, "__annotations__")
+        assert protocol_name.endswith("Protocol")
+```
+
+### Hot-Swap Testing with Protocols
+
+**Location**: `services/tests/integration/hot_swap/`
+
+**Purpose**: Test runtime component replacement using protocols
+
+**Key Features**:
+
+-  Protocol-based component swapping
+-  Runtime validation of new implementations
+-  Rollback testing on failure
+-  Performance impact measurement
+
+**Example**:
+
+```python
+async def test_audio_processor_hot_swap():
+    """Test hot-swapping audio processors."""
+    service = AudioService()
+    original_processor = service.processor
+    
+    # Create new processor implementing same protocol
+    new_processor = AdvancedAudioProcessor()
+    assert_implements_protocol(new_processor, AudioProcessingProtocol)
+    
+    # Hot-swap processor
+    await service.hot_swap_processor(new_processor)
+    
+    # Verify new processor works
+    result = await service.process_audio(test_data)
+    assert result.success
+```
+
+## Modern Testing Best Practices
+
+### Testing Focus Areas
+
+**High-Value Testing**:
+
+-  **Business Logic** - Core decision-making and policy engine logic
+-  **Protocol Compliance** - Interface implementation validation
+-  **Integration Boundaries** - Service-to-service communication
+-  **System Behavior** - End-to-end functionality
+-  **Performance Requirements** - Latency and throughput validation
+-  **Resilience** - Failure recovery and chaos testing
+
+### Protocol-Based Testing Guidelines
+
+**Current Best Practices**:
+
+-  **Use Protocol Names** - Import and use protocol names (`AudioCaptureProtocol`)
+-  **Test Behavior** - Focus on what the system does, not how it does it
+-  **Integration Focus** - Test real service interactions via Docker Compose
+-  **Business Logic Priority** - Prioritize testing critical decision-making
+-  **Performance Validation** - Test latency and throughput requirements
+-  **Resilience Testing** - Test failure recovery and system stability
+
+## Test Categories (Industry-Standard Testing Pyramid)
+
+### Unit Tests (70% of tests)
 
 -  **Location**: `services/tests/unit/`
 -  **Purpose**: Test individual functions and classes in isolation
 -  **Scope**: Single functions, classes, or modules
 -  **Execution**: `make test-unit` or `pytest -m unit`
 -  **Mocking**: All external dependencies mocked
+-  **Examples**: Audio utilities, correlation ID generation, config parsing, business logic
 
-### Component Tests
+### Component Tests (20% of tests)
 
 -  **Location**: `services/tests/component/`
 -  **Purpose**: Test internal service components and adapters
 -  **Scope**: Internal logic with mocked external dependencies
 -  **Execution**: `make test-component` or `pytest -m component`
 -  **Mocking**: External HTTP clients, Discord API, external services
+-  **Examples**: Interface compliance tests, service adapters, internal components
 
-### Integration Tests
+### Integration Tests (8% of tests)
 
 -  **Location**: `services/tests/integration/`
 -  **Purpose**: Test service-to-service HTTP boundaries
@@ -35,6 +162,7 @@ This document provides comprehensive guidance for testing the audio-orchestrator
 -  **Mocking**: None - real services via Docker Compose
 -  **Network**: Tests run inside `audio-orchestrator-test` Docker network
 -  **Service URLs**: Use service names (e.g., `http://stt:9000`)
+-  **Subcategories**: `contracts/`, `hot_swap/`, `security/`, `performance/`
 
 #### Voice Pipeline Integration Tests
 
@@ -79,13 +207,91 @@ This document provides comprehensive guidance for testing the audio-orchestrator
   -  Tests invalid auth token rejection
   -  Tests auth token propagation through voice pipeline
 
-### End-to-End Tests
+### Interface-First Tests (Dual Marking)
+
+-  **Location**: Distributed across `component/` and `integration/` directories
+-  **Purpose**: Validate service boundaries and hot-swappability
+-  **Scope**: Interface compliance and contract validation
+-  **Execution**: `make test-interface`, `make test-contract`, `make test-hot-swap`
+-  **Markers**: `@pytest.mark.interface`, `@pytest.mark.contract`, `@pytest.mark.hot_swap`
+-  **Dual Marking**: Tests marked with both industry-standard and interface-first markers
+
+#### Interface Compliance Tests
+
+-  **AudioSource Interface**: Test audio input implementations
+-  **AudioSink Interface**: Test audio output implementations  
+-  **ControlChannel Interface**: Test control channel implementations
+-  **SurfaceLifecycle Interface**: Test surface lifecycle management
+-  **Health Contracts**: Test standardized health check compliance
+
+#### Contract Validation Tests
+
+-  **Service Contracts**: Validate API endpoints, performance, and security
+-  **Performance Contracts**: Test latency, throughput, and resource usage
+-  **Security Contracts**: Test authentication, authorization, and data handling
+-  **Hot-Swap Validation**: Test service and surface interchangeability
+
+## Validation Framework
+
+The `services.common.validation` module provides validation utilities for testing:
+
+### Audio Validation
+
+-  `validate_audio_data()`: Validates audio quality and format
+  -  Returns quality score, issues list, and comprehensive analysis
+  -  Detects silence, clipping, NaN/Inf values, and empty data
+  -  Supports comprehensive analysis with frequency and dynamic range data
+
+### Interface Validation
+
+-  `validate_interface_contract()`: Validates interface definitions
+  -  Checks abstract method compliance
+  -  Validates interface structure and inheritance
+  -  Returns compliance status and missing methods
+
+### Service Contract Validation
+
+-  `validate_service_contract()`: Validates service contract definitions
+  -  Checks required fields (service_name, base_url, endpoints)
+  -  Validates endpoint structure and health check presence
+  -  Returns validation status, issues, and warnings
+-  `check_contract_compliance()`: Calculates compliance scores
+  -  Evaluates performance and security requirements
+  -  Returns compliance score and missing requirements
+
+### Hot-Swap Validation
+
+-  `validate_service_contract_compliance()`: Validates service implementations comply with contracts
+-  `validate_service_interchangeability()`: Validates services can be interchanged
+-  `validate_surface_interface_compliance()`: Validates surface implements interface
+-  `validate_surface_interchangeability()`: Validates surfaces can be interchanged
+-  Various compatibility validation functions for performance, security, and data formats
+
+### Usage Examples
+
+```python
+from services.common.validation import validate_audio_data, validate_service_contract
+
+# Audio validation
+audio_data = np.random.randn(1000)
+result = validate_audio_data(audio_data, comprehensive=True)
+assert result['valid'] is True
+assert result['quality_score'] > 0.8
+
+# Service contract validation
+result = validate_service_contract(STT_CONTRACT)
+assert result['valid'] is True
+assert len(result['issues']) == 0
+```
+
+### End-to-End Tests (2% of tests)
 
 -  **Location**: `services/tests/e2e/`
 -  **Purpose**: Full system validation
 -  **Scope**: Complete workflows from Discord to response
--  **Execution**: `pytest -m e2e`
+-  **Execution**: `make test-e2e` or `pytest -m e2e`
 -  **Note**: Manual trigger only
+-  **Subcategories**: `discord/`, `voice_pipeline/`
 
 #### Voice Pipeline E2E Tests
 
@@ -266,17 +472,39 @@ Use standardized timeout constants from `Timeouts` class:
 pytest
 ```
 
-#### By Category
+#### By Category (Industry-Standard)
 
 ```bash
-# Unit tests only
+# Unit tests only (70% of tests)
 pytest -m unit
 
-# Component tests only
+# Component tests only (20% of tests)
 pytest -m component
 
-# Integration tests only
+# Integration tests only (8% of tests)
 pytest -m integration
+
+# End-to-end tests only (2% of tests)
+pytest -m e2e
+
+# All tests following testing pyramid
+make test
+```
+
+#### By Interface-First Category
+
+```bash
+# Interface compliance tests
+pytest -m interface
+
+# Contract validation tests
+pytest -m contract
+
+# Hot-swap validation tests
+pytest -m hot_swap
+
+# All interface-first tests
+pytest -m "interface or contract"
 
 # Quality tests only
 pytest -m quality
@@ -351,10 +579,20 @@ addopts = [
 
 # Markers for test categorization
 markers = [
-    "unit: Unit tests (fast, isolated, no external dependencies)",
-    "component: Component tests (with mocked external dependencies)",
-    "integration: Integration tests (require Docker Compose)",
-    "e2e: End-to-end tests (manual trigger only)",
+    # Industry-standard testing pyramid markers (primary)
+    "unit: Unit tests (fast, isolated, no external dependencies) - 70% of tests",
+    "component: Component tests (with mocked external dependencies) - 20% of tests",
+    "integration: Integration tests (require Docker Compose) - 8% of tests",
+    "e2e: End-to-end tests (manual trigger only) - 2% of tests",
+    
+    # Interface-first testing markers (secondary)
+    "interface: Interface compliance tests (validate service boundaries)",
+    "contract: Contract validation tests (validate API contracts)",
+    "hot_swap: Hot-swap validation tests (validate interchangeability)",
+    "security: Security validation tests (validate security contracts)",
+    "performance: Performance benchmark tests",
+    
+    # Legacy markers (being phased out)
     "slow: Slow tests (>1 second execution time)",
     "external: Tests requiring external services or network access",
     "audio: Tests involving audio processing",

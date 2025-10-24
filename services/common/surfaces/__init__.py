@@ -20,16 +20,21 @@ from .events import (
     VADStartSpeechEvent,
     WakeDetectedEvent,
 )
-from .interfaces import AudioSink, AudioSource, ControlChannel, SurfaceLifecycle
+from .protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
+)
 from .types import AudioMetadata, AudioSegment, ControlEvent, PCMFrame
 
 
 __all__ = [
-    # Core interfaces
-    "AudioSource",
-    "AudioSink",
-    "ControlChannel",
-    "SurfaceLifecycle",
+    # Core protocols
+    "AudioCaptureProtocol",
+    "AudioPlaybackProtocol",
+    "SurfaceControlProtocol",
+    "SurfaceTelemetryProtocol",
     # Data types
     "PCMFrame",
     "AudioMetadata",

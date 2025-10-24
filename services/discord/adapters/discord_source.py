@@ -13,16 +13,16 @@ import time
 from typing import Any
 
 from services.common.logging import get_logger
-from services.common.surfaces.interfaces import AudioSource
 from services.common.surfaces.media_gateway import MediaGateway
+from services.common.surfaces.protocols import AudioCaptureProtocol
 from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame
 
 
 logger = get_logger(__name__)
 
 
-class DiscordAudioSource(AudioSource):
-    """Discord audio source adapter implementing AudioSource interface."""
+class DiscordAudioSource(AudioCaptureProtocol):
+    """Discord audio source adapter implementing AudioCaptureProtocol."""
 
     def __init__(
         self,

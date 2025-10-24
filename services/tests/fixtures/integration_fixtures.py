@@ -12,13 +12,12 @@ from services.tests.utils.audio_quality_helpers import (
     generate_test_audio,
 )
 
-
 # Service configuration constants
 SERVICES = [
     ("stt", "http://stt:9000"),
-    ("tts", "http://tts:7000"),
-    ("llm", "http://llm:8000"),
-    ("orchestrator", "http://orchestrator:8000"),
+    ("tts-bark", "http://tts-bark:7100"),
+    ("llm-flan", "http://llm-flan:8100"),
+    ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
 ]
 
 

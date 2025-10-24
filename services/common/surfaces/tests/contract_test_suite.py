@@ -11,11 +11,11 @@ from datetime import datetime
 from typing import Any
 
 from services.common.surfaces.events import WakeDetectedEvent
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.types import PCMFrame
 
@@ -33,18 +33,20 @@ class SurfaceAdapterContractTester:
         self.test_results: dict[str, list[dict[str, Any]]] = {}
         self.test_metrics: dict[str, Any] = {}
 
-    async def test_audio_source_contract(self, adapter: AudioSource) -> dict[str, Any]:
+    async def test_audio_source_contract(
+        self, adapter: AudioCaptureProtocol
+    ) -> dict[str, Any]:
         """
-        Test AudioSource adapter contract compliance.
+        Test AudioCaptureProtocol adapter contract compliance.
 
         Args:
-            adapter: AudioSource adapter to test
+            adapter: AudioCaptureProtocol adapter to test
 
         Returns:
             Test results dictionary
         """
         results: dict[str, Any] = {
-            "adapter_type": "AudioSource",
+            "adapter_type": "AudioCaptureProtocol",
             "tests_passed": 0,
             "tests_failed": 0,
             "test_details": [],
@@ -97,18 +99,20 @@ class SurfaceAdapterContractTester:
 
         return results
 
-    async def test_audio_sink_contract(self, adapter: AudioSink) -> dict[str, Any]:
+    async def test_audio_sink_contract(
+        self, adapter: AudioPlaybackProtocol
+    ) -> dict[str, Any]:
         """
-        Test AudioSink adapter contract compliance.
+        Test AudioPlaybackProtocol adapter contract compliance.
 
         Args:
-            adapter: AudioSink adapter to test
+            adapter: AudioPlaybackProtocol adapter to test
 
         Returns:
             Test results dictionary
         """
         results: dict[str, Any] = {
-            "adapter_type": "AudioSink",
+            "adapter_type": "AudioPlaybackProtocol",
             "tests_passed": 0,
             "tests_failed": 0,
             "test_details": [],
@@ -162,19 +166,19 @@ class SurfaceAdapterContractTester:
         return results
 
     async def test_control_channel_contract(
-        self, adapter: ControlChannel
+        self, adapter: SurfaceControlProtocol
     ) -> dict[str, Any]:
         """
-        Test ControlChannel adapter contract compliance.
+        Test SurfaceControlProtocol adapter contract compliance.
 
         Args:
-            adapter: ControlChannel adapter to test
+            adapter: SurfaceControlProtocol adapter to test
 
         Returns:
             Test results dictionary
         """
         results: dict[str, Any] = {
-            "adapter_type": "ControlChannel",
+            "adapter_type": "SurfaceControlProtocol",
             "tests_passed": 0,
             "tests_failed": 0,
             "test_details": [],
@@ -236,19 +240,19 @@ class SurfaceAdapterContractTester:
         return results
 
     async def test_surface_lifecycle_contract(
-        self, adapter: SurfaceLifecycle
+        self, adapter: SurfaceTelemetryProtocol
     ) -> dict[str, Any]:
         """
-        Test SurfaceLifecycle adapter contract compliance.
+        Test SurfaceTelemetryProtocol adapter contract compliance.
 
         Args:
-            adapter: SurfaceLifecycle adapter to test
+            adapter: SurfaceTelemetryProtocol adapter to test
 
         Returns:
             Test results dictionary
         """
         results: dict[str, Any] = {
-            "adapter_type": "SurfaceLifecycle",
+            "adapter_type": "SurfaceTelemetryProtocol",
             "tests_passed": 0,
             "tests_failed": 0,
             "test_details": [],
@@ -370,7 +374,9 @@ class SurfaceAdapterContractTester:
                 "details": f"Disconnection failed: {e}",
             }
 
-    async def _test_audio_frame_reading(self, adapter: AudioSource) -> dict[str, Any]:
+    async def _test_audio_frame_reading(
+        self, adapter: AudioCaptureProtocol
+    ) -> dict[str, Any]:
         """Test audio frame reading."""
         try:
             if hasattr(adapter, "read_audio_frame"):
@@ -393,7 +399,9 @@ class SurfaceAdapterContractTester:
                 "details": f"Audio frame reading failed: {e}",
             }
 
-    async def _test_audio_playback(self, adapter: AudioSink) -> dict[str, Any]:
+    async def _test_audio_playback(
+        self, adapter: AudioPlaybackProtocol
+    ) -> dict[str, Any]:
         """Test audio playback."""
         try:
             if hasattr(adapter, "play_audio_chunk"):
@@ -425,7 +433,9 @@ class SurfaceAdapterContractTester:
                 "details": f"Audio playback failed: {e}",
             }
 
-    async def _test_event_sending(self, adapter: ControlChannel) -> dict[str, Any]:
+    async def _test_event_sending(
+        self, adapter: SurfaceControlProtocol
+    ) -> dict[str, Any]:
         """Test event sending."""
         try:
             if hasattr(adapter, "send_event"):
@@ -454,7 +464,9 @@ class SurfaceAdapterContractTester:
                 "details": f"Event sending failed: {e}",
             }
 
-    async def _test_event_receiving(self, adapter: ControlChannel) -> dict[str, Any]:
+    async def _test_event_receiving(
+        self, adapter: SurfaceControlProtocol
+    ) -> dict[str, Any]:
         """Test event receiving."""
         try:
             if hasattr(adapter, "receive_event"):
@@ -486,12 +498,12 @@ class SurfaceAdapterContractTester:
             }
 
     async def _test_lifecycle_management(
-        self, adapter: SurfaceLifecycle
+        self, adapter: SurfaceTelemetryProtocol
     ) -> dict[str, Any]:
         """Test lifecycle management."""
         try:
             if hasattr(adapter, "is_connected"):
-                is_connected = adapter.is_connected()
+                is_connected = adapter.is_connected
                 return {
                     "test_name": "lifecycle_management",
                     "passed": True,
@@ -554,13 +566,13 @@ class SurfaceAdapterContractTester:
         for adapter_name, adapter in adapters.items():
             try:
                 # Determine adapter type and run appropriate tests
-                if isinstance(adapter, AudioSource):
+                if isinstance(adapter, AudioCaptureProtocol):
                     adapter_results = await self.test_audio_source_contract(adapter)
-                elif isinstance(adapter, AudioSink):
+                elif isinstance(adapter, AudioPlaybackProtocol):
                     adapter_results = await self.test_audio_sink_contract(adapter)
-                elif isinstance(adapter, ControlChannel):
+                elif isinstance(adapter, SurfaceControlProtocol):
                     adapter_results = await self.test_control_channel_contract(adapter)
-                elif isinstance(adapter, SurfaceLifecycle):
+                elif isinstance(adapter, SurfaceTelemetryProtocol):
                     adapter_results = await self.test_surface_lifecycle_contract(
                         adapter
                     )

@@ -13,11 +13,11 @@ from datetime import datetime
 from typing import Any
 
 from services.common.surfaces.events import WakeDetectedEvent
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.types import PCMFrame
 
@@ -71,15 +71,15 @@ class SurfaceAdapterPerformanceTester:
 
     async def test_audio_source_performance(
         self,
-        adapter: AudioSource,
+        adapter: AudioCaptureProtocol,
         duration_seconds: float = 10.0,
         target_latency_ms: float = 50.0,
     ) -> PerformanceMetrics:
         """
-        Test AudioSource adapter performance.
+        Test AudioCaptureProtocol adapter performance.
 
         Args:
-            adapter: AudioSource adapter to test
+            adapter: AudioCaptureProtocol adapter to test
             duration_seconds: Test duration in seconds
             target_latency_ms: Target latency in milliseconds
 
@@ -87,7 +87,8 @@ class SurfaceAdapterPerformanceTester:
             Performance metrics
         """
         logger.info(
-            "Starting AudioSource performance test for %s seconds", duration_seconds
+            "Starting AudioCaptureProtocol performance test for %s seconds",
+            duration_seconds,
         )
 
         # Start capture for audio source
@@ -149,7 +150,7 @@ class SurfaceAdapterPerformanceTester:
         )
 
         logger.info(
-            "AudioSource performance test completed: %.2f ops/sec, %.2fms avg latency",
+            "AudioCaptureProtocol performance test completed: %.2f ops/sec, %.2fms avg latency",
             metrics.operations_per_second,
             metrics.avg_latency_ms,
         )
@@ -158,15 +159,15 @@ class SurfaceAdapterPerformanceTester:
 
     async def test_audio_sink_performance(
         self,
-        adapter: AudioSink,
+        adapter: AudioPlaybackProtocol,
         duration_seconds: float = 10.0,
         target_latency_ms: float = 50.0,
     ) -> PerformanceMetrics:
         """
-        Test AudioSink adapter performance.
+        Test AudioPlaybackProtocol adapter performance.
 
         Args:
-            adapter: AudioSink adapter to test
+            adapter: AudioPlaybackProtocol adapter to test
             duration_seconds: Test duration in seconds
             target_latency_ms: Target latency in milliseconds
 
@@ -174,7 +175,8 @@ class SurfaceAdapterPerformanceTester:
             Performance metrics
         """
         logger.info(
-            "Starting AudioSink performance test for %s seconds", duration_seconds
+            "Starting AudioPlaybackProtocol performance test for %s seconds",
+            duration_seconds,
         )
 
         # Start capture for audio source
@@ -246,7 +248,7 @@ class SurfaceAdapterPerformanceTester:
         )
 
         logger.info(
-            "AudioSink performance test completed: %.2f ops/sec, %.2fms avg latency",
+            "AudioPlaybackProtocol performance test completed: %.2f ops/sec, %.2fms avg latency",
             metrics.operations_per_second,
             metrics.avg_latency_ms,
         )
@@ -255,15 +257,15 @@ class SurfaceAdapterPerformanceTester:
 
     async def test_control_channel_performance(
         self,
-        adapter: ControlChannel,
+        adapter: SurfaceControlProtocol,
         duration_seconds: float = 10.0,
         target_latency_ms: float = 10.0,
     ) -> PerformanceMetrics:
         """
-        Test ControlChannel adapter performance.
+        Test SurfaceControlProtocol adapter performance.
 
         Args:
-            adapter: ControlChannel adapter to test
+            adapter: SurfaceControlProtocol adapter to test
             duration_seconds: Test duration in seconds
             target_latency_ms: Target latency in milliseconds
 
@@ -271,7 +273,8 @@ class SurfaceAdapterPerformanceTester:
             Performance metrics
         """
         logger.info(
-            "Starting ControlChannel performance test for %s seconds", duration_seconds
+            "Starting SurfaceControlProtocol performance test for %s seconds",
+            duration_seconds,
         )
 
         # Start capture for audio source
@@ -338,7 +341,7 @@ class SurfaceAdapterPerformanceTester:
         )
 
         logger.info(
-            "ControlChannel performance test completed: %.2f ops/sec, %.2fms avg latency",
+            "SurfaceControlProtocol performance test completed: %.2f ops/sec, %.2fms avg latency",
             metrics.operations_per_second,
             metrics.avg_latency_ms,
         )
@@ -347,15 +350,15 @@ class SurfaceAdapterPerformanceTester:
 
     async def test_surface_lifecycle_performance(
         self,
-        adapter: SurfaceLifecycle,
+        adapter: SurfaceTelemetryProtocol,
         duration_seconds: float = 10.0,
         target_latency_ms: float = 100.0,
     ) -> PerformanceMetrics:
         """
-        Test SurfaceLifecycle adapter performance.
+        Test SurfaceTelemetryProtocol adapter performance.
 
         Args:
-            adapter: SurfaceLifecycle adapter to test
+            adapter: SurfaceTelemetryProtocol adapter to test
             duration_seconds: Test duration in seconds
             target_latency_ms: Target latency in milliseconds
 
@@ -363,7 +366,7 @@ class SurfaceAdapterPerformanceTester:
             Performance metrics
         """
         logger.info(
-            "Starting SurfaceLifecycle performance test for %s seconds",
+            "Starting SurfaceTelemetryProtocol performance test for %s seconds",
             duration_seconds,
         )
 
@@ -385,7 +388,7 @@ class SurfaceAdapterPerformanceTester:
                 try:
                     # Measure latency of connection status check
                     operation_start = time.time()
-                    adapter.is_connected()
+                    _ = adapter.is_connected
                     operation_end = time.time()
 
                     latency_ms = (operation_end - operation_start) * 1000
@@ -426,7 +429,7 @@ class SurfaceAdapterPerformanceTester:
         )
 
         logger.info(
-            "SurfaceLifecycle performance test completed: %.2f ops/sec, %.2fms avg latency",
+            "SurfaceTelemetryProtocol performance test completed: %.2f ops/sec, %.2fms avg latency",
             metrics.operations_per_second,
             metrics.avg_latency_ms,
         )
@@ -456,19 +459,19 @@ class SurfaceAdapterPerformanceTester:
         for adapter_name, adapter in adapters.items():
             try:
                 # Determine adapter type and run appropriate tests
-                if isinstance(adapter, AudioSource):
+                if isinstance(adapter, AudioCaptureProtocol):
                     metrics = await self.test_audio_source_performance(
                         adapter, duration_seconds
                     )
-                elif isinstance(adapter, AudioSink):
+                elif isinstance(adapter, AudioPlaybackProtocol):
                     metrics = await self.test_audio_sink_performance(
                         adapter, duration_seconds
                     )
-                elif isinstance(adapter, ControlChannel):
+                elif isinstance(adapter, SurfaceControlProtocol):
                     metrics = await self.test_control_channel_performance(
                         adapter, duration_seconds
                     )
-                elif isinstance(adapter, SurfaceLifecycle):
+                elif isinstance(adapter, SurfaceTelemetryProtocol):
                     metrics = await self.test_surface_lifecycle_performance(
                         adapter, duration_seconds
                     )

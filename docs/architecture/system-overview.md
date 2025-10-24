@@ -58,9 +58,9 @@ flowchart LR
 | --- | --- | --- |
 | `services/discord` | Discord voice adapter implementation, captures voice, detects wake phrases, forwards audio to STT, plays TTS output, exposes MCP tools. | `discord.py`, `faster-whisper`, MCP SDKs. |
 | `services/stt` | Hosts the speech-to-text API backed by faster-whisper for streaming transcription. | FastAPI, `faster-whisper`. |
-| `services/orchestrator` | Coordinates audio pipeline, agent management, transcript processing, MCP tool calls, and response planning. Routes reasoning requests to LLM service. | FastAPI, MCP SDKs, Agent Framework. |
-| `services/llm` | Provides OpenAI-compatible completions and reasoning capabilities for the orchestrator. | FastAPI, llama.cpp executor. |
-| `services/tts` | Streams Piper-generated audio for orchestrator responses with authentication and rate limits. | FastAPI, Piper. |
+| `services/orchestrator_enhanced` | Coordinates audio pipeline, agent management, transcript processing, LangChain tool calls, and response planning. Routes reasoning requests to LLM service. | FastAPI, LangChain SDKs, Agent Framework. |
+| `services/llm_flan` | Provides OpenAI-compatible completions and reasoning capabilities for the orchestrator. | FastAPI, FLAN-T5 executor. |
+| `services/tts_bark` | Streams Bark-generated audio for orchestrator responses with authentication and rate limits. | FastAPI, Bark. |
 
 ## Adapter Framework
 

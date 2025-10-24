@@ -113,15 +113,15 @@ class OrchestratorConfig:
 
     def __init__(
         self,
-        llm_url: str = "http://llm:8000",
-        tts_url: str = "http://tts:8000",
+        llm_url: str = "http://llm-flan:8100",
+        tts_url: str = "http://tts-bark:7100",
         llm_auth_token: str = "",
         tts_auth_token: str = "",
         llm_max_tokens: int = 1000,
         llm_temperature: float = 0.7,
         llm_top_p: float = 0.9,
         llm_repeat_penalty: float = 1.1,
-        base_url: str = "http://orchestrator:8000",
+        base_url: str = "http://orchestrator-enhanced:8200",
         **kwargs: Any,
     ) -> None:
         """Initialize Orchestrator configuration."""
@@ -200,6 +200,23 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "audio_service_url": "http://audio-processor:9100",
                 "audio_service_timeout": 50.0,
                 "enable_enhancement": True,
+            },
+        },
+        "llm": {
+            "logging": {"level": "INFO", "json_logs": True, "service_name": "llm"},
+            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
+            "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9096, "jaeger_endpoint": ""},
+            "llama": {
+                "model_path": "/app/models/llama",
+                "context_length": 2048,
+                "threads": 4,
+            },
+            "tts": {
+                "base_url": "http://tts:8000",
+                "voice": "default",
+                "auth_token": "",
+                "timeout": 30.0,
             },
         },
         "tts": {

@@ -7,16 +7,16 @@ while maintaining backward compatibility.
 """
 
 import asyncio
-import logging
 from collections.abc import Callable
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.types import AudioFormat, PCMFrame
 
@@ -214,19 +214,19 @@ class DiscordAdapterIntegration:
         """Check if adapters are connected."""
         return self._is_connected
 
-    def get_audio_source(self) -> AudioSource | None:
+    def get_audio_source(self) -> AudioCaptureProtocol | None:
         """Get audio source adapter."""
         return self._audio_source
 
-    def get_audio_sink(self) -> AudioSink | None:
+    def get_audio_sink(self) -> AudioPlaybackProtocol | None:
         """Get audio sink adapter."""
         return self._audio_sink
 
-    def get_control_channel(self) -> ControlChannel | None:
+    def get_control_channel(self) -> SurfaceControlProtocol | None:
         """Get control channel adapter."""
         return self._control_channel
 
-    def get_surface_lifecycle(self) -> SurfaceLifecycle | None:
+    def get_surface_lifecycle(self) -> SurfaceTelemetryProtocol | None:
         """Get surface lifecycle adapter."""
         return self._surface_lifecycle
 

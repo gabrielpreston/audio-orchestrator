@@ -12,7 +12,7 @@ SHELL := /bin/bash
 # Base Image Management
 .PHONY: base-images base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain
 # Testing (Docker-based)
-.PHONY: test test-unit test-component test-integration test-e2e test-coverage test-watch test-debug test-specific test-image
+.PHONY: test test-unit test-component test-integration test-e2e test-interface test-contract test-hot-swap test-all-contracts test-coverage test-watch test-debug test-specific test-image test-fast
 
 # Linting (Docker-based)
 .PHONY: lint lint-image lint-fix
@@ -341,7 +341,9 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 # TESTING
 # =============================================================================
 
-test: test-unit test-component ## Run unit and component tests
+test: test-unit test-component ## Run unit and component tests (fast, reliable)
+
+test-all: test-unit test-component test-integration test-e2e ## Run all tests including integration and E2E
 
 test-fast: test-unit ## Run only unit tests (fastest validation option)
 
@@ -403,6 +405,23 @@ test-e2e: test-image ## Run end-to-end tests (manual trigger only)
 		printf "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)\n"; \
 		exit 0; \
 	fi
+
+# Interface-first testing targets
+test-interface: test-image ## Run interface compliance tests
+	@printf "$(COLOR_CYAN)→ Running interface compliance tests$(COLOR_OFF)\n"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m interface $(PYTEST_ARGS))
+
+test-contract: test-image ## Run contract validation tests
+	@printf "$(COLOR_CYAN)→ Running contract validation tests$(COLOR_OFF)\n"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m contract $(PYTEST_ARGS))
+
+test-hot-swap: test-image ## Run hot-swap validation tests
+	@printf "$(COLOR_CYAN)→ Running hot-swap validation tests$(COLOR_OFF)\n"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m hot_swap $(PYTEST_ARGS))
+
+test-all-contracts: test-image ## Run all contract and interface tests
+	@printf "$(COLOR_CYAN)→ Running all contract and interface tests$(COLOR_OFF)\n"
+	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m "interface or contract" $(PYTEST_ARGS))
 
 # Test utilities
 test-coverage: test-image ## Generate coverage report

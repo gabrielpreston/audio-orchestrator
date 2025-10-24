@@ -1,12 +1,11 @@
 """
 Speech-to-Text (STT) adapter interface.
 
-This module defines the interface for STT adapters, allowing different
+This module defines protocol-based interfaces for STT adapters, allowing different
 STT services to be used interchangeably in the voice pipeline.
 """
 
 import logging
-from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
@@ -102,8 +101,12 @@ class STTResult:
         }
 
 
-class STTAdapter(ABC):
-    """Abstract base class for STT adapters."""
+class DefaultSTTAdapter:
+    """Default implementation of STT adapter protocols.
+
+    This provides a concrete implementation that can be used as a base
+    for STT adapter implementations or as a standalone adapter.
+    """
 
     def __init__(self, config: STTConfig):
         """
@@ -116,29 +119,43 @@ class STTAdapter(ABC):
         self._is_initialized = False
         self._is_connected = False
 
-    @abstractmethod
     async def initialize(self) -> bool:
         """
         Initialize the STT adapter.
 
+        Default implementation sets initialized flag.
+        Override this method in subclasses for specific behavior.
+
         Returns:
             True if initialization successful, False otherwise
         """
+        self._is_initialized = True
+        logger.info("STT adapter initialized", extra={"model": self.config.model_name})
+        return True
 
-    @abstractmethod
     async def connect(self) -> bool:
         """
         Connect to STT service.
 
+        Default implementation sets connected flag.
+        Override this method in subclasses for specific behavior.
+
         Returns:
             True if connection successful, False otherwise
         """
+        self._is_connected = True
+        logger.info("STT adapter connected", extra={"model": self.config.model_name})
+        return True
 
-    @abstractmethod
     async def disconnect(self) -> None:
-        """Disconnect from STT service."""
+        """Disconnect from STT service.
 
-    @abstractmethod
+        Default implementation clears connected flag.
+        Override this method in subclasses for specific behavior.
+        """
+        self._is_connected = False
+        logger.info("STT adapter disconnected", extra={"model": self.config.model_name})
+
     async def transcribe(
         self,
         audio_data: bytes,
@@ -148,6 +165,9 @@ class STTAdapter(ABC):
         """
         Transcribe audio data to text.
 
+        Default implementation returns empty result.
+        Override this method in subclasses for specific behavior.
+
         Args:
             audio_data: Raw audio data
             audio_format: Audio format information
@@ -156,8 +176,20 @@ class STTAdapter(ABC):
         Returns:
             STT result containing transcript and metadata
         """
+        from datetime import datetime
 
-    @abstractmethod
+        return STTResult(
+            text="",
+            confidence=0.0,
+            language=self.config.language,
+            start_time=0.0,
+            end_time=0.0,
+            duration=0.0,
+            model_name=self.config.model_name,
+            processing_time=0.0,
+            timestamp=datetime.now(),
+        )
+
     def transcribe_stream(
         self,
         audio_stream: AsyncGenerator[bytes, None],
@@ -166,6 +198,9 @@ class STTAdapter(ABC):
     ) -> AsyncGenerator[STTResult, None]:
         """
         Transcribe streaming audio data.
+
+        Default implementation yields empty results.
+        Override this method in subclasses for specific behavior.
 
         Args:
             audio_stream: Async generator of audio data chunks
@@ -176,40 +211,77 @@ class STTAdapter(ABC):
             STT results as they become available
         """
 
-    @abstractmethod
+        # Default implementation - override in subclasses
+        async def empty_stream() -> AsyncGenerator[STTResult, None]:
+            yield await self.transcribe(b"", audio_format, metadata)
+
+        return empty_stream()
+
     async def get_supported_languages(self) -> list[str]:
         """
         Get list of supported languages.
 
+        Default implementation returns configured language.
+        Override this method in subclasses for specific behavior.
+
         Returns:
             List of supported language codes
         """
+        return [self.config.language]
 
-    @abstractmethod
     async def get_model_info(self) -> dict[str, Any]:
         """
         Get information about the current model.
 
+        Default implementation returns basic model info.
+        Override this method in subclasses for specific behavior.
+
         Returns:
             Dictionary containing model information
         """
+        return {
+            "model_name": self.config.model_name,
+            "model_size": self.config.model_size,
+            "language": self.config.language,
+        }
 
-    @abstractmethod
     async def get_telemetry(self) -> dict[str, Any]:
         """
         Get telemetry and performance metrics.
 
+        Default implementation returns basic telemetry.
+        Override this method in subclasses for specific behavior.
+
         Returns:
             Dictionary containing telemetry data
         """
+        return {
+            "is_initialized": self._is_initialized,
+            "is_connected": self._is_connected,
+            "model_name": self.config.model_name,
+        }
 
+    @property
     def is_initialized(self) -> bool:
         """Check if adapter is initialized."""
         return self._is_initialized
 
+    @property
     def is_connected(self) -> bool:
         """Check if adapter is connected."""
         return self._is_connected
+
+    def get_config(self, key: str, default: Any = None) -> Any:
+        """Get a configuration value for this adapter."""
+        return getattr(self.config, key, default)
+
+    def set_config(self, key: str, value: Any) -> None:
+        """Set a configuration value for this adapter."""
+        setattr(self.config, key, value)
+
+    def validate_config(self) -> bool:
+        """Validate adapter configuration."""
+        return bool(self.config.model_name and self.config.language)
 
     async def cleanup(self) -> None:
         """Clean up resources."""

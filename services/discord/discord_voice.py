@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import random
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
-import random
 from typing import Any
 
 import discord
@@ -24,7 +24,6 @@ from .orchestrator_client import OrchestratorClient
 from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
-
 
 try:
     from discord.ext import voice_recv as _voice_recv
@@ -94,7 +93,7 @@ class VoiceBot(discord.Client):
         self._health_manager = HealthManager("discord")
         self._required_services = {
             "stt": self.config.stt.base_url,
-            "orchestrator": "http://orchestrator:8000",  # Default orchestrator URL
+            "orchestrator": "http://orchestrator-enhanced:8200",  # Default orchestrator URL
         }
 
         # Initialize orchestrator client

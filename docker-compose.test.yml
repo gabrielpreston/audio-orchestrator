@@ -49,10 +49,10 @@ services:
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
-  tts:
+  tts-bark:
     extends:
       file: docker-compose.yml
-      service: tts
+      service: tts-bark
     networks:
       - test-network
     environment:
@@ -64,7 +64,7 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:7000/health/ready",
+          "http://localhost:7100/health/ready",
           "--timeout",
           "3",
         ]
@@ -75,10 +75,10 @@ services:
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
-  llm:
+  llm-flan:
     extends:
       file: docker-compose.yml
-      service: llm
+      service: llm-flan
     networks:
       - test-network
     environment:
@@ -90,7 +90,7 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:8000/health/ready",
+          "http://localhost:8100/health/ready",
           "--timeout",
           "3",
         ]
@@ -99,10 +99,10 @@ services:
       retries: 5
       start_period: 10s
 
-  orchestrator:
-    build:
-      context: "."
-      dockerfile: "services/orchestrator/Dockerfile"
+  orchestrator-enhanced:
+    extends:
+      file: docker-compose.yml
+      service: orchestrator-enhanced
     networks:
       - test-network
     environment:
@@ -115,7 +115,7 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:8000/health/ready",
+          "http://localhost:8200/health/ready",
           "--timeout",
           "3",
         ]
@@ -124,9 +124,9 @@ services:
       retries: 5
       start_period: 10s
     depends_on:
-      llm:
+      llm-flan:
         condition: service_healthy
-      tts:
+      tts-bark:
         condition: service_healthy
 
   # Discord service for E2E tests (optional, requires token)
@@ -144,7 +144,7 @@ services:
       - DISCORD_GUILD_ID=123456789
       - DISCORD_VOICE_CHANNEL_ID=987654321
       - STT_BASE_URL=http://stt:9000
-      - ORCHESTRATOR_BASE_URL=http://orchestrator:8000
+      - ORCHESTRATOR_BASE_URL=http://orchestrator-enhanced:8200
       - LOG_LEVEL=INFO
     healthcheck:
       test:
@@ -163,5 +163,5 @@ services:
     depends_on:
       stt:
         condition: service_healthy
-      orchestrator:
+      orchestrator-enhanced:
         condition: service_healthy

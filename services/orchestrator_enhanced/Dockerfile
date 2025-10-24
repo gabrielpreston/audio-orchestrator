@@ -27,7 +27,6 @@ COPY scripts/health_check.py /app/scripts/health_check.py
 
 ENV PORT=8200
 ENV LLM_PRIMARY_URL=http://llm-flan:8100
-ENV LLM_FALLBACK_URL=http://llm:8000
 ENV GUARDRAILS_URL=http://guardrails:9300
 
 CMD ["uvicorn", "services.orchestrator_enhanced.app:app", "--host", "0.0.0.0", "--port", "8200"]

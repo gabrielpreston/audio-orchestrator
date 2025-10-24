@@ -131,6 +131,23 @@ class ControlEvent:
     correlation_id: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __getitem__(self, key: str) -> Any:
+        """Allow indexing for backward compatibility."""
+        if key == "event_type":
+            return self.event_type
+        elif key == "timestamp":
+            return self.timestamp
+        elif key == "correlation_id":
+            return self.correlation_id
+        elif key == "metadata":
+            return self.metadata
+        else:
+            raise KeyError(f"Unknown key: {key}")
+
+    def __contains__(self, key: str) -> bool:
+        """Check if key exists for backward compatibility."""
+        return key in ["event_type", "timestamp", "correlation_id", "metadata"]
+
     def to_dict(self) -> dict[str, Any]:
         """Convert event to dictionary for serialization."""
         return {

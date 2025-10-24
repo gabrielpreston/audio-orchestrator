@@ -10,7 +10,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from services.common.surfaces.interfaces import AudioSink, AudioSource
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+)
 from services.common.surfaces.tests.contract_test_suite import (
     SurfaceAdapterContractTester,
 )
@@ -27,13 +30,13 @@ class TestSurfaceAdapterContractTester:
 
     @pytest.fixture
     def mock_audio_source(self):
-        """Create mock AudioSource adapter."""
+        """Create mock AudioCaptureProtocol adapter."""
         adapter = AsyncMock()
         adapter.initialize.return_value = True
         adapter.connect.return_value = True
         adapter.disconnect.return_value = None
         # Make isinstance() checks work
-        adapter.__class__ = AudioSource  # type: ignore[assignment]
+        adapter.__class__ = AudioCaptureProtocol  # type: ignore[assignment]
         adapter.read_audio_frame.return_value = [
             PCMFrame(
                 pcm=b"\x00" * 1024,
@@ -49,13 +52,13 @@ class TestSurfaceAdapterContractTester:
 
     @pytest.fixture
     def mock_audio_sink(self):
-        """Create mock AudioSink adapter."""
+        """Create mock AudioPlaybackProtocol adapter."""
         adapter = AsyncMock()
         adapter.initialize.return_value = True
         adapter.connect.return_value = True
         adapter.disconnect.return_value = None
         # Make isinstance() checks work
-        adapter.__class__ = AudioSink  # type: ignore[assignment]
+        adapter.__class__ = AudioPlaybackProtocol  # type: ignore[assignment]
         adapter.play_audio_chunk.return_value = None
         adapter.get_telemetry.return_value = {"status": "healthy"}
         return adapter
@@ -88,10 +91,10 @@ class TestSurfaceAdapterContractTester:
     async def test_audio_source_contract_success(
         self, contract_tester, mock_audio_source
     ):
-        """Test successful AudioSource contract validation."""
+        """Test successful AudioCaptureProtocol contract validation."""
         results = await contract_tester.test_audio_source_contract(mock_audio_source)
 
-        assert results["adapter_type"] == "AudioSource"
+        assert results["adapter_type"] == "AudioCaptureProtocol"
         assert results["tests_passed"] > 0
         assert results["tests_failed"] == 0
         assert len(results["test_details"]) > 0
@@ -103,10 +106,10 @@ class TestSurfaceAdapterContractTester:
     @pytest.mark.asyncio
     @pytest.mark.component
     async def test_audio_sink_contract_success(self, contract_tester, mock_audio_sink):
-        """Test successful AudioSink contract validation."""
+        """Test successful AudioPlaybackProtocol contract validation."""
         results = await contract_tester.test_audio_sink_contract(mock_audio_sink)
 
-        assert results["adapter_type"] == "AudioSink"
+        assert results["adapter_type"] == "AudioPlaybackProtocol"
         assert results["tests_passed"] > 0
         assert results["tests_failed"] == 0
         assert len(results["test_details"]) > 0
@@ -125,7 +128,7 @@ class TestSurfaceAdapterContractTester:
             mock_control_channel
         )
 
-        assert results["adapter_type"] == "ControlChannel"
+        assert results["adapter_type"] == "SurfaceControlProtocol"
         assert results["tests_passed"] > 0
         assert results["tests_failed"] == 0
         assert len(results["test_details"]) > 0
@@ -144,7 +147,7 @@ class TestSurfaceAdapterContractTester:
             mock_surface_lifecycle
         )
 
-        assert results["adapter_type"] == "SurfaceLifecycle"
+        assert results["adapter_type"] == "SurfaceTelemetryProtocol"
         assert results["tests_passed"] > 0
         assert results["tests_failed"] == 0
         assert len(results["test_details"]) > 0
@@ -156,7 +159,7 @@ class TestSurfaceAdapterContractTester:
     @pytest.mark.asyncio
     @pytest.mark.component
     async def test_audio_source_contract_failure(self, contract_tester):
-        """Test AudioSource contract validation with failing adapter."""
+        """Test AudioCaptureProtocol contract validation with failing adapter."""
         # Create adapter that fails initialization
         failing_adapter = AsyncMock()
         failing_adapter.initialize.return_value = False
@@ -167,7 +170,7 @@ class TestSurfaceAdapterContractTester:
 
         results = await contract_tester.test_audio_source_contract(failing_adapter)
 
-        assert results["adapter_type"] == "AudioSource"
+        assert results["adapter_type"] == "AudioCaptureProtocol"
         assert results["tests_failed"] > 0
         assert len(results["test_details"]) > 0
 
@@ -199,7 +202,7 @@ class TestSurfaceAdapterContractTester:
         """Test comprehensive test suite with mixed results."""
         # Create one successful adapter
         successful_adapter = AsyncMock()
-        successful_adapter.__class__ = AudioSource  # type: ignore[assignment]
+        successful_adapter.__class__ = AudioCaptureProtocol  # type: ignore[assignment]
         successful_adapter.initialize.return_value = True
         successful_adapter.connect.return_value = True
         successful_adapter.disconnect.return_value = None
@@ -208,7 +211,7 @@ class TestSurfaceAdapterContractTester:
 
         # Create one failing adapter
         failing_adapter = AsyncMock()
-        failing_adapter.__class__ = AudioSink  # type: ignore[assignment]
+        failing_adapter.__class__ = AudioPlaybackProtocol  # type: ignore[assignment]
         failing_adapter.initialize.return_value = False
         failing_adapter.connect.return_value = False
         failing_adapter.disconnect.return_value = None
@@ -230,7 +233,12 @@ class TestSurfaceAdapterContractTester:
     @pytest.mark.component
     async def test_unknown_adapter_type(self, contract_tester):
         """Test handling of unknown adapter types."""
-        unknown_adapter = MagicMock()  # Not implementing any interface
+
+        # Create a mock that explicitly doesn't implement any protocol
+        class UnknownAdapter:
+            pass
+
+        unknown_adapter = UnknownAdapter()
 
         adapters = {"unknown": unknown_adapter}
 

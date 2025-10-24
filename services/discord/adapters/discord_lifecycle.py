@@ -7,22 +7,23 @@ for Discord voice channels.
 """
 
 import asyncio
-import logging
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
+import logging
 from typing import Any
 
 from services.common.surfaces.config import SurfaceConfig, SurfaceStatus, SurfaceType
 from services.common.surfaces.events import ConnectionEvent, ErrorEvent
-from services.common.surfaces.interfaces import SurfaceLifecycle
+from services.common.surfaces.protocols import SurfaceTelemetryProtocol
+from services.common.surfaces.types import TelemetryMetrics
 
 
 logger = logging.getLogger(__name__)
 
 
-class DiscordSurfaceLifecycle(SurfaceLifecycle):
+class DiscordSurfaceLifecycle(SurfaceTelemetryProtocol):
     """
-    Discord implementation of SurfaceLifecycle interface.
+    Discord implementation of SurfaceTelemetryProtocol.
 
     Manages Discord voice connection lifecycle including:
     - Voice channel connection/disconnection
@@ -184,6 +185,7 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
         # Attempt reconnection
         return await self.connect()
 
+    @property
     def is_connected(self) -> bool:
         """Check if currently connected to Discord voice channel."""
         return self._is_connected
@@ -212,6 +214,19 @@ class DiscordSurfaceLifecycle(SurfaceLifecycle):
             "reconnect_attempts": self._reconnect_attempts,
             "status": self._surface_config.status.value,
         }
+
+    async def get_metrics(self) -> TelemetryMetrics:
+        """Get telemetry metrics."""
+        return TelemetryMetrics(
+            rtt_ms=50.0,  # Simulated RTT
+            packet_loss_percent=0.1,  # Simulated packet loss
+            jitter_ms=5.0,  # Simulated jitter
+            battery_temp=None,
+            e2e_latency_ms=100.0,
+            barge_in_delay_ms=200.0,
+            stt_partial_time_ms=300.0,
+            tts_first_byte_ms=150.0,
+        )
 
     def get_surface_config(self) -> SurfaceConfig:
         """Get surface configuration."""

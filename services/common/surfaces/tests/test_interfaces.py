@@ -13,11 +13,11 @@ from services.common.surfaces.events import (
     VADStartSpeechEvent,
     WakeDetectedEvent,
 )
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.types import (
     AudioFormat,
@@ -292,24 +292,24 @@ class TestProtocolCompliance:
     """Test that protocols are properly defined."""
 
     @pytest.mark.unit
-    def test_audio_source_protocol(self):
-        """Test AudioSource protocol has required methods."""
+    def test_audio_capture_protocol(self):
+        """Test AudioCaptureProtocol has required methods."""
         # This is a structural test - we can't easily test protocols
         # without concrete implementations, but we can verify the
         # protocol is properly defined by checking it exists
-        assert hasattr(AudioSource, "__abstractmethods__")
+        assert hasattr(AudioCaptureProtocol, "__annotations__")
 
     @pytest.mark.unit
-    def test_audio_sink_protocol(self):
-        """Test AudioSink protocol has required methods."""
-        assert hasattr(AudioSink, "__abstractmethods__")
+    def test_audio_playback_protocol(self):
+        """Test AudioPlaybackProtocol has required methods."""
+        assert hasattr(AudioPlaybackProtocol, "__annotations__")
 
     @pytest.mark.unit
-    def test_control_channel_protocol(self):
-        """Test ControlChannel protocol has required methods."""
-        assert hasattr(ControlChannel, "__abstractmethods__")
+    def test_surface_control_protocol(self):
+        """Test SurfaceControlProtocol has required methods."""
+        assert hasattr(SurfaceControlProtocol, "__annotations__")
 
     @pytest.mark.unit
-    def test_surface_lifecycle_protocol(self):
-        """Test SurfaceLifecycle protocol has required methods."""
-        assert hasattr(SurfaceLifecycle, "__abstractmethods__")
+    def test_surface_telemetry_protocol(self):
+        """Test SurfaceTelemetryProtocol has required methods."""
+        assert hasattr(SurfaceTelemetryProtocol, "__annotations__")

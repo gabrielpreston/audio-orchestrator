@@ -13,7 +13,6 @@ import io
 import time
 from typing import Any
 
-import httpx
 import numpy as np
 
 # Import Bark with error handling
@@ -121,48 +120,6 @@ class BarkSynthesizer:
 
         except Exception as exc:
             self._logger.error("bark.synthesis_failed", error=str(exc))
-            raise
-
-    async def synthesize_with_piper(
-        self, text: str, voice: str = "default"
-    ) -> tuple[bytes, str]:
-        """Synthesize text using Piper fallback.
-
-        Args:
-            text: Text to synthesize
-            voice: Voice preset to use
-
-        Returns:
-            Tuple of (audio_data, engine_name)
-        """
-        try:
-            start_time = time.time()
-
-            # Call Piper service
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "http://tts:7000/synthesize",
-                    json={"text": text, "voice": voice},
-                    timeout=30.0,
-                )
-                response.raise_for_status()
-                audio_bytes = response.content
-
-            # Update stats
-            processing_time = time.time() - start_time
-            self._update_stats(processing_time, len(text), "piper")
-
-            self._logger.debug(
-                "piper.synthesis_completed",
-                processing_time_ms=processing_time * 1000,
-                text_length=len(text),
-                voice=voice,
-            )
-
-            return audio_bytes, "piper"
-
-        except Exception as exc:
-            self._logger.error("piper.synthesis_failed", error=str(exc))
             raise
 
     async def is_healthy(self) -> bool:

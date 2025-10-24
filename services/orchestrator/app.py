@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import httpx
 from fastapi import FastAPI
+import httpx
 from pydantic import BaseModel, field_validator
 
 from services.common.config import (
@@ -16,6 +16,7 @@ from services.common.logging import configure_logging, get_logger
 
 from .mcp_manager import MCPManager
 from .orchestrator import Orchestrator
+
 
 # from services.common.metrics import MetricsCollector, init_metrics_registry
 # Configuration classes are now handled by the new config system
@@ -50,7 +51,7 @@ _MCP_MANAGER: MCPManager | None = None
 _LLM_CLIENT: httpx.AsyncClient | None = None
 _health_manager = HealthManager("orchestrator")
 
-_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm:8000"
+_LLM_BASE_URL = _cfg.llm_client.base_url or "http://llm-flan:8100"
 _LLM_AUTH_TOKEN = _cfg.llm_client.auth_token
 _TTS_BASE_URL = _cfg.tts_client.base_url
 _TTS_AUTH_TOKEN = _cfg.tts_client.auth_token

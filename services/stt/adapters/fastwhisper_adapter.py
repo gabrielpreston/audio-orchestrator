@@ -5,20 +5,24 @@ This module provides the FastWhisper implementation of the STT interface,
 enabling speech-to-text processing using the faster-whisper library.
 """
 
-import logging
-import time
 from collections.abc import AsyncGenerator
 from datetime import datetime
+import logging
+import time
 from typing import Any
 
-from services.common.surfaces.stt_interface import STTAdapter, STTConfig, STTResult
+from services.common.surfaces.stt_interface import (
+    DefaultSTTAdapter,
+    STTConfig,
+    STTResult,
+)
 from services.common.surfaces.types import AudioFormat, AudioMetadata
 
 
 logger = logging.getLogger(__name__)
 
 
-class FastWhisperAdapter(STTAdapter):
+class FastWhisperAdapter(DefaultSTTAdapter):
     """
     FastWhisper implementation of STT adapter.
 

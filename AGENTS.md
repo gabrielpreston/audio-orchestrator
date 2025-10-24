@@ -160,11 +160,11 @@ plus shared helpers:
   and plays orchestrator/TTS audio responses.
 -  `services/stt` (Python; FastAPI, faster-whisper) — Provides HTTP transcription
   with streaming-friendly latencies for the Discord bot and other clients.
--  `services/orchestrator` (Python; FastAPI, MCP) — Coordinates transcript processing,
-  MCP tool calls, and response planning. Routes reasoning requests to LLM service.
--  `services/llm` (Python; FastAPI) — Presents an OpenAI-compatible endpoint that
-  can broker MCP tool invocations and return reasoning output to the orchestrator.
--  `services/tts` (Python; FastAPI, Piper) — Streams Piper-generated audio for
+-  `services/orchestrator_enhanced` (Python; FastAPI, LangChain) — Coordinates transcript processing,
+  LangChain tool calls, and response planning. Routes reasoning requests to LLM service.
+-  `services/llm_flan` (Python; FastAPI) — Presents an OpenAI-compatible endpoint that
+  can broker LangChain tool invocations and return reasoning output to the orchestrator.
+-  `services/tts_bark` (Python; FastAPI, Bark) — Streams Bark-generated audio for
   orchestrator responses with authentication and rate limits.
 -  `services/audio-processor` (Python; FastAPI) — Unified audio processing service
 -  `services/common` (Python package) — Houses shared logging and HTTP utilities

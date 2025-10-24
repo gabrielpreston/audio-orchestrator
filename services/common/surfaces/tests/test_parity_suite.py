@@ -8,11 +8,11 @@ to ensure it correctly validates performance across different surfaces.
 import time
 from unittest.mock import AsyncMock, MagicMock
 
-from services.common.surfaces.interfaces import (
-    AudioSink,
-    AudioSource,
-    ControlChannel,
-    SurfaceLifecycle,
+from services.common.surfaces.protocols import (
+    AudioCaptureProtocol,
+    AudioPlaybackProtocol,
+    SurfaceControlProtocol,
+    SurfaceTelemetryProtocol,
 )
 from services.common.surfaces.tests.parity_test_suite import (
     CrossSurfaceParityTester,
@@ -50,10 +50,10 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock adapters
-        audio_source = AsyncMock(spec=AudioSource)
-        audio_sink = AsyncMock(spec=AudioSink)
-        control_channel = AsyncMock(spec=ControlChannel)
-        surface_lifecycle = AsyncMock(spec=SurfaceLifecycle)
+        audio_source = AsyncMock(spec=AudioCaptureProtocol)
+        audio_sink = AsyncMock(spec=AudioPlaybackProtocol)
+        control_channel = AsyncMock(spec=SurfaceControlProtocol)
+        surface_lifecycle = AsyncMock(spec=SurfaceTelemetryProtocol)
 
         adapters = {
             "audio_source": audio_source,
@@ -72,7 +72,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock audio source
-        audio_source = AsyncMock(spec=AudioSource)
+        audio_source = AsyncMock(spec=AudioCaptureProtocol)
         audio_source.initialize.return_value = None
         audio_source.connect.return_value = None
         audio_source.disconnect.return_value = None
@@ -105,7 +105,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock audio source that fails
-        audio_source = AsyncMock(spec=AudioSource)
+        audio_source = AsyncMock(spec=AudioCaptureProtocol)
         audio_source.initialize.return_value = None
         audio_source.connect.return_value = None
         audio_source.read_audio_frame.side_effect = Exception("Read failed")
@@ -127,7 +127,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock audio sink
-        audio_sink = AsyncMock(spec=AudioSink)
+        audio_sink = AsyncMock(spec=AudioPlaybackProtocol)
         audio_sink.initialize.return_value = None
         audio_sink.connect.return_value = None
         audio_sink.disconnect.return_value = None
@@ -151,7 +151,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock control channel
-        control_channel = AsyncMock(spec=ControlChannel)
+        control_channel = AsyncMock(spec=SurfaceControlProtocol)
         control_channel.initialize.return_value = None
         control_channel.connect.return_value = None
         control_channel.disconnect.return_value = None
@@ -175,7 +175,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock surface lifecycle
-        surface_lifecycle = AsyncMock(spec=SurfaceLifecycle)
+        surface_lifecycle = AsyncMock(spec=SurfaceTelemetryProtocol)
         surface_lifecycle.initialize.return_value = None
         surface_lifecycle.connect.return_value = True
         surface_lifecycle.disconnect.return_value = None
@@ -198,7 +198,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock surface lifecycle
-        surface_lifecycle = AsyncMock(spec=SurfaceLifecycle)
+        surface_lifecycle = AsyncMock(spec=SurfaceTelemetryProtocol)
         surface_lifecycle.initialize.return_value = None
         surface_lifecycle.connect.return_value = None
         surface_lifecycle.disconnect.return_value = None
@@ -223,7 +223,7 @@ class TestCrossSurfaceParityTester:
         tester = CrossSurfaceParityTester()
 
         # Create mock adapters
-        audio_source = AsyncMock(spec=AudioSource)
+        audio_source = AsyncMock(spec=AudioCaptureProtocol)
         audio_source.initialize.return_value = None
         audio_source.connect.return_value = None
         audio_source.disconnect.return_value = None
@@ -238,19 +238,19 @@ class TestCrossSurfaceParityTester:
             )
         ]
 
-        audio_sink = AsyncMock(spec=AudioSink)
+        audio_sink = AsyncMock(spec=AudioPlaybackProtocol)
         audio_sink.initialize.return_value = None
         audio_sink.connect.return_value = None
         audio_sink.disconnect.return_value = None
         audio_sink.play_audio_chunk.return_value = None
 
-        control_channel = AsyncMock(spec=ControlChannel)
+        control_channel = AsyncMock(spec=SurfaceControlProtocol)
         control_channel.initialize.return_value = None
         control_channel.connect.return_value = None
         control_channel.disconnect.return_value = None
         control_channel.send_event.return_value = None
 
-        surface_lifecycle = AsyncMock(spec=SurfaceLifecycle)
+        surface_lifecycle = AsyncMock(spec=SurfaceTelemetryProtocol)
         surface_lifecycle.initialize.return_value = None
         surface_lifecycle.connect.return_value = True
         surface_lifecycle.disconnect.return_value = None

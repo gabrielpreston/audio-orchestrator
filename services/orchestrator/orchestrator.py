@@ -13,6 +13,7 @@ from services.common.logging import get_logger
 
 from .mcp_manager import MCPManager
 
+
 logger = get_logger(__name__, service_name="orchestrator")
 
 
@@ -298,7 +299,7 @@ class Orchestrator:
         # Try primary LLM (FLAN-T5) first, then fallback to existing LLM
         import os
 
-        fallback_url = os.getenv("LLM_FALLBACK_URL", "http://llm:8000")
+        fallback_url = os.getenv("LLM_FALLBACK_URL", "http://llm-flan:8100")
         llm_urls = [
             ("primary", self.config.llm_url),  # FLAN-T5
             ("fallback", fallback_url),  # Existing LLM
