@@ -33,4 +33,4 @@ ENV PROMETHEUS_URL=http://prometheus:9090
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
     CMD python /app/scripts/health_check.py http://localhost:8502/health/ready
 
-CMD ["python", "services/monitoring_dashboard/monitoring_dashboard.py"]
+CMD ["python", "services/monitoring_dashboard/app.py"]

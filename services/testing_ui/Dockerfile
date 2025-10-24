@@ -36,4 +36,4 @@ ENV GRADIO_SERVER_PORT=8080
 HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
     CMD python /app/scripts/health_check.py http://localhost:8081/health/ready
 
-CMD ["python", "services/testing_ui/testing_ui.py"]
+CMD ["python", "services/testing_ui/app.py"]
