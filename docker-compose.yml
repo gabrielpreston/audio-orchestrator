@@ -430,3 +430,101 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
+
+  testing-ui:
+    build:
+      context: "."
+      dockerfile: "services/testing_ui/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/testing-ui:latest"
+    ports:
+      - "8080:8080" # External: 8080, Internal: 8080
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+    environment:
+      - GRADIO_SERVER_NAME=0.0.0.0
+      - GRADIO_SERVER_PORT=8080
+      - AUDIO_PREPROCESSOR_URL=http://audio-preprocessor:9200
+      - STT_URL=http://stt:9000
+      - ORCHESTRATOR_URL=http://orchestrator-enhanced:8200
+      - TTS_BARK_URL=http://tts-bark:7100
+    depends_on:
+      audio-preprocessor:
+        condition: service_healthy
+      stt:
+        condition: service_healthy
+      orchestrator-enhanced:
+        condition: service_healthy
+      tts-bark:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8081/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  monitoring-dashboard:
+    build:
+      context: "."
+      dockerfile: "services/monitoring_dashboard/Dockerfile"
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/monitoring-dashboard:latest"
+    ports:
+      - "8501:8501" # External: 8501, Internal: 8501
+    env_file:
+      - "./.env.common"
+      - "./.env.docker"
+    environment:
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - PROMETHEUS_URL=http://prometheus:9090
+    depends_on:
+      - prometheus
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8501/health/ready",
+          "--timeout",
+          "5",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1"
+    restart: "unless-stopped"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
