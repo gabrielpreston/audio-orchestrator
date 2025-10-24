@@ -38,7 +38,9 @@ async def load_model() -> None:
     """Load the FLAN-T5 model and tokenizer on startup."""
     global model, tokenizer
     try:
-        logger.info(f"Loading FLAN-T5 model: {MODEL_NAME} from cache: {CACHE_DIR}")
+        logger.info(
+            "Loading FLAN-T5 model", extra={"model": MODEL_NAME, "cache_dir": CACHE_DIR}
+        )
 
         # Try to load from cache first
         model = AutoModelForSeq2SeqLM.from_pretrained(

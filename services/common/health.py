@@ -22,7 +22,7 @@ class HealthStatus(Enum):
     UNHEALTHY = "unhealthy"
 
 
-@dataclass
+@dataclass(slots=True)
 class HealthCheck:
     """Health check result."""
 

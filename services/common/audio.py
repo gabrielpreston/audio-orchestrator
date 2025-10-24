@@ -17,7 +17,7 @@ import numpy as np
 import soundfile as sf
 
 
-@dataclass
+@dataclass(slots=True)
 class AudioMetadata:
     """Standardized audio metadata structure."""
 
@@ -40,7 +40,7 @@ class AudioMetadata:
         return self.frames * self.channels * self.sample_width
 
 
-@dataclass
+@dataclass(slots=True)
 class AudioProcessingResult:
     """Result of audio processing operations."""
 
