@@ -9,17 +9,17 @@ WORKDIR /app
 # Install Transformers and related dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    transformers>=4.57,<5.0 \
-    tokenizers>=0.13,<1.0 \
-    safetensors>=0.3,<1.0 \
-    accelerate>=0.20,<1.0
+    "transformers>=4.57,<5.0" \
+    "tokenizers>=0.13,<1.0" \
+    "safetensors>=0.3,<1.0" \
+    "accelerate>=0.20,<1.0"
 
 # Install common NLP dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    datasets>=2.0,<3.0 \
-    evaluate>=0.4,<1.0 \
-    rouge-score>=0.1,<1.0
+    "datasets>=2.0,<3.0" \
+    "evaluate>=0.4,<1.0" \
+    "rouge-score>=0.1,<1.0"
 
 # Set environment variables for Transformers optimization
 ENV TRANSFORMERS_CACHE=/app/models

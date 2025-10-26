@@ -9,23 +9,23 @@ WORKDIR /app
 # Install audio processing dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    librosa>=0.10,<1.0 \
-    soundfile>=0.12,<1.0 \
-    scipy>=1.11,<2.0 \
-    numpy>=1.24,<2.0
+    "librosa>=0.10,<1.0" \
+    "soundfile>=0.12,<1.0" \
+    "scipy>=1.11,<2.0" \
+    "numpy>=1.24,<2.0"
 
 # Install speech processing dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    faster-whisper>=1.2,<2.0 \
-    speechbrain>=0.5,<1.0 \
-    torch-audiomentations>=0.11,<1.0
+    "faster-whisper>=1.2,<2.0" \
+    "speechbrain>=0.5,<1.0" \
+    "torch-audiomentations>=0.11,<1.0"
 
 # Install TTS dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     bark>=0.0.1 \
-    piper-tts>=1.0,<2.0
+    "piper-tts>=1.0,<2.0"
 
 # Set environment variables for audio processing
 ENV AUDIO_CACHE_DIR=/app/models
