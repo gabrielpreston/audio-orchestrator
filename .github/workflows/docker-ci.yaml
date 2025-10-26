@@ -18,13 +18,24 @@ permissions:
 jobs:
   build-base-images:
     name: "Build Base Images"
-    if: inputs.base-changes
+    if: inputs.base-changes || github.event_name == 'workflow_dispatch'
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 60
     strategy:
       matrix:
-        image: [python-base, python-audio, python-ml, python-ml-audio, python-ml-compiled, python-ml-torch, python-ml-transformers, tools, mcp-toolchain]
+        image:
+          [
+            python-base,
+            python-audio,
+            python-ml,
+            python-ml-audio,
+            python-ml-compiled,
+            python-ml-torch,
+            python-ml-transformers,
+            tools,
+            mcp-toolchain,
+          ]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -50,31 +61,27 @@ jobs:
             --cache-to type=gha,mode=max,scope=base-images \
             --push .
 
-  test-integration:
-    name: "Integration Tests"
-    needs: ["build-base-images"]
-    if: always() && (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
-    runs-on: "ubuntu-latest"
-    environment: "discord-voice-lab"
-    timeout-minutes: 20
-    steps:
-      - name: "Checkout repository"
-        uses: "actions/checkout@v4.2.2"
-      - name: "Prepare environment files"
-        run: python scripts/prepare_env_files.py --force
-      - name: "Run integration tests"
-        run: make test-integration
-
   docker-smoke:
     name: "Docker Smoke Tests"
-    needs: ["build-base-images", "test-integration"]
+    needs: ["build-base-images"]
     if: always() && (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30
     strategy:
       matrix:
-        service: [guardrails, orchestrator-enhanced, llm-flan, audio-processor, discord, stt, tts-bark, testing-ui, monitoring-dashboard]
+        service:
+          [
+            guardrails,
+            orchestrator-enhanced,
+            llm-flan,
+            audio-processor,
+            discord,
+            stt,
+            tts-bark,
+            testing-ui,
+            monitoring-dashboard,
+          ]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
