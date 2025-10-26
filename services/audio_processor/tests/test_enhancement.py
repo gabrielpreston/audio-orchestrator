@@ -194,7 +194,7 @@ class TestAudioEnhancer:
         assert len(filtered) == len(short_audio)
 
         # Test with zero audio
-        zero_audio = np.zeros(1000, dtype=np.float32)
+        zero_audio: np.ndarray = np.zeros(1000, dtype=np.float32)
         filtered = audio_enhancer.apply_high_pass_filter(zero_audio, 16000, 80.0)
 
         assert isinstance(filtered, np.ndarray)

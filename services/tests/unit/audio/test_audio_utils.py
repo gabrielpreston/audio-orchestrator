@@ -285,7 +285,7 @@ class TestSampleRateConversion:
         original_data = np.random.randn(1000)
 
         # Simulate upsampling by repeating samples
-        result = np.repeat(original_data, 2)
+        result: np.ndarray = np.repeat(original_data, 2)
 
         assert len(result) == 2000
         assert isinstance(result, np.ndarray)

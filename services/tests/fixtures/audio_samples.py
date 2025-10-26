@@ -45,7 +45,7 @@ class AudioSampleGenerator:
 
         # Normalize and convert to int16
         signal = np.clip(signal, -1, 1)
-        audio_data = (signal * 32767).astype(np.int16)
+        audio_data: np.ndarray = (signal * 32767).astype(np.int16)
 
         return AudioSample(
             data=self._to_wav_bytes(audio_data),
