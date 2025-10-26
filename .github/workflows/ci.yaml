@@ -37,9 +37,15 @@ jobs:
       # Per-service outputs
       discord: "${{ steps.filter.outputs.discord }}"
       stt: "${{ steps.filter.outputs.stt }}"
-      llm: "${{ steps.filter.outputs.llm }}"
-      orchestrator: "${{ steps.filter.outputs.orchestrator }}"
-      tts: "${{ steps.filter.outputs.tts }}"
+      llm_flan: "${{ steps.filter.outputs.llm_flan }}"
+      orchestrator_enhanced: "${{ steps.filter.outputs.orchestrator_enhanced }}"
+      tts_bark: "${{ steps.filter.outputs.tts_bark }}"
+      audio_processor: "${{ steps.filter.outputs.audio_processor }}"
+      guardrails: "${{ steps.filter.outputs.guardrails }}"
+      testing_ui: "${{ steps.filter.outputs.testing_ui }}"
+      monitoring_dashboard: "${{ steps.filter.outputs.monitoring_dashboard }}"
+      linter: "${{ steps.filter.outputs.linter }}"
+      tester: "${{ steps.filter.outputs.tester }}"
       base: "${{ steps.filter.outputs.base }}"
     steps:
       - name: "Checkout repository"
@@ -82,18 +88,42 @@ jobs:
               - 'services/stt/**'
               - 'services/common/**'
               - 'requirements-base.txt'
-            llm:
-              - 'services/llm/**'
+            llm_flan:
+              - 'services/llm_flan/**'
               - 'services/common/**'
               - 'requirements-base.txt'
-            orchestrator:
-              - 'services/orchestrator/**'
+            orchestrator_enhanced:
+              - 'services/orchestrator_enhanced/**'
               - 'services/common/**'
               - 'requirements-base.txt'
-            tts:
-              - 'services/tts/**'
+            tts_bark:
+              - 'services/tts_bark/**'
               - 'services/common/**'
               - 'requirements-base.txt'
+            audio_processor:
+              - 'services/audio_processor/**'
+              - 'services/common/**'
+              - 'requirements-base.txt'
+            guardrails:
+              - 'services/guardrails/**'
+              - 'services/common/**'
+              - 'requirements-base.txt'
+            testing_ui:
+              - 'services/testing_ui/**'
+              - 'services/common/**'
+              - 'requirements-base.txt'
+            monitoring_dashboard:
+              - 'services/monitoring_dashboard/**'
+              - 'services/common/**'
+              - 'requirements-base.txt'
+            linter:
+              - 'services/linter/**'
+              - 'services/base/Dockerfile.tools'
+            tester:
+              - 'services/tester/**'
+              - 'services/base/Dockerfile.tools'
+            security:
+              - 'services/security/**'
             # Base dependencies
             base:
               - 'services/base/**'
@@ -504,7 +534,21 @@ jobs:
       ACTIONS_CACHE_SERVICE_V2: true
     strategy:
       matrix:
-        service: [discord, stt, llm, orchestrator, tts]
+        service:
+          [
+            discord,
+            stt,
+            llm_flan,
+            orchestrator_enhanced,
+            tts_bark,
+            audio_processor,
+            guardrails,
+            testing_ui,
+            monitoring_dashboard,
+            linter,
+            tester,
+            security,
+          ]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -537,18 +581,24 @@ jobs:
           docker images | grep ghcr.io || echo "No GHCR images found locally"
 
           # Define service-specific base image requirements (based on actual Dockerfiles)
+          # Define service-specific base image requirements
           case "${{ matrix.service }}" in
-            discord|tts)
-              # Uses python-audio base image
+            discord|tts_bark)
               required_images=("ghcr.io/${{ github.repository_owner }}/python-audio:latest")
               ;;
-            stt|llm)
-              # Uses python-ml base image
+            stt|llm_flan|audio_processor|guardrails|testing_ui|monitoring_dashboard)
               required_images=("ghcr.io/${{ github.repository_owner }}/python-ml:latest")
               ;;
-            orchestrator)
-              # Uses both mcp-toolchain and python-ml base images
-              required_images=("ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest" "ghcr.io/${{ github.repository_owner }}/python-ml:latest")
+            orchestrator_enhanced)
+              required_images=("ghcr.io/${{ github.repository_owner }}/python-ml:latest")
+              ;;
+            linter|tester)
+              required_images=("ghcr.io/${{ github.repository_owner }}/tools:latest")
+              ;;
+            security)
+              # Security uses python:3.11-slim directly, no base image needed
+              echo "Security service uses python:3.11-slim directly"
+              exit 0
               ;;
           esac
 
@@ -590,18 +640,53 @@ jobs:
                 SHOULD_BUILD="true"
               fi
               ;;
-            llm)
-              if [ "${{ needs.changes.outputs.llm }}" = "true" ]; then
+            llm_flan)
+              if [ "${{ needs.changes.outputs.llm_flan }}" = "true" ]; then
                 SHOULD_BUILD="true"
               fi
               ;;
-            orchestrator)
-              if [ "${{ needs.changes.outputs.orchestrator }}" = "true" ]; then
+            orchestrator_enhanced)
+              if [ "${{ needs.changes.outputs.orchestrator_enhanced }}" = "true" ]; then
                 SHOULD_BUILD="true"
               fi
               ;;
-            tts)
-              if [ "${{ needs.changes.outputs.tts }}" = "true" ]; then
+            tts_bark)
+              if [ "${{ needs.changes.outputs.tts_bark }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            audio_processor)
+              if [ "${{ needs.changes.outputs.audio_processor }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            guardrails)
+              if [ "${{ needs.changes.outputs.guardrails }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            testing_ui)
+              if [ "${{ needs.changes.outputs.testing_ui }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            monitoring_dashboard)
+              if [ "${{ needs.changes.outputs.monitoring_dashboard }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            linter)
+              if [ "${{ needs.changes.outputs.linter }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            tester)
+              if [ "${{ needs.changes.outputs.tester }}" = "true" ]; then
+                SHOULD_BUILD="true"
+              fi
+              ;;
+            security)
+              if [ "${{ needs.changes.outputs.security }}" = "true" ]; then
                 SHOULD_BUILD="true"
               fi
               ;;
@@ -679,36 +764,66 @@ jobs:
                   print('⚠️ faster-whisper import failed (expected without model):', str(e))
               "
               ;;
-            llm)
-              echo "Testing LLM service imports..."
+            llm_flan)
+              echo "Testing LLM FLAN service imports..."
               docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
                 from app import app
-                print('✅ LLM FastAPI app imported successfully')
-                try:
-                  from llama_cpp import Llama
-                  print('✅ llama-cpp import successful')
-                except Exception as e:
-                  print('⚠️ llama-cpp import failed (expected without model):', str(e))
+                print('✅ LLM FLAN FastAPI app imported successfully')
               "
               ;;
-            orchestrator)
-              echo "Testing Orchestrator service imports..."
+            orchestrator_enhanced)
+              echo "Testing Orchestrator Enhanced service imports..."
               docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
                 from app import app
-                print('✅ Orchestrator FastAPI app imported successfully')
+                print('✅ Orchestrator Enhanced FastAPI app imported successfully')
               "
               ;;
-            tts)
-              echo "Testing TTS service imports..."
+            tts_bark)
+              echo "Testing TTS Bark service imports..."
               docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
                 from app import app
-                print('✅ TTS FastAPI app imported successfully')
-                try:
-                  from piper import PiperVoice
-                  print('✅ Piper import successful')
-                except Exception as e:
-                  print('⚠️ Piper import failed (expected without model):', str(e))
+                print('✅ TTS Bark FastAPI app imported successfully')
               "
+              ;;
+            audio_processor)
+              echo "Testing Audio Processor service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Audio Processor FastAPI app imported successfully')
+              "
+              ;;
+            guardrails)
+              echo "Testing Guardrails service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Guardrails FastAPI app imported successfully')
+              "
+              ;;
+            testing_ui)
+              echo "Testing Testing UI service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Testing UI app imported successfully')
+              "
+              ;;
+            monitoring_dashboard)
+              echo "Testing Monitoring Dashboard service imports..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest python -c "
+                from app import app
+                print('✅ Monitoring Dashboard app imported successfully')
+              "
+              ;;
+            linter)
+              echo "Testing Linter toolchain..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest which ruff
+              ;;
+            tester)
+              echo "Testing Tester toolchain..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest which pytest
+              ;;
+            security)
+              echo "Testing Security toolchain..."
+              docker run --rm ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest which pip-audit
               ;;
           esac
 
@@ -800,7 +915,7 @@ jobs:
           echo "| Service | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
 
-          for service in discord stt llm orchestrator tts; do
+          for service in discord stt llm_flan orchestrator_enhanced tts_bark audio_processor guardrails testing_ui monitoring_dashboard linter tester security; do
             if [ -d "./artifacts/$service-build-artifacts" ]; then
               echo "| $service | ✅ Built |" >> $GITHUB_STEP_SUMMARY
             else
