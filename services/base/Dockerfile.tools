@@ -39,44 +39,43 @@ RUN apt-get update && \
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
     | tar -C /usr/local -xz
 
-# Install Node.js (if not already installed)
+# Install Node.js (single installation)
 RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y --no-install-recommends --allow-downgrades nodejs=18.*
+    apt-get install -y --no-install-recommends --allow-downgrades nodejs=18.* && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Rust
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+# Install Rust (minimal profile for faster builds)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
 RUN /root/.cargo/bin/rustup default stable
 
 # Install Go tools
 ENV GOPATH=/go
 ENV PATH=$GOPATH/bin:/usr/local/go/bin:$PATH
 
-# Copy all requirements files needed for tools
+# Copy only essential requirements files for linter and tester
 COPY services/requirements-base.txt /workspace/requirements-base.txt
 COPY services/requirements-dev.txt /workspace/requirements-dev.txt
 COPY services/requirements-test.txt /workspace/requirements-test.txt
 COPY services/linter/requirements.txt /workspace/services/linter/requirements.txt
 COPY services/tester/requirements.txt /workspace/services/tester/requirements.txt
-COPY services/discord/requirements.txt /workspace/services/discord/requirements.txt
-COPY services/stt/requirements.txt /workspace/services/stt/requirements.txt
-COPY services/llm_flan/requirements.txt /workspace/services/llm_flan/requirements.txt
-COPY services/orchestrator_enhanced/requirements.txt /workspace/services/orchestrator_enhanced/requirements.txt
-COPY services/tts_bark/requirements.txt /workspace/services/tts_bark/requirements.txt
 
 # Create symlinks so service requirements can find the base files
 RUN ln -s /workspace/requirements-base.txt /workspace/services/requirements-base.txt && \
     ln -s /workspace/requirements-dev.txt /workspace/services/requirements-dev.txt && \
     ln -s /workspace/requirements-test.txt /workspace/services/requirements-test.txt
 
-# Install Python dependencies
-RUN python -m pip install --upgrade pip==24.0 && \
+# Install Python dependencies in separate layers for better caching
+RUN --mount=type=cache,target=/root/.cache/pip \
+    python -m pip install --upgrade pip==24.0 && \
+    pip install -r /workspace/requirements-base.txt
+
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -r /workspace/requirements-dev.txt && \
+    pip install -r /workspace/requirements-test.txt
+
+RUN --mount=type=cache,target=/root/.cache/pip \
     pip install -r /workspace/services/linter/requirements.txt && \
-    pip install -r /workspace/requirements-test.txt && \
-    pip install -r /workspace/services/discord/requirements.txt && \
-    pip install -r /workspace/services/stt/requirements.txt && \
-    pip install -r /workspace/services/llm_flan/requirements.txt && \
-    pip install -r /workspace/services/orchestrator_enhanced/requirements.txt && \
-    pip install -r /workspace/services/tts_bark/requirements.txt
+    pip install -r /workspace/services/tester/requirements.txt
 
 # Install Node.js tools
 RUN npm install -g markdownlint-cli@0.39.0
