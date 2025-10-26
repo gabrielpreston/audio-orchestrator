@@ -59,14 +59,71 @@ jobs:
             base:
               - 'services/base/**'
               - 'requirements-base.txt'
-      - name: "Generate change detection report"
+      - name: "Generate enhanced change detection report"
         run: |
-          echo "## Change Detection Report" >> $GITHUB_STEP_SUMMARY
-          echo "- Python: ${{ steps.filter.outputs.python }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker: ${{ steps.filter.outputs.docker }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docs: ${{ steps.filter.outputs.docs }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Security: ${{ steps.filter.outputs.security-deps }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Base: ${{ steps.filter.outputs.base }}" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔍 Change Detection Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Manual trigger detection
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "### 🚀 Manual Workflow Trigger" >> $GITHUB_STEP_SUMMARY
+            echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Triggered at:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+            echo "**Reason:** Full CI validation requested" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "### 🔄 Automatic Trigger" >> $GITHUB_STEP_SUMMARY
+            echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Visual job flow map
+          echo "### 🗺️ Expected Job Flow" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
+          echo "graph TD" >> $GITHUB_STEP_SUMMARY
+          echo "    A[🔍 Change Detection] --> B{Changes Detected?}" >> $GITHUB_STEP_SUMMARY
+          echo "    B -->|Yes| C[📊 Generate Report]" >> $GITHUB_STEP_SUMMARY
+          echo "    B -->|No| D[⏭️ Skip All Workflows]" >> $GITHUB_STEP_SUMMARY
+          echo "    C --> E[🐳 Docker CI]" >> $GITHUB_STEP_SUMMARY
+          echo "    C --> F[📚 Docs CI]" >> $GITHUB_STEP_SUMMARY
+          echo "    C --> G[🔒 Security CI]" >> $GITHUB_STEP_SUMMARY
+          echo "    E --> H[🐍 Core CI]" >> $GITHUB_STEP_SUMMARY
+          echo "    F --> I[✅ All Complete]" >> $GITHUB_STEP_SUMMARY
+          echo "    G --> I" >> $GITHUB_STEP_SUMMARY
+          echo "    H --> I" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Change detection results
+          echo "### 📊 Detected Changes" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status | Workflow |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.filter.outputs.python }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "| 🐍 Python Code | ✅ Active | Core CI |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🐍 Python Code | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.filter.outputs.docker }}" = "true" ] || [ "${{ steps.filter.outputs.base }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "| 🐳 Docker/Base | ✅ Active | Docker CI |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🐳 Docker/Base | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.filter.outputs.docs }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "| 📚 Documentation | ✅ Active | Docs CI |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 📚 Documentation | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ steps.filter.outputs.security-deps }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "| 🔒 Security Deps | ✅ Active | Security CI |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 🔒 Security Deps | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
+          fi
 
   core-ci:
     needs: ["changes", "docker-ci"]
