@@ -43,21 +43,9 @@ repos:
   # Purpose: Run comprehensive linting, testing, and security analysis in Docker for consistency
   - repo: local
     hooks:
-      # Quick linting for fast feedback (Python files only)
-      - id: docker-lint-quick
-        name: Quick Linting (Docker)
-        description: "Fast Python-only linting for quick feedback during development"
-        entry: make
-        language: system
-        args: ["lint"]
-        files: '\.py$'
-        pass_filenames: false
-        always_run: false
-        stages: [pre-commit]
-
-      # Comprehensive linting (all file types)
-      - id: docker-lint-staged
-        name: Comprehensive Linting (Docker)
+      # Comprehensive linting (all file types) - runs first
+      - id: docker-lint
+        name: Linting (Docker)
         description: "Full linting suite for all file types with comprehensive checks"
         entry: make
         language: system
@@ -66,19 +54,7 @@ repos:
         always_run: true
         stages: [pre-commit]
 
-      # Security analysis (Python files only, less frequently)
-      - id: docker-lint-security
-        name: Security Analysis (Docker)
-        description: "Security-focused linting including bandit and detect-secrets"
-        entry: make
-        language: system
-        args: ["security"]
-        files: '\.py$'
-        pass_filenames: false
-        always_run: false
-        stages: [pre-commit]
-
-      # Testing (Python files only, conditional)
+      # Testing (Python files only) - runs after linting
       - id: docker-test
         name: Testing (Docker)
         description: "Comprehensive test suite execution in Docker environment"
@@ -87,7 +63,19 @@ repos:
         args: ["test"]
         files: '\.py$'
         pass_filenames: false
-        always_run: false
+        always_run: true
+        stages: [pre-commit]
+
+      # Security analysis (Python files only) - runs after testing
+      - id: docker-security
+        name: Security Analysis (Docker)
+        description: "Security-focused linting including bandit and detect-secrets"
+        entry: make
+        language: system
+        args: ["security"]
+        files: '\.py$'
+        pass_filenames: false
+        always_run: true
         stages: [pre-commit]
 
       # Commit message validation (lightweight local tool)
