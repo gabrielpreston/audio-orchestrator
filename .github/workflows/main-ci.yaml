@@ -94,8 +94,10 @@ jobs:
     uses: ./.github/workflows/docs-ci.yaml
 
   security-ci:
-    needs: ["changes"]
-    if: needs.changes.outputs.security-deps == 'true' || github.event_name == 'workflow_dispatch'
+    needs: ["changes", "docker-ci"]
+    if: |
+      (needs.changes.outputs.security-deps == 'true' || github.event_name == 'workflow_dispatch') &&
+      (needs.docker-ci.result == 'success' || needs.docker-ci.result == 'skipped')
     uses: ./.github/workflows/security-ci.yaml
 
   workflow-status:
