@@ -16,26 +16,117 @@ permissions:
   packages: "write"
 
 jobs:
-  build-base-images:
-    name: "Build Base Images"
+  build-python-base:
+    name: "Build python-base (Foundation)"
     if: inputs.base-changes || github.event_name == 'workflow_dispatch'
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
-    timeout-minutes: 60
+    timeout-minutes: 20
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: "Log in to GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Build and push python-base"
+        run: |
+          docker buildx build \
+            --file services/base/Dockerfile.python-base \
+            --tag ghcr.io/${{ github.repository_owner }}/python-base:latest \
+            --cache-from type=gha,scope=base-images \
+            --cache-to type=gha,mode=max,scope=base-images \
+            --push .
+
+  build-tier-1:
+    name: "Build Tier 1 Images"
+    needs: ["build-python-base"]
+    if: always() && needs.build-python-base.result == 'success'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 30
     strategy:
       matrix:
-        image:
-          [
-            python-base,
-            python-audio,
-            python-ml,
-            python-ml-audio,
-            python-ml-compiled,
-            python-ml-torch,
-            python-ml-transformers,
-            tools,
-            mcp-toolchain,
-          ]
+        image: [python-audio, python-ml, tools]
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: "Log in to GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Build and push ${{ matrix.image }}"
+        run: |
+          docker buildx build \
+            --file services/base/Dockerfile.${{ matrix.image }} \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest \
+            --cache-from type=gha,scope=base-images \
+            --cache-to type=gha,mode=max,scope=base-images \
+            --push .
+
+  build-tier-2:
+    name: "Build Tier 2 Images"
+    needs: ["build-tier-1"]
+    if: always() && needs.build-tier-1.result == 'success'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 40
+    strategy:
+      matrix:
+        image: [python-ml-audio, python-ml-compiled, python-ml-torch, python-ml-transformers]
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: "Log in to GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Build and push ${{ matrix.image }}"
+        run: |
+          docker buildx build \
+            --file services/base/Dockerfile.${{ matrix.image }} \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest \
+            --cache-from type=gha,scope=base-images \
+            --cache-to type=gha,mode=max,scope=base-images \
+            --push .
+
+  build-tier-3:
+    name: "Build Tier 3 Images"
+    needs: ["build-tier-2"]
+    if: always() && needs.build-tier-2.result == 'success'
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        image: [mcp-toolchain]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -63,8 +154,8 @@ jobs:
 
   docker-smoke:
     name: "Docker Smoke Tests"
-    needs: ["build-base-images"]
-    if: always() && (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
+    needs: ["build-tier-3"]
+    if: always() && (needs.build-tier-3.result == 'success' || needs.build-tier-3.result == 'skipped')
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30
