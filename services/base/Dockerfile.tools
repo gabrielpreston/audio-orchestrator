@@ -59,9 +59,9 @@ COPY services/linter/requirements.txt /workspace/services/linter/requirements.tx
 COPY services/tester/requirements.txt /workspace/services/tester/requirements.txt
 COPY services/discord/requirements.txt /workspace/services/discord/requirements.txt
 COPY services/stt/requirements.txt /workspace/services/stt/requirements.txt
-COPY services/llm/requirements.txt /workspace/services/llm/requirements.txt
-COPY services/orchestrator/requirements.txt /workspace/services/orchestrator/requirements.txt
-COPY services/tts/requirements.txt /workspace/services/tts/requirements.txt
+COPY services/llm_flan/requirements.txt /workspace/services/llm_flan/requirements.txt
+COPY services/orchestrator_enhanced/requirements.txt /workspace/services/orchestrator_enhanced/requirements.txt
+COPY services/tts_bark/requirements.txt /workspace/services/tts_bark/requirements.txt
 
 # Create symlinks so service requirements can find the base files
 RUN ln -s /workspace/requirements-base.txt /workspace/services/requirements-base.txt && \
@@ -74,9 +74,9 @@ RUN python -m pip install --upgrade pip==24.0 && \
     pip install -r /workspace/requirements-test.txt && \
     pip install -r /workspace/services/discord/requirements.txt && \
     pip install -r /workspace/services/stt/requirements.txt && \
-    pip install -r /workspace/services/llm/requirements.txt && \
-    pip install -r /workspace/services/orchestrator/requirements.txt && \
-    pip install -r /workspace/services/tts/requirements.txt
+    pip install -r /workspace/services/llm_flan/requirements.txt && \
+    pip install -r /workspace/services/orchestrator_enhanced/requirements.txt && \
+    pip install -r /workspace/services/tts_bark/requirements.txt
 
 # Install Node.js tools
 RUN npm install -g markdownlint-cli@0.39.0
