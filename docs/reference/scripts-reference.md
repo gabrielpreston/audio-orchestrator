@@ -42,7 +42,7 @@ python3 scripts/prepare_env_files.py --force
 -  `services/discord/.env.service` — Discord bot configuration
 -  `services/stt/.env.service` — STT service configuration
 -  `services/llm/.env.service` — LLM service configuration
--  `services/orchestrator/.env.service` — Orchestrator service configuration
+-  `services/orchestrator_enhanced/.env.service` — Orchestrator enhanced service configuration
 -  `services/tts/.env.service` — TTS service configuration
 
 ## Security Management

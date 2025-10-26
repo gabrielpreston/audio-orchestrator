@@ -879,18 +879,18 @@ jobs:
     
     - name: Run unit tests
       if: matrix.test-type == 'unit'
-      run: pytest -m unit --cov=services/orchestrator/agents
+      run: pytest -m unit --cov=services/orchestrator_enhanced/agents
     
     - name: Run component tests
       if: matrix.test-type == 'component'
-      run: pytest -m component --cov=services/orchestrator/agents
+      run: pytest -m component --cov=services/orchestrator_enhanced/agents
     
     - name: Run integration tests
       if: matrix.test-type == 'integration'
       env:
         WEATHER_API_KEY: ${{ secrets.WEATHER_API_KEY }}
         LLM_SERVICE_URL: http://localhost:8000
-      run: pytest -m integration --cov=services/orchestrator/agents
+      run: pytest -m integration --cov=services/orchestrator_enhanced/agents
     
     - name: Upload coverage
       uses: codecov/codecov-action@v3

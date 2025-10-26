@@ -111,7 +111,7 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TTS_VOICE` | Default voice identifier. | *(empty)* |
 | `TTS_TIMEOUT` | Timeout for TTS requests (seconds). | `30` |
 
-## Orchestrator Service (`services/orchestrator/.env.service`)
+## Orchestrator Enhanced Service (`services/orchestrator_enhanced/.env.service`)
 
 | Variable | Description | Default |
 | --- | --- | --- |

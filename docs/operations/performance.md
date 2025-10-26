@@ -214,7 +214,7 @@ Run the performance benchmark to measure improvements:
 
 ```bash
 # Run benchmark
-python services/orchestrator/benchmarks/performance_benchmark.py
+python services/orchestrator_enhanced/benchmarks/performance_benchmark.py
 
 # Expected output:
 # Total Time Improvement: 28.5%

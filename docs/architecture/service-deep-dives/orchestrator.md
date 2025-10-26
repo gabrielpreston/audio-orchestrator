@@ -8,9 +8,9 @@ last-updated: 2025-10-18
 <!-- markdownlint-disable-next-line MD041 -->
 > Docs ▸ Architecture ▸ Service Deep Dives ▸ Orchestrator
 
-# Orchestrator Service
+# Orchestrator Enhanced Service
 
-The orchestrator coordinates transcript processing, MCP tool calls, and response planning. It routes reasoning requests to the LLM service and manages the overall conversation flow.
+The orchestrator enhanced service coordinates transcript processing, LangChain tool calls, and response planning. It routes reasoning requests to the LLM service and manages the overall conversation flow.
 
 ## Responsibilities
 
@@ -40,7 +40,7 @@ The orchestrator coordinates transcript processing, MCP tool calls, and response
 
 -  Structured logs track request IDs, MCP tool invocations, and latency breakdowns.
 -  `/metrics` exposes request counters and duration histograms when scraped.
--  Use `make logs SERVICE=orchestrator` to monitor orchestrated tool chains and LLM service interactions.
+-  Use `make logs SERVICE=orchestrator-enhanced` to monitor orchestrated tool chains and LLM service interactions.
 
 ## Dependencies
 

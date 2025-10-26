@@ -41,5 +41,5 @@ The STT service exposes an HTTP transcription API optimized for low-latency stre
 
 ## Dependencies
 
--  Receives audio from `services/discord` and returns transcripts to `services/orchestrator` via the bot.
+-  Receives audio from `services/discord` and returns transcripts to `services/orchestrator_enhanced` via the bot.
 -  Requires the faster-whisper model files bundled in the Docker image or mounted volume.

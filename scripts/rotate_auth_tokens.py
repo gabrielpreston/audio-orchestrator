@@ -8,9 +8,10 @@ to maintain consistency across the audio-orchestrator services.
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import secrets
 import sys
-from pathlib import Path
+
 
 # Token configuration
 TOKEN_LENGTH = 32
@@ -23,7 +24,7 @@ ENV_FILES = {
     "services/discord/.env.service": "Discord service configuration",
     "services/stt/.env.service": "STT service configuration",
     "services/llm/.env.service": "LLM service configuration",
-    "services/orchestrator/.env.service": "Orchestrator service configuration",
+    "services/orchestrator_enhanced/.env.service": "Orchestrator enhanced service configuration",
     "services/tts/.env.service": "TTS service configuration",
 }
 
@@ -114,8 +115,8 @@ def rotate_tokens_in_file(
                 zip(lines, updated_lines, strict=False)
             ):
                 if old_line != new_line:
-                    print(f"    Line {i+1}: {old_line}")
-                    print(f"    Line {i+1}: {new_line}")
+                    print(f"    Line {i + 1}: {old_line}")
+                    print(f"    Line {i + 1}: {new_line}")
         else:
             write_env_file(file_path, updated_lines)
             print(f"  ✅ Updated {file_path}")

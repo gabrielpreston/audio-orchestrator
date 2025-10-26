@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Configuration
-SERVICES="discord stt llm orchestrator tts"
+SERVICES="discord stt llm-flan orchestrator-enhanced tts-bark"
 
 # Default: compare working directory + staged changes against HEAD
 # Can override with argument: ./detect-changed-services.sh origin/main

@@ -91,7 +91,13 @@ jobs:
     timeout-minutes: 40
     strategy:
       matrix:
-        image: [python-ml-audio, python-ml-compiled, python-ml-torch, python-ml-transformers]
+        image:
+          [
+            python-ml-audio,
+            python-ml-compiled,
+            python-ml-torch,
+            python-ml-transformers,
+          ]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"

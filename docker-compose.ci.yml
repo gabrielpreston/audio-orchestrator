@@ -1,15 +1,15 @@
 # CI-specific Docker Compose overrides
 # Optimized for build speed over runtime performance
-version: '3.8'
+version: "3.8"
 
 services:
   discord:
     build:
-      context: '.'
-      dockerfile: 'services/discord/Dockerfile'
+      context: "."
+      dockerfile: "services/discord/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/discord:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/discord:latest"
     # Disable unnecessary ports in CI
     ports: []
     # Use minimal environment for CI
@@ -18,13 +18,21 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
     # Disable restart policy in CI
-    restart: 'no'
+    restart: "no"
     # Use minimal logging
     logging:
-      driver: 'none'
+      driver: "none"
     # CI-specific health checks for faster startup detection
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8001/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8001/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -32,21 +40,29 @@ services:
 
   stt:
     build:
-      context: '.'
-      dockerfile: 'services/stt/Dockerfile'
+      context: "."
+      dockerfile: "services/stt/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/stt:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/stt:latest"
     ports: []
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-    restart: 'no'
+    restart: "no"
     logging:
-      driver: 'none'
+      driver: "none"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:9000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -54,43 +70,59 @@ services:
 
   llm:
     build:
-      context: '.'
-      dockerfile: 'services/llm/Dockerfile'
+      context: "."
+      dockerfile: "services/llm/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/llm:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/llm:latest"
     ports: []
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-    restart: 'no'
+    restart: "no"
     logging:
-      driver: 'none'
+      driver: "none"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
       start_period: 20s
 
-  orchestrator:
+  orchestrator-enhanced:
     build:
-      context: '.'
-      dockerfile: 'services/orchestrator/Dockerfile'
+      context: "."
+      dockerfile: "services/orchestrator_enhanced/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/orchestrator:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/orchestrator-enhanced:latest"
     ports: []
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-    restart: 'no'
+    restart: "no"
     logging:
-      driver: 'none'
+      driver: "none"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:8000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -98,21 +130,29 @@ services:
 
   tts:
     build:
-      context: '.'
-      dockerfile: 'services/tts/Dockerfile'
+      context: "."
+      dockerfile: "services/tts/Dockerfile"
       args:
-        BUILDKIT_INLINE_CACHE: '1'
-    image: 'ghcr.io/gabrielpreston/tts:latest'
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/tts:latest"
     ports: []
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
-    restart: 'no'
+    restart: "no"
     logging:
-      driver: 'none'
+      driver: "none"
     healthcheck:
-      test: ["CMD", "python", "/app/scripts/health_check.py", "http://localhost:7000/health/ready", "--timeout", "3"]
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:7000/health/ready",
+          "--timeout",
+          "3",
+        ]
       interval: 5s
       timeout: 3s
       retries: 5

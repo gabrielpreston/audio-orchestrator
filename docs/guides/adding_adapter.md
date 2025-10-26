@@ -85,10 +85,10 @@ Create your adapter file in the appropriate location:
 
 ```bash
 # For input adapters
-services/orchestrator/adapters/my_input_adapter.py
+services/orchestrator_enhanced/adapters/my_input_adapter.py
 
 # For output adapters  
-services/orchestrator/adapters/my_output_adapter.py
+services/orchestrator_enhanced/adapters/my_output_adapter.py
 ```
 
 ### 2. Implement Interface Methods
@@ -185,7 +185,7 @@ class MyAudioInputAdapter(AudioInputAdapter):
 Register your adapter in the adapter manager:
 
 ```python
-# In services/orchestrator/adapters/manager.py
+# In services/orchestrator_enhanced/adapters/manager.py
 
 from .my_input_adapter import MyAudioInputAdapter
 from .my_output_adapter import MyAudioOutputAdapter
@@ -204,7 +204,7 @@ class AdapterManager:
 Add configuration options for your adapter:
 
 ```python
-# In services/orchestrator/config.py
+# In services/orchestrator_enhanced/config.py
 
 # My Adapter Configuration
 MY_INPUT_ENABLED = env.bool("MY_INPUT_ENABLED", default=False)

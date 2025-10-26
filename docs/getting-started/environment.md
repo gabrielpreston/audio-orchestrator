@@ -22,7 +22,7 @@ supporting services, and Docker Compose stack.
 | `services/discord/.env.service` | Discord token, wake phrase settings, STT endpoint, MCP manifests. | Copy from `.env.sample`. |
 | `services/stt/.env.service` | faster-whisper model, device, and compute type. | Copy from `.env.sample`. |
 | `services/llm/.env.service` | LLM auth token, llama.cpp configuration, downstream TTS URL. | Copy from `.env.sample`. |
-| `services/orchestrator/.env.service` | Orchestrator configuration, LLM/TTS client settings, MCP config. | Copy from `.env.sample`. |
+| `services/orchestrator_enhanced/.env.service` | Orchestrator enhanced configuration, LLM/TTS client settings, LangChain config. | Copy from `.env.sample`. |
 | `services/tts/.env.service` | Piper model paths, voice defaults, auth token, rate limiting. | Copy from `.env.sample`. |
 
 ## Setup Steps

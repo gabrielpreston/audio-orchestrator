@@ -37,7 +37,7 @@ case "$CHANGED" in
         printf "${COLOR_YELLOW}⚠ Common files changed - rebuilding ALL services${COLOR_OFF}\n"
         echo "  Reason: services/common/, requirements-base.txt, or .dockerignore changed"
         echo ""
-        SERVICES="discord stt llm orchestrator tts"
+        SERVICES="discord stt llm-flan orchestrator-enhanced tts-bark"
         ;;
     "base-images")
         printf "${COLOR_RED}⚠ Base images changed - manual rebuild required${COLOR_OFF}\n"
@@ -54,7 +54,7 @@ case "$CHANGED" in
         SERVICES="$CHANGED"
         printf "${COLOR_GREEN}✓ Selective rebuild${COLOR_OFF}\n"
         echo "  Building: $SERVICES"
-        echo "  Skipping: $(echo "discord stt llm orchestrator tts" | tr ' ' '\n' | grep -v -w -f <(echo "$SERVICES" | tr ' ' '\n') | xargs)"
+        echo "  Skipping: $(echo "discord stt llm-flan orchestrator-enhanced tts-bark" | tr ' ' '\n' | grep -v -w -f <(echo "$SERVICES" | tr ' ' '\n') | xargs)"
         echo ""
         ;;
 esac

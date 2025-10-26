@@ -587,22 +587,22 @@ markers =
 
 ```bash
 # Run all tests
-pytest services/orchestrator/tests/unit/adapters/
+pytest services/orchestrator_enhanced/tests/unit/adapters/
 
 # Run specific test categories
-pytest -m unit services/orchestrator/tests/unit/adapters/
-pytest -m component services/orchestrator/tests/component/adapters/
-pytest -m integration services/orchestrator/tests/integration/adapters/
-pytest -m performance services/orchestrator/tests/performance/adapters/
+pytest -m unit services/orchestrator_enhanced/tests/unit/adapters/
+pytest -m component services/orchestrator_enhanced/tests/component/adapters/
+pytest -m integration services/orchestrator_enhanced/tests/integration/adapters/
+pytest -m performance services/orchestrator_enhanced/tests/performance/adapters/
 
 # Run with coverage
-pytest --cov=services.orchestrator.adapters services/orchestrator/tests/unit/adapters/
+pytest --cov=services.orchestrator_enhanced.adapters services/orchestrator_enhanced/tests/unit/adapters/
 
 # Run specific test file
-pytest services/orchestrator/tests/unit/adapters/test_my_adapter.py
+pytest services/orchestrator_enhanced/tests/unit/adapters/test_my_adapter.py
 
 # Run with verbose output
-pytest -v services/orchestrator/tests/unit/adapters/
+pytest -v services/orchestrator_enhanced/tests/unit/adapters/
 ```
 
 ### Continuous Integration
@@ -631,16 +631,16 @@ jobs:
         pip install pytest-cov
     
     - name: Run unit tests
-      run: pytest -m unit services/orchestrator/tests/unit/adapters/
+      run: pytest -m unit services/orchestrator_enhanced/tests/unit/adapters/
     
     - name: Run component tests
-      run: pytest -m component services/orchestrator/tests/component/adapters/
+      run: pytest -m component services/orchestrator_enhanced/tests/component/adapters/
     
     - name: Run integration tests
-      run: pytest -m integration services/orchestrator/tests/integration/adapters/
+      run: pytest -m integration services/orchestrator_enhanced/tests/integration/adapters/
     
     - name: Run performance tests
-      run: pytest -m performance services/orchestrator/tests/performance/adapters/
+      run: pytest -m performance services/orchestrator_enhanced/tests/performance/adapters/
 ```
 
 ## Best Practices
@@ -692,7 +692,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 
 # Use pytest debugging
-pytest --pdb services/orchestrator/tests/unit/adapters/test_my_adapter.py
+pytest --pdb services/orchestrator_enhanced/tests/unit/adapters/test_my_adapter.py
 
 # Add print statements for debugging
 print(f"Debug: chunk data length = {len(chunk.data)}")

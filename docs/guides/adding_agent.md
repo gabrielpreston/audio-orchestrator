@@ -63,7 +63,7 @@ class BaseAgent(ABC):
 Create your agent file in the agents directory:
 
 ```bash
-services/orchestrator/agents/my_agent.py
+services/orchestrator_enhanced/agents/my_agent.py
 ```
 
 ### 2. Implement Agent Interface
@@ -154,7 +154,7 @@ class MyAgent(BaseAgent):
 Register your agent in the agent manager:
 
 ```python
-# In services/orchestrator/agents/manager.py
+# In services/orchestrator_enhanced/agents/manager.py
 
 from .my_agent import MyAgent
 
@@ -171,7 +171,7 @@ class AgentManager:
 Add configuration options for your agent:
 
 ```python
-# In services/orchestrator/config.py
+# In services/orchestrator_enhanced/config.py
 
 # My Agent Configuration
 MY_AGENT_ENABLED = env.bool("MY_AGENT_ENABLED", default=True)

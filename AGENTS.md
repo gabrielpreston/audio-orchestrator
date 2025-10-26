@@ -347,9 +347,9 @@ async def health_ready() -> Dict[str, Any]:
   aligned with `.env.sample`.
 -  Aim for responsive startup and streaming latencies; capture notable tuning in the docs.
 
-### Orchestrator service (`services/orchestrator`)
+### Orchestrator service (`services/orchestrator_enhanced`)
 
--  Coordinate transcript processing, MCP tool calls, and response planning.
+-  Coordinate transcript processing, LangChain tool calls, and response planning.
 -  Route reasoning requests to the LLM service for natural language processing.
 -  Manage conversation flow and response planning.
 -  Coordinate with TTS service for spoken responses.
