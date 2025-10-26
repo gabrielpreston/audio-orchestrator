@@ -4,12 +4,5 @@
 # Include base requirements for all services
 -r ../requirements-base.txt
 
-# Include all service-specific dependencies
--r ../discord/requirements.txt
--r ../stt/requirements.txt
--r ../llm/requirements.txt
--r ../orchestrator/requirements.txt
--r ../tts/requirements.txt
-
 # Linter dependencies (for testing)
 -r ../linter/requirements.txt

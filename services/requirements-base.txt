@@ -18,10 +18,10 @@ httpx>=0.26,<1.0
 prometheus_client>=0.20,<1.0
 
 # Distributed tracing
-opentelemetry-api>=1.20,<2.0
-opentelemetry-sdk>=1.20,<2.0
-opentelemetry-instrumentation-fastapi>=0.42b0,<1.0
-opentelemetry-instrumentation-httpx>=0.42b0,<1.0
-opentelemetry-instrumentation-requests>=0.42b0,<1.0
-opentelemetry-exporter-otlp>=1.20,<2.0
-opentelemetry-exporter-jaeger>=1.20,<2.0
+opentelemetry-api>=1.20,<1.30
+opentelemetry-sdk>=1.20,<1.30
+opentelemetry-instrumentation-fastapi>=0.42b0,<0.50
+opentelemetry-instrumentation-httpx>=0.42b0,<0.50
+opentelemetry-instrumentation-requests>=0.42b0,<0.50
+opentelemetry-exporter-otlp>=1.20,<1.30
+opentelemetry-exporter-jaeger>=1.20,<1.30
