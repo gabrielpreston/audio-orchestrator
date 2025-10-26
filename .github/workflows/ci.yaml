@@ -134,7 +134,7 @@ jobs:
 
   lint:
     name: "Lint"
-    needs: ["changes", "build-base-images"]
+    needs: ["changes"]
     if: |
       (needs.changes.outputs.python == 'true' ||
        needs.changes.outputs.docker == 'true' ||
