@@ -6,7 +6,6 @@ and rate limiting for the audio orchestrator system.
 """
 
 import re
-import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import get_logger
+
 
 # ML imports for toxicity detection
 try:
@@ -294,19 +294,6 @@ async def escalate_to_human(request: EscalationRequest) -> EscalationResponse:
         raise HTTPException(
             status_code=500, detail=f"Escalation failed: {str(e)}"
         ) from e
-
-
-@app.get("/metrics")  # type: ignore[misc]
-async def get_metrics() -> dict[str, Any]:
-    """Get service metrics."""
-    return {
-        "service": "guardrails",
-        "uptime_seconds": time.time() - _health_manager._startup_time,
-        "toxicity_model_available": _toxicity_detector is not None,
-        "rate_limiter_available": _limiter is not None,
-        "pii_patterns_count": len(PII_PATTERNS),
-        "dangerous_patterns_count": len(DANGEROUS_PATTERNS),
-    }
 
 
 def _sanitize_text(text: str) -> str:

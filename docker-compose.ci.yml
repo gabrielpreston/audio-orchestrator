@@ -7,6 +7,10 @@ services:
     build:
       context: "."
       dockerfile: "services/discord/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-audio:latest
+        - ghcr.io/gabrielpreston/discord:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/discord:latest"
@@ -42,6 +46,10 @@ services:
     build:
       context: "."
       dockerfile: "services/stt/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/stt:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/stt:latest"
@@ -72,6 +80,10 @@ services:
     build:
       context: "."
       dockerfile: "services/llm/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/llm:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/llm:latest"
@@ -102,6 +114,10 @@ services:
     build:
       context: "."
       dockerfile: "services/orchestrator_enhanced/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/orchestrator_enhanced:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/orchestrator-enhanced:latest"
@@ -132,6 +148,10 @@ services:
     build:
       context: "."
       dockerfile: "services/tts/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/tts:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/tts:latest"

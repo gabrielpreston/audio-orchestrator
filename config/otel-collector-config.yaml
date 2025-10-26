@@ -1,0 +1,45 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+  memory_limiter:
+    limit_mib: 512
+    check_interval: 1s
+
+exporters:
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "audio_orchestrator"
+    const_labels:
+      environment: "production"
+    send_timestamps: true
+    metric_relabeling:
+      - source_labels: [__name__]
+        regex: "audio_orchestrator_(.*)"
+        target_label: "__name__"
+        replacement: "${1}"
+  jaeger:
+    endpoint: jaeger:14250
+    tls:
+      insecure: true
+  logging:
+    loglevel: info
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus, logging]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [jaeger, logging]

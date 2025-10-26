@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import random
 from collections.abc import Awaitable, Callable
 from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
+import random
 from typing import Any
 
 import discord
@@ -24,6 +24,7 @@ from .orchestrator_client import OrchestratorClient
 from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
 from .wake import WakeDetector
+
 
 try:
     from discord.ext import voice_recv as _voice_recv
@@ -69,6 +70,7 @@ class VoiceBot(discord.Client):
         audio_processor_wrapper: AudioProcessorWrapper,
         wake_detector: WakeDetector,
         transcript_publisher: TranscriptPublisher,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
         intents = self._build_intents(config.discord)
         super().__init__(intents=intents)
@@ -77,6 +79,7 @@ class VoiceBot(discord.Client):
         self._wake_detector = wake_detector
         self._publish_transcript = transcript_publisher
         self._logger = get_logger(__name__, service_name="discord")
+        self._metrics = metrics or {}
         self._segment_queue: asyncio.Queue[SegmentContext] = asyncio.Queue()
         self._segment_task: asyncio.Task[None] | None = None
         self._idle_flush_task: asyncio.Task[None] | None = None
@@ -607,7 +610,9 @@ class VoiceBot(discord.Client):
             return
 
         await asyncio.sleep(0)
-        async with TranscriptionClient(self.config.stt) as stt_client:
+        async with TranscriptionClient(
+            self.config.stt, metrics=self._metrics
+        ) as stt_client:
             while not self._shutdown.is_set():
                 context = await self._segment_queue.get()
                 try:

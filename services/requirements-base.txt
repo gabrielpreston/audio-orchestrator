@@ -15,7 +15,7 @@ soundfile>=0.12,<1.0
 httpx>=0.26,<1.0
 
 # Metrics and monitoring
-prometheus_client>=0.20,<1.0
+# OpenTelemetry metrics are included in opentelemetry-sdk
 
 # Distributed tracing
 opentelemetry-api>=1.20,<1.30

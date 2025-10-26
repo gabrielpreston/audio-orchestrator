@@ -9,7 +9,7 @@ import os
 import uuid
 from typing import Any
 
-from opentelemetry import trace
+from opentelemetry import trace, metrics
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.jaeger.thrift import JaegerExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -18,6 +18,9 @@ from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
 from .logging import get_logger
 
@@ -306,5 +309,118 @@ def setup_service_tracing(
     """Set up tracing for a service and return the manager."""
     manager = get_tracing_manager(service_name, service_version)
     manager.setup_tracing()
+    manager.instrument_http_clients()
+    return manager
+
+
+class ObservabilityManager(TracingManager):
+    """Enhanced manager that handles both tracing and metrics."""
+
+    def __init__(self, service_name: str, service_version: str = "1.0.0"):
+        super().__init__(service_name, service_version)
+        self._meter: metrics.Meter | None = None
+        self._metrics_enabled = False
+
+    def setup_observability(self) -> None:
+        """Setup both tracing and metrics for the service."""
+        # Setup tracing (existing functionality)
+        self.setup_tracing()
+
+        # Setup metrics (new functionality)
+        self._setup_metrics()
+
+    def _setup_metrics(self) -> None:
+        """Set up OpenTelemetry metrics for the service."""
+        if os.getenv("OTEL_ENABLED", "false").lower() != "true":
+            logger.info("metrics.disabled", service=self.service_name)
+            return
+
+        try:
+            # Create resource with service information
+            resource = Resource.create(
+                {
+                    "service.name": self.service_name,
+                    "service.version": self.service_version,
+                    "service.namespace": "audio-orchestrator",
+                }
+            )
+
+            # Setup OTLP metric exporter
+            otlp_endpoint = os.getenv(
+                "OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317"
+            )
+            metric_reader = PeriodicExportingMetricReader(
+                OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True),
+                export_interval_millis=15000,
+            )
+            meter_provider = MeterProvider(
+                resource=resource, metric_readers=[metric_reader]
+            )
+            metrics.set_meter_provider(meter_provider)
+
+            # Get meter
+            self._meter = metrics.get_meter(self.service_name, self.service_version)
+            self._metrics_enabled = True
+
+            logger.info("metrics.initialized", service=self.service_name)
+
+        except Exception as exc:
+            logger.error(
+                "metrics.setup_failed", service=self.service_name, error=str(exc)
+            )
+            self._meter = None
+
+    def get_meter(self) -> metrics.Meter | None:
+        """Get the configured meter."""
+        return self._meter
+
+    def create_counter(
+        self, name: str, description: str, unit: str = "1"
+    ) -> Any | None:
+        """Create a counter metric."""
+        if not self._meter:
+            return None
+        return self._meter.create_counter(name, unit=unit, description=description)
+
+    def create_histogram(
+        self, name: str, description: str, unit: str = "1"
+    ) -> Any | None:
+        """Create a histogram metric."""
+        if not self._meter:
+            return None
+        return self._meter.create_histogram(name, unit=unit, description=description)
+
+    def create_up_down_counter(
+        self, name: str, description: str, unit: str = "1"
+    ) -> Any | None:
+        """Create an up-down counter (gauge) metric."""
+        if not self._meter:
+            return None
+        return self._meter.create_up_down_counter(
+            name, unit=unit, description=description
+        )
+
+
+# Global observability manager instances
+_observability_managers: dict[str, ObservabilityManager] = {}
+
+
+def get_observability_manager(
+    service_name: str, service_version: str = "1.0.0"
+) -> ObservabilityManager:
+    """Get or create an observability manager for a service."""
+    if service_name not in _observability_managers:
+        _observability_managers[service_name] = ObservabilityManager(
+            service_name, service_version
+        )
+    return _observability_managers[service_name]
+
+
+def setup_service_observability(
+    service_name: str, service_version: str = "1.0.0"
+) -> ObservabilityManager:
+    """Set up observability for a service and return the manager."""
+    manager = get_observability_manager(service_name, service_version)
+    manager.setup_observability()
     manager.instrument_http_clients()
     return manager

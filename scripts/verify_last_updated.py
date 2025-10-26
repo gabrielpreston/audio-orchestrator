@@ -21,13 +21,14 @@ playbook:
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable, Sequence
 import dataclasses
+from datetime import date, datetime
+from pathlib import Path
 import re
 import subprocess  # nosec B404
 import sys
-from datetime import date, datetime
-from pathlib import Path
-from collections.abc import Iterable, Sequence
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCS_ROOT = REPO_ROOT / "docs"
@@ -52,7 +53,8 @@ class ValidationIssue:
     message: str
 
     def format(self) -> str:
-        return f"{self.path}: {self.message}"
+        rel_path = self.path.relative_to(REPO_ROOT)
+        return f"{rel_path}: {self.message}"
 
 
 def load_front_matter(path: Path) -> FrontMatter:
@@ -281,21 +283,60 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
 
     if issues:
+        print("❌ Documentation validation failed:", file=sys.stderr)
+        print("", file=sys.stderr)
         for issue in issues:
-            print(issue.format(), file=sys.stderr)
+            print(f"  • {issue.format()}", file=sys.stderr)
+        print("", file=sys.stderr)
+    else:
+        print("✅ All documentation metadata is valid")
 
     if modifications:
-        print("\nDetected last-updated changes:")
+        print(f"\n📝 Detected {len(modifications)} file(s) with last-updated changes:")
         for path, lines in modifications.items():
             rel = path.relative_to(REPO_ROOT)
-            print(f"  {rel}")
+            # Determine if this is an addition, deletion, or modification
+            has_additions = any(line.startswith("+") for line in lines)
+            has_deletions = any(line.startswith("-") for line in lines)
+
+            if has_additions and has_deletions:
+                status_icon = "🔄"
+                status_text = "modified"
+            elif has_additions:
+                status_icon = "➕"
+                status_text = "added"
+            elif has_deletions:
+                status_icon = "➖"
+                status_text = "deleted"
+            else:
+                status_icon = "📄"
+                status_text = "changed"
+
+            print(f"  {status_icon} {rel} ({status_text})")
             for line in lines:
-                print(f"    {line}")
+                if line.startswith("+"):
+                    print(f"    ✅ {line[1:]}")
+                elif line.startswith("-"):
+                    print(f"    ❌ {line[1:]}")
+                else:
+                    print(f"    📄 {line}")
     else:
-        print("No last-updated changes relative to HEAD.")
+        print("\n📄 No last-updated changes detected relative to HEAD")
 
     if issues:
+        print("\n💡 Tip: Use --allow-divergence to bypass date validation if needed")
         return 1
+
+    # Success summary
+    total_files = len(markdown_files)
+    print("\n🎉 Documentation verification complete!")
+    print(f"   📊 Scanned {total_files} markdown files")
+    print("   ✅ All metadata validation passed")
+    if modifications:
+        print(f"   📝 Found {len(modifications)} file(s) with changes")
+    else:
+        print("   📄 No changes detected")
+
     return 0
 
 

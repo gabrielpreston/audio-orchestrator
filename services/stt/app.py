@@ -1,15 +1,16 @@
+from collections.abc import Iterable
 import io
 import os
 import time
-import wave
-from collections.abc import Iterable
 from typing import Any, cast
+import wave
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
+from services.common.audio_metrics import create_http_metrics, create_stt_metrics
 from services.common.config import (
     ServiceConfig,
     get_service_preset,
@@ -17,10 +18,11 @@ from services.common.config import (
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 from .audio_processor_client import STTAudioProcessorClient
 
-# from services.common.metrics import MetricsCollector, init_metrics_registry
+
 # Configuration classes are now handled by the new config system
 
 
@@ -39,8 +41,10 @@ _audio_enhancer: Any = None
 _audio_processor_client: STTAudioProcessorClient | None = None
 # Health manager for service resilience
 _health_manager = HealthManager("stt")
-# Metrics collector for performance monitoring (disabled for now)
-# _metrics_collector: MetricsCollector = init_metrics_registry("stt", "1.0.0")
+# Observability manager for metrics and tracing
+_observability_manager = None
+_stt_metrics = {}
+_http_metrics = {}
 
 # Enhancement statistics
 _enhancement_stats: dict[str, int | float | str | None] = {
@@ -91,9 +95,25 @@ def _update_enhancement_stats(
 @app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global _audio_enhancer, _audio_processor_client
+    global \
+        _audio_enhancer, \
+        _audio_processor_client, \
+        _observability_manager, \
+        _stt_metrics, \
+        _http_metrics
 
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("stt", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _stt_metrics = create_stt_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         _lazy_load_model()
         logger.info("stt.model_preloaded", model_name=MODEL_NAME)
 
@@ -163,8 +183,8 @@ async def _warm_model() -> None:
             except Exception as _exc:  # best-effort
                 logger.debug("stt.warmup_skipped", reason=str(_exc))
             finally:
-                import os as _os
                 from contextlib import suppress
+                import os as _os
 
                 with suppress(Exception):
                     _os.unlink(tmp_path)

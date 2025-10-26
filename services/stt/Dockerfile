@@ -24,7 +24,8 @@ COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/pytho
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create models directory and set environment variables in single layer
-RUN mkdir -p /app/models && \
+RUN --mount=type=cache,target=/var/cache/apt \
+    mkdir -p /app/models && \
     echo "Python environment configured"
 
 # Set Python environment variables

@@ -6,3 +6,17 @@ pytest-cov==6.0.0
 coverage==7.6.1
 freezegun==1.4.0
 psutil==6.1.0
+
+# Dependencies needed for testing specific services
+# Audio processor dependencies
+webrtcvad>=2.0.10,<3.0
+speechbrain>=0.5.16,<1.0
+torch>=2.0.0,<3.0
+torchaudio>=2.0.0,<3.0
+
+# Discord dependencies
+discord.py[voice]>=2.4,<3.0
+discord-ext-voice_recv==0.5.2a179
+PyNaCl>=1.5,<2.0
+openwakeword>=0.6,<1.0
+rapidfuzz>=3.5,<4.0

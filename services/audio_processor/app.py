@@ -13,12 +13,10 @@ import base64
 import time
 from typing import Any
 
-import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+import uvicorn
 
-# Import local audio types
-from services.discord.audio import AudioSegment, PCMFrame
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -30,8 +28,12 @@ from services.common.config import (
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
+# Import local audio types
+from services.discord.audio import AudioSegment, PCMFrame
+
 from .enhancement import AudioEnhancer
 from .processor import AudioProcessor
+
 
 app = FastAPI(
     title="Audio Processor Service",
@@ -458,20 +460,6 @@ async def denoise_streaming(request: Request) -> bytes:
 
         # Return original data on failure
         return bytes(await request.body())
-
-
-@app.get("/metrics")  # type: ignore[misc]
-async def get_metrics() -> dict[str, Any]:
-    """Get service metrics."""
-    return {
-        "service": "audio_processor",
-        "uptime_seconds": time.time() - _health_manager._startup_time,
-        "status": "ready" if _health_manager._startup_complete else "starting",
-        "components": {
-            "processor_loaded": _audio_processor is not None,
-            "enhancer_loaded": _audio_enhancer is not None,
-        },
-    }
 
 
 async def _check_audio_processor_health() -> bool:

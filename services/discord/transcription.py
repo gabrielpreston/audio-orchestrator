@@ -18,47 +18,6 @@ from services.common.circuit_breaker import CircuitBreakerConfig
 from services.common.logging import get_logger
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 
-
-# Prometheus metrics
-try:
-    from prometheus_client import Counter, Histogram
-
-    PROMETHEUS_AVAILABLE = True
-
-    stt_requests = Counter(
-        "stt_requests_total", "Total STT requests", ["service", "status"]
-    )
-
-    stt_latency = Histogram(
-        "stt_latency_seconds",
-        "STT request latency",
-        ["service"],
-        buckets=(0.25, 0.5, 1, 2, 4, 8, 16, float("inf")),
-    )
-    pre_stt_encode = Histogram(
-        "pre_stt_encode_seconds",
-        "PCM to WAV encode latency prior to STT submission",
-        ["service"],
-        buckets=(
-            0.001,
-            0.005,
-            0.01,
-            0.025,
-            0.05,
-            0.1,
-            0.25,
-            0.5,
-            1,
-            2,
-            4,
-            float("inf"),
-        ),
-    )
-except ImportError:
-    PROMETHEUS_AVAILABLE = False
-    stt_requests = None
-    stt_latency = None
-
 from .audio import AudioSegment
 from .config import STTConfig
 
@@ -83,12 +42,17 @@ class TranscriptionClient:
     """Async client that sends audio segments to the STT service with resilience."""
 
     def __init__(
-        self, config: STTConfig, *, session: httpx.AsyncClient | None = None
+        self,
+        config: STTConfig,
+        *,
+        session: httpx.AsyncClient | None = None,
+        metrics: dict[str, Any] | None = None,
     ) -> None:
         self._config = config
         self._session = session
         self._owns_session = session is None
         self._logger = get_logger(__name__, service_name="discord")
+        self._metrics = metrics or {}
 
         # Set up resilient HTTP client with circuit breaker
         circuit_config = CircuitBreakerConfig(
@@ -134,11 +98,12 @@ class TranscriptionClient:
             _pcm_to_wav, segment.pcm, sample_rate=segment.sample_rate
         )
         encode_ms = int((time.monotonic() - encode_start) * 1000)
-        if PROMETHEUS_AVAILABLE and pre_stt_encode:
-            from contextlib import suppress
 
-            with suppress(Exception):
-                pre_stt_encode.labels(service="discord").observe(encode_ms / 1000.0)
+        # Record pre-STT encoding metrics
+        if "pre_stt_encode" in self._metrics:
+            self._metrics["pre_stt_encode"].record(
+                encode_ms / 1000.0, attributes={"service": "discord"}
+            )
 
         # Log STT request initiation after conversion so audio_bytes is accurate
         logger.info(
@@ -156,21 +121,16 @@ class TranscriptionClient:
 
         start_time = time.monotonic()
 
-        # Record metrics if Prometheus is available
-        if PROMETHEUS_AVAILABLE and stt_latency:
-            with stt_latency.labels(service="discord").time():
-                result = await self._do_transcribe(
-                    segment, logger, start_time, wav_bytes, encode_ms
-                )
-        else:
-            result = await self._do_transcribe(
-                segment, logger, start_time, wav_bytes, encode_ms
-            )
+        result = await self._do_transcribe(
+            segment, logger, start_time, wav_bytes, encode_ms
+        )
 
-        # Record request metrics
-        if PROMETHEUS_AVAILABLE and stt_requests:
+        # Record STT request metrics
+        if "stt_requests" in self._metrics:
             status = "success" if result else "failure"
-            stt_requests.labels(service="discord", status=status).inc()
+            self._metrics["stt_requests"].add(
+                1, attributes={"service": "discord", "status": status}
+            )
 
         return result
 
@@ -262,8 +222,14 @@ class TranscriptionClient:
         text = payload.get("text", "")
 
         # Log STT response with latency
-
         latency_ms = int((time.monotonic() - start_time) * 1000)
+
+        # Record STT latency metrics
+        if "stt_latency" in self._metrics:
+            self._metrics["stt_latency"].record(
+                latency_ms / 1000.0, attributes={"service": "discord"}
+            )
+
         logger.info(
             "stt.response_received",
             correlation_id=segment.correlation_id,

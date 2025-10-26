@@ -6,9 +6,9 @@ SHELL := /bin/bash
 .PHONY: all help
 .PHONY: run stop logs logs-dump docker-status
 .PHONY: docker-build docker-build-service docker-restart docker-shell docker-config
-.PHONY: test test-image test-unit test-component test-integration
-.PHONY: lint lint-image lint-fix
-.PHONY: security security-image
+.PHONY: test test-image test-image-force test-unit test-component test-integration
+.PHONY: lint lint-image lint-image-force lint-fix
+.PHONY: security security-image security-image-force
 .PHONY: clean docker-clean docker-clean-all
 .PHONY: docs-verify
 .PHONY: rotate-tokens rotate-tokens-dry-run validate-tokens
@@ -59,6 +59,51 @@ COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked docker compose 
 # Docker BuildKit configuration
 DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
+
+# Docker build optimization helpers
+define image_exists
+@docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false"
+endef
+
+define build_if_missing
+@if [ "$$(docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false")" = "false" ]; then \
+    printf "$(COLOR_YELLOW)→ Building $(1) (not found)$(COLOR_OFF)\n"; \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build \
+        --tag $(1) \
+        --cache-from type=gha,scope=services \
+        --cache-from $(1) \
+        --cache-to type=gha,mode=max,scope=services \
+        --cache-to $(1) \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        -f $(2) .; \
+else \
+    printf "$(COLOR_GREEN)→ Using existing $(1)$(COLOR_OFF)\n"; \
+fi
+endef
+
+define build_with_cache
+@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build \
+    --tag $(1) \
+    --cache-from type=gha,scope=services \
+    --cache-from $(1) \
+    --cache-to type=gha,mode=max,scope=services \
+    --cache-to $(1) \
+    --build-arg BUILDKIT_INLINE_CACHE=1 \
+    -f $(2) .
+endef
+
+define build_service_with_enhanced_cache
+@printf "$(COLOR_CYAN)→ Building $(1) with enhanced caching$(COLOR_OFF)\n"; \
+DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build \
+    --tag $(1) \
+    --cache-from type=gha,scope=services \
+    --cache-from type=gha,scope=base-images \
+    --cache-from $(1) \
+    --cache-to type=gha,mode=max,scope=services \
+    --cache-to $(1) \
+    --build-arg BUILDKIT_INLINE_CACHE=1 \
+    -f $(2) .
+endef
 
 # Source paths and file discovery
 PYTHON_SOURCES := services
@@ -156,6 +201,11 @@ docker-build: ## Build or rebuild images for the compose stack (smart incrementa
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@bash scripts/build-incremental.sh
 
+docker-build-enhanced: ## Build with enhanced multi-source caching (GitHub Actions + registry)
+	@printf "$(COLOR_GREEN)→ Building docker images with enhanced caching$(COLOR_OFF)\n"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
+
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
@@ -205,9 +255,24 @@ test: test-unit test-component ## Run unit and component tests (fast, reliable)
 
 
 
-test-image: ## Build the test toolchain container image
+test-image-force: ## Force rebuild the test toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
-	@docker build --tag $(TEST_IMAGE) -f $(TEST_DOCKERFILE) .
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(TEST_IMAGE)$(COLOR_OFF)\n"
+	$(call build_with_cache,$(TEST_IMAGE),$(TEST_DOCKERFILE))
+
+lint-image-force: ## Force rebuild the lint toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE)$(COLOR_OFF)\n"
+	$(call build_with_cache,$(LINT_IMAGE),$(LINT_DOCKERFILE))
+
+security-image-force: ## Force rebuild the security scanning container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(SECURITY_IMAGE)$(COLOR_OFF)\n"
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --pull --tag $(SECURITY_IMAGE) -f $(SECURITY_DOCKERFILE) .
+
+test-image: ## Build the test toolchain container image (only if missing)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
+	$(call build_if_missing,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
 
 # Test categories
@@ -260,9 +325,9 @@ lint: lint-image ## Run all linters (validation only)
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		/usr/local/bin/run-lint.sh
 
-lint-image: ## Build the lint toolchain container image
+lint-image: ## Build the lint toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	@docker build --tag $(LINT_IMAGE) -f $(LINT_DOCKERFILE) .
+	$(call build_if_missing,$(LINT_IMAGE),$(LINT_DOCKERFILE))
 
 lint-fix: lint-image ## Apply all automatic fixes
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
@@ -280,9 +345,9 @@ security: security-image ## Run security scanning with pip-audit
 	@printf "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)\n"
 	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
-security-image: ## Build the security scanning container image
+security-image: ## Build the security scanning container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
-	@docker build --pull --tag $(SECURITY_IMAGE) -f $(SECURITY_DOCKERFILE) .
+	$(call build_if_missing,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
 
 
 # =============================================================================

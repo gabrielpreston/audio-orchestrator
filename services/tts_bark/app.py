@@ -12,9 +12,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+import uvicorn
 
 from services.common.config import (
     AudioConfig,
@@ -28,6 +28,7 @@ from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
 
 from .synthesis import BarkSynthesizer
+
 
 app = FastAPI(
     title="Bark TTS Service",
@@ -197,15 +198,6 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
 async def list_voices() -> dict[str, list[str]]:
     """List available voice presets."""
     return {"bark": VOICE_PRESETS, "piper": ["default"]}
-
-
-@app.get("/metrics")  # type: ignore[misc]
-async def get_metrics() -> dict[str, Any]:
-    """Get service metrics."""
-    if _bark_synthesizer is None:
-        return {"error": "Bark synthesizer not available"}
-
-    return dict(await _bark_synthesizer.get_metrics())
 
 
 async def _check_synthesizer_health() -> bool:

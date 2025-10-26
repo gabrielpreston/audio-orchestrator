@@ -28,6 +28,9 @@ COPY services/common /app/services/common
 # Copy configuration
 COPY services/audio_processor/config /app/config
 
+# Copy health check script
+COPY scripts/health_check.py /app/scripts/health_check.py
+
 # Create models directory
 RUN mkdir -p /app/models
 
@@ -36,9 +39,9 @@ ENV PYTHONPATH=/app
 ENV AUDIO_PROCESSOR_SERVICE_PORT=9100
 ENV AUDIO_PROCESSOR_SERVICE_HOST=0.0.0.0
 
-# Health check
+# Health check - CORRECTED to use Python script
 HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:9100/health/ready || exit 1
+    CMD python /app/scripts/health_check.py http://localhost:9100/health/ready --timeout 5
 
 # Expose port
 EXPOSE 9100

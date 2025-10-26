@@ -6,30 +6,36 @@ import asyncio
 import os
 from typing import Any
 
-import httpx
 from fastapi import FastAPI, HTTPException
+import httpx
 from pydantic import BaseModel
 
+from services.common.audio_metrics import (
+    create_audio_metrics,
+    create_http_metrics,
+    create_stt_metrics,
+)
 from services.common.health import HealthManager, HealthStatus
 
 # Configure logging
 from services.common.logging import get_logger
+from services.common.tracing import setup_service_observability
 
 from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
-
-# from services.common.metrics import MetricsCollector, init_metrics_registry
 
 
 logger = get_logger(__name__, service_name="discord")
 
 app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
-# Global bot instance (simplified for HTTP mode)
+# Global instances
 _bot: Any | None = None
 _health_manager = HealthManager("discord")
-# Metrics collector for performance monitoring (disabled for now)
-# _metrics_collector: MetricsCollector = init_metrics_registry("discord", "1.0.0")
+_observability_manager = None
+_stt_metrics = {}
+_audio_metrics = {}
+_http_metrics = {}
 
 
 class SendMessageRequest(BaseModel):
@@ -49,11 +55,23 @@ class TranscriptNotification(BaseModel):
 @app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
-    global _bot
+    global _bot, _observability_manager, _stt_metrics, _audio_metrics, _http_metrics
 
     logger.info("discord.startup_event_called")
 
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("discord", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _stt_metrics = create_stt_metrics(_observability_manager)
+        _audio_metrics = create_audio_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         # Load configuration
         config = load_config()
 
@@ -99,6 +117,7 @@ async def startup_event() -> None:
                 audio_processor_wrapper=audio_processor_wrapper,
                 wake_detector=wake_detector,
                 transcript_publisher=dummy_transcript_publisher,
+                metrics=_stt_metrics,
             )
             logger.info("discord.voicebot_created")
 

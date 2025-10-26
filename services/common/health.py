@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from prometheus_client import Gauge, Histogram
-
 from .logging import get_logger
 
 
@@ -41,23 +39,32 @@ class HealthManager:
         self._startup_time = time.time()
         self._logger = get_logger(__name__, service_name=service_name)
 
-        # Add health metrics - use service name as prefix to avoid conflicts
-        metric_prefix = f"{service_name}_"
-        self._health_check_duration = Histogram(
-            f"{metric_prefix}health_check_duration_seconds",
-            "Health check execution duration",
-            ["service", "check_type"],
-        )
-        self._health_status_gauge = Gauge(
-            f"{metric_prefix}service_health_status",
-            "Current service health status",
-            ["service", "component"],
-        )
-        self._dependency_status_gauge = Gauge(
-            f"{metric_prefix}service_dependency_health",
-            "Dependency health status (1=healthy, 0=unhealthy)",
-            ["service", "dependency"],
-        )
+        # Initialize observability manager for metrics (will be set later)
+        self._observability_manager: Any | None = None
+        self._health_check_duration: Any | None = None
+        self._health_status_gauge: Any | None = None
+        self._dependency_status_gauge: Any | None = None
+
+    def set_observability_manager(self, observability_manager: Any) -> None:
+        """Set the observability manager for metrics."""
+        self._observability_manager = observability_manager
+        meter = observability_manager.get_meter()
+        if meter:
+            self._health_check_duration = meter.create_histogram(
+                "health_check_duration_seconds",
+                unit="s",
+                description="Health check execution duration",
+            )
+            self._health_status_gauge = meter.create_up_down_counter(
+                "service_health_status",
+                unit="1",
+                description="Current service health status",
+            )
+            self._dependency_status_gauge = meter.create_up_down_counter(
+                "service_dependency_health",
+                unit="1",
+                description="Dependency health status (1=healthy, 0=unhealthy)",
+            )
 
     def register_dependency(self, name: str, check: Callable[[], Any]) -> None:
         """Register a dependency health check."""
@@ -95,10 +102,11 @@ class HealthManager:
         """Mark that startup initialization is complete."""
         self._startup_complete = True
         self._logger.info("health.startup_complete", service=self._service_name)
-        # Update startup metric
-        self._health_status_gauge.labels(
-            service=self._service_name, component="startup"
-        ).set(1)
+        # Update startup metric using OpenTelemetry
+        if self._health_status_gauge:
+            self._health_status_gauge.add(
+                1, attributes={"service": self._service_name, "component": "startup"}
+            )
 
     async def get_health_status(self) -> HealthCheck:
         """Get current health status with metrics."""
@@ -124,36 +132,48 @@ class HealthManager:
 
                     dependency_status[name] = is_healthy
 
-                    # Update dependency metric
-                    self._dependency_status_gauge.labels(
-                        service=self._service_name, dependency=name
-                    ).set(1 if is_healthy else 0)
+                    # Update dependency metric using OpenTelemetry
+                    if self._dependency_status_gauge:
+                        self._dependency_status_gauge.add(
+                            1 if is_healthy else 0,
+                            attributes={
+                                "service": self._service_name,
+                                "dependency": name,
+                            },
+                        )
 
                     if not is_healthy:
                         ready = False
                 except Exception as exc:
                     dependency_status[name] = False
                     ready = False
-                    self._dependency_status_gauge.labels(
-                        service=self._service_name, dependency=name
-                    ).set(0)
+                    if self._dependency_status_gauge:
+                        self._dependency_status_gauge.add(
+                            0,
+                            attributes={
+                                "service": self._service_name,
+                                "dependency": name,
+                            },
+                        )
                     self._logger.warning(
                         "health.dependency_error", dependency=name, error=str(exc)
                     )
 
             status = HealthStatus.HEALTHY if ready else HealthStatus.DEGRADED
 
-            # Update overall health metric
-            status_value = (
-                1
-                if status == HealthStatus.HEALTHY
-                else 0.5
-                if status == HealthStatus.DEGRADED
-                else 0
-            )
-            self._health_status_gauge.labels(
-                service=self._service_name, component="overall"
-            ).set(status_value)
+            # Update overall health metric using OpenTelemetry
+            if self._health_status_gauge:
+                status_value = (
+                    1
+                    if status == HealthStatus.HEALTHY
+                    else 0.5
+                    if status == HealthStatus.DEGRADED
+                    else 0
+                )
+                self._health_status_gauge.add(
+                    status_value,
+                    attributes={"service": self._service_name, "component": "overall"},
+                )
 
             return HealthCheck(
                 status=status,
@@ -166,9 +186,11 @@ class HealthManager:
         finally:
             # Record health check duration
             duration = time.time() - start_time
-            self._health_check_duration.labels(
-                service=self._service_name, check_type="ready"
-            ).observe(duration)
+            if self._health_check_duration:
+                self._health_check_duration.record(
+                    duration,
+                    attributes={"service": self._service_name, "check_type": "ready"},
+                )
 
 
 __all__ = ["HealthStatus", "HealthCheck", "HealthManager"]

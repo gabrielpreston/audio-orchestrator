@@ -6,7 +6,6 @@ providing more sophisticated agent management and tool integration.
 """
 
 import os
-import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -23,6 +22,7 @@ from .langchain_integration import (
     create_langchain_executor,
     process_with_langchain,
 )
+
 
 # Import AgentExecutor for type hints
 try:
@@ -247,16 +247,4 @@ async def list_connections() -> dict[str, Any]:
             {"name": "discord", "status": "connected", "type": "mcp"},
             {"name": "web_search", "status": "available", "type": "tool"},
         ]
-    }
-
-
-@app.get("/metrics")  # type: ignore[misc]
-async def get_metrics() -> dict[str, Any]:
-    """Get service metrics."""
-    return {
-        "service": "orchestrator-enhanced",
-        "uptime_seconds": time.time() - _health_manager._startup_time,
-        "langchain_available": LANGCHAIN_AVAILABLE,
-        "executor_ready": _langchain_executor is not None,
-        "prompt_version": PROMPT_VERSION,
     }
