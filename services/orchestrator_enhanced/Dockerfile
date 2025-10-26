@@ -25,6 +25,11 @@ COPY services/common /app/services/common
 COPY services/orchestrator_enhanced /app/services/orchestrator_enhanced
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+# Set Python environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
 ENV PORT=8200
 ENV LLM_PRIMARY_URL=http://llm-flan:8100
 ENV GUARDRAILS_URL=http://guardrails:9300

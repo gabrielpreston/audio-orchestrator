@@ -17,6 +17,8 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
+# Import local audio types
+from services.discord.audio import AudioSegment, PCMFrame
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -27,9 +29,6 @@ from services.common.config import (
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.logging import configure_logging, get_logger
-
-# Import Discord types for standardization
-from services.discord.audio import AudioSegment, PCMFrame
 
 from .enhancement import AudioEnhancer
 from .processor import AudioProcessor

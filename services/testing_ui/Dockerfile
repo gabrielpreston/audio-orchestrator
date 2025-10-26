@@ -28,6 +28,11 @@ COPY scripts/health_check.py /app/scripts/health_check.py
 # Create tmp directory for audio files
 RUN mkdir -p /tmp
 
+# Set Python environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
 ENV PORT=8080
 ENV GRADIO_SERVER_NAME=0.0.0.0
 ENV GRADIO_SERVER_PORT=8080

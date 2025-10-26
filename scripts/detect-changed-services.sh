@@ -41,6 +41,18 @@ if echo "$ALL_CHANGED" | grep -q "services/common/\|requirements-base.txt\|servi
     exit 0
 fi
 
+# Check for Dockerfile changes that affect all services
+if echo "$ALL_CHANGED" | grep -q "services/base/.*Dockerfile"; then
+    echo "all"
+    exit 0
+fi
+
+# Check for changes to shared build scripts
+if echo "$ALL_CHANGED" | grep -q "scripts/.*\.sh\|Makefile"; then
+    echo "all"
+    exit 0
+fi
+
 # Check for base image changes
 if echo "$ALL_CHANGED" | grep -q "services/base/"; then
     echo "base-images"

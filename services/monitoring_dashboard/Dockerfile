@@ -9,7 +9,7 @@ COPY services/monitoring_dashboard/requirements.txt /app/services/monitoring_das
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/monitoring-dashboard/requirements.txt
+    pip install --no-cache-dir -r /app/services/monitoring_dashboard/requirements.txt
 
 # Runtime stage using shared ML base image
 # hadolint ignore=DL3007
@@ -24,6 +24,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY services/common /app/services/common
 COPY services/monitoring_dashboard /app/services/monitoring_dashboard
 COPY scripts/health_check.py /app/scripts/health_check.py
+
+# Set Python environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
 ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0

@@ -59,11 +59,21 @@ case "$CHANGED" in
         ;;
 esac
 
-# Build services
+# Build services with enhanced monitoring
 printf "${COLOR_GREEN}🏗️  Building services...${COLOR_OFF}\n"
 for service in $SERVICES; do
     printf "${COLOR_CYAN}  → Building $service${COLOR_OFF}\n"
-    $DOCKER_COMPOSE build "$service"
+    SERVICE_START=$(date +%s)
+    
+    # Build with enhanced cache options
+    if $DOCKER_COMPOSE build --build-arg BUILDKIT_INLINE_CACHE=1 "$service"; then
+        SERVICE_END=$(date +%s)
+        SERVICE_DURATION=$((SERVICE_END - SERVICE_START))
+        printf "${COLOR_GREEN}    ✓ $service built in ${SERVICE_DURATION}s${COLOR_OFF}\n"
+    else
+        printf "${COLOR_RED}    ✗ $service build failed${COLOR_OFF}\n"
+        exit 1
+    fi
 done
 
 # Calculate time

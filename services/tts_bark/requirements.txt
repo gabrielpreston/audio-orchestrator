@@ -2,5 +2,5 @@
 -r ../requirements-base.txt
 
 # Bark TTS specific dependencies
-bark>=1.0.0,<2.0
+bark>=0.1.5,<1.0
 scipy>=1.11,<2.0

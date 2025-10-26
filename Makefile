@@ -3,34 +3,16 @@ SHELL := /bin/bash
 # =============================================================================
 # PHONY TARGETS
 # =============================================================================
-# Application Lifecycle
-.PHONY: run stop logs logs-dump docker-status
-
-# Docker Management
-.PHONY: docker-build docker-build-nocache docker-build-service docker-restart docker-shell docker-config docker-smoke docker-validate docker-prune-cache docker-clean
-
-# Base Image Management
-.PHONY: base-images base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain
-# Testing (Docker-based)
-.PHONY: test test-unit test-component test-integration test-e2e test-interface test-contract test-hot-swap test-all-contracts test-coverage test-watch test-debug test-specific test-image test-fast
-
-# Linting (Docker-based)
-.PHONY: lint lint-image lint-fix
-
-# Security (Docker-based)
-.PHONY: security security-image security-clean security-reports
-
-# Cleanup
-.PHONY: clean
-
-# Documentation & Utilities
-.PHONY: docs-verify rotate-tokens rotate-tokens-dry-run validate-tokens workflows-validate workflows-validate-syntax workflows-validate-actionlint validate-all models-download models-clean
-
-# Evaluation
-.PHONY: eval-stt eval-wake eval-stt-all clean-eval
-
-# Meta
 .PHONY: all help
+.PHONY: run stop logs logs-dump docker-status
+.PHONY: docker-build docker-build-service docker-restart docker-shell docker-config
+.PHONY: test test-image test-unit test-component test-integration
+.PHONY: lint lint-image lint-fix
+.PHONY: security security-image
+.PHONY: clean docker-clean docker-clean-all
+.PHONY: docs-verify
+.PHONY: rotate-tokens rotate-tokens-dry-run validate-tokens
+.PHONY: models-download models-clean
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -122,7 +104,7 @@ SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 
 VALID_SERVICES := $(shell echo "$(SERVICES)" | tr '\n' ' ')
 
 # Runtime services (excludes tooling services like linter, tester, security)
-RUNTIME_SERVICES := discord stt llm orchestrator tts common
+RUNTIME_SERVICES := discord stt llm-flan orchestrator-enhanced tts-bark audio-processor
 
 # =============================================================================
 # DEFAULT TARGETS
@@ -174,22 +156,6 @@ docker-build: ## Build or rebuild images for the compose stack (smart incrementa
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@bash scripts/build-incremental.sh
 
-docker-build-full: ## Build all images in parallel (traditional full rebuild)
-	@printf "$(COLOR_GREEN)→ Building docker images (full rebuild)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
-
-docker-smoke-ci: ## Use CI compose profile for smoke tests
-	@printf "$(COLOR_GREEN)→ Running Docker smoke tests (CI optimized)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config >/dev/null
-	@$(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml config --services
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.yml -f docker-compose.ci.yml build --pull --progress=plain
-
-docker-build-nocache: ## Force rebuild all images without using cache
-	@printf "$(COLOR_GREEN)→ Building docker images (no cache)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --no-cache --parallel
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
@@ -204,42 +170,6 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
-# Incremental build targets
-docker-build-incremental: ## Smart rebuild based on git changes (recommended for development)
-	@printf "$(COLOR_CYAN)→ Incremental build (git-aware)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@bash scripts/build-incremental.sh
-
-docker-build-smart: docker-build-incremental ## Alias for incremental build
-
-docker-build-services: ## Build all services in parallel (skip base images)
-	@printf "$(COLOR_GREEN)→ Building all services in parallel$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) \
-		$(DOCKER_COMPOSE) build --parallel discord stt llm orchestrator tts
-
-# Base image build targets
-base-images: base-images-python-base base-images-python-audio base-images-python-ml base-images-tools base-images-mcp-toolchain ## Build all base images
-
-base-images-python-base: ## Build python-base image
-	@printf "$(COLOR_GREEN)→ Building python-base image$(COLOR_OFF)\n"
-	@docker buildx build --tag ghcr.io/gabrielpreston/python-base:latest --file services/base/Dockerfile.python-base --load .
-
-base-images-python-audio: base-images-python-base ## Build python-audio image
-	@printf "$(COLOR_GREEN)→ Building python-audio image$(COLOR_OFF)\n"
-	@docker buildx build --tag ghcr.io/gabrielpreston/python-audio:latest --file services/base/Dockerfile.python-audio --load .
-
-base-images-python-ml: base-images-python-base ## Build python-ml image
-	@printf "$(COLOR_GREEN)→ Building python-ml image$(COLOR_OFF)\n"
-	@docker buildx build --tag ghcr.io/gabrielpreston/python-ml:latest --file services/base/Dockerfile.python-ml --load .
-
-base-images-tools: base-images-python-base ## Build tools image
-	@printf "$(COLOR_GREEN)→ Building tools image$(COLOR_OFF)\n"
-	@docker buildx build --tag ghcr.io/gabrielpreston/tools:latest --file services/base/Dockerfile.tools --load .
-
-base-images-mcp-toolchain: base-images-python-base ## Build mcp-toolchain image
-	@printf "$(COLOR_GREEN)→ Building mcp-toolchain image$(COLOR_OFF)\n"
-	@docker buildx build --tag ghcr.io/gabrielpreston/mcp-toolchain:latest --file services/base/Dockerfile.mcp-toolchain --load .
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
@@ -266,76 +196,6 @@ docker-config: ## Render the effective docker-compose configuration
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) config
 
-docker-smoke: ## Build images and validate docker-compose configuration for CI parity
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
-	@printf "$(COLOR_GREEN)→ Validating docker-compose stack$(COLOR_OFF)\n"
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) config >/dev/null
-	@$(DOCKER_COMPOSE) config --services
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --pull --progress=plain
-
-docker-validate: ## Validate Dockerfiles with hadolint
-	@command -v hadolint >/dev/null 2>&1 || { \
-		echo "hadolint not found; install it (see https://github.com/hadolint/hadolint#install)." >&2; exit 1; }
-	@printf "$(COLOR_CYAN)→ Validating Dockerfiles$(COLOR_OFF)\n"
-	@hadolint $(DOCKERFILES)
-	@printf "$(COLOR_GREEN)→ Dockerfile validation complete$(COLOR_OFF)\n"
-
-workflows-validate: ## Validate GitHub Actions workflows with all available tools (local only)
-	@printf "$(COLOR_CYAN)→ Validating GitHub Actions workflows$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Running YAML syntax validation$(COLOR_OFF)\n"
-	@$(MAKE) lint-image
-	@docker run --rm -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) yamllint -c .yamllint $(YAML_FILES)
-	@printf "$(COLOR_GREEN)→ YAML syntax validation passed$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Running actionlint validation$(COLOR_OFF)\n"
-	@docker run --rm --entrypoint="" -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) actionlint .github/workflows/*.y*ml
-	@printf "$(COLOR_GREEN)→ actionlint validation passed$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_GREEN)→ Workflow validation complete$(COLOR_OFF)\n"
-
-workflows-validate-syntax: ## Validate workflow YAML syntax only (uses containerized yamllint)
-	@printf "$(COLOR_CYAN)→ Validating workflow YAML syntax$(COLOR_OFF)\n"
-	@$(MAKE) lint-image
-	@docker run --rm -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) yamllint -c .yamllint $(YAML_FILES)
-	@printf "$(COLOR_GREEN)→ YAML syntax validation passed$(COLOR_OFF)\n"
-
-workflows-validate-actionlint: ## Validate workflows with actionlint (uses containerized actionlint)
-	@printf "$(COLOR_CYAN)→ Validating workflows with actionlint$(COLOR_OFF)\n"
-	@$(MAKE) lint-image
-	@docker run --rm --entrypoint="" -v "$(CURDIR)":$(LINT_WORKDIR) -w $(LINT_WORKDIR) $(LINT_IMAGE) actionlint .github/workflows/*.y*ml
-	@printf "$(COLOR_GREEN)→ actionlint validation passed$(COLOR_OFF)\n"
-
-validate-all: ## Run all validation checks (lint, test, security, docs, workflows)
-	@printf "$(COLOR_CYAN)→ Running comprehensive validation$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Step 1: Building lint image$(COLOR_OFF)\n"
-	@$(MAKE) lint-image
-	@printf "$(COLOR_GREEN)→ Lint image ready$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Step 2: Running linters$(COLOR_OFF)\n"
-	@$(MAKE) lint
-	@printf "$(COLOR_GREEN)→ All linters passed$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Step 3: Validating documentation$(COLOR_OFF)\n"
-	@$(MAKE) docs-verify
-	@printf "$(COLOR_GREEN)→ Documentation validation passed$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Step 4: Building test image$(COLOR_OFF)\n"
-	@$(MAKE) test-image
-	@printf "$(COLOR_GREEN)→ Test image ready$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_CYAN)→ Step 5: Running tests$(COLOR_OFF)\n"
-	@$(MAKE) test
-	@printf "$(COLOR_GREEN)→ All tests passed$(COLOR_OFF)\n"
-	@echo ""
-	@printf "$(COLOR_GREEN)→ ✓ All validation checks passed!$(COLOR_OFF)\n"
-
-docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
-	@printf "$(COLOR_YELLOW)→ Pruning Docker BuildKit cache$(COLOR_OFF)\n"
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping cache prune."; exit 0; }
-	@docker buildx prune -f || true
-	@printf "$(COLOR_GREEN)→ BuildKit cache pruned$(COLOR_OFF)\n"
 
 # =============================================================================
 # TESTING
@@ -343,9 +203,6 @@ docker-prune-cache: ## Clear BuildKit cache and unused Docker resources
 
 test: test-unit test-component ## Run unit and component tests (fast, reliable)
 
-test-all: test-unit test-component test-integration test-e2e ## Run all tests including integration and E2E
-
-test-fast: test-unit ## Run only unit tests (fastest validation option)
 
 
 test-image: ## Build the test toolchain container image
@@ -387,71 +244,6 @@ test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@printf "$(COLOR_YELLOW)→ Stopping test services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down -v
 
-test-e2e: test-image ## Run end-to-end tests (manual trigger only)
-	@printf "$(COLOR_RED)→ Running end-to-end tests (requires real Discord API)$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ WARNING: This will make real API calls and may incur costs$(COLOR_OFF)\n"
-	@read -p "Are you sure you want to continue? [y/N] " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker run --rm \
-			-u $$(id -u):$$(id -g) \
-			-e HOME=$(TEST_WORKDIR) \
-			-e USER=$$(id -un 2>/dev/null || echo tester) \
-			$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-			-v "$(CURDIR)":$(TEST_WORKDIR) \
-			$(TEST_IMAGE) \
-			pytest -m e2e $(PYTEST_ARGS); \
-	else \
-		printf "$(COLOR_YELLOW)→ E2E tests cancelled$(COLOR_OFF)\n"; \
-		exit 0; \
-	fi
-
-# Interface-first testing targets
-test-interface: test-image ## Run interface compliance tests
-	@printf "$(COLOR_CYAN)→ Running interface compliance tests$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m interface $(PYTEST_ARGS))
-
-test-contract: test-image ## Run contract validation tests
-	@printf "$(COLOR_CYAN)→ Running contract validation tests$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m contract $(PYTEST_ARGS))
-
-test-hot-swap: test-image ## Run hot-swap validation tests
-	@printf "$(COLOR_CYAN)→ Running hot-swap validation tests$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m hot_swap $(PYTEST_ARGS))
-
-test-all-contracts: test-image ## Run all contract and interface tests
-	@printf "$(COLOR_CYAN)→ Running all contract and interface tests$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m "interface or contract" $(PYTEST_ARGS))
-
-# Test utilities
-test-coverage: test-image ## Generate coverage report
-	@printf "$(COLOR_CYAN)→ Running tests with coverage$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest --cov=services --cov-report=html:htmlcov --cov-report=xml:coverage.xml $(PYTEST_ARGS))
-	@printf "$(COLOR_GREEN)→ Coverage report generated in htmlcov/index.html$(COLOR_OFF)\n"
-
-test-watch: test-image ## Run tests in watch mode (requires pytest-watch)
-	@printf "$(COLOR_CYAN)→ Running tests in watch mode$(COLOR_OFF)\n"
-	@docker run --rm -it \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		ptw --runner "pytest -xvs" $(PYTEST_ARGS)
-
-test-debug: test-image ## Run tests in debug mode with verbose output
-	@printf "$(COLOR_CYAN)→ Running tests in debug mode$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs --tb=long --capture=no $(PYTEST_ARGS))
-
-test-specific: test-image ## Run specific tests (use PYTEST_ARGS="-k pattern")
-	@if [ -z "$(PYTEST_ARGS)" ]; then \
-		printf "$(COLOR_RED)→ Error: PYTEST_ARGS must be specified for test-specific$(COLOR_OFF)\n"; \
-		printf "$(COLOR_YELLOW)→ Example: make test-specific PYTEST_ARGS='-k test_audio'$(COLOR_OFF)\n"; \
-		exit 1; \
-	fi
-	@printf "$(COLOR_CYAN)→ Running specific tests: $(PYTEST_ARGS)$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -xvs $(PYTEST_ARGS))
 
 # =============================================================================
 # LINTING & CODE QUALITY
@@ -479,19 +271,6 @@ lint-fix: lint-image ## Apply all automatic fixes
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		/usr/local/bin/run-lint-fix.sh
 
-lint-%: lint-image ## Run specific linter (e.g., make lint-black, make lint-yamllint)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-single.sh $*
-
-update-secrets-baseline: lint-image ## Update secrets baseline (run manually when needed)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/update-secrets-baseline.sh
 
 # =============================================================================
 # SECURITY & QUALITY GATES
@@ -505,24 +284,6 @@ security-image: ## Build the security scanning container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
 	@docker build --pull --tag $(SECURITY_IMAGE) -f $(SECURITY_DOCKERFILE) .
 
-security-clean: ## Clean security scan artifacts
-	@echo "→ Cleaning security scan artifacts"
-	@rm -rf security-reports
-	@echo "✓ Security artifacts cleaned"
-
-security-reports: ## Show security scan report summary
-	@if [ -d "security-reports" ]; then \
-		echo "→ Security scan reports:"; \
-		for report in security-reports/*.json; do \
-			if [ -f "$$report" ]; then \
-				service=$$(basename "$$report" -requirements.json); \
-				vulns=$$(jq '.vulnerabilities | length' "$$report" 2>/dev/null || echo "0"); \
-				echo "  $$service: $$vulns vulnerabilities"; \
-			fi; \
-		done; \
-	else \
-		echo "→ No security reports found. Run 'make security' first."; \
-	fi
 
 # =============================================================================
 # CLEANUP & MAINTENANCE
@@ -543,25 +304,8 @@ docker-clean: ## Clean unused Docker resources (safe - preserves images/volumes 
 
 docker-clean-all: ## Nuclear cleanup: stop compose stack, remove ALL images/volumes/networks
 	@printf "$(COLOR_RED)⚠️  WARNING: Aggressive cleanup - removes ALL images and volumes$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then \
-		echo "$(COMPOSE_MISSING_MESSAGE) Skipping compose down."; \
-	else \
-		$(DOCKER_COMPOSE) down --rmi all -v --remove-orphans || true; \
-	fi
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; skipping docker prune steps."; exit 0; }
-	@echo "Pruning stopped containers..."
-	@docker container prune -f || true
-	@echo "Pruning ALL unused images (including tagged)..."
-	@docker image prune -a -f || true
-	@echo "Pruning ALL unused volumes..."
-	@docker volume prune -f || true
-	@echo "Pruning unused networks..."
-	@docker network prune -f || true
-
-# =============================================================================
-# CI SETUP & DEPENDENCIES
-# =============================================================================
-
+	@$(DOCKER_COMPOSE) down --rmi all -v --remove-orphans || true
+	@docker system prune -a -f --volumes || true
 
 # =============================================================================
 # DOCUMENTATION & UTILITIES
@@ -653,108 +397,3 @@ models-clean: ## Remove downloaded models from ./services/models/
 	else \
 		echo "No models directory found."; \
 	fi
-
-# =============================================================================
-# EVALUATION
-# =============================================================================
-
-.PHONY: eval-stt eval-stt-all clean-eval
-
-eval-stt: ## Evaluate a single provider on specified phrase files (PROVIDER=stt PHRASES=path1 path2)
-	@printf "$(COLOR_CYAN)→ Evaluating STT provider $(PROVIDER) on $(PHRASES)$(COLOR_OFF)"; \
-	PYTHONPATH=$(CURDIR)$${PYTHONPATH:+:$$PYTHONPATH} \
-	python3 scripts/eval_stt.py --provider "$${PROVIDER:-stt}" --phrases $(PHRASES)
-
-eval-wake: ## Evaluate wake phrases with default provider
-	@$(MAKE) eval-stt PROVIDER=$${PROVIDER:-stt} PHRASES="tests/fixtures/phrases/en/wake.txt"
-
-eval-stt-all: ## Evaluate across all configured providers
-	@set -e; \
-	providers="stt"; \
-	for p in $$providers; do \
-		printf "$(COLOR_CYAN)→ Provider: $$p$(COLOR_OFF)"; \
-		$(MAKE) eval-stt PROVIDER=$$p PHRASES="tests/fixtures/phrases/en/wake.txt tests/fixtures/phrases/en/core.txt" || echo "Skipped $$p"; \
-	done
-
-clean-eval: ## Remove eval outputs and generated audio
-	@printf "$(COLOR_BLUE)→ Cleaning evaluation artifacts$(COLOR_OFF)\n"; \
-	rm -rf .artifacts/eval_wavs || true; \
-	rm -rf debug/eval || true
-# =============================================================================
-# DOCKER-FIRST LINTING TARGETS
-# =============================================================================
-# Purpose: Granular linting targets for Docker-first approach
-# These targets run specific linting tools in Docker containers
-
-# Python-specific linting (fast, for pre-commit)
-.PHONY: lint-python
-lint-python: lint-image ## Run Python linting only (ruff, mypy)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-python.sh
-
-# YAML linting
-.PHONY: lint-yaml
-lint-yaml: lint-image ## Run YAML linting only (yamllint, actionlint)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-yaml.sh
-
-# Markdown linting
-.PHONY: lint-markdown
-lint-markdown: lint-image ## Run Markdown linting only (markdownlint)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-markdown.sh
-
-# Security analysis
-.PHONY: lint-security
-lint-security: lint-image ## Run security analysis only (bandit, detect-secrets)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-security.sh
-
-# Complexity analysis
-.PHONY: lint-complexity
-lint-complexity: lint-image ## Run complexity analysis only (radon)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-complexity.sh
-
-# Dockerfile linting
-.PHONY: lint-dockerfile
-lint-dockerfile: lint-image ## Run Dockerfile linting only (hadolint)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-dockerfile.sh
-
-# Makefile linting
-.PHONY: lint-makefile
-lint-makefile: lint-image ## Run Makefile linting only (checkmake)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo lint) \
-		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-makefile.sh
-
-# Quick linting (Python + YAML only, for fast feedback)
-.PHONY: lint-quick
-lint-quick: lint-python lint-yaml ## Run quick linting (Python + YAML only)
-	@echo "Quick linting complete!"
-
-# Comprehensive linting (all tools, for thorough analysis)
-.PHONY: lint-comprehensive
-lint-comprehensive: lint-python lint-yaml lint-markdown lint-security lint-complexity lint-dockerfile lint-makefile ## Run comprehensive linting (all tools)
-	@echo "Comprehensive linting complete!"

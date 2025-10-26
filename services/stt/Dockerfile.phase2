@@ -1,6 +1,7 @@
-# Build stage using shared ML base image
-# hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
+# Phase 2: STT Service with Pre-compiled Dependencies
+# Uses pre-compiled base image for faster builds
+
+FROM ghcr.io/gabrielpreston/python-ml-compiled:latest AS builder
 
 WORKDIR /app
 
@@ -8,14 +9,12 @@ WORKDIR /app
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
-# Install Python deps from the copied requirements
-# hadolint ignore=DL3013
+# Install only service-specific dependencies (most are pre-compiled)
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/stt/requirements.txt
 
-# Runtime stage using shared ML base image
-# hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-ml:latest
+# Runtime stage using pre-compiled base
+FROM ghcr.io/gabrielpreston/python-ml-compiled:latest
 
 WORKDIR /app
 
@@ -25,7 +24,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Create models directory and set environment variables in single layer
 RUN mkdir -p /app/models && \
-    echo "Python environment configured"
+    echo "STT environment configured with Phase 2 optimizations"
 
 # Set Python environment variables
 ENV PYTHONPATH=/app

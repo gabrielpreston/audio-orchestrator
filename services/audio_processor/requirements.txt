@@ -5,9 +5,9 @@ fastapi>=0.104.0,<1.0
 uvicorn[standard]>=0.24.0,<1.0
 pydantic>=2.0.0,<3.0
 
-# Audio processing
-numpy>=1.24.0,<2.0
-scipy>=1.11.0,<2.0
+# Audio processing - pinned versions for compatibility
+numpy==1.24.3
+scipy==1.11.4
 webrtcvad>=2.0.10,<3.0
 
 # Audio enhancement

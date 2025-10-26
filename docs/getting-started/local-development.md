@@ -21,13 +21,8 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 | `make logs [SERVICE=name]` | Stream JSON logs for the entire stack or a single service. |
 | `make lint` | Run containerized linting for Python, Dockerfiles, Markdown, and YAML. |
 | `make lint-fix` | Apply Ruff formatting in the lint container. |
-| `make lint-local` | Run lint tools installed on the host machine. |
-| `make test` | Execute `pytest` inside the tester container. |
-| `make test-local` | Run `pytest` on the host; set `PYTEST_ARGS` for filtering. |
-| `make workflows-validate` | Validate GitHub Actions workflows with yamllint and actionlint (containerized). |
-| `make workflows-validate-syntax` | Validate workflow YAML syntax only (containerized yamllint). |
-| `make workflows-validate-actionlint` | Validate workflows with actionlint (containerized actionlint). |
-| `make validate-all` | Run all validation checks (lint, test, security, docs, workflows). |
+| `make docker-build-service SERVICE=name` | Build a specific service (set SERVICE=name). |
+| `make test-integration` | Run integration tests (requires Docker Compose). |
 
 ## Development Loop
 

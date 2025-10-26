@@ -49,7 +49,7 @@ repos:
         description: "Fast Python-only linting for quick feedback during development"
         entry: make
         language: system
-        args: ["lint-python"]
+        args: ["lint"]
         files: '\.py$'
         pass_filenames: false
         always_run: false
@@ -72,7 +72,7 @@ repos:
         description: "Security-focused linting including bandit and detect-secrets"
         entry: make
         language: system
-        args: ["lint-security"]
+        args: ["security"]
         files: '\.py$'
         pass_filenames: false
         always_run: false
@@ -85,18 +85,6 @@ repos:
         entry: make
         language: system
         args: ["test"]
-        files: '\.py$'
-        pass_filenames: false
-        always_run: false
-        stages: [pre-commit]
-
-      # Performance monitoring (Python files only, conditional)
-      - id: docker-lint-performance
-        name: Performance Check (Docker)
-        description: "Performance monitoring and optimization checks"
-        entry: make
-        language: system
-        args: ["lint-performance"]
         files: '\.py$'
         pass_filenames: false
         always_run: false
