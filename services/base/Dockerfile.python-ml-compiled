@@ -12,15 +12,15 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Pre-compile wheels for common ML dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip wheel --wheel-dir=/wheels \
-    torch>=2.0,<3.0 \
-    torchvision>=0.15,<1.0 \
-    torchaudio>=2.0,<3.0 \
-    transformers>=4.57,<5.0 \
-    faster-whisper>=1.2,<2.0 \
-    librosa>=0.10,<1.0 \
-    soundfile>=0.12,<1.0 \
-    scipy>=1.11,<2.0 \
-    numpy>=1.24,<2.0
+    "torch>=2.0,<3.0" \
+    "torchvision>=0.15,<1.0" \
+    "torchaudio>=2.0,<3.0" \
+    "transformers>=4.57,<5.0" \
+    "faster-whisper>=1.2,<2.0" \
+    "librosa>=0.10,<1.0" \
+    "soundfile>=0.12,<1.0" \
+    "scipy>=1.11,<2.0" \
+    "numpy>=1.24,<2.0"
 
 # Runtime stage with pre-compiled wheels
 FROM ghcr.io/gabrielpreston/python-ml:latest
