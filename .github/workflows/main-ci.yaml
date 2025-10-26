@@ -69,8 +69,10 @@ jobs:
           echo "- Base: ${{ steps.filter.outputs.base }}" >> $GITHUB_STEP_SUMMARY
 
   core-ci:
-    needs: ["changes"]
-    if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+    needs: ["changes", "docker-ci"]
+    if: |
+      (needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch') &&
+      (needs.docker-ci.result == 'success' || needs.docker-ci.result == 'skipped')
     uses: ./.github/workflows/core-ci.yaml
     with:
       python-changes: ${{ needs.changes.outputs.python == 'true' }}
