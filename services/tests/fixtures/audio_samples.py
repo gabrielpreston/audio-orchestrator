@@ -1,4 +1,6 @@
-"""Audio test fixtures for synthetic noisy samples."""
+"""Audio test fixtures for synthetic noisy samples.
+# Trigger CI lint check
+"""
 
 from dataclasses import dataclass
 import io
