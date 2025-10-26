@@ -1,5 +1,6 @@
 # Phase 2: Python ML Base with Transformers Optimization
 # Consolidates Transformers dependencies for LLM-FLAN, Guardrails
+# Updated: 2025-10-26 - Trigger full tiered build for CI validation
 
 FROM ghcr.io/gabrielpreston/python-ml:latest
 

@@ -1,5 +1,6 @@
 # Phase 2: Python ML Base with Audio Processing Optimization
 # Consolidates audio dependencies for STT, TTS-Bark, Discord, Audio Processor
+# Updated: 2025-10-26 - Trigger full tiered build for CI validation
 
 FROM ghcr.io/gabrielpreston/python-ml:latest
 

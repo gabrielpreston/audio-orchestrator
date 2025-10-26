@@ -33,7 +33,7 @@ jobs:
       docs: "${{ steps.filter.outputs.docs }}"
       default-ci-workflow: "${{ steps.filter.outputs.default-ci-workflow }}"
       base-images-workflow: "${{ steps.filter.outputs.base-images-workflow }}"
-      security: "${{ steps.filter.outputs.security }}"
+      security-deps: "${{ steps.filter.outputs.security-deps }}"
       # Per-service outputs
       discord: "${{ steps.filter.outputs.discord }}"
       stt: "${{ steps.filter.outputs.stt }}"
@@ -46,6 +46,7 @@ jobs:
       monitoring_dashboard: "${{ steps.filter.outputs.monitoring_dashboard }}"
       linter: "${{ steps.filter.outputs.linter }}"
       tester: "${{ steps.filter.outputs.tester }}"
+      security: "${{ steps.filter.outputs.security }}"
       base: "${{ steps.filter.outputs.base }}"
     steps:
       - name: "Checkout repository"
@@ -75,7 +76,7 @@ jobs:
               - '.github/workflows/ci.yaml'
             base-images-workflow:
               - '.github/workflows/base-images.yaml'
-            security:
+            security-deps:
               - 'pyproject.toml'
               - 'requirements-*.txt'
               - 'services/**/requirements.txt'
@@ -194,7 +195,7 @@ jobs:
     name: "Security scan"
     needs: ["changes", "lint"]
     if: |
-      (needs.changes.outputs.security == 'true' ||
+      (needs.changes.outputs.security-deps == 'true' ||
        needs.changes.outputs.default-ci-workflow == 'true' ||
        github.event_name == 'workflow_dispatch') &&
       needs.changes.result == 'success' &&
