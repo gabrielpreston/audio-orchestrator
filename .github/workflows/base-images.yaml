@@ -1,16 +1,15 @@
+# DEPRECATED: Base image building has been integrated into docker-ci.yaml
+# This workflow is kept for manual/scheduled builds only
+# For PR-triggered builds, use docker-ci.yaml instead
+
 # Workflow: Build Base Images
 # Purpose: Build shared base images weekly and on base Dockerfile changes
 name: "Build Base Images"
 on:
   schedule:
     - cron: "0 2 * * 0" # Weekly on Sunday at 2 AM
-  push:
-    paths:
-      - "services/base/**"
-      - "requirements-base.txt"
-      - "requirements-dev.txt"
-      - "requirements-test.txt"
   workflow_dispatch: {}
+  # Removed: push.paths trigger (now handled by docker-ci.yaml)
 permissions:
   contents: "read"
   packages: "write" # Required for GHCR publishing

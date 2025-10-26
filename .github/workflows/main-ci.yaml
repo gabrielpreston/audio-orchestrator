@@ -1,0 +1,110 @@
+# Workflow: Main CI (Orchestrator)
+# Purpose: Orchestrate change detection and route to specialized workflows
+name: "Main CI"
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: "read"
+  pull-requests: "read"
+  packages: "write"
+
+concurrency:
+  group: "ci-${{ github.ref }}"
+  cancel-in-progress: true
+
+env:
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PIP_NO_PYTHON_VERSION_WARNING: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  changes:
+    name: "Detect affected areas"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    outputs:
+      python: "${{ steps.filter.outputs.python }}"
+      docker: "${{ steps.filter.outputs.docker }}"
+      docs: "${{ steps.filter.outputs.docs }}"
+      security-deps: "${{ steps.filter.outputs.security-deps }}"
+      base: "${{ steps.filter.outputs.base }}"
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+        with:
+          fetch-depth: 2
+      - name: "Filter paths"
+        id: "filter"
+        uses: "dorny/paths-filter@v3"
+        with:
+          filters: |
+            python:
+              - 'services/**/*.py'
+              - 'pyproject.toml'
+            docker:
+              - 'docker-compose.yml'
+              - 'services/**/Dockerfile'
+            docs:
+              - 'README.md'
+              - 'docs/**'
+              - 'AGENTS.md'
+            security-deps:
+              - 'requirements-*.txt'
+              - 'services/**/requirements.txt'
+            base:
+              - 'services/base/**'
+              - 'requirements-base.txt'
+      - name: "Generate change detection report"
+        run: |
+          echo "## Change Detection Report" >> $GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ steps.filter.outputs.python }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker: ${{ steps.filter.outputs.docker }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs: ${{ steps.filter.outputs.docs }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security: ${{ steps.filter.outputs.security-deps }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Base: ${{ steps.filter.outputs.base }}" >> $GITHUB_STEP_SUMMARY
+
+  core-ci:
+    needs: ["changes"]
+    if: needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/core-ci.yaml
+    with:
+      python-changes: ${{ needs.changes.outputs.python == 'true' }}
+
+  docker-ci:
+    needs: ["changes"]
+    if: |
+      needs.changes.outputs.docker == 'true' ||
+      needs.changes.outputs.base == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/docker-ci.yaml
+    with:
+      docker-changes: ${{ needs.changes.outputs.docker == 'true' }}
+      base-changes: ${{ needs.changes.outputs.base == 'true' }}
+
+  docs-ci:
+    needs: ["changes"]
+    if: needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/docs-ci.yaml
+
+  security-ci:
+    needs: ["changes"]
+    if: needs.changes.outputs.security-deps == 'true' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/security-ci.yaml
+
+  workflow-status:
+    needs: ["core-ci", "docker-ci", "docs-ci", "security-ci"]
+    if: always()
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Report workflow status"
+        run: |
+          echo "## Workflow Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Core CI: ${{ needs.core-ci.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docker CI: ${{ needs.docker-ci.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Docs CI: ${{ needs.docs-ci.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Security CI: ${{ needs.security-ci.result }}" >> $GITHUB_STEP_SUMMARY

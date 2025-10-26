@@ -1,0 +1,46 @@
+# Workflow: Core CI
+# Purpose: Fast Python feedback workflow using existing Make targets
+name: "Core CI"
+on:
+  workflow_call:
+    inputs:
+      python-changes:
+        required: true
+        type: boolean
+
+permissions:
+  contents: "read"
+
+jobs:
+  lint:
+    name: "Lint"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Run linting"
+        run: make lint
+
+  test-unit:
+    name: "Unit Tests"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Run unit tests"
+        run: make test-unit
+
+  test-component:
+    name: "Component Tests"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 15
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Run component tests"
+        run: make test-component

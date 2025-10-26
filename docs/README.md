@@ -29,6 +29,13 @@ and reference content aligned with the current repository layout.
 | Review research | [Reports index](reports/README.md) | Implementation notes, evaluation findings. |
 | Propose changes | [Proposal index](proposals/README.md) | Submission rules, lifecycle states. |
 
+## CI/CD Workflows
+
+-  **Multi-workflow Architecture**: Specialized workflows for different change types
+-  **Fast Feedback**: Python changes complete in ~5-10 minutes
+-  **Parallel Execution**: Independent workflows run simultaneously
+-  **Workflow-aware Auto-fix**: Targeted analysis and fixes per workflow type
+
 ## Version History
 
 -  **2025-10-16** — Updated documentation to reflect current codebase state, including 5-service

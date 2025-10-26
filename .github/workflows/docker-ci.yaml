@@ -1,0 +1,89 @@
+# Workflow: Docker CI
+# Purpose: Docker-specific CI with integrated base image building and all services
+name: "Docker CI"
+on:
+  workflow_call:
+    inputs:
+      docker-changes:
+        required: true
+        type: boolean
+      base-changes:
+        required: true
+        type: boolean
+
+permissions:
+  contents: "read"
+  packages: "write"
+
+jobs:
+  build-base-images:
+    name: "Build Base Images"
+    if: inputs.base-changes
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        image: [python-base, python-audio, python-ml, python-ml-audio, python-ml-compiled, python-ml-torch, python-ml-transformers, tools, mcp-toolchain]
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: "docker/setup-buildx-action@v3"
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+          buildkitd-flags: --allow-insecure-entitlement network.host
+      - name: "Log in to GHCR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Build and push ${{ matrix.image }}"
+        run: |
+          docker buildx build \
+            --file services/base/Dockerfile.${{ matrix.image }} \
+            --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest \
+            --cache-from type=gha,scope=base-images \
+            --cache-to type=gha,mode=max,scope=base-images \
+            --push .
+
+  test-integration:
+    name: "Integration Tests"
+    needs: ["build-base-images"]
+    if: always() && (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 20
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Prepare environment files"
+        run: python scripts/prepare_env_files.py --force
+      - name: "Run integration tests"
+        run: make test-integration
+
+  docker-smoke:
+    name: "Docker Smoke Tests"
+    needs: ["build-base-images", "test-integration"]
+    if: always() && (needs.build-base-images.result == 'success' || needs.build-base-images.result == 'skipped')
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        service: [guardrails, orchestrator-enhanced, llm-flan, audio-processor, discord, stt, tts-bark, testing-ui, monitoring-dashboard]
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Prepare environment files"
+        run: python scripts/prepare_env_files.py --force
+      - name: "Build and test ${{ matrix.service }}"
+        run: |
+          docker-compose build ${{ matrix.service }}
+          docker-compose up -d ${{ matrix.service }}
+          sleep 10
+          docker-compose ps ${{ matrix.service }}
+          docker-compose down

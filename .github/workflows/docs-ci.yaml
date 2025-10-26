@@ -1,0 +1,20 @@
+# Workflow: Documentation CI
+# Purpose: Documentation validation workflow
+name: "Documentation CI"
+on:
+  workflow_call: {}
+
+permissions:
+  contents: "read"
+
+jobs:
+  docs-verify:
+    name: "Verify Documentation"
+    runs-on: "ubuntu-latest"
+    environment: "discord-voice-lab"
+    timeout-minutes: 10
+    steps:
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4.2.2"
+      - name: "Verify documentation"
+        run: make docs-verify

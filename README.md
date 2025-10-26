@@ -31,6 +31,18 @@ The system consists of five core services working together to process voice inpu
 -  **Text-to-Speech Service** (`services/tts_bark`)
   -  Streams Bark-generated audio for orchestrator responses with authentication and rate limits.
 
+## CI/CD Architecture
+
+The project uses a modern multi-workflow CI architecture:
+
+-  **Main CI**: Orchestrates change detection and routes to specialized workflows
+-  **Core CI**: Fast Python feedback (lint, unit tests, component tests) - ~5-10 minutes
+-  **Docker CI**: Base image building and service smoke tests - ~20-30 minutes
+-  **Docs CI**: Documentation validation - ~2-3 minutes
+-  **Security CI**: Dependency vulnerability scanning - ~5-10 minutes
+
+Each workflow runs independently based on detected changes, providing faster feedback and better resource utilization.
+
 ## Key Features
 
 -  **Optimized CI/CD** with parallel validation (5min feedback), per-service conditional builds (60-80% resource savings), native retry logic, automatic resource cleanup, and clear error reproduction guides
@@ -85,5 +97,5 @@ This project follows the [Contributor Playbook](AGENTS.md) for development workf
 
 ---
 
-[ci-badge]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/ci.yaml/badge.svg
-[ci-workflow]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/ci.yaml
+[ci-badge]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/main-ci.yaml/badge.svg
+[ci-workflow]: https://github.com/gabrielpreston/audio-orchestrator/actions/workflows/main-ci.yaml
