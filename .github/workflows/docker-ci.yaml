@@ -279,7 +279,7 @@ jobs:
             audio-processor,
             discord,
             stt,
-            tts-bark,
+            tts_bark,
             testing-ui,
             monitoring-dashboard,
           ]
@@ -399,7 +399,7 @@ jobs:
             audio-processor,
             discord,
             stt,
-            tts-bark,
+            tts_bark,
             testing-ui,
             monitoring-dashboard,
           ]
