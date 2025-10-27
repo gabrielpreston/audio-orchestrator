@@ -4,7 +4,10 @@
       "Shell(make test)",
       "Shell(make lint)",
       "Shell(make run)",
-      "Shell(make stop)"
+      "Shell(make stop)",
+      "Shell(source .venv/bin/activate && git commit)",
+      "Shell(source .venv/bin/activate && python)",
+      "Shell(source .venv/bin/activate && python3)"
     ],
     "deny": []
   }
