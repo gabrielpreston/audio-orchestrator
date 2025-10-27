@@ -358,29 +358,51 @@ jobs:
       - name: "Generate Build Metrics"
         if: always()
         run: |
-          echo "## 🐳 Docker Build Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Service: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Timeout | 25 minutes |" >> $GITHUB_STEP_SUMMARY
-          echo "| Registry | ghcr.io |" >> $GITHUB_STEP_SUMMARY
-          echo "| Cache Strategy | GitHub Actions + Registry |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Build Configuration" >> $GITHUB_STEP_SUMMARY
-          echo "- **Dockerfile**: \`services/${{ matrix.service }}/Dockerfile\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Tag**: \`ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Cache From**: GitHub Actions + Registry" >> $GITHUB_STEP_SUMMARY
-          echo "- **Cache To**: GitHub Actions + Registry" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Performance Notes" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm-flan" ] || [ "${{ matrix.service }}" = "audio-processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
-            echo "- **ML-Heavy Service**: Extra cleanup performed" >> $GITHUB_STEP_SUMMARY
-            echo "- **Cache Warming**: Enhanced for ML dependencies" >> $GITHUB_STEP_SUMMARY
+          # Create temporary file for this service's metrics
+          TEMP_FILE=$(mktemp)
+
+          # Build service metrics in temporary file
+          {
+            echo "### Service: ${{ matrix.service }}"
+            echo "| Metric | Value |"
+            echo "|--------|-------|"
+            echo "| Status | ${{ job.status }} |"
+            echo "| Timeout | 25 minutes |"
+            echo "| Registry | ghcr.io |"
+            echo "| Cache Strategy | GitHub Actions + Registry |"
+            echo ""
+            echo "### Build Configuration"
+            echo "- **Dockerfile**: \`services/${{ matrix.service }}/Dockerfile\`"
+            echo "- **Tag**: \`ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest\`"
+            echo "- **Cache From**: GitHub Actions + Registry"
+            echo "- **Cache To**: GitHub Actions + Registry"
+            echo ""
+            echo "### Performance Notes"
+            if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm_flan" ] || [ "${{ matrix.service }}" = "audio_processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
+              echo "- **ML-Heavy Service**: Extra cleanup performed"
+              echo "- **Cache Warming**: Enhanced for ML dependencies"
+            else
+              echo "- **Standard Service**: Standard build process"
+            fi
+            echo ""
+          } > "$TEMP_FILE"
+
+          # Prepend this service's metrics to the summary (newest first)
+          if [ -f "$GITHUB_STEP_SUMMARY" ]; then
+            # If summary exists, prepend new content
+            cat "$TEMP_FILE" "$GITHUB_STEP_SUMMARY" > "${GITHUB_STEP_SUMMARY}.tmp"
+            mv "${GITHUB_STEP_SUMMARY}.tmp" "$GITHUB_STEP_SUMMARY"
           else
-            echo "- **Standard Service**: Standard build process" >> $GITHUB_STEP_SUMMARY
+            # If no summary exists yet, start with header
+            {
+              echo "## 🐳 Docker Build Metrics"
+              echo ""
+              cat "$TEMP_FILE"
+            } > "$GITHUB_STEP_SUMMARY"
           fi
+
+          # Clean up temporary file
+          rm -f "$TEMP_FILE"
 
   docker-smoke:
     name: "Docker Smoke Tests"
