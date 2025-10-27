@@ -6,7 +6,7 @@ SHELL := /bin/bash
 .PHONY: all help
 .PHONY: run stop logs logs-dump docker-status
 .PHONY: docker-build docker-build-service docker-restart docker-shell docker-config
-.PHONY: test test-image test-image-force test-unit test-component test-integration
+.PHONY: test test-image test-image-force test-unit test-component test-integration test-observability test-observability-full
 .PHONY: lint lint-image lint-image-force lint-fix
 .PHONY: security security-image security-image-force
 .PHONY: clean docker-clean docker-clean-all
@@ -308,6 +308,58 @@ test-integration: test-image ## Run integration tests (requires Docker Compose)
 		}
 	@printf "$(COLOR_YELLOW)→ Stopping test services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down -v
+
+test-observability: test-image ## Run observability stack integration tests
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@printf "$(COLOR_CYAN)→ Running observability stack tests$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)→ Building observability test services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml build
+	@printf "$(COLOR_YELLOW)→ Starting observability stack$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml up -d
+	@printf "$(COLOR_YELLOW)→ Running observability tests$(COLOR_OFF)\n"
+	@docker run --rm \
+		--network audio-orchestrator-observability-test \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(TEST_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo tester) \
+		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
+		-v "$(CURDIR)":$(TEST_WORKDIR) \
+		$(TEST_IMAGE) \
+		pytest services/tests/integration/observability/ $(PYTEST_ARGS) || { \
+			status=$$?; \
+			printf "$(COLOR_YELLOW)→ Stopping observability services$(COLOR_OFF)\n"; \
+			$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml down -v; \
+			exit $$status; \
+		}
+	@printf "$(COLOR_YELLOW)→ Stopping observability services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml down -v
+
+test-observability-full: test-image ## Run full observability stack with application services
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@printf "$(COLOR_CYAN)→ Running full observability stack tests$(COLOR_OFF)\n"
+	@printf "$(COLOR_YELLOW)→ Building all services$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) build
+	@printf "$(COLOR_YELLOW)→ Starting full stack with observability$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) up -d
+	@printf "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)\n"
+	@sleep 30
+	@printf "$(COLOR_YELLOW)→ Running observability tests$(COLOR_OFF)\n"
+	@docker run --rm \
+		--network audio-orchestrator_default \
+		-u $$(id -u):$$(id -g) \
+		-e HOME=$(TEST_WORKDIR) \
+		-e USER=$$(id -un 2>/dev/null || echo tester) \
+		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
+		-v "$(CURDIR)":$(TEST_WORKDIR) \
+		$(TEST_IMAGE) \
+		pytest services/tests/integration/observability/ $(PYTEST_ARGS) || { \
+			status=$$?; \
+			printf "$(COLOR_YELLOW)→ Stopping full stack$(COLOR_OFF)\n"; \
+			$(DOCKER_COMPOSE) down -v; \
+			exit $$status; \
+		}
+	@printf "$(COLOR_YELLOW)→ Stopping full stack$(COLOR_OFF)\n"
+	@$(DOCKER_COMPOSE) down -v
 
 
 # =============================================================================

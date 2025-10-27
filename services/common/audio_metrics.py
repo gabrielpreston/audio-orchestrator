@@ -133,3 +133,45 @@ def create_http_metrics(observability_manager: ObservabilityManager) -> dict[str
             description="HTTP request duration",
         ),
     }
+
+
+def create_guardrails_metrics(
+    observability_manager: ObservabilityManager,
+) -> dict[str, Any]:
+    """Create guardrails-specific metrics."""
+    meter = observability_manager.get_meter()
+    if not meter:
+        return {}
+
+    return {
+        "validation_requests": meter.create_counter(
+            "guardrails_validation_requests_total",
+            unit="1",
+            description="Total validation requests by type and status",
+        ),
+        "validation_duration": meter.create_histogram(
+            "guardrails_validation_duration_seconds",
+            unit="s",
+            description="Validation processing duration",
+        ),
+        "toxicity_checks": meter.create_counter(
+            "guardrails_toxicity_checks_total",
+            unit="1",
+            description="Total toxicity checks performed",
+        ),
+        "pii_detections": meter.create_counter(
+            "guardrails_pii_detections_total",
+            unit="1",
+            description="Total PII detections by type",
+        ),
+        "rate_limit_hits": meter.create_counter(
+            "guardrails_rate_limit_hits_total",
+            unit="1",
+            description="Total rate limit hits",
+        ),
+        "escalations": meter.create_counter(
+            "guardrails_escalations_total",
+            unit="1",
+            description="Total escalations to human review",
+        ),
+    }

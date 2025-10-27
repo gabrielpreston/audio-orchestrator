@@ -6,13 +6,16 @@ and rate limiting for the audio orchestrator system.
 """
 
 import re
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from services.common.audio_metrics import create_guardrails_metrics, create_http_metrics
 from services.common.health import HealthManager, HealthStatus
-from services.common.structured_logging import get_logger
+from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 
 # ML imports for toxicity detection
@@ -32,11 +35,16 @@ try:
 except ImportError:
     SLOWAPI_AVAILABLE = False
 
-logger = get_logger(__name__)
+# Configure logging
+configure_logging("info", json_logs=True, service_name="guardrails")
+logger = get_logger(__name__, service_name="guardrails")
 app = FastAPI(title="Guardrails Service", version="1.0.0")
 
-# Health manager
+# Health manager and observability
 _health_manager = HealthManager("guardrails")
+_observability_manager = None
+_guardrails_metrics = {}
+_http_metrics = {}
 
 # Configuration
 _toxicity_detector = None
@@ -134,7 +142,20 @@ def initialize_rate_limiter() -> None:
 @app.on_event("startup")  # type: ignore[misc]
 async def startup() -> None:
     """Initialize the guardrails service."""
+    global _observability_manager, _guardrails_metrics, _http_metrics
+
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("guardrails", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _guardrails_metrics = create_guardrails_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         # Initialize models
         initialize_models()
         initialize_rate_limiter()
@@ -208,11 +229,31 @@ async def health_ready() -> dict[str, Any]:
 @app.post("/validate/input")  # type: ignore[misc]
 async def validate_input(request: ValidationRequest) -> ValidationResponse:
     """Validate input text for safety and compliance."""
+    start_time = time.time()
+
     try:
         text = request.text
 
         # Length check
         if len(text) > 1000:
+            # Record metrics
+            processing_time = time.time() - start_time
+            if _guardrails_metrics:
+                if "validation_requests" in _guardrails_metrics:
+                    _guardrails_metrics["validation_requests"].add(
+                        1,
+                        attributes={
+                            "type": "input",
+                            "status": "blocked",
+                            "reason": "too_long",
+                        },
+                    )
+                if "validation_duration" in _guardrails_metrics:
+                    _guardrails_metrics["validation_duration"].record(
+                        processing_time,
+                        attributes={"type": "input", "status": "blocked"},
+                    )
+
             return ValidationResponse(
                 safe=False, reason="too_long", sanitized=text[:1000] + "..."
             )
@@ -221,6 +262,24 @@ async def validate_input(request: ValidationRequest) -> ValidationResponse:
         text_lower = text.lower()
         for pattern in DANGEROUS_PATTERNS:
             if pattern in text_lower:
+                # Record metrics
+                processing_time = time.time() - start_time
+                if _guardrails_metrics:
+                    if "validation_requests" in _guardrails_metrics:
+                        _guardrails_metrics["validation_requests"].add(
+                            1,
+                            attributes={
+                                "type": "input",
+                                "status": "blocked",
+                                "reason": "prompt_injection",
+                            },
+                        )
+                    if "validation_duration" in _guardrails_metrics:
+                        _guardrails_metrics["validation_duration"].record(
+                            processing_time,
+                            attributes={"type": "input", "status": "blocked"},
+                        )
+
                 return ValidationResponse(
                     safe=False, reason="prompt_injection", sanitized=text
                 )
@@ -228,11 +287,35 @@ async def validate_input(request: ValidationRequest) -> ValidationResponse:
         # Basic content filtering
         sanitized = _sanitize_text(text)
 
+        # Record success metrics
+        processing_time = time.time() - start_time
+        if _guardrails_metrics:
+            if "validation_requests" in _guardrails_metrics:
+                _guardrails_metrics["validation_requests"].add(
+                    1, attributes={"type": "input", "status": "success"}
+                )
+            if "validation_duration" in _guardrails_metrics:
+                _guardrails_metrics["validation_duration"].record(
+                    processing_time, attributes={"type": "input", "status": "success"}
+                )
+
         return ValidationResponse(
             safe=True, sanitized=sanitized, filtered=None, reason=None
         )
 
     except Exception as e:
+        # Record error metrics
+        processing_time = time.time() - start_time
+        if _guardrails_metrics:
+            if "validation_requests" in _guardrails_metrics:
+                _guardrails_metrics["validation_requests"].add(
+                    1, attributes={"type": "input", "status": "error"}
+                )
+            if "validation_duration" in _guardrails_metrics:
+                _guardrails_metrics["validation_duration"].record(
+                    processing_time, attributes={"type": "input", "status": "error"}
+                )
+
         logger.error(
             "guardrails.input_validation_failed", error=str(e), text=request.text[:100]
         )
@@ -244,6 +327,8 @@ async def validate_input(request: ValidationRequest) -> ValidationResponse:
 @app.post("/validate/output")  # type: ignore[misc]
 async def validate_output(request: ValidationRequest) -> ValidationResponse:
     """Validate output text for toxicity and PII."""
+    start_time = time.time()
+
     try:
         text = request.text
 
@@ -251,7 +336,32 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
         if _toxicity_detector is not None:
             try:
                 result = _toxicity_detector(text)[0]
+
+                # Record toxicity check metric
+                if _guardrails_metrics and "toxicity_checks" in _guardrails_metrics:
+                    _guardrails_metrics["toxicity_checks"].add(
+                        1, attributes={"result": result["label"]}
+                    )
+
                 if result["label"] == "toxic" and result["score"] > 0.7:
+                    # Record blocked metrics
+                    processing_time = time.time() - start_time
+                    if _guardrails_metrics:
+                        if "validation_requests" in _guardrails_metrics:
+                            _guardrails_metrics["validation_requests"].add(
+                                1,
+                                attributes={
+                                    "type": "output",
+                                    "status": "blocked",
+                                    "reason": "toxic_content",
+                                },
+                            )
+                        if "validation_duration" in _guardrails_metrics:
+                            _guardrails_metrics["validation_duration"].record(
+                                processing_time,
+                                attributes={"type": "output", "status": "blocked"},
+                            )
+
                     return ValidationResponse(
                         safe=False, reason="toxic_content", filtered=text
                     )
@@ -261,11 +371,49 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
         # PII detection and redaction
         filtered_text = _redact_pii(text)
 
+        # Record PII detection metrics
+        original_text = text
+        if filtered_text != original_text:
+            # PII was detected and redacted
+            for pii_type in PII_PATTERNS:
+                if (
+                    f"[{pii_type.upper()}_REDACTED]" in filtered_text
+                    and _guardrails_metrics
+                    and "pii_detections" in _guardrails_metrics
+                ):
+                    _guardrails_metrics["pii_detections"].add(
+                        1, attributes={"type": pii_type}
+                    )
+
+        # Record success metrics
+        processing_time = time.time() - start_time
+        if _guardrails_metrics:
+            if "validation_requests" in _guardrails_metrics:
+                _guardrails_metrics["validation_requests"].add(
+                    1, attributes={"type": "output", "status": "success"}
+                )
+            if "validation_duration" in _guardrails_metrics:
+                _guardrails_metrics["validation_duration"].record(
+                    processing_time, attributes={"type": "output", "status": "success"}
+                )
+
         return ValidationResponse(
             safe=True, filtered=filtered_text, sanitized=None, reason=None
         )
 
     except Exception as e:
+        # Record error metrics
+        processing_time = time.time() - start_time
+        if _guardrails_metrics:
+            if "validation_requests" in _guardrails_metrics:
+                _guardrails_metrics["validation_requests"].add(
+                    1, attributes={"type": "output", "status": "error"}
+                )
+            if "validation_duration" in _guardrails_metrics:
+                _guardrails_metrics["validation_duration"].record(
+                    processing_time, attributes={"type": "output", "status": "error"}
+                )
+
         logger.error(
             "guardrails.output_validation_failed", error=str(e), text=request.text[:100]
         )
@@ -278,6 +426,12 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
 async def escalate_to_human(request: EscalationRequest) -> EscalationResponse:
     """Escalate request to human review."""
     try:
+        # Record escalation metric
+        if _guardrails_metrics and "escalations" in _guardrails_metrics:
+            _guardrails_metrics["escalations"].add(
+                1, attributes={"reason": request.reason}
+            )
+
         # Log for human review
         logger.warning(
             "guardrails.escalation_required",

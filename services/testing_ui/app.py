@@ -5,7 +5,6 @@ Provides a Gradio interface for testing the complete audio pipeline
 including preprocessing, transcription, orchestration, and synthesis.
 """
 
-import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +12,10 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from services.common.health import HealthManager
+from services.common.audio_metrics import create_http_metrics
+from services.common.health import HealthManager, HealthStatus
+from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 # Import gradio with error handling
 try:
@@ -25,14 +27,16 @@ except ImportError:
     gr = None
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+configure_logging("info", json_logs=True, service_name="testing_ui")
+logger = get_logger(__name__, service_name="testing_ui")
 
 # FastAPI app for health checks
 app = FastAPI(title="Testing UI Service", version="1.0.0")
 
-# Health manager
+# Health manager and observability
 health_manager = HealthManager("testing-ui")
+_observability_manager = None
+_http_metrics = {}
 
 # HTTP client for service communication
 client = httpx.AsyncClient(timeout=30.0)
@@ -228,6 +232,8 @@ async def health_live() -> dict[str, str]:
 async def health_ready() -> dict[str, Any]:
     """Readiness check - basic functionality."""
     try:
+        health_status = await health_manager.get_health_status()
+
         # Check if we can reach key services
         service_checks = {}
 
@@ -263,13 +269,23 @@ async def health_ready() -> dict[str, Any]:
 
         # Determine overall health
         all_healthy = all(service_checks.values())
-        status = "ready" if all_healthy else "degraded"
+
+        # Determine status string
+        if not health_status.ready:
+            status_str = (
+                "degraded"
+                if health_status.status == HealthStatus.DEGRADED
+                else "not_ready"
+            )
+        else:
+            status_str = "ready" if all_healthy else "degraded"
 
         return {
-            "status": status,
+            "status": status_str,
             "service": "testing-ui",
             "service_checks": service_checks,
             "all_services_healthy": all_healthy,
+            "health_details": health_status.details,
         }
 
     except Exception as e:
@@ -280,8 +296,24 @@ async def health_ready() -> dict[str, Any]:
 @app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Service startup event handler."""
-    logger.info("Testing UI service starting up")
-    health_manager.mark_startup_complete()
+    global _observability_manager, _http_metrics
+
+    try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("testing-ui", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        health_manager.set_observability_manager(_observability_manager)
+
+        logger.info("Testing UI service starting up")
+        health_manager.mark_startup_complete()
+    except Exception as exc:
+        logger.error("Testing UI service startup failed", error=str(exc))
+        # Continue without crashing - service will report not_ready
 
 
 @app.on_event("shutdown")  # type: ignore[misc]

@@ -17,6 +17,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 import uvicorn
 
+from services.common.audio_metrics import create_audio_metrics, create_http_metrics
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -27,6 +28,7 @@ from services.common.config import (
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 # Import local audio types
 from services.discord.audio import AudioSegment, PCMFrame
@@ -45,6 +47,9 @@ app = FastAPI(
 _audio_processor: AudioProcessor | None = None
 _audio_enhancer: AudioEnhancer | None = None
 _health_manager = HealthManager("audio-processor")
+_observability_manager = None
+_audio_metrics = {}
+_http_metrics = {}
 _logger = get_logger(__name__, service_name="audio_processor")
 
 # Load configuration
@@ -99,10 +104,26 @@ class ProcessingResponse(BaseModel):
 @app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Initialize audio processor and enhancer on startup."""
-    global _audio_processor, _audio_enhancer
+    global \
+        _audio_processor, \
+        _audio_enhancer, \
+        _observability_manager, \
+        _audio_metrics, \
+        _http_metrics
 
     try:
         _logger.info("audio_processor.startup_started")
+
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("audio-processor", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _audio_metrics = create_audio_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
 
         # Register dependencies
         _health_manager.register_dependency(
@@ -223,6 +244,18 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
 
         processing_time = (time.perf_counter() - start_time) * 1000
 
+        # Record metrics
+        if _audio_metrics:
+            if "audio_processing_duration" in _audio_metrics:
+                _audio_metrics["audio_processing_duration"].record(
+                    processing_time / 1000,
+                    attributes={"stage": "frame_processing", "status": "success"},
+                )
+            if "audio_chunks_processed" in _audio_metrics:
+                _audio_metrics["audio_chunks_processed"].add(
+                    1, attributes={"type": "frame"}
+                )
+
         # Encode processed PCM data
         processed_pcm = base64.b64encode(processed_frame.pcm).decode()
 
@@ -242,6 +275,14 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
+
+        # Record error metrics
+        if _audio_metrics and "audio_processing_duration" in _audio_metrics:
+            _audio_metrics["audio_processing_duration"].record(
+                processing_time / 1000,
+                attributes={"stage": "frame_processing", "status": "error"},
+            )
+
         _logger.error(
             "audio_processor.frame_processing_failed",
             sequence=request.sequence,
@@ -299,6 +340,21 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
 
         processing_time = (time.perf_counter() - start_time) * 1000
 
+        # Record metrics
+        if _audio_metrics:
+            if "audio_processing_duration" in _audio_metrics:
+                _audio_metrics["audio_processing_duration"].record(
+                    processing_time / 1000,
+                    attributes={"stage": "segment_processing", "status": "success"},
+                )
+            if "audio_chunks_processed" in _audio_metrics:
+                _audio_metrics["audio_chunks_processed"].add(
+                    1, attributes={"type": "segment"}
+                )
+            if "audio_quality_score" in _audio_metrics and quality_metrics:
+                quality_score = quality_metrics.get("overall_score", 0.0)
+                _audio_metrics["audio_quality_score"].record(quality_score)
+
         # Encode processed PCM data
         processed_pcm = base64.b64encode(processed_segment.pcm).decode()
 
@@ -319,6 +375,14 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
+
+        # Record error metrics
+        if _audio_metrics and "audio_processing_duration" in _audio_metrics:
+            _audio_metrics["audio_processing_duration"].record(
+                processing_time / 1000,
+                attributes={"stage": "segment_processing", "status": "error"},
+            )
+
         _logger.error(
             "audio_processor.segment_processing_failed",
             correlation_id=request.correlation_id,

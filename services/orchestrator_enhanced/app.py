@@ -6,15 +6,18 @@ providing more sophisticated agent management and tool integration.
 """
 
 import os
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from services.common.audio_metrics import create_http_metrics, create_llm_metrics
 from services.common.config.loader import load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager, HealthStatus
-from services.common.structured_logging import get_logger
+from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 # LangChain imports
 from .langchain_integration import (
@@ -30,11 +33,16 @@ try:
 except ImportError:
     AgentExecutor = Any
 
-logger = get_logger(__name__)
+# Configure logging
+configure_logging("info", json_logs=True, service_name="orchestrator_enhanced")
+logger = get_logger(__name__, service_name="orchestrator_enhanced")
 app = FastAPI(title="Enhanced Orchestrator", version="1.0.0")
 
-# Health manager
+# Health manager and observability
 _health_manager = HealthManager("orchestrator-enhanced")
+_observability_manager = None
+_llm_metrics = {}
+_http_metrics = {}
 
 # Configuration
 _cfg: OrchestratorConfig | None = None
@@ -60,9 +68,27 @@ class TranscriptResponse(BaseModel):
 @app.on_event("startup")  # type: ignore[misc]
 async def startup() -> None:
     """Initialize the enhanced orchestrator service."""
-    global _cfg, _langchain_executor
+    global \
+        _cfg, \
+        _langchain_executor, \
+        _observability_manager, \
+        _llm_metrics, \
+        _http_metrics
 
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability(
+            "orchestrator-enhanced", "1.0.0"
+        )
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _llm_metrics = create_llm_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         # Load configuration
         _cfg = load_config_from_env(OrchestratorConfig)
 
@@ -134,6 +160,8 @@ async def health_ready() -> dict[str, Any]:
 @app.post("/mcp/transcript")  # type: ignore[misc]
 async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
     """Process transcript using LangChain orchestration with guardrails."""
+    start_time = time.time()
+
     try:
         # Input validation with guardrails
         guardrails_url = os.getenv("GUARDRAILS_URL", "http://guardrails:9300")
@@ -155,6 +183,13 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
                         reason=validation_data.get("reason"),
                         transcript=request.transcript[:100],
                     )
+
+                    # Record blocked request metrics
+                    if _llm_metrics and "llm_requests" in _llm_metrics:
+                        _llm_metrics["llm_requests"].add(
+                            1, attributes={"model": "orchestrator", "status": "blocked"}
+                        )
+
                     return TranscriptResponse(
                         response="I'm sorry, but I can't process that request.",
                         session_id=request.session_id,
@@ -202,6 +237,18 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
                 "orchestrator_enhanced.output_validation_failed", error=str(e)
             )
 
+        # Record metrics
+        processing_time = time.time() - start_time
+        if _llm_metrics:
+            if "llm_requests" in _llm_metrics:
+                _llm_metrics["llm_requests"].add(
+                    1, attributes={"model": "orchestrator", "status": "success"}
+                )
+            if "llm_latency" in _llm_metrics:
+                _llm_metrics["llm_latency"].record(
+                    processing_time, attributes={"model": "orchestrator"}
+                )
+
         return TranscriptResponse(
             response=response,
             session_id=request.session_id,
@@ -210,6 +257,17 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
         )
 
     except Exception as e:
+        # Record error metrics
+        processing_time = time.time() - start_time
+        if _llm_metrics and "llm_requests" in _llm_metrics:
+            _llm_metrics["llm_requests"].add(
+                1, attributes={"model": "orchestrator", "status": "error"}
+            )
+        if _llm_metrics and "llm_latency" in _llm_metrics:
+            _llm_metrics["llm_latency"].record(
+                processing_time, attributes={"model": "orchestrator", "status": "error"}
+            )
+
         logger.error(
             "orchestrator_enhanced.transcript_processing_failed",
             error=str(e),

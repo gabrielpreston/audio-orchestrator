@@ -1,6 +1,6 @@
 # FLAN-T5 LLM Service
-import logging
 import os
+import time
 from enum import Enum
 from typing import Any
 
@@ -8,9 +8,14 @@ import torch
 from fastapi import FastAPI, HTTPException
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+from services.common.audio_metrics import create_http_metrics, create_llm_metrics
+from services.common.health import HealthManager, HealthStatus
+from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
+
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+configure_logging("info", json_logs=True, service_name="llm_flan")
+logger = get_logger(__name__, service_name="llm_flan")
 
 app = FastAPI(title="FLAN-T5 LLM Service", version="1.0.0")
 
@@ -32,12 +37,30 @@ CACHE_DIR = os.getenv("TRANSFORMERS_CACHE", "/app/models")
 model = None
 tokenizer = None
 
+# Health manager and observability
+_health_manager = HealthManager("llm-flan")
+_observability_manager = None
+_llm_metrics = {}
+_http_metrics = {}
+
 
 @app.on_event("startup")  # type: ignore[misc]
 async def load_model() -> None:
     """Load the FLAN-T5 model and tokenizer on startup."""
-    global model, tokenizer
+    global model, tokenizer, _observability_manager, _llm_metrics, _http_metrics
+
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("llm-flan", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _llm_metrics = create_llm_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         logger.info(
             "Loading FLAN-T5 model", extra={"model": MODEL_NAME, "cache_dir": CACHE_DIR}
         )
@@ -52,6 +75,10 @@ async def load_model() -> None:
             MODEL_NAME, cache_dir=CACHE_DIR, local_files_only=True
         )
         logger.info("FLAN-T5 model loaded successfully from cache")
+
+        # Mark startup complete
+        _health_manager.mark_startup_complete()
+
     except Exception as e:
         logger.error(f"Failed to load FLAN-T5 model from cache: {e}")
         # Fallback to downloading if cache miss
@@ -59,6 +86,9 @@ async def load_model() -> None:
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
         tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
         logger.info("FLAN-T5 model downloaded and loaded successfully")
+
+        # Mark startup complete even after fallback
+        _health_manager.mark_startup_complete()
 
 
 def format_instruction_prompt(messages: list[dict[str, str]]) -> str:
@@ -88,6 +118,8 @@ def format_instruction_prompt(messages: list[dict[str, str]]) -> str:
 @app.post("/v1/chat/completions")  # type: ignore[misc]
 async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
     """OpenAI-compatible chat completions endpoint."""
+    start_time = time.time()
+
     try:
         if model is None or tokenizer is None:
             raise HTTPException(status_code=503, detail="Model not loaded")
@@ -134,6 +166,29 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
                 "I'm sorry, I couldn't generate a proper response to that question."
             )
 
+        # Record metrics
+        processing_time = time.time() - start_time
+        prompt_tokens = len(inputs["input_ids"][0])
+        completion_tokens = len(outputs[0])
+
+        if _llm_metrics:
+            if "llm_requests" in _llm_metrics:
+                _llm_metrics["llm_requests"].add(
+                    1, attributes={"model": MODEL_NAME, "status": "success"}
+                )
+            if "llm_latency" in _llm_metrics:
+                _llm_metrics["llm_latency"].record(
+                    processing_time, attributes={"model": MODEL_NAME}
+                )
+            if "llm_tokens" in _llm_metrics:
+                _llm_metrics["llm_tokens"].add(
+                    prompt_tokens, attributes={"model": MODEL_NAME, "type": "prompt"}
+                )
+                _llm_metrics["llm_tokens"].add(
+                    completion_tokens,
+                    attributes={"model": MODEL_NAME, "type": "completion"},
+                )
+
         return {
             "choices": [
                 {
@@ -143,13 +198,24 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
             ],
             "model": MODEL_NAME,
             "usage": {
-                "prompt_tokens": len(inputs["input_ids"][0]),
-                "completion_tokens": len(outputs[0]),
-                "total_tokens": len(inputs["input_ids"][0]) + len(outputs[0]),
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
             },
         }
 
     except Exception as e:
+        # Record error metrics
+        processing_time = time.time() - start_time
+        if _llm_metrics and "llm_requests" in _llm_metrics:
+            _llm_metrics["llm_requests"].add(
+                1, attributes={"model": MODEL_NAME, "status": "error"}
+            )
+        if _llm_metrics and "llm_latency" in _llm_metrics:
+            _llm_metrics["llm_latency"].record(
+                processing_time, attributes={"model": MODEL_NAME, "status": "error"}
+            )
+
         logger.error(f"Error in chat completions: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -158,19 +224,41 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
 async def health_ready() -> dict[str, Any]:
     """Health check endpoint."""
     try:
-        if model is None or tokenizer is None:
-            return {"status": "not_ready", "error": "Model not loaded"}
+        health_status = await _health_manager.get_health_status()
 
-        # Simple health check without model inference to avoid timeout
-        return {"status": "ready", "model": MODEL_NAME, "model_size": MODEL_SIZE.name}
+        if model is None or tokenizer is None:
+            return {
+                "status": "not_ready",
+                "service": "llm-flan",
+                "error": "Model not loaded",
+                "health_details": health_status.details,
+            }
+
+        # Determine status string
+        if not health_status.ready:
+            status_str = (
+                "degraded"
+                if health_status.status == HealthStatus.DEGRADED
+                else "not_ready"
+            )
+        else:
+            status_str = "ready"
+
+        return {
+            "status": status_str,
+            "service": "llm-flan",
+            "model": MODEL_NAME,
+            "model_size": MODEL_SIZE.name,
+            "health_details": health_status.details,
+        }
     except Exception as e:
-        return {"status": "not_ready", "error": str(e)}
+        return {"status": "not_ready", "service": "llm-flan", "error": str(e)}
 
 
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check endpoint."""
-    return {"status": "alive"}
+    return {"status": "alive", "service": "llm-flan"}
 
 
 @app.get("/models")  # type: ignore[misc]

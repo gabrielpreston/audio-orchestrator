@@ -16,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uvicorn
 
+from services.common.audio_metrics import create_http_metrics, create_tts_metrics
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -26,6 +27,7 @@ from services.common.config import (
 )
 from services.common.health import HealthManager, HealthStatus
 from services.common.structured_logging import configure_logging, get_logger
+from services.common.tracing import setup_service_observability
 
 from .synthesis import BarkSynthesizer
 
@@ -39,6 +41,9 @@ app = FastAPI(
 # Global variables
 _bark_synthesizer: BarkSynthesizer | None = None
 _health_manager = HealthManager("tts-bark")
+_observability_manager = None
+_tts_metrics = {}
+_http_metrics = {}
 _logger = get_logger(__name__, service_name="tts_bark")
 
 # Load configuration
@@ -86,7 +91,20 @@ class SynthesisResponse(BaseModel):
 @app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     """Initialize the Bark TTS service."""
+    global _bark_synthesizer, _observability_manager, _tts_metrics, _http_metrics
+
     try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("tts-bark", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _tts_metrics = create_tts_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        _health_manager.set_observability_manager(_observability_manager)
+
         # Initialize Bark synthesizer
         _bark_synthesizer = BarkSynthesizer(_audio_config)
         await _bark_synthesizer.initialize()
@@ -156,9 +174,9 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
     if _bark_synthesizer is None:
         raise HTTPException(status_code=503, detail="Bark synthesizer not available")
 
-    try:
-        start_time = time.time()
+    start_time = time.time()
 
+    try:
         # Try Bark first
         try:
             audio_data, engine = await _bark_synthesizer.synthesize(
@@ -166,11 +184,40 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
             )
         except Exception as bark_exc:
             _logger.error("bark.synthesis_failed", error=str(bark_exc))
+
+            # Record error metrics
+            processing_time = (time.time() - start_time) * 1000
+            if _tts_metrics:
+                if "tts_requests" in _tts_metrics:
+                    _tts_metrics["tts_requests"].add(
+                        1, attributes={"engine": "bark", "status": "error"}
+                    )
+                if "tts_synthesis_duration" in _tts_metrics:
+                    _tts_metrics["tts_synthesis_duration"].record(
+                        processing_time / 1000,
+                        attributes={"engine": "bark", "status": "error"},
+                    )
+
             raise HTTPException(
                 status_code=500, detail=f"Bark synthesis failed: {str(bark_exc)}"
             )
 
         processing_time = (time.time() - start_time) * 1000
+
+        # Record metrics
+        if _tts_metrics:
+            if "tts_requests" in _tts_metrics:
+                _tts_metrics["tts_requests"].add(
+                    1, attributes={"engine": engine, "status": "success"}
+                )
+            if "tts_synthesis_duration" in _tts_metrics:
+                _tts_metrics["tts_synthesis_duration"].record(
+                    processing_time / 1000, attributes={"engine": engine}
+                )
+            if "tts_text_length" in _tts_metrics:
+                _tts_metrics["tts_text_length"].record(
+                    len(request.text), attributes={"engine": engine}
+                )
 
         _logger.info(
             "tts.synthesis_completed",
@@ -188,6 +235,19 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
         )
 
     except Exception as exc:
+        # Record error metrics
+        processing_time = (time.time() - start_time) * 1000
+        if _tts_metrics:
+            if "tts_requests" in _tts_metrics:
+                _tts_metrics["tts_requests"].add(
+                    1, attributes={"engine": "unknown", "status": "error"}
+                )
+            if "tts_synthesis_duration" in _tts_metrics:
+                _tts_metrics["tts_synthesis_duration"].record(
+                    processing_time / 1000,
+                    attributes={"engine": "unknown", "status": "error"},
+                )
+
         _logger.error("tts.synthesis_failed", error=str(exc))
         raise HTTPException(
             status_code=500, detail=f"Text synthesis failed: {str(exc)}"
