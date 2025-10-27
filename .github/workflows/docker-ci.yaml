@@ -204,6 +204,18 @@ jobs:
           docker pull ghcr.io/${{ github.repository_owner }}/python-ml:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/python-audio:latest || true
           echo "Cache warming complete for ${{ matrix.service }}"
+      - name: "Clean up disk space before build"
+        run: |
+          echo "Cleaning up disk space..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          # Extra cleanup for heavy services like STT
+          if [ "${{ matrix.service }}" = "stt" ]; then
+            echo "Extra cleanup for STT service..."
+            docker image prune -a -f || true
+            docker volume prune -f || true
+          fi
+          df -h
       - name: "Build ${{ matrix.service }} with enhanced caching"
         run: |
           docker buildx build \
@@ -214,6 +226,13 @@ jobs:
             --cache-to type=gha,mode=max,scope=services \
             --cache-to ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
             --push .
+      - name: "Clean up after build"
+        if: always()
+        run: |
+          echo "Cleaning up after build..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
 
   docker-smoke:
     name: "Docker Smoke Tests"
