@@ -132,17 +132,11 @@ jobs:
     if: ${{ !cancelled() && needs.build-tier-1.result == 'success' }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
-    timeout-minutes: 50
+    timeout-minutes: 20
     strategy:
       matrix:
-        image:
-          [
-            python-ml-audio,
-            python-ml-compiled,
-            python-ml-torch,
-            python-ml-transformers,
-          ]
-      max-parallel: 2  # Prevent resource exhaustion
+        image: [python-ml-compiled]
+      max-parallel: 1  # Only build the essential image
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -187,7 +181,7 @@ jobs:
           fi
           df -h
       - name: "Build and push ${{ matrix.image }}"
-        timeout-minutes: 45
+        timeout-minutes: 15
         run: |
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
