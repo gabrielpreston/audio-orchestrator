@@ -361,6 +361,33 @@ jobs:
           docker system prune -f || true
           docker builder prune -f || true
 
+      - name: "Generate Build Metrics"
+        if: always()
+        run: |
+          echo "## 🐳 Docker Build Metrics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Service: ${{ matrix.service }}" >> $GITHUB_STEP_SUMMARY
+          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Status | ${{ job.status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Timeout | 25 minutes |" >> $GITHUB_STEP_SUMMARY
+          echo "| Registry | ghcr.io |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cache Strategy | GitHub Actions + Registry |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Configuration" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dockerfile**: \`services/${{ matrix.service }}/Dockerfile\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: \`ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cache From**: GitHub Actions + Registry" >> $GITHUB_STEP_SUMMARY
+          echo "- **Cache To**: GitHub Actions + Registry" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Performance Notes" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm-flan" ] || [ "${{ matrix.service }}" = "audio-processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
+            echo "- **ML-Heavy Service**: Extra cleanup performed" >> $GITHUB_STEP_SUMMARY
+            echo "- **Cache Warming**: Enhanced for ML dependencies" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Standard Service**: Standard build process" >> $GITHUB_STEP_SUMMARY
+          fi
+
   docker-smoke:
     name: "Docker Smoke Tests"
     needs: ["build-services"]

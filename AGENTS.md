@@ -245,6 +245,30 @@ docs/
 
 ### GitHub Actions Workflow Standards
 
+#### Enhanced Job Reporting
+
+The project implements comprehensive job reporting across all workflows:
+
+##### Test Results Reporting
+
+-  **dorny/test-reporter@v1**: Aggregates test results from unit, component, and integration tests
+-  **Artifact Uploads**: 7-day retention for test results and coverage reports
+-  **Coverage Summaries**: Automatic generation of coverage metrics in job summaries
+-  **Docker Awareness**: Handles artifacts generated inside Docker containers
+
+##### Custom Metrics Reporting
+
+-  **Audio Pipeline Metrics**: Performance targets and service architecture overview
+-  **Build Metrics**: Docker build configuration and performance notes
+-  **Security Metrics**: Dependency and container security scan results
+-  **Workflow Status**: Enhanced status reporting with build information
+
+##### Security Scanning Integration
+
+-  **Trivy Container Scanning**: Filesystem vulnerability scanning with SARIF upload
+-  **GitHub Security Integration**: Results uploaded to GitHub Security tab
+-  **Dependency Scanning**: Safety and Bandit integration via `make security`
+
 #### Cancellation-Aware Workflow Patterns
 
 -  ✅ **DO**: Use `if: ${{ !cancelled() }}` instead of `if: always()`
@@ -369,7 +393,7 @@ async def health_ready() -> Dict[str, Any]:
     """Readiness check - basic functionality."""
     if not _startup_complete:
         raise HTTPException(status_code=503, detail="Service not ready")
-    
+
     return {
         "status": "ready",
         "service": "discord",

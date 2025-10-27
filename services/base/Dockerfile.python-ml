@@ -27,13 +27,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     --index-url https://download.pytorch.org/whl/cpu \
     "torch>=2.0,<3.0" \
     "torchvision>=0.15,<1.0" \
-    "torchaudio>=2.0,<3.0" \
-    --index-url https://pypi.org/simple/ \
+    "torchaudio>=2.0,<3.0" && \
+    # Clean up pip cache after PyTorch installation
+    pip cache purge || true
+
+# Install ML libraries
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
     "transformers>=4.57,<5.0" \
     "accelerate>=0.20,<1.0" \
     "safetensors>=0.3,<1.0" \
     "faster-whisper>=1.2,<2.0" \
-    "speechbrain>=0.5,<1.0"
+    "speechbrain>=0.5,<1.0" && \
+    # Clean up pip cache after ML libraries
+    pip cache purge || true
 
 # Install OpenTelemetry dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -44,14 +51,18 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     "opentelemetry-instrumentation-httpx>=0.42b0,<0.50" \
     "opentelemetry-instrumentation-requests>=0.42b0,<0.50" \
     "opentelemetry-exporter-otlp>=1.20,<1.30" \
-    "opentelemetry-exporter-jaeger>=1.20,<1.30"
+    "opentelemetry-exporter-jaeger>=1.20,<1.30" && \
+    # Clean up pip cache after OpenTelemetry
+    pip cache purge || true
 
 # Install gRPC dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     "grpcio>=1.60,<2.0" \
     "grpcio-tools>=1.60,<2.0" \
-    "protobuf>=4.25,<5.0"
+    "protobuf>=4.25,<5.0" && \
+    # Clean up pip cache after gRPC
+    pip cache purge || true
 
 # Install additional ML and audio dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
@@ -60,7 +71,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     "soundfile>=0.12,<1.0" \
     "scipy>=1.11,<2.0" \
     "numpy>=1.24,<2.0" \
-    "bark>=0.1.5,<1.0"
+    "bark>=0.1.5,<1.0" && \
+    # Final cleanup of pip cache
+    pip cache purge || true
 
 # Set environment variables for PyTorch optimization
 ENV TORCH_CUDA_ARCH_LIST=""

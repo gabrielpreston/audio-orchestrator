@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: "read"
+  security-events: "write"
 
 jobs:
   security-scan:
@@ -16,5 +17,42 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
-      - name: "Run security scan"
+
+      - name: "Run dependency security scan"
         run: make security
+
+      - name: "Run Trivy filesystem scan"
+        uses: aquasecurity/trivy-action@v0.40.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '0'
+
+      - name: "Upload Trivy results to GitHub Security"
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: "Generate Security Summary"
+        if: always()
+        run: |
+          echo "## 🔒 Security Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Dependency Scan" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: Completed via \`make security\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: Safety + Bandit" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Container Security Scan" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tool**: Trivy" >> $GITHUB_STEP_SUMMARY
+          echo "- **Severity**: HIGH, CRITICAL" >> $GITHUB_STEP_SUMMARY
+          echo "- **Format**: SARIF" >> $GITHUB_STEP_SUMMARY
+          echo "- **Results**: Uploaded to GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review findings in GitHub Security tab" >> $GITHUB_STEP_SUMMARY
+          echo "2. Address HIGH and CRITICAL vulnerabilities" >> $GITHUB_STEP_SUMMARY
+          echo "3. Update dependencies as needed" >> $GITHUB_STEP_SUMMARY

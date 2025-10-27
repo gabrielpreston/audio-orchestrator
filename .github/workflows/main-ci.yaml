@@ -163,9 +163,33 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: "Report workflow status"
-        run: |
-          echo "## Workflow Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Core CI: ${{ needs.core-ci.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docker CI: ${{ needs.docker-ci.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Docs CI: ${{ needs.docs-ci.result }}" >> $GITHUB_STEP_SUMMARY
-          echo "- Security CI: ${{ needs.security-ci.result }}" >> $GITHUB_STEP_SUMMARY
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const results = {
+              'Core CI': '${{ needs.core-ci.result }}',
+              'Docker CI': '${{ needs.docker-ci.result }}',
+              'Docs CI': '${{ needs.docs-ci.result }}',
+              'Security CI': '${{ needs.security-ci.result }}'
+            };
+
+            let report = `## 📊 Workflow Status Summary\n\n`;
+            report += `| Workflow | Status | Duration |\n`;
+            report += `|----------|--------|----------|\n`;
+
+            for (const [workflow, result] of Object.entries(results)) {
+              const icon = result === 'success' ? '✅' :
+                          result === 'failure' ? '❌' :
+                          result === 'skipped' ? '⏭️' : '⚠️';
+              report += `| ${workflow} | ${icon} ${result} | - |\n`;
+            }
+
+            report += `\n### Build Information\n`;
+            report += `- **Trigger**: ${{ github.event_name }}\n`;
+            report += `- **Branch**: ${{ github.ref_name }}\n`;
+            report += `- **Commit**: ${{ github.sha }}\n`;
+            report += `- **Actor**: ${{ github.actor }}\n`;
+
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);

@@ -1,45 +1,16 @@
-# Phase 2: Python ML Base with Pre-compiled Dependencies
-# Pre-compiles wheels for common ML dependencies to speed up service builds
+# Phase 2: Python ML Base with Optimized Dependencies
+# Optimized ML base that extends python-ml with additional compilation optimizations
 
-FROM ghcr.io/gabrielpreston/python-ml:latest AS wheel-builder
-
-WORKDIR /app
-
-# Install wheel building tools
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir wheel build
-
-# Pre-compile wheels for common ML dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip wheel --wheel-dir=/wheels \
-    "torch>=2.0,<3.0" \
-    "torchvision>=0.15,<1.0" \
-    "torchaudio>=2.0,<3.0" \
-    "transformers>=4.57,<5.0" \
-    "faster-whisper>=1.2,<2.0" \
-    "librosa>=0.10,<1.0" \
-    "soundfile>=0.12,<1.0" \
-    "scipy>=1.11,<2.0" \
-    "numpy>=1.24,<2.0" && \
-    # Conservative cleanup: purge pip cache only
-    pip cache purge || true
-
-# Runtime stage with pre-compiled wheels
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 
-# Copy pre-compiled wheels
-COPY --from=wheel-builder /wheels /wheels
-
-# Install from pre-compiled wheels
+# Install additional ML dependencies that benefit from compilation
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --find-links=/wheels --no-index \
-    torch torchvision torchaudio \
-    transformers \
-    faster-whisper \
-    librosa soundfile \
-    scipy numpy
+    pip install --no-cache-dir \
+    "piper-tts>=1.0,<2.0" && \
+    # Clean up pip cache to save disk space
+    pip cache purge || true
 
 # Set environment variables for optimization
 ENV TORCH_CUDA_ARCH_LIST=""
@@ -62,6 +33,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import torch, transformers, librosa; print('All dependencies loaded successfully')"
 
 LABEL phase="2" \
-    optimization="pre-compiled-wheels" \
-    dependencies="torch,transformers,librosa,scipy" \
-    compilation="pre-compiled"
+    optimization="optimized-ml-base" \
+    dependencies="pytorch,transformers,librosa,piper-tts" \
+    compilation="optimized"

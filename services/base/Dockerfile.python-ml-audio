@@ -1,31 +1,18 @@
 # Phase 2: Python ML Base with Audio Processing Optimization
-# Consolidates audio dependencies for STT, TTS-Bark, Discord, Audio Processor
-# Updated: 2025-10-26 - Trigger full tiered build for CI validation
+# Adds audio-specific dependencies and optimizations for STT, TTS, Audio Processor
 
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 
-# Install audio processing dependencies
+# Install additional audio processing dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    "librosa>=0.10,<1.0" \
-    "soundfile>=0.12,<1.0" \
-    "scipy>=1.11,<2.0" \
-    "numpy>=1.24,<2.0"
-
-# Install speech processing dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    "faster-whisper>=1.2,<2.0" \
-    "speechbrain>=0.5,<1.0" \
-    "torch-audiomentations>=0.11,<1.0"
-
-# Install TTS dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    bark>=0.0.1 \
-    "piper-tts>=1.0,<2.0"
+    "torch-audiomentations>=0.11,<1.0" \
+    "webrtcvad>=2.0,<3.0" \
+    "noisereduce>=3.0,<4.0" && \
+    # Clean up pip cache to save disk space
+    pip cache purge || true
 
 # Set environment variables for audio processing
 ENV AUDIO_CACHE_DIR=/app/models
@@ -42,8 +29,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import librosa; print('Librosa version:', librosa.__version__)"
+    CMD python -c "import librosa, noisereduce; print('Audio processing ecosystem loaded successfully')"
 
 LABEL phase="2" \
-    optimization="audio-consolidation" \
-    dependencies="librosa,soundfile,faster-whisper,bark"
+    optimization="audio-ecosystem" \
+    dependencies="librosa,soundfile,noisereduce,webrtcvad" \
+    compilation="optimized"

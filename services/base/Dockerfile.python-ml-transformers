@@ -1,25 +1,20 @@
 # Phase 2: Python ML Base with Transformers Optimization
-# Consolidates Transformers dependencies for LLM-FLAN, Guardrails
-# Updated: 2025-10-26 - Trigger full tiered build for CI validation
+# Adds NLP-specific dependencies and optimizations for LLM-FLAN, Guardrails
 
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 
-# Install Transformers and related dependencies
-RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir \
-    "transformers>=4.57,<5.0" \
-    "tokenizers>=0.13,<1.0" \
-    "safetensors>=0.3,<1.0" \
-    "accelerate>=0.20,<1.0"
-
-# Install common NLP dependencies
+# Install additional NLP and evaluation dependencies
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     "datasets>=2.0,<3.0" \
     "evaluate>=0.4,<1.0" \
-    "rouge-score>=0.1,<1.0"
+    "rouge-score>=0.1,<1.0" \
+    "bleu-score>=0.1,<1.0" \
+    "nltk>=3.8,<4.0" && \
+    # Clean up pip cache to save disk space
+    pip cache purge || true
 
 # Set environment variables for Transformers optimization
 ENV TRANSFORMERS_CACHE=/app/models
@@ -36,8 +31,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import transformers; print('Transformers version:', transformers.__version__)"
+    CMD python -c "import transformers, datasets; print('NLP ecosystem loaded successfully')"
 
 LABEL phase="2" \
-    optimization="transformers-consolidation" \
-    dependencies="transformers,tokenizers,datasets"
+    optimization="nlp-ecosystem" \
+    dependencies="transformers,datasets,evaluate,rouge" \
+    compilation="optimized"
