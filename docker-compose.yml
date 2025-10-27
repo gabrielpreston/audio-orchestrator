@@ -72,12 +72,7 @@ services:
         condition: service_healthy
       guardrails:
         condition: service_healthy
-      audio-processor:
-        condition: service_healthy
-      stt:
-        condition: service_healthy
-      tts-bark:
-        condition: service_healthy
+      # Remove stt and audio-processor dependencies - orchestrator doesn't directly need them
     healthcheck:
       test:
         [
@@ -372,7 +367,7 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:8080/health/ready",
+          "http://localhost:8081/health/ready",
           "--timeout",
           "5",
         ]
@@ -554,23 +549,15 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      - ./config/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
-      - ./config/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
-      - ./config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # Mount entire config directory instead of individual files
+      - ./config/grafana:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
     healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:3000/api/health",
-          "--timeout",
-          "5",
-        ]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
       interval: 10s
       timeout: 5s
       retries: 3

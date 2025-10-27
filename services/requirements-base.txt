@@ -7,21 +7,15 @@ pydantic>=2.12,<3.0
 # Logging
 structlog>=24.1,<25.0
 
-# Audio processing (used by most services)
-librosa>=0.10,<1.0
-soundfile>=0.12,<1.0
-
 # HTTP client
 httpx>=0.26,<1.0
 
-# Metrics and monitoring
-# OpenTelemetry metrics are included in opentelemetry-sdk
-
-# Distributed tracing
-opentelemetry-api>=1.20,<1.30
-opentelemetry-sdk>=1.20,<1.30
-opentelemetry-instrumentation-fastapi>=0.42b0,<0.50
-opentelemetry-instrumentation-httpx>=0.42b0,<0.50
-opentelemetry-instrumentation-requests>=0.42b0,<0.50
-opentelemetry-exporter-otlp>=1.20,<1.30
-opentelemetry-exporter-jaeger>=1.20,<1.30
+# NOTE: The following dependencies are now included in the python-ml base image:
+# - PyTorch (torch, torchvision, torchaudio)
+# - OpenTelemetry (opentelemetry-api, opentelemetry-sdk, instrumentation packages, exporters)
+# - gRPC (grpcio, grpcio-tools, protobuf)
+# - ML Libraries (transformers, accelerate, safetensors, faster-whisper, speechbrain)
+# - Audio Libraries (librosa, soundfile, scipy, numpy, bark)
+#
+# Individual services should NOT reinstall these dependencies unless they need
+# specific versions different from the base image.

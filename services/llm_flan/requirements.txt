@@ -4,9 +4,5 @@
 -r ../requirements-base.txt
 
 # FLAN-T5 specific dependencies
-# Using CPU-only PyTorch to reduce image size for GitHub Actions
---index-url https://download.pytorch.org/whl/cpu
-torch>=2.9,<3.0
-torchaudio>=2.0,<3.0
---index-url https://pypi.org/simple/
-transformers>=4.57,<5.0
+# NOTE: PyTorch and transformers are now included in the python-ml base image
+# Only add service-specific dependencies here

@@ -2,14 +2,7 @@
 -r ../requirements-base.txt
 
 # STT-specific dependencies
+# NOTE: PyTorch, speechbrain, librosa, soundfile, scipy, numpy are now included in the python-ml base image
+# Only add service-specific dependencies here
 faster-whisper==1.2.0
 python-multipart>=0.0,<1.0
-
-# Audio enhancement dependencies (optional - can be disabled via FW_ENABLE_ENHANCEMENT=false)
-# Using CPU-only PyTorch to reduce image size for GitHub Actions
---index-url https://download.pytorch.org/whl/cpu
-torch>=2.0,<3.0
-torchaudio>=2.0,<3.0
---index-url https://pypi.org/simple/
-speechbrain>=0.5,<1.0
-scipy>=1.11,<2.0

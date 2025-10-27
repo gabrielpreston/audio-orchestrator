@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from .http import post_with_retries
+from .http_client import post_with_retries
 from .structured_logging import get_logger
 
 

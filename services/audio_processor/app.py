@@ -31,7 +31,7 @@ from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
 # Import local audio types
-from services.discord.audio import AudioSegment, PCMFrame
+from services.common.surfaces.types import AudioSegment, PCMFrame
 
 from .enhancement import AudioEnhancer
 from .processor import AudioProcessor

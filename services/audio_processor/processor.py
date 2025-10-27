@@ -18,7 +18,7 @@ import webrtcvad
 
 from services.common.audio import AudioProcessor as CommonAudioProcessor
 from services.common.structured_logging import get_logger
-from services.discord.audio import AudioSegment, PCMFrame
+from services.common.surfaces.types import AudioSegment, PCMFrame
 
 logger = get_logger(__name__)
 

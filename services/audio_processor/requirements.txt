@@ -10,13 +10,8 @@ numpy==1.24.3
 scipy==1.11.4
 webrtcvad>=2.0.10,<3.0
 
-# Audio enhancement
-# Using CPU-only PyTorch to reduce image size for GitHub Actions
---index-url https://download.pytorch.org/whl/cpu
-torch>=2.0.0,<3.0
-torchaudio>=2.0.0,<3.0
---index-url https://pypi.org/simple/
-speechbrain>=0.5.16,<1.0
+# NOTE: PyTorch, torchaudio, speechbrain are now included in the python-ml base image
+# Only add service-specific dependencies here
 
 # Common dependencies (installed via base requirements)
 

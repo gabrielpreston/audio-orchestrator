@@ -2,5 +2,5 @@
 -r ../requirements-base.txt
 
 # Bark TTS specific dependencies
-bark>=0.1.5,<1.0
-scipy>=1.11,<2.0
+# NOTE: bark, scipy, numpy are now included in the python-ml base image
+# Only add service-specific dependencies here

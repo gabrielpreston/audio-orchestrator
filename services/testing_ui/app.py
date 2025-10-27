@@ -343,4 +343,3 @@ if __name__ == "__main__":
 
     # Start FastAPI server for health checks
     uvicorn.run(app, host="127.0.0.1", port=8081)
-    uvicorn.run(app, host="127.0.0.1", port=8081)

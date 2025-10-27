@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from services.audio_processor.processor import AudioProcessor
-from services.discord.audio import AudioSegment, PCMFrame
+from services.common.surfaces.types import AudioSegment, PCMFrame
 
 
 class TestAudioProcessor:

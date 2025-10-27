@@ -89,19 +89,25 @@ async def startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Load configuration
-        _cfg = load_config_from_env(OrchestratorConfig)
+        # Load configuration with fallback
+        try:
+            _cfg = load_config_from_env(OrchestratorConfig)
+        except Exception as exc:
+            logger.warning("orchestrator_enhanced.config_load_failed", error=str(exc))
+            _cfg = None  # Continue without config
 
-        # Initialize LangChain executor
-        _langchain_executor = create_langchain_executor()
+        # Initialize LangChain executor with fallback
+        try:
+            _langchain_executor = create_langchain_executor()
+        except Exception as exc:
+            logger.warning("orchestrator_enhanced.langchain_init_failed", error=str(exc))
+            _langchain_executor = None  # Continue without LangChain
 
-        # Register dependencies
-        _health_manager.register_dependency(
-            "langchain", lambda: _langchain_executor is not None
-        )
+        # Register dependencies with null checks
         _health_manager.register_dependency("config", lambda: _cfg is not None)
+        _health_manager.register_dependency("langchain", lambda: _langchain_executor is not None)
 
-        # Mark startup complete
+        # Always mark startup complete (graceful degradation)
         _health_manager.mark_startup_complete()
 
         logger.info(

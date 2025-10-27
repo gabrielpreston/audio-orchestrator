@@ -1,5 +1,5 @@
 # Python ML Base Image
-# Python + ML libraries (cmake, openblas, etc.) for LLM and STT services
+# Python + ML libraries (PyTorch, OpenTelemetry, gRPC) for LLM and STT services
 ARG BASE_IMAGE=ghcr.io/gabrielpreston/python-base:latest
 FROM ${BASE_IMAGE} AS base
 
@@ -7,16 +7,81 @@ FROM ${BASE_IMAGE} AS base
 RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && \
     apt-get install -y --no-install-recommends \
-        cmake \
-        pkg-config \
-        libgomp1 \
-        libopenblas-dev \
-        wget \
-        libcurl4-openssl-dev \
-        libsndfile1 \
-        libavdevice-dev \
-        libavformat-dev \
-        libavfilter-dev \
-        libavcodec-dev \
-        libavutil-dev \
+    cmake \
+    pkg-config \
+    libgomp1 \
+    libopenblas-dev \
+    wget \
+    libcurl4-openssl-dev \
+    libsndfile1 \
+    libavdevice-dev \
+    libavformat-dev \
+    libavfilter-dev \
+    libavcodec-dev \
+    libavutil-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Install PyTorch and related ML dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+    --index-url https://download.pytorch.org/whl/cpu \
+    "torch>=2.0,<3.0" \
+    "torchvision>=0.15,<1.0" \
+    "torchaudio>=2.0,<3.0" \
+    --index-url https://pypi.org/simple/ \
+    "transformers>=4.57,<5.0" \
+    "accelerate>=0.20,<1.0" \
+    "safetensors>=0.3,<1.0" \
+    "faster-whisper>=1.2,<2.0" \
+    "speechbrain>=0.5,<1.0"
+
+# Install OpenTelemetry dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+    "opentelemetry-api>=1.20,<1.30" \
+    "opentelemetry-sdk>=1.20,<1.30" \
+    "opentelemetry-instrumentation-fastapi>=0.42b0,<0.50" \
+    "opentelemetry-instrumentation-httpx>=0.42b0,<0.50" \
+    "opentelemetry-instrumentation-requests>=0.42b0,<0.50" \
+    "opentelemetry-exporter-otlp>=1.20,<1.30" \
+    "opentelemetry-exporter-jaeger>=1.20,<1.30"
+
+# Install gRPC dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+    "grpcio>=1.60,<2.0" \
+    "grpcio-tools>=1.60,<2.0" \
+    "protobuf>=4.25,<5.0"
+
+# Install additional ML and audio dependencies
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+    "librosa>=0.10,<1.0" \
+    "soundfile>=0.12,<1.0" \
+    "scipy>=1.11,<2.0" \
+    "numpy>=1.24,<2.0" \
+    "bark>=0.1.5,<1.0"
+
+# Set environment variables for PyTorch optimization
+ENV TORCH_CUDA_ARCH_LIST=""
+ENV TORCH_USE_CUDA_DETERMINISTIC=1
+ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+ENV TRANSFORMERS_CACHE=/app/models
+ENV HF_HOME=/app/models
+ENV AUDIO_CACHE_DIR=/app/models
+
+# Create models directory
+RUN mkdir -p /app/models
+
+# Set Python environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Health check to verify all dependencies are available
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import torch, transformers, opentelemetry, grpc; print('All ML dependencies loaded successfully')"
+
+LABEL phase="1" \
+    optimization="ml-base" \
+    dependencies="pytorch,opentelemetry,grpc,transformers,librosa"

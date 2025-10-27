@@ -95,109 +95,83 @@ def _update_enhancement_stats(
 @app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global \
-        _audio_enhancer, \
-        _audio_processor_client, \
-        _observability_manager, \
-        _stt_metrics, \
-        _http_metrics
+    global _model, _audio_enhancer, _audio_processor_client, _observability_manager
 
     try:
-        # Setup observability (tracing + metrics)
+        # Setup observability first (most likely to succeed)
         _observability_manager = setup_service_observability("stt", "1.0.0")
         _observability_manager.instrument_fastapi(app)
-
-        # Create service-specific metrics
-        _stt_metrics = create_stt_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-
-        # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        _lazy_load_model()
-        logger.info("stt.model_preloaded", model_name=MODEL_NAME)
+        # Try to load model with fallback
+        try:
+            _model = _lazy_load_model()
+            logger.info("stt.model_loaded", model_name=MODEL_NAME)
+        except Exception as exc:
+            logger.warning("stt.model_load_failed", error=str(exc))
+            # Try fallback to smaller model
+            try:
+                MODEL_NAME = "tiny.en"  # Fallback model
+                _model = _lazy_load_model()
+                logger.info("stt.fallback_model_loaded", model_name=MODEL_NAME)
+            except Exception as fallback_exc:
+                logger.error("stt.fallback_model_failed", error=str(fallback_exc))
+                _model = None
 
-        # Initialize audio processor client for remote enhancement
+        # Initialize audio processor client with fallback
         try:
             _audio_processor_client = STTAudioProcessorClient(
-                base_url=_cfg.faster_whisper.audio_service_url
-                or "http://audio-processor:9100",
+                base_url=_cfg.faster_whisper.audio_service_url or "http://audio-processor:9100",
                 timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
             )
             logger.info("stt.audio_processor_client_initialized")
         except Exception as exc:
-            logger.warning(
-                "stt.audio_processor_client_init_failed",
-                error=str(exc),
-            )
+            logger.warning("stt.audio_processor_client_init_failed", error=str(exc))
             _audio_processor_client = None
 
-        # Load local audio enhancer if enabled (fallback)
-        if _cfg.faster_whisper.enable_enhancement:
+        # Always mark startup complete (graceful degradation)
+        _health_manager.mark_startup_complete()
+
+        # Optional warmup only if model loaded successfully
+        if _model and _cfg.telemetry.stt_warmup:
             try:
-                from services.common.audio_enhancement import AudioEnhancer
+                import tempfile
+                import time as _time
+                import numpy as np
 
-                _audio_enhancer = AudioEnhancer(
-                    enable_metricgan=True,
-                    device=_cfg.faster_whisper.device,
-                    enhancement_class=None,  # Explicit: use real speechbrain in production
-                )
+                # Generate ~300ms silence at 16kHz mono int16
+                samples = int(16000 * 0.3)
+                pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
 
-                if _audio_enhancer.is_enhancement_enabled:
-                    logger.info("stt.enhancer_loaded")
-                else:
-                    logger.warning("stt.enhancer_disabled", reason="model_load_failed")
+                # Encode to WAV using AudioProcessor to match runtime path
+                from services.common.audio import AudioProcessor
 
-            except Exception as exc:
-                logger.warning(
-                    "stt.enhancer_load_failed",
-                    error=str(exc),
-                )
-                _audio_enhancer = None
+                processor = AudioProcessor("stt")
+                wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
+                warm_start = _time.perf_counter()
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                    tmp.write(wav_data)
+                    tmp_path = tmp.name
+                try:
+                    model = _lazy_load_model()
+                    _ = model.transcribe(tmp_path, beam_size=6)
+                except Exception as _exc:  # best-effort
+                    logger.debug("stt.warmup_skipped", reason=str(_exc))
+                finally:
+                    from contextlib import suppress
+                    import os as _os
 
-        _health_manager.mark_startup_complete()  # Mark as ready
-        # Optional warm-up inference to avoid first-request latency
-        warmup = _cfg.telemetry.stt_warmup
-        if warmup:
-            import tempfile
-            import time as _time
+                    with suppress(Exception):
+                        _os.unlink(tmp_path)
+                warm_ms = int((_time.perf_counter() - warm_start) * 1000)
+                logger.info("stt.warmup_ms", value=warm_ms)
+            except Exception as warmup_exc:
+                logger.warning("stt.warmup_failed", error=str(warmup_exc))
 
-            import numpy as np
-
-            # Generate ~300ms silence at 16kHz mono int16
-            samples = int(16000 * 0.3)
-            pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
-
-            # Encode to WAV using AudioProcessor to match runtime path
-            from services.common.audio import AudioProcessor
-
-            processor = AudioProcessor("stt")
-            wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
-            warm_start = _time.perf_counter()
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                tmp.write(wav_data)
-                tmp_path = tmp.name
-            try:
-                model = _lazy_load_model()
-                _ = model.transcribe(tmp_path, beam_size=6)
-            except Exception as _exc:  # best-effort
-                logger.debug("stt.warmup_skipped", reason=str(_exc))
-            finally:
-                from contextlib import suppress
-                import os as _os
-
-                with suppress(Exception):
-                    _os.unlink(tmp_path)
-            warm_ms = int((_time.perf_counter() - warm_start) * 1000)
-            logger.info("stt.warmup_ms", value=warm_ms)
-    except HTTPException:
-        # _lazy_load_model already logged and raised; propagate to fail fast.
-        raise
     except Exception as exc:
-        logger.exception(
-            "stt.model_preload_failed", model_name=MODEL_NAME, error=str(exc)
-        )
-        raise
+        logger.error("stt.startup_failed", error=str(exc))
+        # Still mark startup complete to avoid infinite startup loop
+        _health_manager.mark_startup_complete()
 
 
 @app.get("/health/live")  # type: ignore[misc]

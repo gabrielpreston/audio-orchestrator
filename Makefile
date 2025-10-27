@@ -125,7 +125,6 @@ SECURITY_WORKDIR := /workspace
 
 # Test configuration
 PYTEST_ARGS ?=
-RUN_SCRIPT := scripts/run-compose.sh
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -171,7 +170,11 @@ help: ## Show this help (default)
 # =============================================================================
 
 run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
-	@$(RUN_SCRIPT)
+	@printf "$(COLOR_GREEN)→ Starting containers with cached images$(COLOR_OFF)\n"
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans
+
+run-with-build: docker-build-enhanced run ## Build with caching then start containers
 
 stop: ## Stop and remove containers for the compose stack
 	@printf "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)\n"
