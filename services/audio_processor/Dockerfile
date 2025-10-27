@@ -9,9 +9,16 @@ WORKDIR /app
 COPY services/audio_processor/requirements.txt /app/services/audio_processor/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
-# Install Python dependencies with BuildKit cache mount
+# Install Python dependencies with aggressive cleanup for GitHub Actions
+# hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/audio_processor/requirements.txt
+    pip install --no-cache-dir -r /app/services/audio_processor/requirements.txt && \
+    pip cache purge && \
+    find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "test" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "*.so" -size +10M -delete 2>/dev/null || true
 
 # Runtime stage
 FROM ghcr.io/gabrielpreston/python-ml:latest
@@ -31,8 +38,10 @@ COPY services/audio_processor/config /app/config
 # Copy health check script
 COPY scripts/health_check.py /app/scripts/health_check.py
 
-# Create models directory
-RUN mkdir -p /app/models
+# Create models directory and clean up unnecessary files
+RUN mkdir -p /app/models && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set environment variables
 ENV PYTHONPATH=/app

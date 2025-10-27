@@ -209,9 +209,9 @@ jobs:
           echo "Cleaning up disk space..."
           docker system prune -f || true
           docker builder prune -f || true
-          # Extra cleanup for heavy services like STT
-          if [ "${{ matrix.service }}" = "stt" ]; then
-            echo "Extra cleanup for STT service..."
+          # Extra cleanup for heavy ML services
+          if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm-flan" ] || [ "${{ matrix.service }}" = "audio-processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
+            echo "Extra cleanup for ML-heavy service: ${{ matrix.service }}"
             docker image prune -a -f || true
             docker volume prune -f || true
           fi

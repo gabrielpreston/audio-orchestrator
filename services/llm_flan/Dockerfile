@@ -9,9 +9,16 @@ WORKDIR /app
 COPY services/llm_flan/requirements.txt /app/services/llm_flan/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
-# Install Python dependencies with BuildKit cache mount
+# Install Python dependencies with aggressive cleanup for GitHub Actions
+# hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/llm_flan/requirements.txt
+    pip install --no-cache-dir -r /app/services/llm_flan/requirements.txt && \
+    pip cache purge && \
+    find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
+    find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "tests" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "test" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local/lib/python3.11/site-packages -name "*.so" -size +10M -delete 2>/dev/null || true
 
 # Runtime stage
 FROM ghcr.io/gabrielpreston/python-ml:latest
@@ -22,9 +29,11 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Create models directory and set environment variables in single layer
+# Create models directory and clean up unnecessary files
 RUN --mount=type=cache,target=/var/cache/apt \
     mkdir -p /app/models && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
     echo "LLM environment configured"
 
 # Set environment variables
