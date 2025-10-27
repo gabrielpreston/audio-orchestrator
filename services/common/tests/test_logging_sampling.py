@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from services.common import logging as clog
+from services.common import structured_logging as clog
 
 
 @pytest.mark.unit

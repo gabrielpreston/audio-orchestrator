@@ -12,7 +12,7 @@ from collections.abc import Callable
 import time
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.common.surfaces.media_gateway import MediaGateway
 from services.common.surfaces.protocols import AudioPlaybackProtocol
 from services.common.surfaces.types import AudioFormat, AudioMetadata, PCMFrame

@@ -6,7 +6,7 @@ enabling composition over inheritance for configuration management.
 
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 from .protocols import (
     ConfigurationSourceProtocol,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from services.common.logging import configure_logging
+from services.common.structured_logging import configure_logging
 
 from .config import load_config
 

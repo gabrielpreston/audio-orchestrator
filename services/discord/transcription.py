@@ -15,7 +15,7 @@ import wave
 import httpx
 
 from services.common.circuit_breaker import CircuitBreakerConfig
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 
 from .audio import AudioSegment
@@ -87,7 +87,7 @@ class TranscriptionClient:
                 "TranscriptionClient must be used as an async context manager"
             )
 
-        from services.common.logging import bind_correlation_id
+        from services.common.structured_logging import bind_correlation_id
 
         logger = bind_correlation_id(self._logger, segment.correlation_id)
 

@@ -7,7 +7,11 @@ from io import StringIO
 import pytest
 import structlog
 
-from services.common.logging import bind_correlation_id, configure_logging, get_logger
+from services.common.structured_logging import (
+    bind_correlation_id,
+    configure_logging,
+    get_logger,
+)
 
 
 class TestLoggerCreation:

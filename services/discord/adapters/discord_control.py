@@ -12,7 +12,7 @@ from collections.abc import AsyncIterator, Callable
 import time
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.common.surfaces.events import (
     BargeInRequestEvent,
     EndpointingEvent,

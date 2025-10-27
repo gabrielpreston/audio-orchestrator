@@ -39,6 +39,49 @@ Follow these steps to run services locally, lint the codebase, and execute autom
 -  Use feature branches and small commits to keep diffs reviewable; reference affected docs in your PR summary.
 -  Capture notable manual checks (audio latency, MCP tool coverage) in the [reports section](../reports/README.md).
 
+## Python Development Environment
+
+The project uses a **single root virtual environment** (`.venv`) for all local development:
+
+```bash
+# Create and activate virtual environment (first time only)
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install all development dependencies
+pip install -r services/requirements-dev.txt
+pip install -r services/requirements-base.txt
+
+# Install all service-specific dependencies
+pip install -r services/discord/requirements.txt
+pip install -r services/stt/requirements.txt
+pip install -r services/orchestrator_enhanced/requirements.txt
+pip install -r services/guardrails/requirements.txt
+pip install -r services/tts_bark/requirements.txt
+pip install -r services/audio_processor/requirements.txt
+pip install -r services/testing_ui/requirements.txt
+pip install -r services/monitoring_dashboard/requirements.txt
+pip install -r services/security/requirements.txt
+pip install -r services/linter/requirements.txt
+pip install -r services/tester/requirements.txt
+```
+
+**Why single environment?**
+
+-  Services run in Docker containers (each with isolated Python environments)
+-  Local `.venv` is for development tools: linting, testing, IDE support
+-  Eliminates virtual environment confusion in IDEs
+-  Matches industry best practices for microservices monorepos
+
+**IDE Configuration:**
+
+The workspace is configured for Cursor IDE with:
+
+-  **Language Server**: Uses Cursor's built-in Python language server (not Pylance)
+-  **PYTHONPATH**: Automatically configured to include `services/` and `services/common/`
+-  **Python Interpreter**: Points to root `.venv/bin/python`
+-  **Import Resolution**: All service imports resolve correctly across the monorepo
+
 ## Workflow Validation
 
 Validate GitHub Actions workflows locally before committing:

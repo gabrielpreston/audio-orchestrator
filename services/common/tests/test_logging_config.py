@@ -8,7 +8,7 @@ from io import StringIO
 import pytest
 import structlog
 
-from services.common.logging import configure_logging, get_logger
+from services.common.structured_logging import configure_logging, get_logger
 
 
 class TestLoggingConfiguration:

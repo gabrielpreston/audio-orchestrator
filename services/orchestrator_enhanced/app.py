@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from services.common.config.loader import load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager, HealthStatus
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 # LangChain imports
 from .langchain_integration import (

@@ -22,7 +22,7 @@ from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
 
-from .logging import get_logger
+from .structured_logging import get_logger
 
 logger = get_logger(__name__)
 

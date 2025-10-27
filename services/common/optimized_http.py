@@ -10,7 +10,7 @@ import time
 from typing import Any
 
 import httpx
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.common.performance import ConnectionPool, profile_function
 
 logger = get_logger(__name__)

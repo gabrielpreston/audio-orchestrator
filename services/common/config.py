@@ -37,7 +37,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any, TypeVar, Union, get_args, get_origin
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 
 logger = get_logger(__name__)

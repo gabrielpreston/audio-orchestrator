@@ -162,10 +162,7 @@ ignore = [
     "F405", # undefined name from star import - side effect of star imports
 ]
 "**/migrations/**/*.py" = ["ALL"]  # database migrations - generated code, skip all linting
-"**/scripts/**/*.py" = [
-    "T201", # print statements - scripts often use print for output
-    "T20",  # print statements - alternative rule for print statements
-]
+"**/scripts/**/*.py" = ["ALL"]  # scripts directory - utility scripts, skip all linting
 "services/tts/adapters/piper_adapter.py" = [
     "DTZ005", # datetime.now() without tz in adapter logging
     "ARG002", # unused method arguments (signature compatibility)

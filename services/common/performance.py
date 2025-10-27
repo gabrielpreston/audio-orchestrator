@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from typing import Any, TypeVar
 
 import httpx
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
 

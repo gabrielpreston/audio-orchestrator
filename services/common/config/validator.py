@@ -6,7 +6,7 @@ import re
 from typing import Any
 from collections.abc import Callable
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
 

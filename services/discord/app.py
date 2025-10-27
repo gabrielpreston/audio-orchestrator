@@ -18,7 +18,7 @@ from services.common.audio_metrics import (
 from services.common.health import HealthManager, HealthStatus
 
 # Configure logging
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.common.tracing import setup_service_observability
 
 from .audio_processor_wrapper import AudioProcessorWrapper
@@ -86,7 +86,7 @@ async def startup_event() -> None:
         if run_full_bot:
             # Initialize full Discord bot with voice capabilities
             logger.info("discord.full_bot_starting")
-            from services.common.logging import configure_logging
+            from services.common.structured_logging import configure_logging
 
             from .discord_voice import VoiceBot
             from .wake import WakeDetector

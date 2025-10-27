@@ -8,7 +8,7 @@ import inspect
 from typing import Any, get_type_hints
 from unittest.mock import Mock
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 
 logger = get_logger(__name__)

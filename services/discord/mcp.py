@@ -10,7 +10,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 from .config import BotConfig
 

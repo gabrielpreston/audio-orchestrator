@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 
 logger = get_logger(__name__)

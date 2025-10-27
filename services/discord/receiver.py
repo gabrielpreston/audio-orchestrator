@@ -13,7 +13,11 @@ from typing import Any
 
 from structlog.stdlib import BoundLogger
 
-from services.common.logging import get_logger, should_rate_limit, should_sample
+from services.common.structured_logging import (
+    get_logger,
+    should_rate_limit,
+    should_sample,
+)
 
 
 voice_recv: Any | None

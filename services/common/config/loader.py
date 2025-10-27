@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any, TypeVar
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 T = TypeVar("T")
 

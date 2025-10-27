@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, Literal
 import numpy as np
 from rapidfuzz import fuzz, process, utils
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 try:  # pragma: no cover - optional dependency import guard
     from openwakeword import Model as WakeWordModel
@@ -78,7 +78,7 @@ class WakeDetector:
         transcript: str | None,
     ) -> WakeDetectionResult | None:
         """Detect a wake phrase from audio first, then fall back to transcripts."""
-        from services.common.logging import bind_correlation_id
+        from services.common.structured_logging import bind_correlation_id
 
         logger = bind_correlation_id(self._logger, segment.correlation_id)
 

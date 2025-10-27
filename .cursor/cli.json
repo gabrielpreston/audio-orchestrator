@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(make test)",
+      "Shell(make lint)",
+      "Shell(make run)",
+      "Shell(make stop)"
+    ],
+    "deny": []
+  }
+}

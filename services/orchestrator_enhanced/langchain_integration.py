@@ -6,7 +6,7 @@ This module provides LangChain-based orchestration capabilities for the enhanced
 
 import os
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
 

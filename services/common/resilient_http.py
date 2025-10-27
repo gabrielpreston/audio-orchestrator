@@ -9,7 +9,7 @@ import httpx
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .http import post_with_retries
-from .logging import get_logger
+from .structured_logging import get_logger
 
 
 class ServiceUnavailableError(Exception):

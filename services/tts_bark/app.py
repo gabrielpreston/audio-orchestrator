@@ -25,7 +25,7 @@ from services.common.config import (
     get_service_preset,
 )
 from services.common.health import HealthManager, HealthStatus
-from services.common.logging import configure_logging, get_logger
+from services.common.structured_logging import configure_logging, get_logger
 
 from .synthesis import BarkSynthesizer
 

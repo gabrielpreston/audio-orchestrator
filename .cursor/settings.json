@@ -1,21 +1,33 @@
 {
+    "terminal.integrated.profiles.linux": {
+        "Python Env": {
+            "path": "/bin/bash",
+            "args": [
+                "-c",
+                "source ${workspaceFolder}/.venv/bin/activate; exec bash"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "Python Env",
     "terminal.integrated.env.linux": {
         "VIRTUAL_ENV": "${workspaceFolder}/.venv",
         "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}",
         "PYTHONPATH": "${workspaceFolder}/services:${workspaceFolder}/services/common"
     },
-    "python.defaultInterpreterPath": "./.venv/bin/python",
-    "python.terminal.activateEnvironment": true,
+    "terminal.integrated.inheritEnv": true,
+    "terminal.integrated.detectLocale": "auto",
     "cursorpyright.analysis.extraPaths": [
         "./services",
         "./services/common"
     ],
     "cursorpyright.analysis.autoImportCompletions": true,
-    "cursorpyright.analysis.typeCheckingMode": "basic",
+    "cursorpyright.analysis.typeCheckingMode": "strict",
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
     "python.analysis.extraPaths": [
         "./services",
         "./services/common"
     ],
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "strict"
 }

@@ -3,59 +3,52 @@
         {
             "name": "audio orchestrator (Root)",
             "path": "."
-        },
-        {
-            "name": "Common Library",
-            "path": "./services/common"
         }
     ],
     "settings": {
         // Python interpreter and environment
         "python.defaultInterpreterPath": "./.venv/bin/python",
         "python.terminal.activateEnvironment": true,
-        
         // Terminal environment with PYTHONPATH
         "terminal.integrated.env.linux": {
             "VIRTUAL_ENV": "${workspaceFolder}/.venv",
             "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}",
             "PYTHONPATH": "${workspaceFolder}/services:${workspaceFolder}/services/common"
         },
-        
         // Python analysis configuration
         "python.analysis.extraPaths": [
             "./services",
             "./services/common"
         ],
         "python.analysis.autoImportCompletions": true,
-        "python.analysis.typeCheckingMode": "strict",
-        "python.analysis.autoSearchPaths": true,
-        "python.analysis.diagnosticMode": "workspace",
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.autoSearchPaths": false,
+        "python.analysis.diagnosticMode": "openFilesOnly",
         "python.analysis.ignore": [
             "**/node_modules",
             "**/.venv",
             "**/__pycache__",
-            "**/migrations"
+            "**/migrations",
+            "**/scripts"
         ],
-        
         // CursorPyright configuration
         "cursorpyright.analysis.autoImportCompletions": true,
         "cursorpyright.analysis.extraPaths": [
             "./services",
             "./services/common"
         ],
-        "cursorpyright.analysis.autoSearchPaths": true,
-        "cursorpyright.analysis.diagnosticMode": "workspace",
-        "cursorpyright.analysis.typeCheckingMode": "strict",
+        "cursorpyright.analysis.autoSearchPaths": false,
+        "cursorpyright.analysis.diagnosticMode": "openFilesOnly",
+        "cursorpyright.analysis.typeCheckingMode": "basic",
         "cursorpyright.analysis.ignore": [
             "**/node_modules",
             "**/.venv",
             "**/__pycache__",
-            "**/migrations"
+            "**/migrations",
+            "**/scripts"
         ],
-        
-        // Disable conflicting language servers
+        // Use Cursor's built-in Python language server
         "python.languageServer": "None",
-        
         // Ruff integration (replaces Black, isort, flake8, pylint)
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
@@ -65,7 +58,9 @@
         "ruff.enable": true,
         "ruff.organizeImports": true,
         "ruff.fixAll": true,
-        
+        "ruff.ignore": [
+            "scripts/**"
+        ],
         // File associations
         "files.associations": {
             "*.py": "python",
@@ -74,9 +69,10 @@
             "docker-compose*.yaml": "dockercompose",
             "Makefile": "makefile"
         },
-        
         // Solo development optimizations
-        "editor.rulers": [88],
+        "editor.rulers": [
+            88
+        ],
         "files.trimTrailingWhitespace": true,
         "files.insertFinalNewline": true,
         "search.exclude": {

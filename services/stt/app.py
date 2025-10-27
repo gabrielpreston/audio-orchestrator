@@ -17,7 +17,7 @@ from services.common.config import (
     load_config_from_env,
 )
 from services.common.health import HealthManager, HealthStatus
-from services.common.logging import configure_logging, get_logger
+from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
 from .audio_processor_client import STTAudioProcessorClient
@@ -352,7 +352,7 @@ async def _transcribe_request(
     correlation_id: str | None,
     filename: str | None,
 ) -> JSONResponse:
-    from services.common.logging import correlation_context
+    from services.common.structured_logging import correlation_context
 
     with correlation_context(correlation_id) as request_logger:
         # Top-level timing for the request (includes validation, file I/O, model work)
@@ -425,7 +425,7 @@ async def _transcribe_request(
         correlation_id = generate_stt_correlation_id()
 
     # Bind correlation ID to logger for this request
-    from services.common.logging import bind_correlation_id
+    from services.common.structured_logging import bind_correlation_id
 
     request_logger = bind_correlation_id(logger, correlation_id)
 
@@ -798,7 +798,7 @@ async def transcribe(request: Request) -> JSONResponse:
         sample_n = _cfg.telemetry.log_sample_stt_request_n or 25
     except Exception:
         sample_n = 25
-    from services.common.logging import should_sample
+    from services.common.structured_logging import should_sample
 
     if should_sample("stt.transcribe_request", sample_n):
         logger.info(

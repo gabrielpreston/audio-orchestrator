@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from services.common.health import HealthManager, HealthStatus
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 
 # ML imports for toxicity detection

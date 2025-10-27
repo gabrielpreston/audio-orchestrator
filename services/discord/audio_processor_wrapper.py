@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 from services.discord.audio import AudioSegment, PCMFrame
 from services.discord.audio_processor_client import AudioProcessorClient
 

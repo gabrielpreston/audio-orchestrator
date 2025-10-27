@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from .logging import get_logger
+from .structured_logging import get_logger
 
 
 class CircuitState(Enum):

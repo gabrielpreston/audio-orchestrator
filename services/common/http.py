@@ -9,7 +9,7 @@ from typing import Any
 import httpx
 from structlog.stdlib import BoundLogger
 
-from .logging import get_logger
+from .structured_logging import get_logger
 
 
 DEFAULT_BACKOFF_SECONDS = 0.5

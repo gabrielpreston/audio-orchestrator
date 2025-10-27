@@ -14,7 +14,7 @@ import discord
 import httpx
 
 from services.common.health import HealthManager
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 from .audio import AudioSegment, rms_from_pcm
 from .audio_processor_wrapper import AudioProcessorWrapper
@@ -679,7 +679,7 @@ class VoiceBot(discord.Client):
         transcript: TranscriptResult,
     ) -> None:
         # Bind correlation ID to logger for this transcript
-        from services.common.logging import bind_correlation_id
+        from services.common.structured_logging import bind_correlation_id
 
         transcript_logger = bind_correlation_id(self._logger, transcript.correlation_id)
 

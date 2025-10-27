@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from services.common.logging import get_logger
+from services.common.structured_logging import get_logger
 
 from .audio_contract import AudioContract, AudioContractSpec
 
