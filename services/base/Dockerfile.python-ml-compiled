@@ -20,7 +20,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     "librosa>=0.10,<1.0" \
     "soundfile>=0.12,<1.0" \
     "scipy>=1.11,<2.0" \
-    "numpy>=1.24,<2.0"
+    "numpy>=1.24,<2.0" && \
+    # Conservative cleanup: purge pip cache only
+    pip cache purge || true
 
 # Runtime stage with pre-compiled wheels
 FROM ghcr.io/gabrielpreston/python-ml:latest

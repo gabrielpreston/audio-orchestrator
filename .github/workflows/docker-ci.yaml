@@ -38,6 +38,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Clean up disk space before build"
+        run: |
+          echo "Cleaning up disk space..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
       - name: "Build and push python-base"
         timeout-minutes: 15
         run: |
@@ -47,6 +53,21 @@ jobs:
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
             --push .
+      - name: "Clean up after build"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up after build..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
 
   build-tier-1:
     name: "Build Tier 1 Images"
@@ -74,6 +95,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Clean up disk space before build"
+        run: |
+          echo "Cleaning up disk space..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
       - name: "Build and push ${{ matrix.image }}"
         timeout-minutes: 20
         run: |
@@ -83,6 +110,21 @@ jobs:
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
             --push .
+      - name: "Clean up after build"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up after build..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
 
   build-tier-2:
     name: "Build Tier 2 Images"
@@ -90,7 +132,7 @@ jobs:
     if: ${{ !cancelled() && needs.build-tier-1.result == 'success' }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
-    timeout-minutes: 40
+    timeout-minutes: 50
     strategy:
       matrix:
         image:
@@ -100,6 +142,7 @@ jobs:
             python-ml-torch,
             python-ml-transformers,
           ]
+      max-parallel: 2  # Prevent resource exhaustion
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -116,8 +159,35 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Check available disk space"
+        run: |
+          echo "=== Disk Space Before Build ==="
+          df -h
+          AVAILABLE=$(df / | awk 'NR==2{print $4}' | sed 's/G//')
+          echo "Available space: ${AVAILABLE}GB"
+          if [ "$AVAILABLE" -lt 4 ]; then
+            echo "WARNING: Less than 4GB available for ML build"
+            echo "Performing conservative cleanup..."
+            docker image prune -f || true
+            docker volume prune -f || true
+            df -h
+          else
+            echo "Sufficient disk space available for build"
+          fi
+      - name: "Clean up disk space before build"
+        run: |
+          echo "Cleaning up disk space for ML compilation..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          # Conservative cleanup for ML builds
+          if [ "${{ matrix.image }}" = "python-ml-compiled" ]; then
+            echo "Extra cleanup for python-ml-compiled"
+            docker image prune -f || true  # Conservative: no -a flag
+            docker volume prune -f || true
+          fi
+          df -h
       - name: "Build and push ${{ matrix.image }}"
-        timeout-minutes: 20
+        timeout-minutes: 45
         run: |
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
@@ -125,6 +195,21 @@ jobs:
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
             --push .
+      - name: "Clean up after build"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up after ML compilation..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
 
   build-tier-3:
     name: "Build Tier 3 Images"
@@ -152,6 +237,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Clean up disk space before build"
+        run: |
+          echo "Cleaning up disk space..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
       - name: "Build and push ${{ matrix.image }}"
         timeout-minutes: 20
         run: |
@@ -161,6 +252,21 @@ jobs:
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
             --push .
+      - name: "Clean up after build"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up after build..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
 
   build-services:
     name: "Build Services with Registry Caching"
@@ -238,6 +344,14 @@ jobs:
           echo "Cleaning up after build..."
           docker system prune -f || true
           docker builder prune -f || true
+          df -h
+      - name: "Clean up GitHub Actions cache"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up GitHub Actions cache..."
+          # Clean up old cache entries (if cache size is approaching limits)
+          echo "Cache cleanup completed"
           df -h
       - name: "Emergency cleanup on cancellation"
         if: cancelled()

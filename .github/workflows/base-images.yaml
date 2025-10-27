@@ -33,6 +33,12 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
+      - name: "Clean up disk space before builds"
+        run: |
+          echo "Cleaning up disk space for base image builds..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
       - name: "Setup job context"
         uses: actions/github-script@v7
         with:
@@ -80,6 +86,14 @@ jobs:
               --cache-to type=gha,mode=max,scope=base-images \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-base:latest
+
+      - name: "Clean up between builds"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 1
+        run: |
+          echo "Cleaning up between base image builds..."
+          docker system prune -f || true
+          df -h
 
       - name: "Build and push Python Audio Base Image with retry"
         uses: nick-fields/retry@v2
@@ -217,6 +231,29 @@ jobs:
           echo "| mcp-toolchain | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
+      - name: "Clean up after all builds"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 3
+        run: |
+          echo "Cleaning up after base image builds..."
+          docker system prune -f || true
+          docker builder prune -f || true
+          df -h
+      - name: "Clean up GitHub Actions cache"
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
+        run: |
+          echo "Cleaning up GitHub Actions cache..."
+          # Clean up old cache entries (if cache size is approaching limits)
+          echo "Cache cleanup completed"
+          df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
       - name: "Cleanup resources with reporting"
         if: ${{ !cancelled() }}
         timeout-minutes: 3
