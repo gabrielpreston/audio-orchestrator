@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
-from services.common.audio_metrics import create_http_metrics, create_stt_metrics
 from services.common.config import (
     ServiceConfig,
     get_service_preset,
@@ -43,8 +42,8 @@ _audio_processor_client: STTAudioProcessorClient | None = None
 _health_manager = HealthManager("stt")
 # Observability manager for metrics and tracing
 _observability_manager = None
-_stt_metrics = {}
-_http_metrics = {}
+_stt_metrics: dict[str, Any] = {}
+_http_metrics: dict[str, Any] = {}
 
 # Enhancement statistics
 _enhancement_stats: dict[str, int | float | str | None] = {
@@ -95,7 +94,7 @@ def _update_enhancement_stats(
 @app.on_event("startup")  # type: ignore[misc]
 async def _warm_model() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global _model, _audio_enhancer, _audio_processor_client, _observability_manager
+    global _model, _audio_processor_client, _observability_manager
 
     try:
         # Setup observability first (most likely to succeed)
@@ -111,9 +110,9 @@ async def _warm_model() -> None:
             logger.warning("stt.model_load_failed", error=str(exc))
             # Try fallback to smaller model
             try:
-                MODEL_NAME = "tiny.en"  # Fallback model
+                fallback_model_name = "tiny.en"  # Fallback model
                 _model = _lazy_load_model()
-                logger.info("stt.fallback_model_loaded", model_name=MODEL_NAME)
+                logger.info("stt.fallback_model_loaded", model_name=fallback_model_name)
             except Exception as fallback_exc:
                 logger.error("stt.fallback_model_failed", error=str(fallback_exc))
                 _model = None
@@ -121,7 +120,8 @@ async def _warm_model() -> None:
         # Initialize audio processor client with fallback
         try:
             _audio_processor_client = STTAudioProcessorClient(
-                base_url=_cfg.faster_whisper.audio_service_url or "http://audio-processor:9100",
+                base_url=_cfg.faster_whisper.audio_service_url
+                or "http://audio-processor:9100",
                 timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
             )
             logger.info("stt.audio_processor_client_initialized")

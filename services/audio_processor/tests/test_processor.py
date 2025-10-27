@@ -71,7 +71,7 @@ class TestAudioProcessor:
         pcm_data = (audio_data * 32767).astype(np.int16).tobytes()
 
         return AudioSegment(
-            user_id=12345,
+            user_id="12345",
             pcm=pcm_data,
             start_timestamp=0.0,
             end_timestamp=duration,
@@ -188,7 +188,7 @@ class TestAudioProcessor:
         """Test segment processing error handling."""
         # Create invalid segment
         invalid_segment = AudioSegment(
-            user_id=12345,
+            user_id="12345",
             pcm=b"",  # Empty PCM data
             start_timestamp=0.0,
             end_timestamp=0.0,

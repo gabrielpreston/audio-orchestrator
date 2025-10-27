@@ -321,7 +321,7 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
 
         # Create AudioSegment object
         segment = AudioSegment(
-            user_id=request.user_id,
+            user_id=str(request.user_id),
             pcm=pcm_data,
             start_timestamp=request.start_timestamp,
             end_timestamp=request.end_timestamp,
