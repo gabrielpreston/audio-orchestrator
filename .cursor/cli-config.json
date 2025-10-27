@@ -53,5 +53,10 @@
     "solo_development": true,
     "prefer_make_commands": true,
     "type_checking_required": true
+  },
+  "environment": {
+    "PYTHONPATH": "./services:./services/common",
+    "VIRTUAL_ENV": "./.venv",
+    "PATH": "./.venv/bin:${PATH}"
   }
 }

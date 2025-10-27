@@ -10,35 +10,97 @@
         }
     ],
     "settings": {
+        // Python interpreter and environment
         "python.defaultInterpreterPath": "./.venv/bin/python",
         "python.terminal.activateEnvironment": true,
+        
+        // Terminal environment with PYTHONPATH
+        "terminal.integrated.env.linux": {
+            "VIRTUAL_ENV": "${workspaceFolder}/.venv",
+            "PATH": "${workspaceFolder}/.venv/bin:${env:PATH}",
+            "PYTHONPATH": "${workspaceFolder}/services:${workspaceFolder}/services/common"
+        },
+        
+        // Python analysis configuration
         "python.analysis.extraPaths": [
             "./services",
             "./services/common"
         ],
         "python.analysis.autoImportCompletions": true,
-        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.typeCheckingMode": "strict",
+        "python.analysis.autoSearchPaths": true,
+        "python.analysis.diagnosticMode": "workspace",
         "python.analysis.ignore": [
             "**/node_modules",
-            "**/.venv"
+            "**/.venv",
+            "**/__pycache__",
+            "**/migrations"
         ],
+        
+        // CursorPyright configuration
         "cursorpyright.analysis.autoImportCompletions": true,
         "cursorpyright.analysis.extraPaths": [
             "./services",
             "./services/common"
         ],
+        "cursorpyright.analysis.autoSearchPaths": true,
+        "cursorpyright.analysis.diagnosticMode": "workspace",
+        "cursorpyright.analysis.typeCheckingMode": "strict",
         "cursorpyright.analysis.ignore": [
             "**/node_modules",
-            "**/.venv"
+            "**/.venv",
+            "**/__pycache__",
+            "**/migrations"
         ],
-        "cursorpyright.analysis.typeCheckingMode": "basic",
-        "python.languageServer": "None"
+        
+        // Disable conflicting language servers
+        "python.languageServer": "None",
+        
+        // Ruff integration (replaces Black, isort, flake8, pylint)
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        },
+        "ruff.enable": true,
+        "ruff.organizeImports": true,
+        "ruff.fixAll": true,
+        
+        // File associations
+        "files.associations": {
+            "*.py": "python",
+            "Dockerfile*": "dockerfile",
+            "docker-compose*.yml": "dockercompose",
+            "docker-compose*.yaml": "dockercompose",
+            "Makefile": "makefile"
+        },
+        
+        // Solo development optimizations
+        "editor.rulers": [88],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+        "search.exclude": {
+            "**/.venv": true,
+            "**/__pycache__": true,
+            "**/node_modules": true,
+            "**/htmlcov": true,
+            "**/coverage.xml": true,
+            "**/junit.xml": true,
+            "**/bandit-report.json": true
+        },
+        "files.exclude": {
+            "**/__pycache__": true,
+            "**/.pytest_cache": true,
+            "**/htmlcov": true
+        }
     },
     "extensions": {
         "recommendations": [
             "ms-python.python",
-            "ms-python.pylint",
-            "charliermarsh.ruff"
+            "charliermarsh.ruff",
+            "ms-vscode.vscode-docker",
+            "redhat.vscode-yaml",
+            "ms-vscode.makefile-tools"
         ]
     }
 }
