@@ -218,7 +218,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
       - name: "Cleanup resources with reporting"
-        if: always()
+        if: ${{ !cancelled() }}
+        timeout-minutes: 3
         run: |
           echo "::group::Resource Cleanup Report"
 
@@ -241,8 +242,18 @@ jobs:
           echo "  Disk space: $before_space to $after_space"
           echo "  Images removed: $((before_images - after_images))"
           echo "::endgroup::"
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "::group::Emergency Cleanup (Cancelled)"
+          echo "Workflow cancelled - performing emergency cleanup"
+          docker system prune -f --volumes || true
+          docker builder prune -f || true
+          echo "Emergency cleanup completed"
+          echo "::endgroup::"
       - name: "Job Status Summary"
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           echo "::group::Job Status Summary"
           echo "Job: ${{ github.job }}"
@@ -254,7 +265,7 @@ jobs:
           echo "::endgroup::"
 
       - name: "Build Performance Report"
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
           echo "## Build Performance Metrics" >> $GITHUB_STEP_SUMMARY
           echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY

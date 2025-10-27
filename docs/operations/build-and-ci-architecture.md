@@ -349,6 +349,112 @@ endef
 -  **Better maintainability**: ~200-400 lines per workflow vs 1100+ lines
 -  **Workflow-aware auto-fix**: Targeted analysis and fixes per workflow type
 -  **Resource efficiency**: Only build what's needed based on changes
+
+## Workflow Cancellation Best Practices
+
+### Cancellation-Aware Design
+
+All workflows implement cancellation-aware patterns to ensure immediate response to cancellation requests:
+
+#### Job Condition Patterns
+
+```yaml
+# ✅ Good: Respects cancellation
+if: ${{ !cancelled() && needs.build-python-base.result == 'success' }}
+
+# ❌ Bad: Ignores cancellation
+if: always() && needs.build-python-base.result == 'success'
+```
+
+#### Step-Level Timeouts
+
+```yaml
+# ✅ Good: Prevents indefinite execution
+- name: "Build Docker image"
+  timeout-minutes: 15
+  run: docker buildx build ...
+
+# ❌ Bad: No timeout protection
+- name: "Build Docker image"
+  run: docker buildx build ...
+```
+
+#### Emergency Cleanup
+
+```yaml
+# ✅ Good: Cleanup on cancellation
+- name: "Emergency cleanup on cancellation"
+  if: cancelled()
+  timeout-minutes: 1
+  run: |
+    echo "Workflow cancelled - emergency cleanup"
+    docker system prune -f || true
+```
+
+### Timeout Strategy
+
+#### Layered Timeout Architecture
+
+-  **Foundation builds**: 15-20 minutes
+-  **Tier builds**: 20-30 minutes  
+-  **Service builds**: 25-40 minutes
+-  **Emergency cleanup**: 1-2 minutes
+
+#### Step-Level Timeouts
+
+-  **Docker builds**: 15-25 minutes
+-  **Tests**: 10-15 minutes
+-  **Cleanup**: 2-3 minutes
+-  **Emergency cleanup**: 1 minute
+
+### Resource Management
+
+#### Cancellation Benefits
+
+-  **Immediate response**: Workflows stop within seconds of cancellation
+-  **Resource efficiency**: Cancelled workflows immediately stop consuming GitHub Actions minutes
+-  **Cost control**: No billing for cancelled workflow time
+-  **Emergency cleanup**: Prevents resource waste on cancellation
+
+#### Cleanup Patterns
+
+```yaml
+# Normal cleanup (respects cancellation)
+- name: "Cleanup resources"
+  if: ${{ !cancelled() }}
+  timeout-minutes: 2
+  run: docker system prune -f || true
+
+# Emergency cleanup (runs on cancellation)
+- name: "Emergency cleanup on cancellation"
+  if: cancelled()
+  timeout-minutes: 1
+  run: |
+    echo "Workflow cancelled - emergency cleanup"
+    docker system prune -f || true
+```
+
+### Workflow Architecture Patterns
+
+#### Multi-Tier Build Pipeline with Cancellation
+
+```text
+Foundation → Tier 1 → Tier 2 → Tier 3 → Services → Smoke Tests
+     ↓         ↓        ↓        ↓         ↓           ↓
+  Cancel?   Cancel?  Cancel?  Cancel?  Cancel?    Cancel?
+     ↓         ↓        ↓        ↓         ↓           ↓
+Emergency → Emergency → Emergency → Emergency → Emergency → Emergency
+Cleanup     Cleanup    Cleanup    Cleanup    Cleanup    Cleanup
+```
+
+#### Cancellation Flow
+
+```text
+User Cancels → Emergency Cleanup → Resource Cleanup → Workflow Stops
+     ↓              ↓                    ↓                ↓
+  < 1 second    < 1 minute          < 2 minutes      Immediate
+```
+
 -  **Clear separation**: Each workflow has single responsibility
 -  **Complete coverage**: All 9 base images and 9 services properly tested
 

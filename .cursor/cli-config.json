@@ -4,10 +4,12 @@
     "github_cli": [
       "gh api",
       "gh run view",
+      "gh run cancel",
+      "gh run list",
+      "gh run download",
       "gh pr view",
       "gh pr diff",
-      "gh pr list",
-      "gh run download"
+      "gh pr list"
     ],
     "git": [
       "git status",

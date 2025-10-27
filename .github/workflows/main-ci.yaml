@@ -159,7 +159,7 @@ jobs:
 
   workflow-status:
     needs: ["core-ci", "docker-ci", "docs-ci", "security-ci"]
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
       - name: "Report workflow status"

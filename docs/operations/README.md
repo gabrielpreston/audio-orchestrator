@@ -19,7 +19,7 @@ observability practices, and security considerations.
 
 ## Supporting Guides
 
--  [Build & CI/CD Architecture](build-and-ci-architecture.md)
+-  [Build & CI/CD Architecture](build-and-ci-architecture.md) - Multi-layer caching and workflow cancellation best practices
 -  [Health Check Standards](health-check-standards.md)
 -  [Observability](observability.md)
 -  [Performance](performance.md)

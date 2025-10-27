@@ -39,6 +39,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Build and push python-base"
+        timeout-minutes: 15
         run: |
           docker buildx build \
             --file services/base/Dockerfile.python-base \
@@ -50,7 +51,7 @@ jobs:
   build-tier-1:
     name: "Build Tier 1 Images"
     needs: ["build-python-base"]
-    if: always() && needs.build-python-base.result == 'success'
+    if: ${{ !cancelled() && needs.build-python-base.result == 'success' }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30
@@ -74,6 +75,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Build and push ${{ matrix.image }}"
+        timeout-minutes: 20
         run: |
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
@@ -85,7 +87,7 @@ jobs:
   build-tier-2:
     name: "Build Tier 2 Images"
     needs: ["build-tier-1"]
-    if: always() && needs.build-tier-1.result == 'success'
+    if: ${{ !cancelled() && needs.build-tier-1.result == 'success' }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 40
@@ -115,6 +117,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Build and push ${{ matrix.image }}"
+        timeout-minutes: 20
         run: |
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
@@ -126,7 +129,7 @@ jobs:
   build-tier-3:
     name: "Build Tier 3 Images"
     needs: ["build-tier-2"]
-    if: always() && needs.build-tier-2.result == 'success'
+    if: ${{ !cancelled() && needs.build-tier-2.result == 'success' }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 20
@@ -150,6 +153,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Build and push ${{ matrix.image }}"
+        timeout-minutes: 20
         run: |
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
@@ -161,7 +165,7 @@ jobs:
   build-services:
     name: "Build Services with Registry Caching"
     needs: ["build-tier-3"]
-    if: always() && (needs.build-tier-3.result == 'success' || needs.build-tier-3.result == 'skipped')
+    if: ${{ !cancelled() && (needs.build-tier-3.result == 'success' || needs.build-tier-3.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 40
@@ -217,6 +221,7 @@ jobs:
           fi
           df -h
       - name: "Build ${{ matrix.service }} with enhanced caching"
+        timeout-minutes: 25
         run: |
           docker buildx build \
             --file services/${{ matrix.service }}/Dockerfile \
@@ -227,17 +232,25 @@ jobs:
             --cache-to ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
             --push .
       - name: "Clean up after build"
-        if: always()
+        if: ${{ !cancelled() }}
+        timeout-minutes: 2
         run: |
           echo "Cleaning up after build..."
           docker system prune -f || true
           docker builder prune -f || true
           df -h
+      - name: "Emergency cleanup on cancellation"
+        if: cancelled()
+        timeout-minutes: 1
+        run: |
+          echo "Workflow cancelled - emergency cleanup"
+          docker system prune -f || true
+          docker builder prune -f || true
 
   docker-smoke:
     name: "Docker Smoke Tests"
     needs: ["build-services"]
-    if: always() && (needs.build-services.result == 'success' || needs.build-services.result == 'skipped')
+    if: ${{ !cancelled() && (needs.build-services.result == 'success' || needs.build-services.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30

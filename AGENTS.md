@@ -243,6 +243,63 @@ docs/
 -  **Use container targets**: For consistency with CI/CD
 -  **Prefer Makefile targets**: Over direct command-line tools
 
+### GitHub Actions Workflow Standards
+
+#### Cancellation-Aware Workflow Patterns
+
+-  ✅ **DO**: Use `if: ${{ !cancelled() }}` instead of `if: always()`
+-  ✅ **DO**: Add step-level timeouts to long-running operations
+-  ✅ **DO**: Implement emergency cleanup on cancellation
+-  ✅ **DO**: Use `timeout-minutes` for all Docker build steps
+-  ✅ **DO**: Add cancellation-specific cleanup steps
+-  ❌ **DON'T**: Use `if: always()` conditions that ignore cancellation
+-  ❌ **DON'T**: Skip timeout configuration for Docker builds
+-  ❌ **DON'T**: Allow workflows to run indefinitely after cancellation
+
+#### Workflow Quality Gates
+
+-  **Cancellation Response**: Workflows stop within seconds of cancellation
+-  **Resource Cleanup**: Emergency cleanup prevents resource waste
+-  **Timeout Management**: Step-level timeouts prevent indefinite execution
+-  **Cost Control**: Cancelled workflows don't consume unnecessary GitHub Actions minutes
+
+#### Workflow Pattern Examples
+
+##### Cancellation-Aware Job Conditions
+
+```yaml
+# Good: Respects cancellation
+if: ${{ !cancelled() && needs.build-python-base.result == 'success' }}
+
+# Bad: Ignores cancellation
+if: always() && needs.build-python-base.result == 'success'
+```
+
+##### Step-Level Timeouts
+
+```yaml
+# Good: Prevents indefinite execution
+- name: "Build Docker image"
+  timeout-minutes: 15
+  run: docker buildx build ...
+
+# Bad: No timeout protection
+- name: "Build Docker image"
+  run: docker buildx build ...
+```
+
+##### Emergency Cleanup
+
+```yaml
+# Good: Cleanup on cancellation
+- name: "Emergency cleanup on cancellation"
+  if: cancelled()
+  timeout-minutes: 1
+  run: |
+    echo "Workflow cancelled - emergency cleanup"
+    docker system prune -f || true
+```
+
 ## 7. Python Coding Guidelines
 
 ### Code Quality Standards

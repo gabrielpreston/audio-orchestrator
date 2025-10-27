@@ -3,23 +3,23 @@
 # not on main. This uses workflow_run payload fields (head_sha/head_branch) and
 # optionally comments back on the PR, downloads artifacts, and updates commit status.
 
-name: 'Auto-Analyze CI Failures'
+name: "Auto-Analyze CI Failures"
 
 on:
   workflow_run:
-    workflows: ['CI']        # 👈 Name of the workflow you want to monitor
-    types: ['completed']
+    workflows: ["CI"] # 👈 Name of the workflow you want to monitor
+    types: ["completed"]
     # Filter to runs from any branch (adjust as desired, e.g. ['**', '!main'])
-    branches: ['**']
+    branches: ["**"]
 
 permissions:
-  actions: 'read'
-  contents: 'write'
-  pull-requests: 'write'
-  statuses: 'write'
+  actions: "read"
+  contents: "write"
+  pull-requests: "write"
+  statuses: "write"
 
 concurrency:
-  group: 'auto-analyze-${{ github.event.workflow_run.id }}'
+  group: "auto-analyze-${{ github.event.workflow_run.id }}"
   cancel-in-progress: false
 
 jobs:
@@ -30,18 +30,18 @@ jobs:
     environment: discord-voice-lab
 
     env:
-      TARGET_REPO: '${{ github.event.workflow_run.repository.full_name }}'
-      TARGET_SHA: '${{ github.event.workflow_run.head_sha }}'
-      TARGET_BRANCH: '${{ github.event.workflow_run.head_branch }}'
-      RUN_ID: '${{ github.event.workflow_run.id }}'
-      RUN_URL: '${{ github.event.workflow_run.html_url }}'
-      STATUS_CONTEXT: 'Auto-Analyze CI Failures'
-      GH_TOKEN: '${{ github.token }}'
-      CURSOR_API_KEY: '${{ secrets.CURSOR_API_KEY }}'
+      TARGET_REPO: "${{ github.event.workflow_run.repository.full_name }}"
+      TARGET_SHA: "${{ github.event.workflow_run.head_sha }}"
+      TARGET_BRANCH: "${{ github.event.workflow_run.head_branch }}"
+      RUN_ID: "${{ github.event.workflow_run.id }}"
+      RUN_URL: "${{ github.event.workflow_run.html_url }}"
+      STATUS_CONTEXT: "Auto-Analyze CI Failures"
+      GH_TOKEN: "${{ github.token }}"
+      CURSOR_API_KEY: "${{ secrets.CURSOR_API_KEY }}"
 
     steps:
       # 1) Show triggering context in the logs
-      - name: 'Show triggering context'
+      - name: "Show triggering context"
         run: |
           echo 'Triggered by failed run:'
           echo '  repo:        $TARGET_REPO'
@@ -50,17 +50,17 @@ jobs:
           echo '  run id/url:  $RUN_ID / $RUN_URL'
 
       # 2) Check out the failing commit (PR branch)
-      - name: 'Check out failing commit (PR branch)'
-        uses: 'actions/checkout@v4'
+      - name: "Check out failing commit (PR branch)"
+        uses: "actions/checkout@v4"
         with:
-          repository: '${{ env.TARGET_REPO }}'
-          ref: '${{ env.TARGET_SHA }}'
+          repository: "${{ env.TARGET_REPO }}"
+          ref: "${{ env.TARGET_SHA }}"
           fetch-depth: 0
 
       # 3) Determine the PR number and ref (if CI came from a PR)
-      - name: 'Determine PR number (if CI came from a PR)'
-        id: 'pr'
-        uses: 'actions/github-script@v7'
+      - name: "Determine PR number (if CI came from a PR)"
+        id: "pr"
+        uses: "actions/github-script@v7"
         with:
           script: |
             const prs = (context.payload.workflow_run.pull_requests || []);
@@ -70,7 +70,7 @@ jobs:
 
       # The following steps set up the environment and run Cursor Agent to analyze CI failures
       # 4) Ensure GitHub CLI is available & authenticated
-      - name: 'Verify gh availability & auth'
+      - name: "Verify gh availability & auth"
         run: |
           set -euo pipefail
           gh --version || { echo 'gh CLI not found'; exit 1; }
@@ -78,7 +78,7 @@ jobs:
           gh auth setup-git
 
       # 5) Create initial pending status on the failing commit
-      - name: 'Status → Starting analysis'
+      - name: "Status → Starting analysis"
         run: |
           set -euo pipefail
           gh api \
@@ -90,7 +90,7 @@ jobs:
             -f context='${{ env.STATUS_CONTEXT }}' || echo 'WARN: status POST failed'
 
       # 6) Install Cursor CLI (retry; add to PATH)
-      - name: 'Install Cursor CLI'
+      - name: "Install Cursor CLI"
         run: |
           set -euo pipefail
           for attempt in 1 2 3; do
@@ -112,7 +112,7 @@ jobs:
           cursor-agent --version
 
       # 7) Configure git identity for any branch commits the agent may perform
-      - name: 'Configure git identity'
+      - name: "Configure git identity"
         run: |
           set -euo pipefail
           git config user.name  'Cursor Agent'
@@ -120,7 +120,7 @@ jobs:
           git status >/dev/null
 
       # 8) Move status forward (environment is ready; analysis begins)
-      - name: 'Status → Environment ready'
+      - name: "Status → Environment ready"
         run: |
           set -euo pipefail
           gh api \
@@ -133,10 +133,10 @@ jobs:
 
       # --- Analysis and Fix Implementation ---
       # 9) Run the Cursor Agent to analyze the failing run and propose/apply a fix branch
-      - name: 'Run Cursor Agent to analyze failure'
+      - name: "Run Cursor Agent to analyze failure"
         env:
-          MODEL: 'gpt-5'
-          BRANCH_PREFIX: 'ci-fix'
+          MODEL: "gpt-5"
+          BRANCH_PREFIX: "ci-fix"
         run: |
           set -euo pipefail
           echo 'Starting failure analysis with Cursor Agent…'
@@ -166,8 +166,8 @@ jobs:
           ' --model '$MODEL' --output-format=text --force
 
       # 10) Mark success when the agent finishes
-      - name: 'Status → Analysis completed'
-        if: 'success()'
+      - name: "Status → Analysis completed"
+        if: "success()"
         run: |
           set -euo pipefail
           gh api \
@@ -179,8 +179,8 @@ jobs:
             -f context='${{ env.STATUS_CONTEXT }}' || echo 'WARN: status POST failed'
 
       # 11) Always set a final terminal status reflecting the job result
-      - name: 'Status → Final'
-        if: 'always()'
+      - name: "Status → Final"
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           if [ '${{ job.status }}' = 'success' ]; then
