@@ -155,7 +155,7 @@ plus shared helpers:
 
 ### Core Services
 
--  `services/discord` (Python; `discord.py`, MCP) — Captures voice from Discord,
+-  `services/discord` (Python; `discord.py`) — Captures voice from Discord,
   detects wake phrases, forwards audio to STT, exposes Discord control tools,
   and plays orchestrator/TTS audio responses.
 -  `services/stt` (Python; FastAPI, faster-whisper) — Provides HTTP transcription
@@ -332,7 +332,7 @@ if: always() && needs.build-python-base.result == 'success'
   `ruff --select I` or an editor integration).
 -  Reuse `services.common.logging` (`services/common/logging.py`) for structured JSON logs; prefer
   `extra={}` for contextual metadata instead of string interpolation.
--  Propagate configurable timeouts and retries through HTTP or MCP clients.
+-  Propagate configurable timeouts and retries through HTTP clients.
 -  Update `requirements.txt` files when you add or upgrade dependencies; pin versions where
   appropriate for reproducible deployments.
 
@@ -416,8 +416,6 @@ async def health_ready() -> Dict[str, Any]:
   defaults found in `.env.sample`.
 -  Handle STT or orchestrator failures gracefully—log with correlation metadata and avoid crashing
   the voice loop.
--  When adding MCP tools, expose them through `mcp.py` with clear schemas and document them in
-  `docs/MCP_MANIFEST.md`.
 -  Preserve TTS playback plumbing (`_play_tts`) so external TTS services can plug in through URLs
   supplied by the orchestrator.
 
@@ -440,7 +438,7 @@ async def health_ready() -> Dict[str, Any]:
 
 -  Maintain compatibility with the OpenAI-style routes already implemented in `app.py` and document
   any schema extensions.
--  Surface MCP-driven actions carefully: validate inputs, guard credentials, and return structured
+-  Surface external actions carefully: validate inputs, guard credentials, and return structured
   JSON so downstream clients remain deterministic.
 
 ### TTS service (`services/tts`)
@@ -494,7 +492,7 @@ async def health_ready() -> Dict[str, Any]:
 
 -  Every service should expose health checks, structured logs, and metrics where feasible so
   Compose deployments remain observable.
--  Authenticate MCP connections with scoped credentials and propagate correlation IDs through logs
+-  Authenticate external connections with scoped credentials and propagate correlation IDs through logs
   and tool responses.
 -  Treat audio and transcript data as sensitive: avoid persisting raw audio unless explicitly
   needed for debugging and documented in the PR.

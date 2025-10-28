@@ -187,23 +187,16 @@ async def test_audio_processor_hot_swap():
   -  Tests latency consistency across multiple requests
 
 -  **Discord Service Integration**: `test_discord_service_integration.py`
-  -  Tests Discord HTTP API endpoints (`/mcp/send_message`, `/mcp/transcript`, `/mcp/tools`)
+  -  Tests Discord HTTP API endpoints (`/api/v1/messages`, `/api/v1/transcripts`, `/api/v1/capabilities`)
   -  Tests Discord health endpoints
   -  Tests Discord → STT → Orchestrator chain
   -  Tests correlation ID propagation through Discord service
   -  Tests error handling and timeout behavior
 
--  **MCP Integration**: `test_mcp_integration.py`
-  -  Tests MCP tool discovery and execution
-  -  Tests MCP tool schema validation
-  -  Tests correlation ID propagation through MCP
-  -  Tests MCP error handling and recovery
-  -  Tests MCP concurrent request handling
-
 -  **Cross-Service Authentication**: `test_cross_service_auth.py`
   -  Tests Bearer token authentication: Orchestrator → LLM, Orchestrator → TTS
   -  Tests unauthorized access rejection (401 responses)
-  -  Tests Discord MCP endpoints (no auth required for internal services)
+  -  Tests Discord API endpoints (no auth required for internal services)
   -  Tests invalid auth token rejection
   -  Tests auth token propagation through voice pipeline
 

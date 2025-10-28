@@ -39,7 +39,7 @@ class TestVoicePipelineIntegration:
             # Step 2: Orchestrator processing (CORRECTED endpoint)
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",  # CORRECTED
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",  # CORRECTED
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -118,7 +118,7 @@ class TestVoicePipelineIntegration:
 
             # Test orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -164,7 +164,7 @@ class TestVoicePipelineIntegration:
 
             # Test with empty transcript
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -201,7 +201,7 @@ class TestVoicePipelineIntegration:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/mcp/transcript",
+                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -258,7 +258,7 @@ class TestVoicePipelineIntegration:
 
             # Use STT correlation ID for orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -311,7 +311,7 @@ class TestVoicePipelineIntegration:
             # Measure Orchestrator performance
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],

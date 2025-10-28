@@ -149,7 +149,7 @@ Each service has its own `requirements.txt` with:
 
 **Orchestrator Service**:
 
--  `mcp`, `instructor`
+-  `instructor`
 
 **TTS Service**:
 

@@ -67,7 +67,7 @@ def create_langchain_executor() -> AgentExecutor | None:
             ]
         )
 
-        # Define MCP tools
+        # Define REST API tools
         tools = [
             Tool(
                 name="SendDiscordMessage",
@@ -111,7 +111,7 @@ def create_langchain_executor() -> AgentExecutor | None:
 
 def send_discord_message(message: str) -> str:
     """Send a message to Discord channel."""
-    # This would integrate with the Discord MCP client
+    # This would integrate with the Discord REST API client
     logger.info("discord.message_sent", message=message[:100])
     return f"Message sent to Discord: {message[:50]}..."
 

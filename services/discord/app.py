@@ -1,14 +1,12 @@
 """
-Discord service HTTP API for MCP tool integration.
+Discord service HTTP API for tool integration.
 """
 
-import asyncio
 import os
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
 import httpx
-from pydantic import BaseModel
 
 from services.common.audio_metrics import (
     create_audio_metrics,
@@ -21,8 +19,15 @@ from services.common.health import HealthManager, HealthStatus
 from services.common.structured_logging import get_logger
 from services.common.tracing import setup_service_observability
 
-from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
+from .models import (
+    MessageSendRequest,
+    MessageSendResponse,
+    TranscriptNotificationRequest,
+    TranscriptNotificationResponse,
+    CapabilitiesResponse,
+    CapabilityInfo,
+)
 
 
 logger = get_logger(__name__, service_name="discord")
@@ -38,18 +43,7 @@ _audio_metrics = {}
 _http_metrics = {}
 
 
-class SendMessageRequest(BaseModel):
-    guild_id: str
-    channel_id: str
-    message: str
-
-
-class TranscriptNotification(BaseModel):
-    guild_id: str
-    channel_id: str
-    user_id: str
-    transcript: str
-    correlation_id: str | None = None
+# Remove old tool models - now using models.py
 
 
 @app.on_event("startup")  # type: ignore[misc]
@@ -72,63 +66,17 @@ async def startup_event() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Load configuration
-        config = load_config()
+        # Load configuration (not used in HTTP-only mode)
+        _ = load_config()
 
         # Register dependencies
         _health_manager.register_dependency("stt", _check_stt_health)
         _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
 
-        # Check if we should run the full Discord bot
-        run_full_bot = config.runtime.full_bot
-        logger.info("discord.full_bot_check", run_full_bot=run_full_bot)
-
-        if run_full_bot:
-            # Initialize full Discord bot with voice capabilities
-            logger.info("discord.full_bot_starting")
-            from services.common.structured_logging import configure_logging
-
-            from .discord_voice import VoiceBot
-            from .wake import WakeDetector
-
-            logger.info("discord.imports_complete")
-            logger.info("discord.config_loaded")
-            configure_logging(
-                config.telemetry.log_level,
-                json_logs=config.telemetry.log_json,
-                service_name="discord",
-            )
-            logger.info("discord.logging_configured")
-
-            audio_processor_wrapper = AudioProcessorWrapper(
-                config.audio, config.telemetry
-            )
-            logger.info("discord.audio_processor_wrapper_created")
-            wake_detector = WakeDetector(config.wake)
-            logger.info("discord.wake_detector_created")
-
-            async def dummy_transcript_publisher(
-                transcript_data: dict[str, Any],
-            ) -> None:
-                logger.info("discord.dummy_transcript_published", **transcript_data)
-
-            _bot = VoiceBot(
-                config=config,
-                audio_processor_wrapper=audio_processor_wrapper,
-                wake_detector=wake_detector,
-                transcript_publisher=dummy_transcript_publisher,
-                metrics=_stt_metrics,
-            )
-            logger.info("discord.voicebot_created")
-
-            _bot_task = asyncio.create_task(_bot.start(config.discord.token))
-            # Store reference to prevent garbage collection
-            # Store reference to prevent garbage collection
-            logger.info("discord.full_bot_started")
-        else:
-            _bot = {"status": "ready", "mode": "http"}
-            _health_manager.mark_startup_complete()  # For HTTP-only mode
-            logger.info("discord.http_api_started")
+        # HTTP-only mode - no full Discord bot
+        _bot = {"status": "ready", "mode": "http"}
+        _health_manager.mark_startup_complete()
+        logger.info("discord.http_api_started")
 
     except Exception as exc:
         logger.error("discord.http_startup_failed", error=str(exc))
@@ -207,9 +155,9 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.post("/mcp/send_message")  # type: ignore[misc]
-async def send_message(request: SendMessageRequest) -> dict[str, Any]:
-    """Send text message to Discord channel via MCP."""
+@app.post("/api/v1/messages", response_model=MessageSendResponse)  # type: ignore[misc]
+async def send_message(request: MessageSendRequest) -> MessageSendResponse:
+    """Send text message to Discord channel."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
 
@@ -218,9 +166,9 @@ async def send_message(request: SendMessageRequest) -> dict[str, Any]:
         # In a real implementation, this would connect to Discord and send the message
         logger.info(
             "discord.send_message_requested",
-            guild_id=request.guild_id,
             channel_id=request.channel_id,
-            message=request.message,
+            content=request.content,
+            correlation_id=request.correlation_id,
         )
 
         # NOTE: HTTP mode uses simulated message sending for testing/development.
@@ -228,22 +176,23 @@ async def send_message(request: SendMessageRequest) -> dict[str, Any]:
         # message sending through the VoiceBot class.
         # For production HTTP-based message sending, implement Discord REST API client here.
 
-        return {
-            "status": "success",
-            "guild_id": request.guild_id,
-            "channel_id": request.channel_id,
-            "message_id": "simulated_message_id",
-            "content": request.message,
-            "result": {"message": "Message sent (HTTP mode)"},
-        }
+        return MessageSendResponse(
+            success=True,
+            message_id="simulated_message_id",
+            correlation_id=request.correlation_id,
+        )
 
     except Exception as exc:
         logger.error("discord.send_message_failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.post("/mcp/transcript")  # type: ignore[misc]
-async def handle_transcript(notification: TranscriptNotification) -> dict[str, Any]:
+@app.post(
+    "/api/v1/notifications/transcript", response_model=TranscriptNotificationResponse
+)  # type: ignore[misc]
+async def handle_transcript(
+    notification: TranscriptNotificationRequest,
+) -> TranscriptNotificationResponse:
     """Handle transcript notification from orchestrator."""
     if not _bot:
         raise HTTPException(status_code=503, detail="Discord service not ready")
@@ -252,7 +201,6 @@ async def handle_transcript(notification: TranscriptNotification) -> dict[str, A
         # Process transcript (this would trigger the voice assistant flow)
         logger.info(
             "discord.transcript_received",
-            guild_id=notification.guild_id,
             channel_id=notification.channel_id,
             user_id=notification.user_id,
             transcript=notification.transcript,
@@ -265,40 +213,67 @@ async def handle_transcript(notification: TranscriptNotification) -> dict[str, A
         # Full processing flow: Discord → STT → Orchestrator → [this endpoint for notifications]
         # If bidirectional communication is needed, implement orchestrator client call here.
 
-        return {
-            "status": "received",
-            "guild_id": notification.guild_id,
-            "channel_id": notification.channel_id,
-            "user_id": notification.user_id,
-            "transcript": notification.transcript,
-            "correlation_id": notification.correlation_id,
-        }
+        return TranscriptNotificationResponse(
+            success=True,
+            correlation_id=notification.correlation_id,
+        )
 
     except Exception as exc:
         logger.error("discord.transcript_handling_failed", error=str(exc))
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@app.get("/mcp/tools")  # type: ignore[misc]
-async def list_mcp_tools() -> dict[str, Any]:
-    """List available MCP tools."""
-    return {
-        "tools": [
-            {
-                "name": "discord.send_message",
-                "description": "Send a text message to Discord channel",
-                "inputSchema": {
+@app.get("/api/v1/capabilities", response_model=CapabilitiesResponse)  # type: ignore[misc]
+async def list_capabilities() -> CapabilitiesResponse:
+    """List available Discord service capabilities."""
+    return CapabilitiesResponse(
+        service="discord",
+        version="1.0.0",
+        capabilities=[
+            CapabilityInfo(
+                name="send_message",
+                description="Send a text message to Discord channel",
+                parameters={
                     "type": "object",
                     "properties": {
-                        "guild_id": {"type": "string"},
-                        "channel_id": {"type": "string"},
-                        "message": {"type": "string"},
+                        "channel_id": {
+                            "type": "string",
+                            "description": "Discord channel ID",
+                        },
+                        "content": {"type": "string", "description": "Message content"},
+                        "correlation_id": {
+                            "type": "string",
+                            "description": "Correlation ID for tracing",
+                        },
                     },
-                    "required": ["guild_id", "channel_id", "message"],
+                    "required": ["channel_id", "content"],
                 },
-            },
-        ]
-    }
+            ),
+            CapabilityInfo(
+                name="transcript_notification",
+                description="Receive transcript notifications from orchestrator",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "transcript": {
+                            "type": "string",
+                            "description": "Transcript text",
+                        },
+                        "user_id": {"type": "string", "description": "Discord user ID"},
+                        "channel_id": {
+                            "type": "string",
+                            "description": "Discord channel ID",
+                        },
+                        "correlation_id": {
+                            "type": "string",
+                            "description": "Correlation ID for tracing",
+                        },
+                    },
+                    "required": ["transcript", "user_id", "channel_id"],
+                },
+            ),
+        ],
+    )
 
 
 if __name__ == "__main__":

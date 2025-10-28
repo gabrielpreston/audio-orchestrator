@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 
 from services.common.structured_logging import configure_logging
 
@@ -17,29 +16,12 @@ def main() -> None:
         service_name="discord",
     )
 
-    # Check running mode
-    mcp_mode = config.runtime.mcp_mode
-    http_mode = config.runtime.http_mode
-    full_bot_mode = config.runtime.full_bot
+    # Run as HTTP API server
+    import uvicorn
 
-    if mcp_mode:
-        # Run as MCP server subprocess
-        from .mcp import MCPServer
+    from .app import app
 
-        server = MCPServer(config)
-        asyncio.run(server.serve())
-    elif http_mode or full_bot_mode:
-        # Run as HTTP API server (with optional full bot)
-        import uvicorn
-
-        from .app import app
-
-        uvicorn.run(app, host="0.0.0.0", port=8001)
-    else:
-        # Run as full Discord bot only
-        from .discord_voice import run_bot
-
-        asyncio.run(run_bot(config))
+    uvicorn.run(app, host="0.0.0.0", port=8001)
 
 
 if __name__ == "__main__":

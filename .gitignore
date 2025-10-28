@@ -82,3 +82,4 @@ Desktop.ini
 *.txt
 !requirements*.txt
 .pip-audit-cache/
+.cursor/plans/

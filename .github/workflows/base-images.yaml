@@ -140,21 +140,6 @@ jobs:
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/tools:latest
 
-      - name: "Build and push MCP Toolchain Base Image with retry"
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file services/base/Dockerfile.mcp-toolchain \
-              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
-              --tag ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest \
-              --cache-from type=gha,scope=base-images \
-              --cache-to type=gha,mode=max,scope=base-images \
-              --load . && \
-            docker push ghcr.io/${{ github.repository_owner }}/mcp-toolchain:latest
-
       - name: "Build and push Python ML Audio Base Image with retry"
         uses: nick-fields/retry@v2
         with:
@@ -228,7 +213,6 @@ jobs:
           echo "| python-ml-torch | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml-transformers | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| tools | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| mcp-toolchain | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
       - name: "Clean up after all builds"
@@ -315,4 +299,4 @@ jobs:
           echo "1. python-base (foundation)" >> $GITHUB_STEP_SUMMARY
           echo "2. python-audio, python-ml (parallel capable)" >> $GITHUB_STEP_SUMMARY
           echo "3. Specialized ML images (parallel capable)" >> $GITHUB_STEP_SUMMARY
-          echo "4. tools, mcp-toolchain (parallel capable)" >> $GITHUB_STEP_SUMMARY
+          echo "4. tools (parallel capable)" >> $GITHUB_STEP_SUMMARY

@@ -28,7 +28,7 @@ make run
 -  `make logs SERVICE=discord` — Focus on the Discord bot; useful for wake phrase debugging.
 -  `make logs SERVICE=stt` — Inspect faster-whisper initialization and transcription speed.
 -  `make logs SERVICE=llm` — Review LLM service reasoning and API requests.
--  `make logs SERVICE=orchestrator` — Review orchestrator coordination and MCP tool calls.
+-  `make logs SERVICE=orchestrator` — Review orchestrator coordination and external tool calls.
 -  `make logs SERVICE=tts` — Validate synthesis timing and concurrency.
 
 ## Shutdown & Cleanup

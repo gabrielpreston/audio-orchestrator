@@ -231,58 +231,7 @@ def create_mock_tts_response(
     }
 
 
-def create_mock_mcp_tool_call(
-    tool: str = "weather_check",
-    parameters: dict[str, Any] | None = None,
-    correlation_id: str | None = None,
-) -> dict[str, Any]:
-    """Create mock MCP tool call for testing.
-
-    Args:
-        tool: Tool name
-        parameters: Tool parameters
-        correlation_id: Correlation ID
-
-    Returns:
-        Mock MCP tool call
-    """
-    if parameters is None:
-        parameters = {"location": "San Francisco", "date": "today"}
-
-    if correlation_id is None:
-        correlation_id = create_mock_correlation_id("mcp")
-
-    return {"tool": tool, "parameters": parameters, "correlation_id": correlation_id}
-
-
-def create_mock_mcp_tool_response(
-    success: bool = True,
-    result: dict[str, Any] | None = None,
-    error: str | None = None,
-    correlation_id: str | None = None,
-) -> dict[str, Any]:
-    """Create mock MCP tool response for testing.
-
-    Args:
-        success: Whether the tool call was successful
-        result: Tool result data
-        error: Error message if unsuccessful
-        correlation_id: Correlation ID
-
-    Returns:
-        Mock MCP tool response
-    """
-    if correlation_id is None:
-        correlation_id = create_mock_correlation_id("mcp")
-
-    response = {"success": success, "correlation_id": correlation_id}
-
-    if success and result is not None:
-        response["result"] = result
-    elif not success and error is not None:
-        response["error"] = error
-
-    return response
+# REST API helper functions removed - using REST API now
 
 
 def assert_audio_data_valid(

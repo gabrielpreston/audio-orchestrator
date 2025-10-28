@@ -9,7 +9,6 @@ import pytest
 from services.common.correlation import (
     generate_discord_correlation_id,
     generate_manual_correlation_id,
-    generate_mcp_correlation_id,
     generate_orchestrator_correlation_id,
     generate_stt_correlation_id,
     generate_tts_correlation_id,
@@ -89,13 +88,7 @@ class TestCorrelationIDGeneration:
         expected = f"orchestrator-{source_id}"
         assert result == expected
 
-    @pytest.mark.unit
-    def test_mcp_correlation_id(self):
-        """Test MCP correlation ID generation."""
-        source_id = "orchestrator-123456-1704067200000-12345678"
-        result = generate_mcp_correlation_id(source_id, "weather_client", "get_weather")
-        expected = f"mcp-weather_client-get_weather-{source_id}"
-        assert result == expected
+    # External tool correlation tests removed - using REST API now
 
     @pytest.mark.unit
     def test_manual_correlation_id(self):
@@ -148,9 +141,6 @@ class TestCorrelationIDGeneration:
         orchestrator_id = generate_orchestrator_correlation_id(user_id="123456")
         assert re.match(r"^orchestrator-\d+-\d+-\w{8}$", orchestrator_id)
 
-        mcp_id = generate_mcp_correlation_id("test_source", "client", "tool")
-        assert re.match(r"^mcp-\w+-\w+-.+$", mcp_id)
-
         manual_id = generate_manual_correlation_id("service", "context")
         assert re.match(r"^manual-\w+-\w+-\d+-\w{8}$", manual_id)
 
@@ -161,14 +151,12 @@ class TestCorrelationIDGeneration:
         assert callable(generate_stt_correlation_id)
         assert callable(generate_tts_correlation_id)
         assert callable(generate_orchestrator_correlation_id)
-        assert callable(generate_mcp_correlation_id)
         assert callable(generate_manual_correlation_id)
 
         assert isinstance(generate_discord_correlation_id(123456), str)
         assert isinstance(generate_stt_correlation_id(), str)
         assert isinstance(generate_tts_correlation_id(), str)
         assert isinstance(generate_orchestrator_correlation_id(), str)
-        assert isinstance(generate_mcp_correlation_id("source", "client", "tool"), str)
         assert isinstance(generate_manual_correlation_id("service"), str)
 
     @pytest.mark.unit
@@ -184,8 +172,9 @@ class TestCorrelationIDGeneration:
         stt_id = generate_stt_correlation_id(long_source)
         assert stt_id == f"stt-{long_source}"
 
-        mcp_id = generate_mcp_correlation_id("source", "client_name", "tool_name")
-        assert mcp_id == "mcp-client_name-tool_name-source"
+        # Test manual correlation ID with source
+        manual_id = generate_manual_correlation_id("service", "context")
+        assert manual_id.startswith("manual-service-context-")
 
     @pytest.mark.unit
     def test_concurrent_generation(self):
@@ -218,8 +207,9 @@ class TestCorrelationIDGeneration:
         tts_id = generate_tts_correlation_id(orchestrator_id)
         assert tts_id == f"tts-{orchestrator_id}"
 
-        mcp_id = generate_mcp_correlation_id(tts_id, "weather", "get_weather")
-        assert mcp_id == f"mcp-weather-get_weather-{tts_id}"
+        # Test manual correlation ID chaining
+        manual_id = generate_manual_correlation_id("test", "context")
+        assert manual_id.startswith("manual-test-context-")
 
     @pytest.mark.unit
     def test_source_id_preservation(self):

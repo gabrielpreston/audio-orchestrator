@@ -40,7 +40,7 @@ config.validate()
 
 ```python
 from services.common.service_configs import (
-    DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig, TelemetryConfig
+    DiscordConfig, AudioConfig, STTConfig, WakeConfig, TelemetryConfig
 )
 
 config = (
@@ -49,7 +49,6 @@ config = (
     .add_config("audio", AudioConfig)
     .add_config("stt", STTConfig)
     .add_config("wake", WakeConfig)
-    .add_config("mcp", MCPConfig)
     .add_config("telemetry", TelemetryConfig)
     .load()
 )
@@ -108,7 +107,7 @@ class MyConfig(BaseConfig):
         super().__init__(**kwargs)
         self.field1 = field1
         self.field2 = field2
-    
+
     @classmethod
     def get_field_definitions(cls):
         return [

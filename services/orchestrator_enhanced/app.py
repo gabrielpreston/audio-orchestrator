@@ -10,7 +10,6 @@ import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
 
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
 from services.common.config.loader import load_config_from_env
@@ -24,6 +23,16 @@ from .langchain_integration import (
     LANGCHAIN_AVAILABLE,
     create_langchain_executor,
     process_with_langchain,
+)
+
+# Import new REST API models
+from .models import (
+    TranscriptProcessRequest,
+    TranscriptProcessResponse,
+    CapabilitiesResponse,
+    CapabilityInfo,
+    StatusResponse,
+    ConnectionInfo,
 )
 
 
@@ -50,19 +59,6 @@ _langchain_executor: AgentExecutor | None = None
 
 # Prompt versioning
 PROMPT_VERSION = "v1.0"
-
-
-class TranscriptRequest(BaseModel):
-    transcript: str = Field(..., description="The transcript to process")
-    session_id: str = Field(..., description="Session identifier")
-    correlation_id: str | None = Field(None, description="Correlation ID for tracking")
-
-
-class TranscriptResponse(BaseModel):
-    response: str = Field(..., description="The generated response")
-    session_id: str = Field(..., description="Session identifier")
-    correlation_id: str | None = Field(None, description="Correlation ID for tracking")
-    engine: str = Field(default="langchain", description="Processing engine used")
 
 
 @app.on_event("startup")  # type: ignore[misc]
@@ -167,8 +163,10 @@ async def health_ready() -> dict[str, Any]:
     }
 
 
-@app.post("/mcp/transcript")  # type: ignore[misc]
-async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
+@app.post("/api/v1/transcripts", response_model=TranscriptProcessResponse)  # type: ignore[misc]
+async def process_transcript(
+    request: TranscriptProcessRequest,
+) -> TranscriptProcessResponse:
     """Process transcript using LangChain orchestration with guardrails."""
     start_time = time.time()
 
@@ -200,11 +198,11 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
                             1, attributes={"model": "orchestrator", "status": "blocked"}
                         )
 
-                    return TranscriptResponse(
-                        response="I'm sorry, but I can't process that request.",
-                        session_id=request.session_id,
+                    return TranscriptProcessResponse(
+                        success=False,
+                        response_text="I'm sorry, but I can't process that request.",
                         correlation_id=request.correlation_id,
-                        engine="guardrails_blocked",
+                        error="Input blocked by guardrails",
                     )
 
                 # Use sanitized input
@@ -218,7 +216,7 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
 
         # Process with LangChain
         response = await process_with_langchain(
-            sanitized_transcript, request.session_id, _langchain_executor
+            sanitized_transcript, request.user_id, _langchain_executor
         )
 
         # Output validation with guardrails
@@ -259,11 +257,10 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
                     processing_time, attributes={"model": "orchestrator"}
                 )
 
-        return TranscriptResponse(
-            response=response,
-            session_id=request.session_id,
+        return TranscriptProcessResponse(
+            success=True,
+            response_text=response,
             correlation_id=request.correlation_id,
-            engine="langchain" if _langchain_executor else "fallback",
         )
 
     except Exception as e:
@@ -288,31 +285,85 @@ async def handle_transcript(request: TranscriptRequest) -> TranscriptResponse:
         ) from e
 
 
-@app.get("/mcp/tools")  # type: ignore[misc]
-async def list_tools() -> dict[str, list[dict[str, str]]]:
-    """List available MCP tools."""
-    tools = [
-        {
-            "name": "SendDiscordMessage",
-            "description": "Send a message to Discord channel",
-            "type": "action",
-        },
-        {
-            "name": "SearchWeb",
-            "description": "Search the web for information",
-            "type": "action",
-        },
-    ]
+@app.get("/api/v1/capabilities", response_model=CapabilitiesResponse)  # type: ignore[misc]
+async def list_capabilities() -> CapabilitiesResponse:
+    """List available orchestrator capabilities."""
+    return CapabilitiesResponse(
+        service="orchestrator_enhanced",
+        version="1.0.0",
+        capabilities=[
+            CapabilityInfo(
+                name="transcript_processing",
+                description="Process voice transcripts using LangChain orchestration",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "transcript": {
+                            "type": "string",
+                            "description": "Transcript text to process",
+                        },
+                        "user_id": {"type": "string", "description": "User identifier"},
+                        "channel_id": {
+                            "type": "string",
+                            "description": "Channel identifier",
+                        },
+                        "correlation_id": {
+                            "type": "string",
+                            "description": "Correlation ID for tracing",
+                        },
+                        "metadata": {
+                            "type": "object",
+                            "description": "Additional metadata",
+                        },
+                    },
+                    "required": ["transcript", "user_id", "channel_id"],
+                },
+            ),
+            CapabilityInfo(
+                name="discord_message_sending",
+                description="Send messages to Discord channels",
+                parameters={
+                    "type": "object",
+                    "properties": {
+                        "channel_id": {
+                            "type": "string",
+                            "description": "Discord channel ID",
+                        },
+                        "content": {"type": "string", "description": "Message content"},
+                        "correlation_id": {
+                            "type": "string",
+                            "description": "Correlation ID for tracing",
+                        },
+                    },
+                    "required": ["channel_id", "content"],
+                },
+            ),
+        ],
+    )
 
-    return {"tools": tools}
 
-
-@app.get("/mcp/connections")  # type: ignore[misc]
-async def list_connections() -> dict[str, Any]:
-    """List MCP connections."""
-    return {
-        "connections": [
-            {"name": "discord", "status": "connected", "type": "mcp"},
-            {"name": "web_search", "status": "available", "type": "tool"},
-        ]
-    }
+@app.get("/api/v1/status", response_model=StatusResponse)  # type: ignore[misc]
+async def get_status() -> StatusResponse:
+    """Get orchestrator service status and connections."""
+    return StatusResponse(
+        service="orchestrator_enhanced",
+        status="healthy",
+        version="1.0.0",
+        connections=[
+            ConnectionInfo(
+                service="discord",
+                status="connected",
+                url="http://discord:8001",
+            ),
+            ConnectionInfo(
+                service="llm_flan",
+                status="connected",
+                url="http://llm_flan:8200",
+            ),
+            ConnectionInfo(
+                service="guardrails",
+                status="available",
+                url="http://guardrails:9300",
+            ),
+        ],
+    )

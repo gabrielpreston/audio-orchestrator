@@ -40,14 +40,14 @@ class TestE2EVoicePipeline:
             discord_health = discord_response.json()
             assert discord_health["service"] == "discord"
 
-            # Step 2: Test Discord MCP endpoints are accessible
-            tools_response = await client.get(
-                "http://discord:8001/mcp/tools", timeout=10.0
+            # Step 2: Test Discord REST API endpoints are accessible
+            capabilities_response = await client.get(
+                "http://discord:8001/api/v1/capabilities", timeout=10.0
             )
-            assert tools_response.status_code == 200
-            tools_data = tools_response.json()
-            assert "tools" in tools_data
-            assert len(tools_data["tools"]) > 0
+            assert capabilities_response.status_code == 200
+            capabilities_data = capabilities_response.json()
+            assert "capabilities" in capabilities_data
+            assert len(capabilities_data["capabilities"]) > 0
 
             # Step 3: Test complete voice pipeline
             start_time = time.time()
@@ -68,7 +68,7 @@ class TestE2EVoicePipeline:
 
             # Orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -98,7 +98,7 @@ class TestE2EVoicePipeline:
 
             # Step 4: Test Discord message sending
             send_message_response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -146,7 +146,7 @@ class TestE2EVoicePipeline:
 
             # Simulate voice channel join
             voice_response = await client.post(
-                "http://discord:8001/mcp/transcript",
+                "http://discord:8001/api/v1/notifications/transcript",
                 json={
                     **voice_simulation_data,
                     "transcript": "Voice channel integration test",
@@ -157,7 +157,7 @@ class TestE2EVoicePipeline:
 
             # Test voice channel message
             channel_message_response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -176,7 +176,7 @@ class TestE2EVoicePipeline:
         async with httpx.AsyncClient() as client:
             # Test with invalid guild/channel IDs
             invalid_context_response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json={
                     "guild_id": "invalid_guild",
                     "channel_id": "invalid_channel",
@@ -189,7 +189,7 @@ class TestE2EVoicePipeline:
 
             # Test with malformed transcript
             malformed_transcript_response = await client.post(
-                "http://discord:8001/mcp/transcript",
+                "http://discord:8001/api/v1/notifications/transcript",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -235,7 +235,7 @@ class TestE2EVoicePipeline:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/mcp/transcript",
+                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -264,7 +264,7 @@ class TestE2EVoicePipeline:
 
                 # Discord message
                 message_response = await client.post(
-                    "http://discord:8001/mcp/send_message",
+                    "http://discord:8001/api/v1/messages",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -345,7 +345,7 @@ class TestE2EVoicePipeline:
 
             # Use STT correlation ID for orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -374,7 +374,7 @@ class TestE2EVoicePipeline:
 
             # Send Discord message with correlation ID
             message_response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],

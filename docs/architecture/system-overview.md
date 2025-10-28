@@ -25,27 +25,27 @@ flowchart LR
     AgentManager -->|Route to agent| Agents[Specialized Agents]
     Agents -->|Reasoning requests| LLM[LLM Service]
     LLM -->|Responses| Agents
-    Agents -->|Tool calls| MCPTools[(MCP Integrations)]
+    Agents -->|Tool calls| RESTTools[(REST API Integrations)]
     Agents -->|Text| TTS[Text-to-Speech API]
     TTS -->|Audio stream| AudioOutput[Audio Output Adapters]
-    
+
     subgraph "Audio Adapters"
         DiscordAdapter[Discord Adapter]
         FileAdapter[File Adapter]
         WebRTCAdapter[WebRTC Adapter]
     end
-    
+
     subgraph "Agent Types"
         EchoAgent[Echo Agent]
         ConversationAgent[Conversation Agent]
         SummarizationAgent[Summarization Agent]
         IntentAgent[Intent Agent]
     end
-    
+
     AudioInput -.-> DiscordAdapter
     AudioInput -.-> FileAdapter
     AudioInput -.-> WebRTCAdapter
-    
+
     AgentManager -.-> EchoAgent
     AgentManager -.-> ConversationAgent
     AgentManager -.-> SummarizationAgent
@@ -56,7 +56,7 @@ flowchart LR
 
 | Service | Role | Key Technologies |
 | --- | --- | --- |
-| `services/discord` | Discord voice adapter implementation, captures voice, detects wake phrases, forwards audio to STT, plays TTS output, exposes MCP tools. | `discord.py`, `faster-whisper`, MCP SDKs. |
+| `services/discord` | Discord voice adapter implementation, captures voice, detects wake phrases, forwards audio to STT, plays TTS output, exposes REST API endpoints. | `discord.py`, `faster-whisper`, REST APIs. |
 | `services/stt` | Hosts the speech-to-text API backed by faster-whisper for streaming transcription. | FastAPI, `faster-whisper`. |
 | `services/orchestrator_enhanced` | Coordinates audio pipeline, agent management, transcript processing, LangChain tool calls, and response planning. Routes reasoning requests to LLM service. | FastAPI, LangChain SDKs, Agent Framework. |
 | `services/llm_flan` | Provides OpenAI-compatible completions and reasoning capabilities for the orchestrator. | FastAPI, FLAN-T5 executor. |
@@ -93,7 +93,7 @@ The platform uses a flexible agent system for intelligent response generation:
 
 -  **Context Management**: Maintains conversation history and session state
 -  **LLM Integration**: Routes reasoning requests to LLM service
--  **MCP Tool Integration**: Executes external actions through MCP tools
+-  **REST API Tool Integration**: Executes external actions through REST API calls
 -  **Response Generation**: Generates text and audio responses
 
 ## Data Flow
@@ -103,7 +103,7 @@ The platform uses a flexible agent system for intelligent response generation:
 3.  **Speech-to-Text**: Processed audio is sent to STT service for transcription
 4.  **Agent Selection**: Orchestrator uses agent manager to select appropriate agent based on transcript and context
 5.  **Agent Processing**: Selected agent processes the transcript and may call LLM service for reasoning
-6.  **Response Generation**: Agent generates response text and may call MCP tools for external actions
+6.  **Response Generation**: Agent generates response text and may call REST API tools for external actions
 7.  **Text-to-Speech**: Response text is sent to TTS service for audio synthesis
 8.  **Audio Output**: Generated audio is sent through output adapters to appropriate destinations
 9.  **Context Management**: Conversation context is updated and persisted for future interactions
@@ -111,10 +111,9 @@ The platform uses a flexible agent system for intelligent response generation:
 
 ## Integration Points
 
--  **Model Context Protocol (MCP)** — Register manifests via `MCP_MANIFESTS`, WebSocket URLs, or command handlers to expose automation tools.
+-  **REST API Integration** — Services communicate through REST API endpoints for tool discovery and execution.
 -  **Discord tokens** — Configure via `services/discord/.env.service` with guild and channel identifiers.
 -  **Llama.cpp runtime** — Tuned through `services/llm/.env.service` to set model paths, context size, and threading.
 -  **LiveKit integration** — Planned future capability for enhanced real-time audio processing and multi-participant voice interactions.
 
-For deeper service details, explore the [service deep dives](service-deep-dives/discord.md) and the
-[MCP integration appendix](integration/mcp.md).
+For deeper service details, explore the [service deep dives](service-deep-dives/discord.md) and the [REST API documentation](api/rest-api.md).

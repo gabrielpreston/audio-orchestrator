@@ -19,7 +19,7 @@ from services.common.structured_logging import get_logger
 from .audio import AudioSegment, rms_from_pcm
 from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import BotConfig, DiscordConfig
-from .mcp import MCPServer
+
 from .orchestrator_client import OrchestratorClient
 from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult
@@ -965,20 +965,21 @@ async def run_bot(config: BotConfig) -> None:
 
     audio_processor_wrapper = AudioProcessorWrapper(config.audio, config.telemetry)
     wake_detector = WakeDetector(config.wake)
-    server = MCPServer(config)
+
+    # Create dummy transcript publisher for standalone bot mode
+    async def dummy_transcript_publisher(transcript_data: dict[str, Any]) -> None:
+        """Dummy transcript publisher for standalone bot mode."""
+        logger = get_logger(__name__, service_name="discord")
+        logger.info("discord.transcript_received", **transcript_data)
+
     bot = VoiceBot(
-        config, audio_processor_wrapper, wake_detector, server.publish_transcript
+        config, audio_processor_wrapper, wake_detector, dummy_transcript_publisher
     )
-    server.attach_voice_bot(bot)
 
     bot_task = asyncio.create_task(bot.start(config.discord.token))
-    server_task = asyncio.create_task(server.serve())
     try:
         await bot_task
     finally:
-        await server.shutdown()
-        with suppress(asyncio.CancelledError):
-            await server_task
         await bot.close()
         if not bot_task.done():
             bot_task.cancel()

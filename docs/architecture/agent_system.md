@@ -21,7 +21,6 @@ flowchart TD
     AgentSelection --> SelectedAgent[Selected Agent]
     SelectedAgent --> AgentProcessing[Agent Processing]
     AgentProcessing --> LLMService[LLM Service]
-    AgentProcessing --> MCPTools[MCP Tools]
     AgentProcessing --> ResponseGeneration[Response Generation]
     ResponseGeneration --> AgentResponse[Agent Response]
     AgentResponse --> ContextUpdate[Context Update]
@@ -37,7 +36,7 @@ The `AgentManager` coordinates agent selection and routing:
 ```python
 class AgentManager:
     """Manages agent selection and routing."""
-    
+
     async def select_agent(
         self,
         transcript: str,
@@ -64,7 +63,7 @@ The `AgentRegistry` manages available agents:
 ```python
 class AgentRegistry:
     """Registry for managing agents."""
-    
+
     def register(self, name: str, agent: BaseAgent) -> None:
         """Register an agent."""
         # Agent registration
@@ -87,13 +86,13 @@ All agents implement the `BaseAgent` interface:
 ```python
 class BaseAgent(ABC):
     """Abstract base class for all agents."""
-    
+
     @property
     @abstractmethod
     def name(self) -> str:
         """Return the agent name."""
         pass
-    
+
     @abstractmethod
     async def handle(
         self,
@@ -102,7 +101,7 @@ class BaseAgent(ABC):
     ) -> AgentResponse:
         """Process user input and generate response."""
         pass
-    
+
     def can_handle(self, transcript: str, context: ConversationContext) -> bool:
         """Check if this agent can handle the input."""
         return True
@@ -117,11 +116,11 @@ Simple agent for testing and basic responses:
 ```python
 class EchoAgent(BaseAgent):
     """Agent that echoes user input back."""
-    
+
     @property
     def name(self) -> str:
         return "echo"
-    
+
     async def handle(
         self,
         context: ConversationContext,
@@ -147,7 +146,7 @@ Natural multi-turn conversation agent:
 ```python
 class ConversationAgent(BaseAgent):
     """Agent for natural multi-turn conversations."""
-    
+
     async def handle(
         self,
         context: ConversationContext,
@@ -174,7 +173,7 @@ Agent for summarizing conversation history:
 ```python
 class SummarizationAgent(BaseAgent):
     """Agent that summarizes conversation history."""
-    
+
     async def handle(
         self,
         context: ConversationContext,
@@ -201,7 +200,7 @@ Agent for intent classification and routing:
 ```python
 class IntentAgent(BaseAgent):
     """Classifies user intent and routes to specialized agents."""
-    
+
     async def handle(
         self,
         context: ConversationContext,
@@ -238,7 +237,7 @@ class IntentAgent(BaseAgent):
 ### 3. Agent Processing
 
 -  Selected agent processes the input
--  External services (LLM, MCP) are called as needed
+-  External services (LLM) are called as needed
 -  Response is generated and validated
 
 ### 4. Context Update
@@ -269,9 +268,8 @@ LLM_SERVICE_URL=http://llm:8000
 LLM_TIMEOUT_MS=30000
 LLM_MAX_TOKENS=2048
 
-# MCP Integration
-MCP_ENABLED=true
-MCP_TOOLS_TIMEOUT_MS=10000
+# External Service Integration
+EXTERNAL_SERVICES_TIMEOUT_MS=10000
 ```
 
 ### Agent-Specific Configuration
@@ -299,7 +297,7 @@ SUMMARIZATION_AGENT_TRIGGER_KEYWORDS=summarize,summary,recap
 -  **Agent Failure**: Graceful fallback to default agent
 -  **Timeout Handling**: Configurable timeouts and retries
 -  **Resource Limits**: Memory and CPU usage monitoring
--  **External Service Failures**: LLM and MCP service error handling
+-  **External Service Failures**: LLM service error handling
 
 ### Context Errors
 
@@ -321,7 +319,7 @@ SUMMARIZATION_AGENT_TRIGGER_KEYWORDS=summarize,summary,recap
 
 -  **Agent Selection**: Selection accuracy and performance
 -  **Context Management**: Context size and update frequency
--  **External Calls**: LLM and MCP service performance
+-  **External Calls**: LLM service performance
 -  **Overall Performance**: End-to-end response times
 
 ## Best Practices
@@ -343,6 +341,5 @@ SUMMARIZATION_AGENT_TRIGGER_KEYWORDS=summarize,summary,recap
 ### Integration
 
 -  **LLM Integration**: Handle LLM service failures gracefully
--  **MCP Integration**: Implement proper MCP tool error handling
 -  **Context Management**: Maintain conversation context efficiently
 -  **Response Generation**: Generate consistent and useful responses

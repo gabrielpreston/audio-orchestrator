@@ -14,17 +14,17 @@ The orchestrator enhanced service coordinates transcript processing, LangChain t
 
 ## Responsibilities
 
--  Process transcripts from the Discord bot and coordinate MCP tool calls.
+-  Process transcripts from the Discord bot and coordinate REST API tool calls.
 -  Route reasoning requests to the LLM service for natural language processing.
 -  Manage conversation flow and response planning.
 -  Coordinate with TTS service for spoken responses.
--  Provide bearer-authenticated APIs for downstream callers.
+-  Provide REST API endpoints for service communication.
 
 ## API Surface
 
--  `POST /mcp/transcript` — Handle transcript processing from Discord service.
--  `GET /mcp/tools` — List available MCP tools.
--  `GET /mcp/connections` — List active MCP connections.
+-  `POST /api/v1/transcripts` — Handle transcript processing from Discord service.
+-  `GET /api/v1/capabilities` — List available service capabilities.
+-  `GET /api/v1/status` — Get service status and connections.
 -  `GET /health/live` — Liveness check for container health.
 -  `GET /health/ready` — Readiness check for service availability.
 
@@ -32,19 +32,17 @@ The orchestrator enhanced service coordinates transcript processing, LangChain t
 
 -  `LLM_BASE_URL`, `LLM_AUTH_TOKEN` — LLM service integration settings.
 -  `TTS_BASE_URL`, `TTS_AUTH_TOKEN` — TTS service integration settings.
--  `MCP_CONFIG_PATH` — MCP manifest configuration path.
 -  `ORCHESTRATOR_DEBUG_SAVE` — Enable debug data collection.
 -  Logging inherits from `.env.common`.
 
 ## Observability
 
--  Structured logs track request IDs, MCP tool invocations, and latency breakdowns.
+-  Structured logs track request IDs and latency breakdowns.
 -  `/metrics` exposes request counters and duration histograms when scraped.
 -  Use `make logs SERVICE=orchestrator-enhanced` to monitor orchestrated tool chains and LLM service interactions.
 
 ## Dependencies
 
--  Receives transcripts from the Discord bot and optional MCP tool manifests.
+-  Receives transcripts from the Discord bot.
 -  Routes reasoning requests to the LLM service for natural language processing.
 -  Calls the TTS service to synthesize spoken responses.
--  May depend on additional capability servers registered through MCP manifests.

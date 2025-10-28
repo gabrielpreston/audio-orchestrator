@@ -132,11 +132,17 @@ async def test_pipeline(
         # 3. Process with orchestrator
         try:
             orchestrator_response = await client.post(
-                f"{ORCHESTRATOR_URL}/mcp/transcript", json={"transcript": transcript}
+                f"{ORCHESTRATOR_URL}/api/v1/transcripts",
+                json={
+                    "transcript": transcript,
+                    "user_id": "test_user",
+                    "channel_id": "test_channel",
+                    "correlation_id": "test_correlation",
+                },
             )
             orchestrator_response.raise_for_status()
             orchestrator_data = orchestrator_response.json()
-            response = orchestrator_data.get("response", "")
+            response = orchestrator_data.get("response_text", "")
             logger.info(
                 "Orchestration completed", extra={"response_length": len(response)}
             )

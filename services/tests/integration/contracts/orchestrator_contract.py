@@ -15,22 +15,22 @@ ORCHESTRATOR_CONTRACT = ServiceContract(
     version="1.0.0",
     endpoints=[
         EndpointContract(
-            name="mcp_transcript",
-            path="/mcp/transcript",
+            name="transcript_processing",
+            path="/api/v1/transcripts",
             method="POST",
             expected_status_codes=[200],
             timeout_ms=30000,
         ),
         EndpointContract(
-            name="mcp_tools",
-            path="/mcp/tools",
+            name="capabilities",
+            path="/api/v1/capabilities",
             method="GET",
             expected_status_codes=[200],
             timeout_ms=5000,
         ),
         EndpointContract(
-            name="mcp_connections",
-            path="/mcp/connections",
+            name="status",
+            path="/api/v1/status",
             method="GET",
             expected_status_codes=[200],
             timeout_ms=5000,
@@ -54,9 +54,9 @@ ORCHESTRATOR_CONTRACT = ServiceContract(
         InterfaceContract(
             interface_name="OrchestratorInterface",
             methods=[
-                "mcp_transcript",
-                "list_mcp_tools",
-                "list_mcp_connections",
+                "transcript_processing",
+                "list_capabilities",
+                "get_status",
                 "health_check",
             ],
             required_properties=["session_manager", "agent_registry"],

@@ -32,7 +32,7 @@ Use this checklist to resolve the most common setup issues when running the stac
 
 | Symptom | Resolution |
 | --- | --- |
-| MCP tools unavailable | Populate `MCP_MANIFESTS` or `MCP_WEBSOCKET_URL` in `services/discord/.env.service` and restart the bot. |
+| Tools unavailable | Populate tool configuration in `services/discord/.env.service` and restart the bot. |
 | TTS responses missing | Confirm the TTS container is running and `TTS_AUTH_TOKEN` matches the orchestrator configuration. |
 | Lint target fails on Markdown | Run `make lint-fix` or format manually; Markdown lint rules live in the lint container image. |
 

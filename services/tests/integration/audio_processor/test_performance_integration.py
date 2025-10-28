@@ -38,7 +38,7 @@ class TestPerformanceIntegration:
             # Measure Orchestrator latency
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -119,7 +119,7 @@ class TestPerformanceIntegration:
                 # Orchestrator
                 orch_start = time.time()
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/mcp/transcript",
+                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -272,7 +272,7 @@ class TestPerformanceIntegration:
 
                     # Orchestrator
                     orch_response = await client.post(
-                        "http://orchestrator-enhanced:8200/mcp/transcript",
+                        "http://orchestrator-enhanced:8200/api/v1/transcripts",
                         json={
                             "guild_id": test_voice_context["guild_id"],
                             "channel_id": test_voice_context["channel_id"],
@@ -344,7 +344,7 @@ class TestPerformanceIntegration:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/mcp/transcript",
+                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],

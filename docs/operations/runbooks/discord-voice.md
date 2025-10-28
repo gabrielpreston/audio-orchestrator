@@ -17,7 +17,7 @@ Use this runbook when operating the Discord bot and companion services in stagin
 -  Run `make logs SERVICE=discord` to verify the bot connected to the configured guild and voice channel.
 -  Confirm STT, Orchestrator, LLM, and TTS containers report healthy status via `/health`.
 -  Spot-check latency by issuing a wake phrase and validating end-to-end response time (<2s target).
--  Review MCP tool manifests for required credentials or endpoint changes.
+-  Review tool manifests for required credentials or endpoint changes.
 
 ## Incident Response
 
@@ -27,7 +27,7 @@ Use this runbook when operating the Discord bot and companion services in stagin
 | STT latency spike | Inspect STT logs for model throttling; scale CPU resources or adjust `FW_COMPUTE_TYPE`. |
 | TTS audio gaps | Check `TTS_MAX_CONCURRENCY` utilization and rate limits; adjust or add replicas. |
 | Orchestrator failures | Check orchestrator logs for LLM/TTS connectivity issues; verify auth tokens. |
-| MCP call failures | Validate downstream service credentials; re-run with increased logging level (`LOG_LEVEL=debug`). |
+| External call failures | Validate downstream service credentials; re-run with increased logging level (`LOG_LEVEL=debug`). |
 
 ## Escalation
 

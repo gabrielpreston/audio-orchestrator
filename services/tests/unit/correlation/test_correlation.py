@@ -194,21 +194,7 @@ class TestCorrelationIDPropagation:
             assert result["X-Correlation-ID"] == correlation_id
             mock_propagate.assert_called_once_with(correlation_id, "http")
 
-    @pytest.mark.unit
-    def test_propagate_correlation_id_mcp_context(self):
-        """Test correlation ID propagation in MCP context."""
-        correlation_id = "audio-orch-2024-01-15-abc123"
-
-        with patch(
-            "services.common.correlation.generate_manual_correlation_id"
-        ) as mock_propagate:
-            mock_context = {"correlation_id": correlation_id}
-            mock_propagate.return_value = mock_context
-            result = mock_propagate(correlation_id, "mcp")
-
-            assert "correlation_id" in result
-            assert result["correlation_id"] == correlation_id
-            mock_propagate.assert_called_once_with(correlation_id, "mcp")
+    # REST API correlation tests removed - using REST API now
 
     @pytest.mark.unit
     def test_propagate_correlation_id_logging_context(self):
@@ -253,19 +239,7 @@ class TestCorrelationIDPropagation:
             assert result == "audio-orch-2024-01-15-abc123"
             mock_extract.assert_called_once_with(headers, "http")
 
-    @pytest.mark.unit
-    def test_extract_correlation_id_from_mcp_context(self):
-        """Test extracting correlation ID from MCP context."""
-        context = {"correlation_id": "audio-orch-2024-01-15-abc123"}
-
-        with patch(
-            "services.common.correlation.generate_manual_correlation_id"
-        ) as mock_extract:
-            mock_extract.return_value = "audio-orch-2024-01-15-abc123"
-            result = mock_extract(context, "mcp")
-
-            assert result == "audio-orch-2024-01-15-abc123"
-            mock_extract.assert_called_once_with(context, "mcp")
+    # REST API correlation tests removed - using REST API now
 
     @pytest.mark.unit
     def test_extract_correlation_id_missing(self):

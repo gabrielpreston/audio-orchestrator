@@ -16,7 +16,7 @@ COLOR_RED=${COLOR_RED:-'\033[31m'}
 export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
 export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
 
-DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
+DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker compose}"
 START_TIME=$(date +%s)
 
 # Detect changes
@@ -64,7 +64,7 @@ printf "${COLOR_GREEN}🏗️  Building services...${COLOR_OFF}\n"
 for service in $SERVICES; do
     printf "${COLOR_CYAN}  → Building $service${COLOR_OFF}\n"
     SERVICE_START=$(date +%s)
-    
+
     # Build with enhanced cache options
     if $DOCKER_COMPOSE build --build-arg BUILDKIT_INLINE_CACHE=1 "$service"; then
         SERVICE_END=$(date +%s)

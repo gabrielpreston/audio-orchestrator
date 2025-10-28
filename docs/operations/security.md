@@ -15,7 +15,7 @@ voice lab stack.
 
 ## Credential Management
 
--  Store Discord bot tokens, orchestrator auth tokens, and MCP secrets outside version control.
+-  Store Discord bot tokens and orchestrator auth tokens outside version control.
 -  Rotate tokens whenever access is revoked or incidents occur; update `.env.service` files accordingly.
 -  Use the automated token rotation script for consistent token management across all services.
 -  Limit Discord bot scopes to required intents (`guilds`, `guild_voice_states`).
@@ -55,7 +55,6 @@ For manual rotation or custom token lengths:
 
 ## Network & Access Control
 
--  Restrict MCP WebSocket endpoints with authentication and TLS (`wss://`).
 -  Keep Docker networks private; expose only required ports to the host.
 -  Enable firewall rules that limit inbound access to orchestrator and TTS services.
 
@@ -68,5 +67,4 @@ For manual rotation or custom token lengths:
 ## Compliance Checklist
 
 -  [ ] Secrets managed through environment variables or secret stores.
--  [ ] MCP manifests stored securely with least-privilege credentials.
 -  [ ] Access reviews conducted quarterly for Discord, Monday.com, GitHub, and AWS integrations.

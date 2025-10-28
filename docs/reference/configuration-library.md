@@ -40,7 +40,7 @@ class MyConfig(BaseConfig):
         super().__init__(**kwargs)
         self.field1 = field1
         self.field2 = field2
-    
+
     @classmethod
     def get_field_definitions(cls) -> List[FieldDefinition]:
         return [
@@ -136,7 +136,7 @@ The library includes pre-built configuration classes for all services:
 
 ```python
 from services.common.service_configs import (
-    DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig,
+    DiscordConfig, AudioConfig, STTConfig, WakeConfig,
     TelemetryConfig, OrchestratorClientConfig, DiscordRuntimeConfig,
 )
 
@@ -146,7 +146,6 @@ config = (
     .add_config("audio", AudioConfig)
     .add_config("stt", STTConfig)
     .add_config("wake", WakeConfig)
-    .add_config("mcp", MCPConfig)
     .add_config("telemetry", TelemetryConfig)
     .add_config("orchestrator", OrchestratorClientConfig)
     .add_config("runtime", DiscordRuntimeConfig)
@@ -418,7 +417,7 @@ def load_config() -> BotConfig:
 
 ```python
 # services/discord/config.py
-from services.common.service_configs import DiscordConfig, AudioConfig, STTConfig, WakeConfig, MCPConfig, TelemetryConfig
+from services.common.service_configs import DiscordConfig, AudioConfig, STTConfig, WakeConfig, TelemetryConfig
 from services.common.config import ConfigBuilder, Environment
 
 def load_config():
@@ -428,7 +427,6 @@ def load_config():
         .add_config("audio", AudioConfig)
         .add_config("stt", STTConfig)
         .add_config("wake", WakeConfig)
-        .add_config("mcp", MCPConfig)
         .add_config("telemetry", TelemetryConfig)
         .load()
     )

@@ -93,19 +93,7 @@ class TestCorrelationIDParsing:
         assert parsed["timestamp"] == "12345678"
         assert parsed["raw"] == correlation_id
 
-    @pytest.mark.unit
-    def test_parse_mcp_full_format(self):
-        """Test parsing MCP correlation ID."""
-        correlation_id = (
-            "mcp-weather_client-get_weather-orchestrator-123456-1704067200000-12345678"
-        )
-        parsed = parse_correlation_id(correlation_id)
-
-        assert parsed["service"] == "mcp"
-        assert parsed["client_name"] == "weather_client"
-        assert parsed["tool_name"] == "get_weather"
-        assert parsed["source_id"] == "orchestrator-123456-1704067200000-12345678"
-        assert parsed["raw"] == correlation_id
+    # External tool correlation tests removed - using REST API now
 
     @pytest.mark.unit
     def test_parse_manual_with_context(self):
@@ -161,12 +149,6 @@ class TestCorrelationIDParsing:
             )
             == "orchestrator"
         )
-        assert get_service_from_correlation_id("mcp-client-tool-source") == "mcp"
-        assert (
-            get_service_from_correlation_id("manual-service-1704067200000-12345678")
-            == "manual"
-        )
-
         assert get_service_from_correlation_id("unknown-service-12345") == "unknown"
 
     @pytest.mark.unit
@@ -177,7 +159,6 @@ class TestCorrelationIDParsing:
             "stt-1704067200000-12345678",
             "tts-1704067200000-12345678",
             "orchestrator-123456-1704067200000-12345678",
-            "mcp-client-tool-source",
             "manual-service-1704067200000-12345678",
         ]
 

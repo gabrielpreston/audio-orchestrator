@@ -31,7 +31,7 @@ Standardized audio processing library providing:
 **Service-Specific Audio Parameters**:
 
 -  **Discord**: 48kHz, mono, 16-bit PCM
--  **STT**: 16kHz, mono, 16-bit WAV  
+-  **STT**: 16kHz, mono, 16-bit WAV
 -  **TTS**: 22.05kHz, mono, 16-bit WAV
 -  **Orchestrator**: 22.05kHz, mono, 16-bit WAV
 
@@ -50,7 +50,6 @@ Unified correlation ID generation system providing:
 -  **STT**: `stt-{source_id}` or `stt-{timestamp_ms}`
 -  **TTS**: `tts-{source_id}` or `tts-{timestamp_ms}`
 -  **Orchestrator**: `orchestrator-{source_id}` or `orchestrator-{user_id}-{timestamp_ms}`
--  **MCP Tools**: `mcp-{client_name}-{tool_name}-{source_id}`
 -  **Manual**: `manual-{service}-{context}-{timestamp_ms}`
 
 ### Debug Management

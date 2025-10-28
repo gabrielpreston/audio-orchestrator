@@ -21,11 +21,11 @@ The architecture is built around four core interfaces that define the contract f
 ```python
 class AudioSource(ABC):
     """Abstract base class for audio input adapters."""
-    
+
     @abstractmethod
     async def read_audio_frame(self) -> List[PCMFrame]:
         """Read audio frames from the source."""
-    
+
     @abstractmethod
     async def get_telemetry(self) -> Dict[str, Any]:
         """Get telemetry data."""
@@ -43,11 +43,11 @@ class AudioSource(ABC):
 ```python
 class AudioSink(ABC):
     """Abstract base class for audio output adapters."""
-    
+
     @abstractmethod
     async def play_audio_chunk(self, frame: PCMFrame) -> None:
         """Play audio frame."""
-    
+
     @abstractmethod
     async def get_telemetry(self) -> Dict[str, Any]:
         """Get telemetry data."""
@@ -65,15 +65,15 @@ class AudioSink(ABC):
 ```python
 class ControlChannel(ABC):
     """Abstract base class for control channel adapters."""
-    
+
     @abstractmethod
     async def send_event(self, event: BaseEvent) -> None:
         """Send control event."""
-    
+
     @abstractmethod
     async def receive_event(self) -> Optional[BaseEvent]:
         """Receive control event."""
-    
+
     @abstractmethod
     async def get_telemetry(self) -> Dict[str, Any]:
         """Get telemetry data."""
@@ -91,19 +91,19 @@ class ControlChannel(ABC):
 ```python
 class SurfaceLifecycle(ABC):
     """Abstract base class for surface lifecycle management."""
-    
+
     @abstractmethod
     async def connect(self) -> bool:
         """Connect to the surface."""
-    
+
     @abstractmethod
     async def disconnect(self) -> bool:
         """Disconnect from the surface."""
-    
+
     @abstractmethod
     def is_connected(self) -> bool:
         """Check connection status."""
-    
+
     @abstractmethod
     async def get_telemetry(self) -> Dict[str, Any]:
         """Get telemetry data."""
@@ -189,7 +189,7 @@ Implements the `ControlChannel` interface for Discord control events, handling:
 -  Discord message events
 -  Voice state changes
 -  User interaction events
--  MCP tool integration
+-  External tool integration
 
 ### DiscordSurfaceLifecycle
 

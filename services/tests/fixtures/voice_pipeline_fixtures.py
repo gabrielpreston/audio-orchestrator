@@ -97,17 +97,7 @@ def test_voice_performance_thresholds() -> dict[str, float]:
     }
 
 
-@pytest.fixture
-def test_mcp_tool_request() -> dict[str, Any]:
-    """Sample MCP tool call request."""
-    return {
-        "tool": "discord.send_message",
-        "args": {
-            "guild_id": "123456789",
-            "channel_id": "987654321",
-            "message": "Test message from voice pipeline",
-        },
-    }
+# REST API fixtures removed - using REST API now
 
 
 @pytest.fixture

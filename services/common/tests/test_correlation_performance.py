@@ -59,7 +59,7 @@ class TestCorrelationIDPerformance:
             "stt-1704067200000-12345678",
             "tts-1704067200000-12345678",
             "orchestrator-123456-1704067200000-12345678",
-            "mcp-client-tool-source",
+            "external-tool-source",
             "manual-service-1704067200000-12345678",
         ]
 
@@ -143,7 +143,7 @@ class TestCorrelationIDPerformance:
             "stt-1704067200000-12345678",
             "tts-1704067200000-12345678",
             "orchestrator-123456-1704067200000-12345678",
-            "mcp-client-tool-source",
+            "external-tool-source",
             "manual-service-1704067200000-12345678",
         ]
 
@@ -160,7 +160,14 @@ class TestCorrelationIDPerformance:
             for future in futures:
                 all_results.extend(future.result())
 
-        expected_services = ["discord", "stt", "tts", "orchestrator", "mcp", "manual"]
+        expected_services = [
+            "discord",
+            "stt",
+            "tts",
+            "orchestrator",
+            "external",
+            "manual",
+        ]
         for i in range(0, len(all_results), 6):
             thread_results = all_results[i : i + 6]
             assert thread_results == expected_services

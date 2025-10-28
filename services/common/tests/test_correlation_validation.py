@@ -22,7 +22,6 @@ class TestCorrelationIDValidation:
             "tts_chained": "tts-orchestrator-123456-1704067200000-12345678",
             "orchestrator": "orchestrator-123456-1704067200000-12345678",
             "orchestrator_chained": "orchestrator-stt-1704067200000-12345678",
-            "mcp": "mcp-weather_client-get_weather-orchestrator-123456-1704067200000-12345678",
             "manual": "manual-test_service-debug-1704067200000-12345678",
         }
 

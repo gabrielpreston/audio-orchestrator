@@ -21,8 +21,8 @@ python-base (3-4 min)
 │   └── monitoring_dashboard service
 ├── tools (8-10 min after optimization)
 │   └── linter, tester services
-└── mcp-toolchain (5-7 min)
-    └── orchestrator services (future)
+└── specialized-services (5-7 min)
+    └── orchestrator services
 ```
 
 ## Build Time Estimates
@@ -64,7 +64,7 @@ The build system implements comprehensive disk space management to prevent "No s
 - Parallel build limits (max-parallel: 2) to prevent resource exhaustion
 - Emergency cleanup on cancellation
 
-**Tier 3 Builds** (mcp-toolchain):
+**Tier 3 Builds** (specialized-services):
 - Standard cleanup before and after builds
 - Prevents accumulation before service builds
 - Emergency cleanup on cancellation
@@ -177,9 +177,9 @@ python-base (3-4min, ~2GB)
 - Build time: 8-10 minutes (after optimization)
 - **Optimized**: Only includes linter and tester requirements
 
-### mcp-toolchain
-- MCP server toolchain (Node.js, Rust, Go)
-- Used by: orchestrator services (future)
+### specialized-services
+- Specialized service toolchain (Node.js, Rust, Go)
+- Used by: orchestrator services
 - Build time: 5-7 minutes
 - **Optimized**: Uses minimal Rust profile
 

@@ -11,49 +11,46 @@ class TestDiscordServiceIntegration:
     """Test Discord service HTTP API endpoints."""
 
     async def test_discord_http_api_endpoints(self):
-        """Test Discord MCP endpoints: /mcp/send_message, /mcp/transcript, /mcp/tools"""
+        """Test Discord REST API endpoints: /api/v1/messages, /api/v1/notifications/transcript, /api/v1/capabilities"""
         async with httpx.AsyncClient() as client:
-            # Test /mcp/tools endpoint (no auth required)
-            response = await client.get("http://discord:8001/mcp/tools")
+            # Test /api/v1/capabilities endpoint (no auth required)
+            response = await client.get("http://discord:8001/api/v1/capabilities")
             assert response.status_code == 200
             data = response.json()
-            assert "tools" in data
-            assert len(data["tools"]) > 0
+            assert "capabilities" in data
+            assert len(data["capabilities"]) > 0
 
-            # Test /mcp/send_message endpoint
+            # Test /api/v1/messages endpoint
             send_message_data = {
-                "guild_id": "123456789",
                 "channel_id": "987654321",
-                "message": "Test message from integration test",
+                "content": "Test message from integration test",
+                "correlation_id": "test_correlation_123",
             }
             response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json=send_message_data,
                 timeout=30.0,
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "success"
-            assert data["guild_id"] == send_message_data["guild_id"]
-            assert data["channel_id"] == send_message_data["channel_id"]
+            assert data["success"] is True
+            assert "message_id" in data
 
-            # Test /mcp/transcript endpoint
+            # Test /api/v1/notifications/transcript endpoint
             transcript_data = {
-                "guild_id": "123456789",
-                "channel_id": "987654321",
-                "user_id": "12345",
                 "transcript": "Test transcript",
+                "user_id": "12345",
+                "channel_id": "987654321",
                 "correlation_id": "test-correlation-123",
             }
             response = await client.post(
-                "http://discord:8001/mcp/transcript",
+                "http://discord:8001/api/v1/notifications/transcript",
                 json=transcript_data,
                 timeout=30.0,
             )
             assert response.status_code == 200
             data = response.json()
-            assert data["status"] == "received"
-            assert data["transcript"] == transcript_data["transcript"]
+            assert data["success"] is True
 
     async def test_discord_health_endpoints(self):
         """Test Discord service health endpoints."""
@@ -98,7 +95,7 @@ class TestDiscordServiceIntegration:
 
             # Step 2: Orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -126,7 +123,7 @@ class TestDiscordServiceIntegration:
             }
 
             response = await client.post(
-                "http://discord:8001/mcp/transcript",
+                "http://discord:8001/api/v1/notifications/transcript",
                 json=transcript_data,
                 timeout=30.0,
             )
@@ -139,7 +136,7 @@ class TestDiscordServiceIntegration:
         async with httpx.AsyncClient() as client:
             # Test with invalid JSON
             response = await client.post(
-                "http://discord:8001/mcp/send_message",
+                "http://discord:8001/api/v1/messages",
                 json={"invalid": "data"},
                 timeout=10.0,
             )
@@ -152,7 +149,7 @@ class TestDiscordServiceIntegration:
             # Test with very short timeout
             with contextlib.suppress(httpx.TimeoutException):
                 await client.post(
-                    "http://discord:8001/mcp/send_message",
+                    "http://discord:8001/api/v1/messages",
                     json={
                         "guild_id": "123456789",
                         "channel_id": "987654321",

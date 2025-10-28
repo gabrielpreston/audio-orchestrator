@@ -66,7 +66,7 @@ class OrchestratorClient:
                 headers["X-Correlation-ID"] = correlation_id
 
             response = await client.post(
-                f"{self.orchestrator_url}/mcp/transcript",
+                f"{self.orchestrator_url}/api/v1/transcripts",
                 json=payload,
                 headers=headers,
                 timeout=30.0,
@@ -110,7 +110,7 @@ class OrchestratorClient:
             }
 
             response = await client.post(
-                f"{self.orchestrator_url}/mcp/send_message", json=payload, timeout=30.0
+                f"{self.orchestrator_url}/api/v1/messages", json=payload, timeout=30.0
             )
             response.raise_for_status()
 

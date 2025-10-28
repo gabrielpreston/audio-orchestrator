@@ -154,24 +154,7 @@ class CorrelationIDGenerator:
         user_part = f"{user_id}-" if user_id else ""
         return f"orchestrator-{user_part}{timestamp_ms}-{unique_suffix}"
 
-    @staticmethod
-    def generate_mcp_correlation_id(
-        source_correlation_id: str, client_name: str, tool_name: str
-    ) -> str:
-        """
-        Generate a correlation ID for MCP tool calls.
-
-        Format: mcp-{client_name}-{tool_name}-{source_id}
-
-        Args:
-            source_correlation_id: Source correlation ID from orchestrator
-            client_name: MCP client name
-            tool_name: MCP tool name
-
-        Returns:
-            Standardized correlation ID
-        """
-        return f"mcp-{client_name}-{tool_name}-{source_correlation_id}"
+    # External tool correlation functions removed - using REST API now
 
     @staticmethod
     def generate_manual_correlation_id(service: str, context: str | None = None) -> str:
@@ -242,15 +225,7 @@ class CorrelationIDGenerator:
                 "raw": correlation_id,
             }
 
-        elif service == "mcp":
-            if len(parts) >= 4:
-                return {
-                    "service": "mcp",
-                    "client_name": parts[1],
-                    "tool_name": parts[2],
-                    "source_id": "-".join(parts[3:]),
-                    "raw": correlation_id,
-                }
+        # External service handling removed - using REST API now
 
         elif service == "manual":
             return {
@@ -323,13 +298,7 @@ def generate_orchestrator_correlation_id(
     )
 
 
-def generate_mcp_correlation_id(
-    source_correlation_id: str, client_name: str, tool_name: str
-) -> str:
-    """Generate an MCP correlation ID."""
-    return CorrelationIDGenerator.generate_mcp_correlation_id(
-        source_correlation_id, client_name, tool_name
-    )
+# External tool correlation functions removed - using REST API now
 
 
 def generate_manual_correlation_id(service: str, context: str | None = None) -> str:
@@ -358,7 +327,6 @@ __all__ = [
     "generate_stt_correlation_id",
     "generate_tts_correlation_id",
     "generate_orchestrator_correlation_id",
-    "generate_mcp_correlation_id",
     "generate_manual_correlation_id",
     "parse_correlation_id",
     "get_service_from_correlation_id",

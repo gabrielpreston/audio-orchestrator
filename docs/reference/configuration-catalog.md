@@ -33,7 +33,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `STT_WARMUP` | Enable STT service warm-up. | `true` |
 | `DISCORD_FULL_BOT` | Enable full Discord bot mode. | `false` |
 | `DISCORD_HTTP_MODE` | Enable Discord HTTP mode. | `false` |
-| `DISCORD_MCP_MODE` | Enable Discord MCP mode. | `false` |
 | `ORCH_TIMEOUT` | Orchestrator client timeout (seconds). | `30` |
 | `LLM_MAX_TOKENS` | Maximum tokens for LLM generation. | `128` |
 | `LLM_TEMPERATURE` | LLM temperature setting. | `0.7` |
@@ -79,11 +78,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `WAKE_PHRASES` | Comma-separated list of wake phrases. | `hey atlas,ok atlas` |
 | `WAKE_THRESHOLD` | Wake detection confidence threshold (0-1). | `0.5` |
 | `WAKE_SAMPLE_RATE` | Sample rate for wake model (Hz). | `16000` |
-| `MCP_MANIFESTS` | Comma-separated list of manifest paths. | *(empty)* |
-| `MCP_WEBSOCKET_URL` | WebSocket endpoint for remote MCP hub. | *(empty)* |
-| `MCP_COMMAND_PATH` | Command to launch a local MCP server. | *(empty)* |
-| `MCP_REGISTRATION_URL` | Remote registration endpoint. | *(empty)* |
-| `MCP_HEARTBEAT_INTERVAL` | Seconds between MCP heartbeat pings. | `30` |
 | `METRICS_PORT` | Optional port for Prometheus metrics. | *(empty)* |
 | `WAVEFORM_DEBUG_DIR` | Directory for debugging waveform artifacts. | *(empty)* |
 | `ORCHESTRATOR_WAKE_PHRASES` | Orchestrator-specific wake phrases. | *(empty)* |
@@ -120,7 +114,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `LLM_AUTH_TOKEN` | Bearer token for LLM service authentication. | `changeme` |
 | `TTS_BASE_URL` | TTS service URL. | `http://tts:7000` |
 | `TTS_AUTH_TOKEN` | Bearer token for TTS service authentication. | `changeme` |
-| `MCP_CONFIG_PATH` | MCP manifest configuration path. | `./mcp.json` |
 | `ORCHESTRATOR_DEBUG_SAVE` | Enable debug data collection. | `false` |
 
 ## TTS Service (`services/tts/.env.service`)

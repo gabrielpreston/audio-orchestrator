@@ -73,14 +73,14 @@ class TestCrossServiceAuthentication:
             )
             assert response.status_code == 401
 
-    async def test_discord_mcp_endpoints_no_auth(self):
-        """Test Discord MCP endpoints are public (no auth required)."""
+    async def test_discord_rest_endpoints_no_auth(self):
+        """Test Discord REST API endpoints are public (no auth required)."""
         async with httpx.AsyncClient() as client:
-            # Test Discord MCP endpoints without auth
+            # Test Discord REST API endpoints without auth
             endpoints = [
-                ("GET", "http://discord:8001/mcp/tools"),
-                ("POST", "http://discord:8001/mcp/send_message"),
-                ("POST", "http://discord:8001/mcp/transcript"),
+                ("GET", "http://discord:8001/api/v1/capabilities"),
+                ("POST", "http://discord:8001/api/v1/messages"),
+                ("POST", "http://discord:8001/api/v1/notifications/transcript"),
             ]
 
             for method, endpoint in endpoints:
@@ -172,9 +172,9 @@ class TestCrossServiceAuthentication:
             ], f"STT with fake audio: {stt_response.status_code}"
             # Note: 500 is acceptable for malformed audio data
 
-            # Step 2: Orchestrator (no auth required for MCP endpoints)
+            # Step 2: Orchestrator (no auth required for REST API endpoints)
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/mcp/transcript",
+                "http://orchestrator-enhanced:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],

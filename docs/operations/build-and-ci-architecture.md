@@ -48,7 +48,7 @@ The build system implements comprehensive disk space management to prevent "No s
 -  Parallel build limits (max-parallel: 2) to prevent resource exhaustion
 -  Emergency cleanup on cancellation
 
-**Tier 3 Builds** (mcp-toolchain):
+**Tier 3 Builds** (specialized-services):
 
 -  Standard cleanup before and after builds
 -  Prevents accumulation before service builds
@@ -368,7 +368,7 @@ make docker-build  # Rebuilds all services in parallel
   -  `build-python-base` (foundation)
   -  `build-tier-1` (python-audio, python-ml, tools)
   -  `build-tier-2` (specialized ML images)
-  -  `build-tier-3` (mcp-toolchain)
+  -  `build-tier-3` (specialized-services)
   -  `build-services` (9 services with registry caching)
   -  `docker-smoke` (service validation)
 -  **Runtime**: ~20-30 minutes
@@ -395,8 +395,8 @@ python-base (3-4 min)
 │   └── monitoring_dashboard service
 ├── tools (8-10 min after optimization)
 │   └── linter, tester services
-└── mcp-toolchain (5-7 min)
-    └── orchestrator services (future)
+└── specialized-services (5-7 min)
+    └── orchestrator services
 ```
 
 #### Service Build Pipeline
