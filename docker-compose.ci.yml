@@ -110,17 +110,17 @@ services:
       retries: 5
       start_period: 20s
 
-  orchestrator-enhanced:
+  orchestrator:
     build:
       context: "."
-      dockerfile: "services/orchestrator_enhanced/Dockerfile"
+      dockerfile: "services/orchestrator/Dockerfile"
       cache_from:
         - type=gha,scope=services
         - ghcr.io/gabrielpreston/python-ml:latest
-        - ghcr.io/gabrielpreston/orchestrator_enhanced:latest
+        - ghcr.io/gabrielpreston/orchestrator:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/orchestrator-enhanced:latest"
+    image: "ghcr.io/gabrielpreston/orchestrator:latest"
     ports: []
     environment:
       - PYTHONPATH=/app
