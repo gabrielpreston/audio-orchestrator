@@ -105,9 +105,9 @@ def test_voice_pipeline_config() -> dict[str, Any]:
     """Test configuration for voice pipeline."""
     return {
         "stt_url": "http://stt:9000",
-        "tts_url": "http://tts-bark:7100",
-        "llm_url": "http://llm-flan:8100",
-        "orchestrator_url": "http://orchestrator-enhanced:8200",
+        "tts_url": "http://bark:7100",
+        "llm_url": "http://flan:8100",
+        "orchestrator_url": "http://orchestrator:8200",
         "discord_url": "http://discord:8001",
         "auth_token": "test-token",
         "timeout": 30.0,

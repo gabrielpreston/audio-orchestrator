@@ -78,7 +78,7 @@ async def test_grafana_datasource_configuration():
 async def test_service_metrics_flow():
     """Test complete metrics flow from service to Prometheus."""
     async with docker_compose_test_context(
-        ["otel-collector", "prometheus", "stt", "audio-processor"]
+        ["otel-collector", "prometheus", "stt", "audio"]
     ):
         # Generate some test traffic
         async with httpx.AsyncClient() as client:
@@ -86,9 +86,7 @@ async def test_service_metrics_flow():
             for _ in range(5):
                 try:
                     await client.get("http://stt:9000/health/ready", timeout=5)
-                    await client.get(
-                        "http://audio-processor:9100/health/ready", timeout=5
-                    )
+                    await client.get("http://audio:9100/health/ready", timeout=5)
                 except httpx.ConnectError:
                     pass  # Service might not be ready yet
                 await asyncio.sleep(1)
@@ -114,7 +112,7 @@ async def test_service_metrics_flow():
 async def test_distributed_tracing_flow():
     """Test distributed tracing from service to Jaeger."""
     async with docker_compose_test_context(
-        ["otel-collector", "jaeger", "stt", "audio-processor"]
+        ["otel-collector", "jaeger", "stt", "audio"]
     ):
         # Generate test traffic with tracing
         async with httpx.AsyncClient() as client:
@@ -122,9 +120,7 @@ async def test_distributed_tracing_flow():
             for _ in range(3):
                 try:
                     await client.get("http://stt:9000/health/ready", timeout=5)
-                    await client.get(
-                        "http://audio-processor:9100/health/ready", timeout=5
-                    )
+                    await client.get("http://audio:9100/health/ready", timeout=5)
                 except httpx.ConnectError:
                     pass
                 await asyncio.sleep(1)
@@ -141,14 +137,14 @@ async def test_distributed_tracing_flow():
             # Should have traces from our services
             service_names = [s["name"] for s in services["data"]]
             assert any("stt" in name for name in service_names)
-            assert any("audio-processor" in name for name in service_names)
+            assert any("audio" in name for name in service_names)
 
 
 @pytest.mark.integration
 async def test_observability_stack_resilience():
     """Test that application services work when observability is down."""
     async with (
-        docker_compose_test_context(["stt", "audio-processor", "discord"]),
+        docker_compose_test_context(["stt", "audio", "discord"]),
         httpx.AsyncClient() as client,
     ):
         # Services should start and work without observability
@@ -156,9 +152,7 @@ async def test_observability_stack_resilience():
         response = await client.get("http://stt:9000/health/ready", timeout=10)
         assert response.status_code == 200
 
-        response = await client.get(
-            "http://audio-processor:9100/health/ready", timeout=10
-        )
+        response = await client.get("http://audio:9100/health/ready", timeout=10)
         assert response.status_code == 200
 
 

@@ -6,13 +6,13 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 WORKDIR /app
 
 # Copy requirements FIRST for better caching
-COPY services/llm_flan/requirements.txt /app/services/llm_flan/requirements.txt
+COPY services/flan/requirements.txt /app/services/flan/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
 # Install Python dependencies with aggressive cleanup for GitHub Actions
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/llm_flan/requirements.txt && \
+    pip install --no-cache-dir -r /app/services/flan/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
@@ -44,7 +44,7 @@ ENV LLM_FLAN_SERVICE_PORT=8100
 ENV LLM_FLAN_SERVICE_HOST=0.0.0.0
 
 # Copy application code LAST (changes most frequently)
-COPY services/llm_flan /app/services/llm_flan
+COPY services/flan /app/services/flan
 COPY services/common /app/services/common
 COPY scripts/health_check.py /app/scripts/health_check.py
 
@@ -56,4 +56,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=3 \
 EXPOSE 8100
 
 # Run the service
-CMD ["uvicorn", "services.llm_flan.app:app", "--host", "0.0.0.0", "--port", "8100"]
+CMD ["uvicorn", "services.flan.app:app", "--host", "0.0.0.0", "--port", "8100"]

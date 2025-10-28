@@ -295,7 +295,7 @@ class AudioConfig(BaseConfig):
             FieldDefinition(
                 name="service_url",
                 field_type=str,
-                default="http://audio-processor:9100",
+                default="http://audio:9100",
                 description="Audio processor service URL",
                 env_var="AUDIO_SERVICE_URL",
             ),

@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from services.audio_processor.app import app
+from services.audio.app import app
 
 
 class TestAudioProcessorPerformance:

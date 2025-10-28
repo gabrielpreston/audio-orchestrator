@@ -43,12 +43,12 @@ except ImportError:
     AgentExecutor = Any
 
 # Configure logging
-configure_logging("info", json_logs=True, service_name="orchestrator_enhanced")
-logger = get_logger(__name__, service_name="orchestrator_enhanced")
+configure_logging("info", json_logs=True, service_name="orchestrator")
+logger = get_logger(__name__, service_name="orchestrator")
 app = FastAPI(title="Enhanced Orchestrator", version="1.0.0")
 
 # Health manager and observability
-_health_manager = HealthManager("orchestrator-enhanced")
+_health_manager = HealthManager("orchestrator")
 _observability_manager = None
 _llm_metrics = {}
 _http_metrics = {}
@@ -73,9 +73,7 @@ async def startup() -> None:
 
     try:
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability(
-            "orchestrator-enhanced", "1.0.0"
-        )
+        _observability_manager = setup_service_observability("orchestrator", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics
@@ -89,16 +87,14 @@ async def startup() -> None:
         try:
             _cfg = load_config_from_env(OrchestratorConfig)
         except Exception as exc:
-            logger.warning("orchestrator_enhanced.config_load_failed", error=str(exc))
+            logger.warning("orchestrator.config_load_failed", error=str(exc))
             _cfg = None  # Continue without config
 
         # Initialize LangChain executor with fallback
         try:
             _langchain_executor = create_langchain_executor()
         except Exception as exc:
-            logger.warning(
-                "orchestrator_enhanced.langchain_init_failed", error=str(exc)
-            )
+            logger.warning("orchestrator.langchain_init_failed", error=str(exc))
             _langchain_executor = None  # Continue without LangChain
 
         # Register dependencies with null checks
@@ -111,26 +107,26 @@ async def startup() -> None:
         _health_manager.mark_startup_complete()
 
         logger.info(
-            "orchestrator_enhanced.startup_complete",
+            "orchestrator.startup_complete",
             langchain_available=LANGCHAIN_AVAILABLE,
             executor_ready=_langchain_executor is not None,
         )
 
     except Exception as exc:
-        logger.error("orchestrator_enhanced.startup_failed", error=str(exc))
+        logger.error("orchestrator.startup_failed", error=str(exc))
         # Continue without crashing - service will report not_ready
 
 
 @app.on_event("shutdown")  # type: ignore[misc]
 async def shutdown() -> None:
     """Cleanup on shutdown."""
-    logger.info("orchestrator_enhanced.shutdown")
+    logger.info("orchestrator.shutdown")
 
 
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check."""
-    return {"status": "alive", "service": "orchestrator-enhanced"}
+    return {"status": "alive", "service": "orchestrator"}
 
 
 @app.get("/health/ready")  # type: ignore[misc]
@@ -151,7 +147,7 @@ async def health_ready() -> dict[str, Any]:
 
     return {
         "status": status_str,
-        "service": "orchestrator-enhanced",
+        "service": "orchestrator",
         "components": {
             "config_loaded": _cfg is not None,
             "langchain_available": LANGCHAIN_AVAILABLE,
@@ -187,7 +183,7 @@ async def process_transcript(
 
                 if not validation_data.get("safe", True):
                     logger.warning(
-                        "orchestrator_enhanced.input_blocked",
+                        "orchestrator.input_blocked",
                         reason=validation_data.get("reason"),
                         transcript=request.transcript[:100],
                     )
@@ -211,7 +207,7 @@ async def process_transcript(
                 )
 
         except Exception as e:
-            logger.warning("orchestrator_enhanced.guardrails_unavailable", error=str(e))
+            logger.warning("orchestrator.guardrails_unavailable", error=str(e))
             sanitized_transcript = request.transcript
 
         # Process with LangChain
@@ -232,7 +228,7 @@ async def process_transcript(
 
                 if not output_data.get("safe", True):
                     logger.warning(
-                        "orchestrator_enhanced.output_blocked",
+                        "orchestrator.output_blocked",
                         reason=output_data.get("reason"),
                     )
                     response = "I'm sorry, but I can't provide that response."
@@ -241,9 +237,7 @@ async def process_transcript(
                     response = output_data.get("filtered", response)
 
         except Exception as e:
-            logger.warning(
-                "orchestrator_enhanced.output_validation_failed", error=str(e)
-            )
+            logger.warning("orchestrator.output_validation_failed", error=str(e))
 
         # Record metrics
         processing_time = time.time() - start_time
@@ -276,7 +270,7 @@ async def process_transcript(
             )
 
         logger.error(
-            "orchestrator_enhanced.transcript_processing_failed",
+            "orchestrator.transcript_processing_failed",
             error=str(e),
             transcript=request.transcript[:100],
         )
@@ -289,7 +283,7 @@ async def process_transcript(
 async def list_capabilities() -> CapabilitiesResponse:
     """List available orchestrator capabilities."""
     return CapabilitiesResponse(
-        service="orchestrator_enhanced",
+        service="orchestrator",
         version="1.0.0",
         capabilities=[
             CapabilityInfo(
@@ -346,7 +340,7 @@ async def list_capabilities() -> CapabilitiesResponse:
 async def get_status() -> StatusResponse:
     """Get orchestrator service status and connections."""
     return StatusResponse(
-        service="orchestrator_enhanced",
+        service="orchestrator",
         status="healthy",
         version="1.0.0",
         connections=[
@@ -356,9 +350,9 @@ async def get_status() -> StatusResponse:
                 url="http://discord:8001",
             ),
             ConnectionInfo(
-                service="llm_flan",
+                service="flan",
                 status="connected",
-                url="http://llm_flan:8200",
+                url="http://flan:8200",
             ),
             ConnectionInfo(
                 service="guardrails",

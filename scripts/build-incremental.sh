@@ -16,7 +16,7 @@ COLOR_RED=${COLOR_RED:-'\033[31m'}
 export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
 export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
 
-DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker compose}"
+DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
 START_TIME=$(date +%s)
 
 # Detect changes
@@ -37,7 +37,7 @@ case "$CHANGED" in
         printf "${COLOR_YELLOW}⚠ Common files changed - rebuilding ALL services${COLOR_OFF}\n"
         echo "  Reason: services/common/, requirements-base.txt, or .dockerignore changed"
         echo ""
-        SERVICES="discord stt llm-flan orchestrator-enhanced tts-bark"
+        SERVICES="discord stt flan orchestrator bark audio monitoring testing"
         ;;
     "base-images")
         printf "${COLOR_RED}⚠ Base images changed - manual rebuild required${COLOR_OFF}\n"
@@ -66,7 +66,7 @@ for service in $SERVICES; do
     SERVICE_START=$(date +%s)
 
     # Build with enhanced cache options
-    if $DOCKER_COMPOSE build --build-arg BUILDKIT_INLINE_CACHE=1 "$service"; then
+    if $DOCKER_COMPOSE build "$service"; then
         SERVICE_END=$(date +%s)
         SERVICE_DURATION=$((SERVICE_END - SERVICE_START))
         printf "${COLOR_GREEN}    ✓ $service built in ${SERVICE_DURATION}s${COLOR_OFF}\n"
@@ -83,7 +83,7 @@ DURATION=$((END_TIME - START_TIME))
 # Estimate savings (rough heuristic: full build ~10min, single service ~2min)
 FULL_BUILD_TIME=600  # 10 minutes average
 SERVICE_COUNT=$(echo "$SERVICES" | wc -w)
-TOTAL_SERVICES=5
+TOTAL_SERVICES=7
 if [ "$SERVICE_COUNT" -lt "$TOTAL_SERVICES" ]; then
     ESTIMATED_FULL=$FULL_BUILD_TIME
     SAVED=$((ESTIMATED_FULL - DURATION))

@@ -34,14 +34,14 @@ except ImportError:
     httpx = None
 
 # Configure logging
-configure_logging("info", json_logs=True, service_name="monitoring_dashboard")
-logger = get_logger(__name__, service_name="monitoring_dashboard")
+configure_logging("info", json_logs=True, service_name="monitoring")
+logger = get_logger(__name__, service_name="monitoring")
 
 # FastAPI app for health checks
 app = FastAPI(title="Monitoring Dashboard Service", version="1.0.0")
 
 # Health manager and observability
-health_manager = HealthManager("monitoring-dashboard")
+health_manager = HealthManager("monitoring")
 _observability_manager = None
 _http_metrics = {}
 
@@ -126,10 +126,10 @@ def display_service_health() -> None:
         services = [
             "discord",
             "stt",
-            "llm-flan",
-            "audio-processor",
-            "tts-bark",
-            "orchestrator-enhanced",
+            "flan",
+            "audio",
+            "bark",
+            "orchestrator",
             "guardrails",
         ]
 
@@ -216,7 +216,7 @@ def display_system_metrics(_time_range: str) -> None:
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "monitoring-dashboard"}
+    return {"status": "alive", "service": "monitoring"}
 
 
 @app.get("/health/ready")  # type: ignore[misc]
@@ -250,7 +250,7 @@ async def health_ready() -> dict[str, Any]:
 
         return {
             "status": status_str,
-            "service": "monitoring-dashboard",
+            "service": "monitoring",
             "prometheus_connected": prometheus_healthy,
             "health_details": health_status.details,
         }
@@ -267,9 +267,7 @@ async def startup_event() -> None:
 
     try:
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability(
-            "monitoring-dashboard", "1.0.0"
-        )
+        _observability_manager = setup_service_observability("monitoring", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics

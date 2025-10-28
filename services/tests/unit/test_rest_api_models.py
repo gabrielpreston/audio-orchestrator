@@ -10,7 +10,7 @@ from services.discord.models import (
     CapabilitiesResponse,
     CapabilityInfo,
 )
-from services.orchestrator_enhanced.models import (
+from services.orchestrator.models import (
     TranscriptProcessRequest,
     TranscriptProcessResponse,
     CapabilitiesResponse as OrchestratorCapabilitiesResponse,
@@ -163,20 +163,18 @@ class TestOrchestratorModels:
             ConnectionInfo(
                 service="discord", status="connected", url="http://discord:8001"
             ),
-            ConnectionInfo(
-                service="llm_flan", status="connected", url="http://llm_flan:8200"
-            ),
+            ConnectionInfo(service="flan", status="connected", url="http://flan:8200"),
         ]
 
         response = StatusResponse(
-            service="orchestrator_enhanced",
+            service="orchestrator",
             status="healthy",
             connections=connections,
             uptime="2h 30m",
             version="1.0.0",
         )
 
-        assert response.service == "orchestrator_enhanced"
+        assert response.service == "orchestrator"
         assert response.status == "healthy"
         assert len(response.connections) == 2
         assert response.uptime == "2h 30m"
@@ -212,10 +210,10 @@ class TestOrchestratorModels:
         ]
 
         response = OrchestratorCapabilitiesResponse(
-            service="orchestrator_enhanced", version="1.0.0", capabilities=capabilities
+            service="orchestrator", version="1.0.0", capabilities=capabilities
         )
 
-        assert response.service == "orchestrator_enhanced"
+        assert response.service == "orchestrator"
         assert response.version == "1.0.0"
         assert len(response.capabilities) == 2
         assert response.capabilities[0].name == "transcript_processing"

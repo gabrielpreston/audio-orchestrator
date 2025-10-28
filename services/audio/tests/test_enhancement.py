@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import numpy as np
 import pytest
 
-from services.audio_processor.enhancement import AudioEnhancer
+from services.audio.enhancement import AudioEnhancer
 
 
 class TestAudioEnhancer:

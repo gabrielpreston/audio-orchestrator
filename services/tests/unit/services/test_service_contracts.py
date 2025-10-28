@@ -18,12 +18,12 @@ from services.tests.integration.contracts.tts_contract import TTS_CONTRACT
     "contract,service_name,base_url",
     [
         (STT_CONTRACT, "stt", "http://stt:9000"),
-        (LLM_CONTRACT, "llm-flan", "http://llm-flan:8100"),
-        (TTS_CONTRACT, "tts-bark", "http://tts-bark:7100"),
+        (LLM_CONTRACT, "flan", "http://flan:8100"),
+        (TTS_CONTRACT, "bark", "http://bark:7100"),
         (
             ORCHESTRATOR_CONTRACT,
-            "orchestrator-enhanced",
-            "http://orchestrator-enhanced:8200",
+            "orchestrator",
+            "http://orchestrator:8200",
         ),
     ],
 )

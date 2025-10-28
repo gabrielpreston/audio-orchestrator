@@ -22,7 +22,7 @@ class STTAudioProcessorClient:
 
     def __init__(
         self,
-        base_url: str = "http://audio-processor:9100",
+        base_url: str = "http://audio:9100",
         timeout: float = 50.0,  # 50ms timeout for enhancement
         max_retries: int = 3,
         retry_delay: float = 1.0,

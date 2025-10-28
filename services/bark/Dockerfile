@@ -5,11 +5,11 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 WORKDIR /app
 
 # Copy service-specific requirements
-COPY services/tts_bark/requirements.txt /app/services/tts_bark/requirements.txt
+COPY services/bark/requirements.txt /app/services/bark/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/tts_bark/requirements.txt
+    pip install --no-cache-dir -r /app/services/bark/requirements.txt
 
 # Runtime stage using shared ML base image
 # hadolint ignore=DL3007
@@ -35,7 +35,7 @@ ENV BARK_USE_SMALL_MODELS=false
 
 # Copy application code LAST (changes most frequently)
 COPY services/common /app/services/common
-COPY services/tts_bark /app/services/tts_bark
+COPY services/bark /app/services/bark
 COPY scripts/health_check.py /app/scripts/health_check.py
 
-CMD ["uvicorn", "services.tts_bark.app:app", "--host", "0.0.0.0", "--port", "7100"]
+CMD ["uvicorn", "services.bark.app:app", "--host", "0.0.0.0", "--port", "7100"]

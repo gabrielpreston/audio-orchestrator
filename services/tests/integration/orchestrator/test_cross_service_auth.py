@@ -13,7 +13,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test with valid auth token
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [{"role": "user", "content": "Test message"}],
@@ -31,7 +31,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test with valid auth token
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test synthesis",
                     "voice": "en_US-lessac-medium",
@@ -53,7 +53,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test LLM without auth
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [{"role": "user", "content": "Test message"}],
@@ -64,7 +64,7 @@ class TestCrossServiceAuthentication:
 
             # Test TTS without auth
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test synthesis",
                     "voice": "en_US-lessac-medium",
@@ -100,7 +100,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test with invalid token
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [{"role": "user", "content": "Test message"}],
@@ -112,7 +112,7 @@ class TestCrossServiceAuthentication:
 
             # Test with malformed auth header
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test synthesis",
                     "voice": "en_US-lessac-medium",
@@ -127,7 +127,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test LLM without Authorization header
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [{"role": "user", "content": "Test message"}],
@@ -138,7 +138,7 @@ class TestCrossServiceAuthentication:
 
             # Test TTS without Authorization header
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test synthesis",
                     "voice": "en_US-lessac-medium",
@@ -174,7 +174,7 @@ class TestCrossServiceAuthentication:
 
             # Step 2: Orchestrator (no auth required for REST API endpoints)
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -188,7 +188,7 @@ class TestCrossServiceAuthentication:
 
             # Step 3: TTS (requires auth)
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test response",
                     "voice": "en_US-lessac-medium",
@@ -204,7 +204,7 @@ class TestCrossServiceAuthentication:
         async with httpx.AsyncClient() as client:
             # Test LLM auth error response
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "gpt-3.5-turbo",
                     "messages": [{"role": "user", "content": "Test message"}],
@@ -217,7 +217,7 @@ class TestCrossServiceAuthentication:
 
             # Test TTS auth error response
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test synthesis",
                     "voice": "en_US-lessac-medium",

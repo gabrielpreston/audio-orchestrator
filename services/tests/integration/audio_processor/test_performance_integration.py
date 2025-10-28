@@ -38,7 +38,7 @@ class TestPerformanceIntegration:
             # Measure Orchestrator latency
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -54,7 +54,7 @@ class TestPerformanceIntegration:
             # Measure TTS latency
             tts_start = time.time()
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Performance benchmark test",
                     "voice": "en_US-lessac-medium",
@@ -119,7 +119,7 @@ class TestPerformanceIntegration:
                 # Orchestrator
                 orch_start = time.time()
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                    "http://orchestrator:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -141,7 +141,7 @@ class TestPerformanceIntegration:
                 # TTS
                 tts_start = time.time()
                 tts_response = await client.post(
-                    "http://tts-bark:7100/synthesize",
+                    "http://bark:7100/synthesize",
                     json={
                         "text": f"Concurrent test response {request_id}",
                         "voice": "en_US-lessac-medium",
@@ -229,9 +229,9 @@ class TestPerformanceIntegration:
         # Check health of all services
         services = [
             "http://stt:9000",
-            "http://tts-bark:7100",
-            "http://llm-flan:8100",
-            "http://orchestrator-enhanced:8200",
+            "http://bark:7100",
+            "http://flan:8100",
+            "http://orchestrator:8200",
             "http://discord:8001",
         ]
 
@@ -272,7 +272,7 @@ class TestPerformanceIntegration:
 
                     # Orchestrator
                     orch_response = await client.post(
-                        "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                        "http://orchestrator:8200/api/v1/transcripts",
                         json={
                             "guild_id": test_voice_context["guild_id"],
                             "channel_id": test_voice_context["channel_id"],
@@ -287,7 +287,7 @@ class TestPerformanceIntegration:
 
                     # TTS
                     tts_response = await client.post(
-                        "http://tts-bark:7100/synthesize",
+                        "http://bark:7100/synthesize",
                         json={
                             "text": f"Memory test {request_id}-{i}",
                             "voice": "en_US-lessac-medium",
@@ -344,7 +344,7 @@ class TestPerformanceIntegration:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                    "http://orchestrator:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -359,7 +359,7 @@ class TestPerformanceIntegration:
 
                 # TTS
                 tts_response = await client.post(
-                    "http://tts-bark:7100/synthesize",
+                    "http://bark:7100/synthesize",
                     json={
                         "text": f"Consistency test {i}",
                         "voice": "en_US-lessac-medium",

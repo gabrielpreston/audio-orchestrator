@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pytest
 
-from services.audio_processor.processor import AudioProcessor
+from services.audio.processor import AudioProcessor
 from services.common.surfaces.types import AudioSegment, PCMFrame
 
 

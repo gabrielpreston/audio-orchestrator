@@ -10,8 +10,8 @@ from services.tests.contracts.base_contracts import (
 
 # LLM Service Contract
 LLM_CONTRACT = ServiceContract(
-    service_name="llm-flan",
-    base_url="http://llm-flan:8100",
+    service_name="flan",
+    base_url="http://flan:8100",
     version="1.0.0",
     endpoints=[
         EndpointContract(

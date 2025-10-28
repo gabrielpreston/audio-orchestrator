@@ -96,7 +96,7 @@ class VoiceBot(discord.Client):
         self._health_manager = HealthManager("discord")
         self._required_services = {
             "stt": self.config.stt.base_url,
-            "orchestrator": "http://orchestrator-enhanced:8200",  # Default orchestrator URL
+            "orchestrator": "http://orchestrator:8200",  # Default orchestrator URL
         }
 
         # Initialize orchestrator client

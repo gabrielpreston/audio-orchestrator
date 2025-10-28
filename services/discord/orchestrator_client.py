@@ -15,7 +15,7 @@ logger = get_logger(__name__, service_name="discord")
 class OrchestratorClient:
     """Client for communicating with the LLM orchestrator service."""
 
-    def __init__(self, orchestrator_url: str = "http://orchestrator-enhanced:8200"):
+    def __init__(self, orchestrator_url: str = "http://orchestrator:8200"):
         self.orchestrator_url = orchestrator_url
         self._http_client: httpx.AsyncClient | None = None
 

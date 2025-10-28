@@ -198,7 +198,7 @@ def migrate_config_file(old_config_path: Path, new_config_path: Path) -> bool:
                 ),
                 "enable_vad": old_config.get("audio", {}).get("enable_vad", True),
                 "service_url": old_config.get("audio", {}).get(
-                    "service_url", "http://audio-processor:9100"
+                    "service_url", "http://audio:9100"
                 ),
                 "service_timeout": old_config.get("audio", {}).get(
                     "service_timeout", 20

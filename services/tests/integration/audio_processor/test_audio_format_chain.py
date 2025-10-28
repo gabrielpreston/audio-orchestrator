@@ -95,7 +95,7 @@ class TestAudioFormatChain:
 
             # Step 3: Orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -112,7 +112,7 @@ class TestAudioFormatChain:
 
             # Step 4: TTS synthesis and format validation
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": f"Response to: {transcript}",
                     "voice": "en_US-lessac-medium",
@@ -172,7 +172,7 @@ class TestAudioFormatChain:
 
             # Process through orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -189,7 +189,7 @@ class TestAudioFormatChain:
 
             # Generate TTS output
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Audio format conversion test",
                     "voice": "en_US-lessac-medium",
@@ -238,7 +238,7 @@ class TestAudioFormatChain:
             assert stt_response.status_code == 200
 
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -254,7 +254,7 @@ class TestAudioFormatChain:
             ], f"Unexpected status {orch_response.status_code}: {orch_response.text}"
 
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Quality preservation test",
                     "voice": "en_US-lessac-medium",
@@ -315,7 +315,7 @@ class TestAudioFormatChain:
 
             # Process through orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -332,7 +332,7 @@ class TestAudioFormatChain:
 
             # Generate TTS output
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Format validation test",
                     "voice": "en_US-lessac-medium",
@@ -431,7 +431,7 @@ class TestAudioFormatChain:
             # Process through orchestrator
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -450,7 +450,7 @@ class TestAudioFormatChain:
             # Generate TTS output
             tts_start = time.time()
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Performance test with format conversion",
                     "voice": "en_US-lessac-medium",

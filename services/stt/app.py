@@ -120,8 +120,7 @@ async def _warm_model() -> None:
         # Initialize audio processor client with fallback
         try:
             _audio_processor_client = STTAudioProcessorClient(
-                base_url=_cfg.faster_whisper.audio_service_url
-                or "http://audio-processor:9100",
+                base_url=_cfg.faster_whisper.audio_service_url or "http://audio:9100",
                 timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
             )
             logger.info("stt.audio_processor_client_initialized")

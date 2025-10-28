@@ -12,7 +12,7 @@ class TestOrchestratorLLMIntegration:
         """Test LLM OpenAI-compatible API endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "default",
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -30,7 +30,7 @@ class TestOrchestratorLLMIntegration:
         async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "default",
                     "messages": [{"role": "user", "content": "Hello"}],
@@ -44,13 +44,11 @@ class TestOrchestratorLLMIntegration:
         """Test LLM health endpoint accessibility."""
         async with httpx.AsyncClient() as client:
             # Test live endpoint
-            response = await client.get("http://llm-flan:8100/health/live", timeout=5.0)
+            response = await client.get("http://flan:8100/health/live", timeout=5.0)
             assert response.status_code == 200
 
             # Test ready endpoint
-            response = await client.get(
-                "http://llm-flan:8100/health/ready", timeout=5.0
-            )
+            response = await client.get("http://flan:8100/health/ready", timeout=5.0)
             assert response.status_code in [200, 503]  # May be ready or not ready
 
             if response.status_code == 200:
@@ -64,7 +62,7 @@ class TestOrchestratorLLMIntegration:
         """Test correlation ID propagation through LLM."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://llm-flan:8100/v1/chat/completions",
+                "http://flan:8100/v1/chat/completions",
                 json={
                     "model": "default",
                     "messages": [{"role": "user", "content": "Hello"}],

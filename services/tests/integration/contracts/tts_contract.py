@@ -10,8 +10,8 @@ from services.tests.contracts.base_contracts import (
 
 # TTS Service Contract
 TTS_CONTRACT = ServiceContract(
-    service_name="tts-bark",
-    base_url="http://tts-bark:7100",
+    service_name="bark",
+    base_url="http://bark:7100",
     version="1.0.0",
     endpoints=[
         EndpointContract(

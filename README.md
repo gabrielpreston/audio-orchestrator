@@ -22,13 +22,13 @@ The system consists of five core services working together to process voice inpu
 -  **Speech-to-Text Service** (`services/stt`)
   -  Provides HTTP transcription with streaming-friendly latencies using faster-whisper for the Discord bot and other clients.
 
--  **Orchestrator Service** (`services/orchestrator_enhanced`)
+-  **Orchestrator Service** (`services/orchestrator`)
   -  Coordinates transcript processing, LangChain tool calls, and response planning. Routes reasoning requests to the LLM service.
 
--  **Language Model Service** (`services/llm_flan`)
+-  **Language Model Service** (`services/flan`)
   -  Presents an OpenAI-compatible endpoint that can broker LangChain tool invocations and return reasoning output to the orchestrator.
 
--  **Text-to-Speech Service** (`services/tts_bark`)
+-  **Text-to-Speech Service** (`services/bark`)
   -  Streams Bark-generated audio for orchestrator responses with authentication and rate limits.
 
 ## CI/CD Architecture

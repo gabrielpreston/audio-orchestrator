@@ -39,9 +39,7 @@ class AudioProcessorWrapper:
         # Initialize audio processor client
         if audio_processor_client is None:
             self._audio_processor_client = AudioProcessorClient(
-                base_url=getattr(
-                    audio_config, "service_url", "http://audio-processor:9100"
-                ),
+                base_url=getattr(audio_config, "service_url", "http://audio:9100"),
                 timeout=getattr(audio_config, "service_timeout", 20.0)
                 / 1000.0,  # Convert ms to seconds
             )

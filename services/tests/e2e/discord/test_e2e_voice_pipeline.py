@@ -68,7 +68,7 @@ class TestE2EVoicePipeline:
 
             # Orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -84,7 +84,7 @@ class TestE2EVoicePipeline:
 
             # TTS synthesis
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": f"E2E test response to: {transcript}",
                     "voice": "en_US-lessac-medium",
@@ -235,7 +235,7 @@ class TestE2EVoicePipeline:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                    "http://orchestrator:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -250,7 +250,7 @@ class TestE2EVoicePipeline:
 
                 # TTS
                 tts_response = await client.post(
-                    "http://tts-bark:7100/synthesize",
+                    "http://bark:7100/synthesize",
                     json={
                         "text": f"Concurrent E2E test {request_id}",
                         "voice": "en_US-lessac-medium",
@@ -345,7 +345,7 @@ class TestE2EVoicePipeline:
 
             # Use STT correlation ID for orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -361,7 +361,7 @@ class TestE2EVoicePipeline:
 
             # Use same correlation ID for TTS
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "E2E correlation tracking test",
                     "voice": "en_US-lessac-medium",

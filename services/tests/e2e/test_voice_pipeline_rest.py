@@ -16,9 +16,9 @@ class TestVoicePipelineRestAPI:
             # Step 1: Check service health
             services = [
                 "http://stt:9000/health/ready",
-                "http://orchestrator-enhanced:8200/health/ready",
+                "http://orchestrator:8200/health/ready",
                 "http://discord:8001/health/ready",
-                "http://tts-bark:7100/health/ready",
+                "http://bark:7100/health/ready",
             ]
 
             for service_url in services:
@@ -36,7 +36,7 @@ class TestVoicePipelineRestAPI:
 
             # Test Orchestrator capabilities
             orchestrator_capabilities = await client.get(
-                "http://orchestrator-enhanced:8200/api/v1/capabilities", timeout=10.0
+                "http://orchestrator:8200/api/v1/capabilities", timeout=10.0
             )
             assert orchestrator_capabilities.status_code == 200
             orchestrator_data = orchestrator_capabilities.json()
@@ -60,7 +60,7 @@ class TestVoicePipelineRestAPI:
             }
 
             orchestrator_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=orchestrator_request,
                 timeout=30.0,
             )
@@ -112,7 +112,7 @@ class TestVoicePipelineRestAPI:
                 }
 
                 tts_response = await client.post(
-                    "http://tts-bark:7100/synthesize", json=tts_request, timeout=30.0
+                    "http://bark:7100/synthesize", json=tts_request, timeout=30.0
                 )
                 assert tts_response.status_code == 200
                 assert len(tts_response.content) > 0
@@ -133,7 +133,7 @@ class TestVoicePipelineRestAPI:
             }
 
             response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=empty_transcript_request,
                 timeout=30.0,
             )
@@ -156,7 +156,7 @@ class TestVoicePipelineRestAPI:
             }
 
             orchestrator_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=orchestrator_request,
                 timeout=30.0,
             )
@@ -202,11 +202,11 @@ class TestVoicePipelineRestAPI:
         async with httpx.AsyncClient() as client:
             # Test orchestrator status
             orchestrator_status = await client.get(
-                "http://orchestrator-enhanced:8200/api/v1/status", timeout=10.0
+                "http://orchestrator:8200/api/v1/status", timeout=10.0
             )
             assert orchestrator_status.status_code == 200
             status_data = orchestrator_status.json()
-            assert status_data["service"] == "orchestrator_enhanced"
+            assert status_data["service"] == "orchestrator"
             assert status_data["status"] == "healthy"
             assert "connections" in status_data
 

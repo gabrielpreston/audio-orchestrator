@@ -44,16 +44,16 @@ app = FastAPI(
 )
 
 # Global variables
-_audio_processor: AudioProcessor | None = None
+_audio: AudioProcessor | None = None
 _audio_enhancer: AudioEnhancer | None = None
-_health_manager = HealthManager("audio-processor")
+_health_manager = HealthManager("audio")
 _observability_manager = None
 _audio_metrics = {}
 _http_metrics = {}
-_logger = get_logger(__name__, service_name="audio_processor")
+_logger = get_logger(__name__, service_name="audio")
 
 # Load configuration
-_config_preset = get_service_preset("audio-processor")
+_config_preset = get_service_preset("audio")
 _logging_config = LoggingConfig(**_config_preset["logging"])
 _http_config = HttpConfig(**_config_preset["http"])
 _audio_config = AudioConfig(**_config_preset["audio"])
@@ -64,7 +64,7 @@ _telemetry_config = TelemetryConfig(**_config_preset["telemetry"])
 configure_logging(
     _logging_config.level,
     json_logs=_logging_config.json_logs,
-    service_name="audio_processor",
+    service_name="audio",
 )
 
 
@@ -105,17 +105,17 @@ class ProcessingResponse(BaseModel):
 async def startup_event() -> None:
     """Initialize audio processor and enhancer on startup."""
     global \
-        _audio_processor, \
+        _audio, \
         _audio_enhancer, \
         _observability_manager, \
         _audio_metrics, \
         _http_metrics
 
     try:
-        _logger.info("audio_processor.startup_started")
+        _logger.info("audio.startup_started")
 
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("audio-processor", "1.0.0")
+        _observability_manager = setup_service_observability("audio", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics
@@ -126,16 +126,14 @@ async def startup_event() -> None:
         _health_manager.set_observability_manager(_observability_manager)
 
         # Register dependencies
-        _health_manager.register_dependency(
-            "audio_processor", _check_audio_processor_health
-        )
+        _health_manager.register_dependency("audio", _check_audio_health)
         _health_manager.register_dependency(
             "audio_enhancer", _check_audio_enhancer_health
         )
 
         # Initialize audio processor
-        _audio_processor = AudioProcessor(_audio_config)
-        await _audio_processor.initialize()
+        _audio = AudioProcessor(_audio_config)
+        await _audio.initialize()
 
         # Initialize audio enhancer
         _audio_enhancer = AudioEnhancer(
@@ -145,10 +143,10 @@ async def startup_event() -> None:
         # Mark startup complete
         _health_manager.mark_startup_complete()
 
-        _logger.info("audio_processor.startup_completed")
+        _logger.info("audio.startup_completed")
 
     except Exception as exc:
-        _logger.error("audio_processor.startup_failed", error=str(exc))
+        _logger.error("audio.startup_failed", error=str(exc))
         # Continue without crashing - service will report not_ready
 
 
@@ -156,17 +154,17 @@ async def startup_event() -> None:
 async def shutdown_event() -> None:
     """Cleanup on shutdown."""
     try:
-        if _audio_processor:
-            await _audio_processor.cleanup()
-        _logger.info("audio_processor.shutdown_completed")
+        if _audio:
+            await _audio.cleanup()
+        _logger.info("audio.shutdown_completed")
     except Exception as exc:
-        _logger.error("audio_processor.shutdown_failed", error=str(exc))
+        _logger.error("audio.shutdown_failed", error=str(exc))
 
 
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "audio_processor"}
+    return {"status": "alive", "service": "audio"}
 
 
 @app.get("/health/ready")  # type: ignore[misc]
@@ -184,9 +182,9 @@ async def health_ready() -> dict[str, Any]:
 
     return {
         "status": status_str,
-        "service": "audio_processor",
+        "service": "audio",
         "components": {
-            "processor_loaded": _audio_processor is not None,
+            "processor_loaded": _audio is not None,
             "enhancer_loaded": _audio_enhancer is not None,
             "enhancer_enabled": _audio_enhancer.is_enhancement_enabled
             if _audio_enhancer
@@ -216,7 +214,7 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
     start_time = time.perf_counter()
 
     try:
-        if not _audio_processor:
+        if not _audio:
             raise HTTPException(
                 status_code=503, detail="Audio processor not initialized"
             )
@@ -235,12 +233,10 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
         )
 
         # Process frame
-        processed_frame = await _audio_processor.process_frame(frame)
+        processed_frame = await _audio.process_frame(frame)
 
         # Calculate quality metrics
-        quality_metrics = await _audio_processor.calculate_quality_metrics(
-            processed_frame
-        )
+        quality_metrics = await _audio.calculate_quality_metrics(processed_frame)
 
         processing_time = (time.perf_counter() - start_time) * 1000
 
@@ -260,7 +256,7 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
         processed_pcm = base64.b64encode(processed_frame.pcm).decode()
 
         _logger.debug(
-            "audio_processor.frame_processed",
+            "audio.frame_processed",
             sequence=request.sequence,
             processing_time_ms=processing_time,
             quality_metrics=quality_metrics,
@@ -284,7 +280,7 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
             )
 
         _logger.error(
-            "audio_processor.frame_processing_failed",
+            "audio.frame_processing_failed",
             sequence=request.sequence,
             error=str(exc),
             processing_time_ms=processing_time,
@@ -311,7 +307,7 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
     start_time = time.perf_counter()
 
     try:
-        if not _audio_processor:
+        if not _audio:
             raise HTTPException(
                 status_code=503, detail="Audio processor not initialized"
             )
@@ -331,12 +327,10 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
         )
 
         # Process segment
-        processed_segment = await _audio_processor.process_segment(segment)
+        processed_segment = await _audio.process_segment(segment)
 
         # Calculate quality metrics
-        quality_metrics = await _audio_processor.calculate_quality_metrics(
-            processed_segment
-        )
+        quality_metrics = await _audio.calculate_quality_metrics(processed_segment)
 
         processing_time = (time.perf_counter() - start_time) * 1000
 
@@ -359,7 +353,7 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
         processed_pcm = base64.b64encode(processed_segment.pcm).decode()
 
         _logger.info(
-            "audio_processor.segment_processed",
+            "audio.segment_processed",
             correlation_id=request.correlation_id,
             user_id=request.user_id,
             processing_time_ms=processing_time,
@@ -384,7 +378,7 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
             )
 
         _logger.error(
-            "audio_processor.segment_processing_failed",
+            "audio.segment_processing_failed",
             correlation_id=request.correlation_id,
             user_id=request.user_id,
             error=str(exc),
@@ -426,7 +420,7 @@ async def enhance_audio(request: Request) -> bytes:
         processing_time = (time.perf_counter() - start_time) * 1000
 
         _logger.info(
-            "audio_processor.audio_enhanced",
+            "audio.audio_enhanced",
             input_size=len(audio_data),
             output_size=len(enhanced_data),
             processing_time_ms=processing_time,
@@ -437,7 +431,7 @@ async def enhance_audio(request: Request) -> bytes:
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
         _logger.error(
-            "audio_processor.enhancement_failed",
+            "audio.enhancement_failed",
             error=str(exc),
             processing_time_ms=processing_time,
         )
@@ -466,7 +460,7 @@ async def denoise_audio(request: Request) -> bytes:
         processing_time = (time.perf_counter() - start_time) * 1000
 
         _logger.info(
-            "audio_processor.audio_denoised",
+            "audio.audio_denoised",
             input_size=len(audio_data),
             output_size=len(denoised_data),
             processing_time_ms=processing_time,
@@ -477,7 +471,7 @@ async def denoise_audio(request: Request) -> bytes:
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
         _logger.error(
-            "audio_processor.denoising_failed",
+            "audio.denoising_failed",
             error=str(exc),
             processing_time_ms=processing_time,
         )
@@ -506,7 +500,7 @@ async def denoise_streaming(request: Request) -> bytes:
         processing_time = (time.perf_counter() - start_time) * 1000
 
         _logger.info(
-            "audio_processor.streaming_denoised",
+            "audio.streaming_denoised",
             input_size=len(audio_data),
             output_size=len(denoised_data),
             processing_time_ms=processing_time,
@@ -517,7 +511,7 @@ async def denoise_streaming(request: Request) -> bytes:
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
         _logger.error(
-            "audio_processor.streaming_denoising_failed",
+            "audio.streaming_denoising_failed",
             error=str(exc),
             processing_time_ms=processing_time,
         )
@@ -526,9 +520,9 @@ async def denoise_streaming(request: Request) -> bytes:
         return bytes(await request.body())
 
 
-async def _check_audio_processor_health() -> bool:
+async def _check_audio_health() -> bool:
     """Check audio processor health."""
-    return _audio_processor is not None
+    return _audio is not None
 
 
 async def _check_audio_enhancer_health() -> bool:

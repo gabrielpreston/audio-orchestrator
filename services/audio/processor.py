@@ -41,7 +41,7 @@ class AudioProcessor:
         )
 
         # Initialize common audio processor
-        self._common_processor = CommonAudioProcessor("audio_processor")
+        self._common_processor = CommonAudioProcessor("audio")
 
         # Performance tracking
         self._processing_stats = {

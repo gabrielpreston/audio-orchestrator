@@ -6,13 +6,13 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 WORKDIR /app
 
 # Copy requirements FIRST for better caching
-COPY services/audio_processor/requirements.txt /app/services/audio_processor/requirements.txt
+COPY services/audio/requirements.txt /app/services/audio/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
 # Install Python dependencies with aggressive cleanup for GitHub Actions
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/audio_processor/requirements.txt && \
+    pip install --no-cache-dir -r /app/services/audio/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
@@ -29,11 +29,11 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 
 # Copy application code LAST (changes most frequently)
-COPY services/audio_processor /app/services/audio_processor
+COPY services/audio /app/services/audio
 COPY services/common /app/services/common
 
 # Copy configuration
-COPY services/audio_processor/config /app/config
+COPY services/audio/config /app/config
 
 # Copy health check script
 COPY scripts/health_check.py /app/scripts/health_check.py
@@ -56,4 +56,4 @@ HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
 EXPOSE 9100
 
 # Run the service
-CMD ["python", "services/audio_processor/app.py"]
+CMD ["python", "services/audio/app.py"]

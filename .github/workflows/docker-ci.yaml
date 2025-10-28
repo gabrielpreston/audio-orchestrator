@@ -257,7 +257,7 @@ jobs:
           docker system prune -f || true
           docker builder prune -f || true
           # Extra cleanup for heavy ML services
-          if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm-flan" ] || [ "${{ matrix.service }}" = "audio-processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
+          if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "flan" ] || [ "${{ matrix.service }}" = "audio" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
             echo "Extra cleanup for ML-heavy service: ${{ matrix.service }}"
             docker image prune -a -f || true
             docker volume prune -f || true
@@ -321,7 +321,7 @@ jobs:
             echo "- **Cache To**: GitHub Actions + Registry"
             echo ""
             echo "### Performance Notes"
-            if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "llm_flan" ] || [ "${{ matrix.service }}" = "audio_processor" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
+            if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "flan" ] || [ "${{ matrix.service }}" = "audio" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
               echo "- **ML-Heavy Service**: Extra cleanup performed"
               echo "- **Cache Warming**: Enhanced for ML dependencies"
             else

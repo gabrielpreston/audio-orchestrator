@@ -14,8 +14,8 @@ from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
 # Configure logging
-configure_logging("info", json_logs=True, service_name="llm_flan")
-logger = get_logger(__name__, service_name="llm_flan")
+configure_logging("info", json_logs=True, service_name="flan")
+logger = get_logger(__name__, service_name="flan")
 
 app = FastAPI(title="FLAN-T5 LLM Service", version="1.0.0")
 
@@ -27,7 +27,18 @@ class ModelSize(Enum):
 
 
 # Configurable model selection
-MODEL_SIZE = ModelSize(os.getenv("FLAN_T5_MODEL_SIZE", "LARGE"))
+model_size_env = os.getenv("FLAN_T5_MODEL_SIZE", "LARGE")
+# Handle both enum names and full model names
+if model_size_env.startswith("google/flan-t5-"):
+    MODEL_SIZE = ModelSize(model_size_env)
+else:
+    # Map enum names to enum values
+    enum_mapping = {
+        "BASE": ModelSize.BASE,
+        "LARGE": ModelSize.LARGE,
+        "XL": ModelSize.XL,
+    }
+    MODEL_SIZE = enum_mapping.get(model_size_env, ModelSize.LARGE)
 MODEL_NAME = MODEL_SIZE.value
 
 # Cache configuration
@@ -38,7 +49,7 @@ model = None
 tokenizer = None
 
 # Health manager and observability
-_health_manager = HealthManager("llm-flan")
+_health_manager = HealthManager("flan")
 _observability_manager = None
 _llm_metrics = {}
 _http_metrics = {}
@@ -51,7 +62,7 @@ async def load_model() -> None:
 
     try:
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("llm-flan", "1.0.0")
+        _observability_manager = setup_service_observability("flan", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics
@@ -229,7 +240,7 @@ async def health_ready() -> dict[str, Any]:
         if model is None or tokenizer is None:
             return {
                 "status": "not_ready",
-                "service": "llm-flan",
+                "service": "flan",
                 "error": "Model not loaded",
                 "health_details": health_status.details,
             }
@@ -246,19 +257,19 @@ async def health_ready() -> dict[str, Any]:
 
         return {
             "status": status_str,
-            "service": "llm-flan",
+            "service": "flan",
             "model": MODEL_NAME,
             "model_size": MODEL_SIZE.name,
             "health_details": health_status.details,
         }
     except Exception as e:
-        return {"status": "not_ready", "service": "llm-flan", "error": str(e)}
+        return {"status": "not_ready", "service": "flan", "error": str(e)}
 
 
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check endpoint."""
-    return {"status": "alive", "service": "llm-flan"}
+    return {"status": "alive", "service": "flan"}
 
 
 @app.get("/models")  # type: ignore[misc]

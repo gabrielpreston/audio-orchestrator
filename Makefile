@@ -148,7 +148,7 @@ SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 
 VALID_SERVICES := $(shell echo "$(SERVICES)" | tr '\n' ' ')
 
 # Runtime services (excludes tooling services like linter, tester, security)
-RUNTIME_SERVICES := discord stt llm-flan orchestrator-enhanced tts-bark audio-processor
+RUNTIME_SERVICES := discord stt flan orchestrator bark audio monitoring testing
 
 # =============================================================================
 # DEFAULT TARGETS

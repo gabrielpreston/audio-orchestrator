@@ -86,7 +86,7 @@ async def _check_orchestrator() -> bool:
     """Check orchestrator service health (optional)."""
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get("http://orchestrator-enhanced:8200/health/ready")
+            response = await client.get("http://orchestrator:8200/health/ready")
             return response.status_code == 200
     except Exception:
         return False

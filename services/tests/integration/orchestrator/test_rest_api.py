@@ -21,7 +21,7 @@ class TestOrchestratorRestAPI:
             }
 
             response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=request_data,
                 timeout=30.0,
             )
@@ -36,12 +36,12 @@ class TestOrchestratorRestAPI:
         """Test GET /api/v1/capabilities endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "http://orchestrator-enhanced:8200/api/v1/capabilities", timeout=10.0
+                "http://orchestrator:8200/api/v1/capabilities", timeout=10.0
             )
 
             assert response.status_code == 200
             data = response.json()
-            assert data["service"] == "orchestrator_enhanced"
+            assert data["service"] == "orchestrator"
             assert "capabilities" in data
             assert len(data["capabilities"]) > 0
 
@@ -54,12 +54,12 @@ class TestOrchestratorRestAPI:
         """Test GET /api/v1/status endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.get(
-                "http://orchestrator-enhanced:8200/api/v1/status", timeout=10.0
+                "http://orchestrator:8200/api/v1/status", timeout=10.0
             )
 
             assert response.status_code == 200
             data = response.json()
-            assert data["service"] == "orchestrator_enhanced"
+            assert data["service"] == "orchestrator"
             assert data["status"] == "healthy"
             assert "connections" in data
             assert len(data["connections"]) > 0
@@ -67,7 +67,7 @@ class TestOrchestratorRestAPI:
             # Check specific connections
             connection_names = [conn["service"] for conn in data["connections"]]
             assert "discord" in connection_names
-            assert "llm_flan" in connection_names
+            assert "flan" in connection_names
 
     async def test_transcript_processing_error_handling(self):
         """Test error handling in transcript processing."""
@@ -80,7 +80,7 @@ class TestOrchestratorRestAPI:
             }
 
             response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=invalid_request,
                 timeout=30.0,
             )
@@ -100,7 +100,7 @@ class TestOrchestratorRestAPI:
             }
 
             response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=request_data,
                 timeout=30.0,
             )
@@ -122,7 +122,7 @@ class TestOrchestratorRestAPI:
             }
 
             response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json=request_data,
                 timeout=30.0,
             )

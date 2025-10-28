@@ -40,11 +40,11 @@ app = FastAPI(
 
 # Global variables
 _bark_synthesizer: BarkSynthesizer | None = None
-_health_manager = HealthManager("tts-bark")
+_health_manager = HealthManager("bark")
 _observability_manager = None
 _tts_metrics = {}
 _http_metrics = {}
-_logger = get_logger(__name__, service_name="tts_bark")
+_logger = get_logger(__name__, service_name="bark")
 
 # Load configuration
 _config_preset = get_service_preset("tts")
@@ -58,7 +58,7 @@ _telemetry_config = TelemetryConfig(**_config_preset["telemetry"])
 configure_logging(
     _logging_config.level,
     json_logs=_logging_config.json_logs,
-    service_name="tts_bark",
+    service_name="bark",
 )
 
 # Voice presets
@@ -95,7 +95,7 @@ async def _startup() -> None:
 
     try:
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("tts-bark", "1.0.0")
+        _observability_manager = setup_service_observability("bark", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics
@@ -117,7 +117,7 @@ async def _startup() -> None:
         # Mark startup complete
         _health_manager.mark_startup_complete()
 
-        _logger.info("service.startup_complete", service="tts_bark")
+        _logger.info("service.startup_complete", service="bark")
     except Exception as exc:
         _logger.error("service.startup_failed", error=str(exc))
         # Continue without crashing - service will report not_ready
@@ -129,7 +129,7 @@ async def _shutdown() -> None:
     try:
         if _bark_synthesizer:
             await _bark_synthesizer.cleanup()
-        _logger.info("service.shutdown_complete", service="tts_bark")
+        _logger.info("service.shutdown_complete", service="bark")
     except Exception as exc:
         _logger.error("service.shutdown_failed", error=str(exc))
 
@@ -137,7 +137,7 @@ async def _shutdown() -> None:
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "tts_bark"}
+    return {"status": "alive", "service": "bark"}
 
 
 @app.get("/health/ready")  # type: ignore[misc]
@@ -158,7 +158,7 @@ async def health_ready() -> dict[str, Any]:
 
     return {
         "status": status_str,
-        "service": "tts_bark",
+        "service": "bark",
         "components": {
             "bark_synthesizer_loaded": _bark_synthesizer is not None,
             "startup_complete": _health_manager._startup_complete,
@@ -267,7 +267,7 @@ async def _check_synthesizer_health() -> bool:
 
 if __name__ == "__main__":
     uvicorn.run(
-        "services.tts_bark.app:app",
+        "services.bark.app:app",
         host="0.0.0.0",
         port=7100,
         reload=False,

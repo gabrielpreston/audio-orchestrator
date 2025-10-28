@@ -10,8 +10,8 @@ from services.tests.contracts.base_contracts import (
 
 # Orchestrator Service Contract
 ORCHESTRATOR_CONTRACT = ServiceContract(
-    service_name="orchestrator-enhanced",
-    base_url="http://orchestrator-enhanced:8200",
+    service_name="orchestrator",
+    base_url="http://orchestrator:8200",
     version="1.0.0",
     endpoints=[
         EndpointContract(

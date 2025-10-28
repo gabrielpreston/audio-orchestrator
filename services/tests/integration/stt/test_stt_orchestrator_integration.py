@@ -19,7 +19,7 @@ class TestSTTOrchestratorIntegration:
         """Test orchestrator transcript processing endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://orchestrator-enhanced:8200/process",
+                "http://orchestrator:8200/process",
                 json={
                     "guild_id": test_guild_id,
                     "channel_id": test_channel_id,
@@ -39,7 +39,7 @@ class TestSTTOrchestratorIntegration:
         async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
-                "http://orchestrator-enhanced:8200/process",
+                "http://orchestrator:8200/process",
                 json={"transcript": test_transcript},
                 timeout=10.0,
             )
@@ -51,13 +51,13 @@ class TestSTTOrchestratorIntegration:
         async with httpx.AsyncClient() as client:
             # Test live endpoint
             response = await client.get(
-                "http://orchestrator-enhanced:8200/health/live", timeout=5.0
+                "http://orchestrator:8200/health/live", timeout=5.0
             )
             assert response.status_code == 200
 
             # Test ready endpoint
             response = await client.get(
-                "http://orchestrator-enhanced:8200/health/ready", timeout=5.0
+                "http://orchestrator:8200/health/ready", timeout=5.0
             )
             assert response.status_code in [200, 503]  # May be ready or not ready
 
@@ -78,7 +78,7 @@ class TestSTTOrchestratorIntegration:
         """Test correlation ID propagation through orchestrator."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://orchestrator-enhanced:8200/process",
+                "http://orchestrator:8200/process",
                 json={
                     "guild_id": test_guild_id,
                     "channel_id": test_channel_id,

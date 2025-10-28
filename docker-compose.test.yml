@@ -144,7 +144,7 @@ services:
       - DISCORD_GUILD_ID=123456789
       - DISCORD_VOICE_CHANNEL_ID=987654321
       - STT_BASE_URL=http://stt:9000
-      - ORCHESTRATOR_BASE_URL=http://orchestrator-enhanced:8200
+      - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
       - LOG_LEVEL=INFO
     healthcheck:
       test:

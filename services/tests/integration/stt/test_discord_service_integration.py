@@ -95,7 +95,7 @@ class TestDiscordServiceIntegration:
 
             # Step 2: Orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],

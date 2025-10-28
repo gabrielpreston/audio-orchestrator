@@ -24,7 +24,7 @@ ENV_FILES = {
     "services/discord/.env.service": "Discord service configuration",
     "services/stt/.env.service": "STT service configuration",
     "services/llm/.env.service": "LLM service configuration",
-    "services/orchestrator_enhanced/.env.service": "Orchestrator enhanced service configuration",
+    "services/orchestrator/.env.service": "Orchestrator service configuration",
     "services/tts/.env.service": "TTS service configuration",
 }
 

@@ -17,7 +17,7 @@ This document describes the REST API endpoints for the Audio Orchestrator servic
 The Audio Orchestrator uses REST APIs for service-to-service communication:
 
 -  **Discord Service**: `http://discord:8001/api/v1/`
--  **Orchestrator Service**: `http://orchestrator-enhanced:8200/api/v1/`
+-  **Orchestrator Service**: `http://orchestrator:8200/api/v1/`
 
 ## Discord Service API
 
@@ -126,7 +126,7 @@ Receive transcript notifications from the orchestrator.
 ### Base URL
 
 ```text
-http://orchestrator-enhanced:8200/api/v1/
+http://orchestrator:8200/api/v1/
 ```
 
 ### Endpoints
@@ -139,7 +139,7 @@ List available orchestrator capabilities.
 
 ```json
 {
-  "service": "orchestrator_enhanced",
+  "service": "orchestrator",
   "version": "1.0.0",
   "capabilities": [
     {
@@ -214,7 +214,7 @@ Get orchestrator service status and connections.
 
 ```json
 {
-  "service": "orchestrator_enhanced",
+  "service": "orchestrator",
   "status": "healthy",
   "version": "1.0.0",
   "connections": [
@@ -224,9 +224,9 @@ Get orchestrator service status and connections.
       "url": "http://discord:8001"
     },
     {
-      "service": "llm_flan",
+      "service": "flan",
       "status": "connected",
-      "url": "http://llm_flan:8200"
+      "url": "http://flan:8200"
     },
     {
       "service": "guardrails",
@@ -292,7 +292,7 @@ X-Correlation-ID: test_correlation_123
 1.  **Process transcript with orchestrator:**
 
 ```bash
-curl -X POST http://orchestrator-enhanced:8200/api/v1/transcripts \
+curl -X POST http://orchestrator:8200/api/v1/transcripts \
   -H "Content-Type: application/json" \
   -d '{
     "transcript": "What is the weather like?",
@@ -331,7 +331,7 @@ curl -X POST http://discord:8001/api/v1/notifications/transcript \
 
 ```bash
 # Check orchestrator status
-curl http://orchestrator-enhanced:8200/api/v1/status
+curl http://orchestrator:8200/api/v1/status
 
 # Check Discord capabilities
 curl http://discord:8001/api/v1/capabilities

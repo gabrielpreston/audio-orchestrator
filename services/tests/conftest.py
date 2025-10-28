@@ -145,7 +145,7 @@ def service_contracts():
     from services.tests.contracts.audio_preprocessor_contract import (
         AUDIO_PREPROCESSOR_CONTRACT,
     )
-    from services.tests.contracts.audio_processor_contract import (
+    from services.tests.contracts.audio_contract import (
         AUDIO_PROCESSOR_CONTRACT,
     )
     from services.tests.contracts.discord_contract import DISCORD_CONTRACT
@@ -160,7 +160,7 @@ def service_contracts():
         "llm": LLM_CONTRACT,
         "tts": TTS_CONTRACT,
         "orchestrator": ORCHESTRATOR_CONTRACT,
-        "audio_processor": AUDIO_PROCESSOR_CONTRACT,
+        "audio": AUDIO_PROCESSOR_CONTRACT,
         "audio_preprocessor": AUDIO_PREPROCESSOR_CONTRACT,
         "guardrails": GUARDRAILS_CONTRACT,
         "discord": DISCORD_CONTRACT,

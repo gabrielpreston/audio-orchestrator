@@ -39,7 +39,7 @@ class TestVoicePipelineIntegration:
             # Step 2: Orchestrator processing (CORRECTED endpoint)
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",  # CORRECTED
+                "http://orchestrator:8200/api/v1/transcripts",  # CORRECTED
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -57,7 +57,7 @@ class TestVoicePipelineIntegration:
             # Step 3: TTS synthesis
             tts_start = time.time()
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test response from voice pipeline",
                     "voice": "en_US-lessac-medium",
@@ -118,7 +118,7 @@ class TestVoicePipelineIntegration:
 
             # Test orchestrator processing
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -132,7 +132,7 @@ class TestVoicePipelineIntegration:
 
             # Test TTS synthesis
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": f"Response to: {transcript}",
                     "voice": "en_US-lessac-medium",
@@ -164,7 +164,7 @@ class TestVoicePipelineIntegration:
 
             # Test with empty transcript
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -201,7 +201,7 @@ class TestVoicePipelineIntegration:
 
                 # Orchestrator
                 orch_response = await client.post(
-                    "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                    "http://orchestrator:8200/api/v1/transcripts",
                     json={
                         "guild_id": test_voice_context["guild_id"],
                         "channel_id": test_voice_context["channel_id"],
@@ -216,7 +216,7 @@ class TestVoicePipelineIntegration:
 
                 # TTS
                 tts_response = await client.post(
-                    "http://tts-bark:7100/synthesize",
+                    "http://bark:7100/synthesize",
                     json={
                         "text": f"Response {correlation_id}",
                         "voice": "en_US-lessac-medium",
@@ -258,7 +258,7 @@ class TestVoicePipelineIntegration:
 
             # Use STT correlation ID for orchestrator
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -276,7 +276,7 @@ class TestVoicePipelineIntegration:
 
             # Use same correlation ID for TTS
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Test response",
                     "voice": "en_US-lessac-medium",
@@ -311,7 +311,7 @@ class TestVoicePipelineIntegration:
             # Measure Orchestrator performance
             orch_start = time.time()
             orch_response = await client.post(
-                "http://orchestrator-enhanced:8200/api/v1/transcripts",
+                "http://orchestrator:8200/api/v1/transcripts",
                 json={
                     "guild_id": test_voice_context["guild_id"],
                     "channel_id": test_voice_context["channel_id"],
@@ -327,7 +327,7 @@ class TestVoicePipelineIntegration:
             # Measure TTS performance
             tts_start = time.time()
             tts_response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={
                     "text": "Performance test response",
                     "voice": "en_US-lessac-medium",

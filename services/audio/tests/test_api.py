@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from services.audio_processor.app import app
+from services.audio.app import app
 
 
 class TestAudioProcessorAPI:
@@ -74,7 +74,7 @@ class TestAudioProcessorAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "alive"
-        assert data["service"] == "audio_processor"
+        assert data["service"] == "audio"
 
     def test_health_ready(self, client):
         """Test readiness health check."""
@@ -235,7 +235,7 @@ class TestAudioProcessorAPI:
         assert "uptime_seconds" in data
         assert "status" in data
         assert "components" in data
-        assert data["service"] == "audio_processor"
+        assert data["service"] == "audio"
 
     def test_process_frame_invalid_data(self, client):
         """Test frame processing with invalid data."""

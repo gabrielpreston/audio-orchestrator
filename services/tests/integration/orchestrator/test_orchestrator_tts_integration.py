@@ -12,7 +12,7 @@ class TestOrchestratorTTSIntegration:
         """Test TTS synthesis endpoint."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={"text": "Hello world"},
                 headers={"Authorization": f"Bearer {test_auth_token}"},
                 timeout=30.0,
@@ -27,7 +27,7 @@ class TestOrchestratorTTSIntegration:
         async with httpx.AsyncClient() as client:
             # Test without auth token
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={"text": "Hello world"},
                 timeout=10.0,
             )
@@ -41,7 +41,7 @@ class TestOrchestratorTTSIntegration:
             responses = []
             for _ in range(5):
                 response = await client.post(
-                    "http://tts-bark:7100/synthesize",
+                    "http://bark:7100/synthesize",
                     json={"text": "Test"},
                     headers={"Authorization": f"Bearer {test_auth_token}"},
                     timeout=10.0,
@@ -55,13 +55,11 @@ class TestOrchestratorTTSIntegration:
         """Test TTS health endpoint accessibility."""
         async with httpx.AsyncClient() as client:
             # Test live endpoint
-            response = await client.get("http://tts-bark:7100/health/live", timeout=5.0)
+            response = await client.get("http://bark:7100/health/live", timeout=5.0)
             assert response.status_code == 200
 
             # Test ready endpoint
-            response = await client.get(
-                "http://tts-bark:7100/health/ready", timeout=5.0
-            )
+            response = await client.get("http://bark:7100/health/ready", timeout=5.0)
             assert response.status_code in [200, 503]  # May be ready or not ready
 
             if response.status_code == 200:
@@ -77,7 +75,7 @@ class TestOrchestratorTTSIntegration:
 
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={"text": ssml_text},
                 headers={"Authorization": f"Bearer {test_auth_token}"},
                 timeout=30.0,
@@ -93,7 +91,7 @@ class TestOrchestratorTTSIntegration:
         """Test correlation ID propagation through TTS."""
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                "http://tts-bark:7100/synthesize",
+                "http://bark:7100/synthesize",
                 json={"text": "Hello world", "correlation_id": test_correlation_id},
                 headers={"Authorization": f"Bearer {test_auth_token}"},
                 timeout=30.0,

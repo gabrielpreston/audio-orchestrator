@@ -101,7 +101,7 @@ async def _check_stt_health() -> bool:
 
 async def _check_orchestrator_health() -> bool:
     """Check Orchestrator service health."""
-    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator-enhanced:8200")
+    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8200")
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{orch_url}/health/ready", timeout=5.0)

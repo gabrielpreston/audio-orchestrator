@@ -26,7 +26,7 @@ class TestServiceHealth:
             assert response.status_code == 200
 
             # Test TTS service health
-            response = await client.get("http://tts-bark:7100/health/ready")
+            response = await client.get("http://bark:7100/health/ready")
             assert response.status_code in [200, 503]
             if response.status_code == 200:
                 data = response.json()
@@ -34,11 +34,11 @@ class TestServiceHealth:
                 assert "components" in data
                 assert "health_details" in data
 
-            response = await client.get("http://tts-bark:7100/health/live")
+            response = await client.get("http://bark:7100/health/live")
             assert response.status_code == 200
 
             # Test LLM service health
-            response = await client.get("http://llm-flan:8100/health/ready")
+            response = await client.get("http://flan:8100/health/ready")
             assert response.status_code in [200, 503]
             if response.status_code == 200:
                 data = response.json()
@@ -46,13 +46,11 @@ class TestServiceHealth:
                 assert "components" in data
                 assert "health_details" in data
 
-            response = await client.get("http://llm-flan:8100/health/live")
+            response = await client.get("http://flan:8100/health/live")
             assert response.status_code == 200
 
             # Test Orchestrator service health
-            response = await client.get(
-                "http://orchestrator-enhanced:8200/health/ready"
-            )
+            response = await client.get("http://orchestrator:8200/health/ready")
             assert response.status_code in [200, 503]
             if response.status_code == 200:
                 data = response.json()
@@ -60,7 +58,7 @@ class TestServiceHealth:
                 assert "components" in data
                 assert "health_details" in data
 
-            response = await client.get("http://orchestrator-enhanced:8200/health/live")
+            response = await client.get("http://orchestrator:8200/health/live")
             assert response.status_code == 200
 
     @pytest.mark.integration
@@ -70,9 +68,9 @@ class TestServiceHealth:
         # All services should be accessible regardless of startup order
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:
@@ -89,7 +87,7 @@ class TestServiceHealth:
             response = await client.get("http://stt:9000/health/live")
             assert response.status_code == 200
 
-            response = await client.get("http://tts-bark:7100/health/live")
+            response = await client.get("http://bark:7100/health/live")
             assert response.status_code == 200
 
             # Optional services should not be accessible
@@ -111,15 +109,13 @@ class TestServiceHealth:
                 response = await client.get("http://stt:9000/health/ready")
                 assert response.status_code in [200, 503]
 
-                response = await client.get("http://tts-bark:7100/health/ready")
+                response = await client.get("http://bark:7100/health/ready")
                 assert response.status_code in [200, 503]
 
-                response = await client.get("http://llm-flan:8100/health/ready")
+                response = await client.get("http://flan:8100/health/ready")
                 assert response.status_code in [200, 503]
 
-                response = await client.get(
-                    "http://orchestrator-enhanced:8200/health/ready"
-                )
+                response = await client.get("http://orchestrator:8200/health/ready")
                 assert response.status_code in [200, 503]
 
 
@@ -132,9 +128,9 @@ class TestServiceDiscovery:
         # Test service discovery
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         discovered_services = []
@@ -159,7 +155,7 @@ class TestServiceDiscovery:
             response = await client.get("http://stt:9000/health/live")
             assert response.status_code == 200
 
-            response = await client.get("http://tts-bark:7100/health/live")
+            response = await client.get("http://bark:7100/health/live")
             assert response.status_code == 200
 
             # Test service deregistration (stop services)
@@ -171,9 +167,9 @@ class TestServiceDiscovery:
         # Test health monitoring
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         health_status = {}
@@ -195,9 +191,9 @@ class TestServiceDiscovery:
         # Test load balancing across services
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         # Test load balancing
@@ -218,9 +214,9 @@ class TestServiceResilience:
         # Test service failure and recovery
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         # Test initial health
@@ -238,9 +234,9 @@ class TestServiceResilience:
         # Test timeout handling
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:
@@ -259,9 +255,9 @@ class TestServiceResilience:
         # Test retry mechanism
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:
@@ -289,9 +285,9 @@ class TestServiceMetrics:
         # Test metrics endpoints
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:
@@ -311,9 +307,9 @@ class TestServiceMetrics:
         # Test health metrics
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:
@@ -333,9 +329,9 @@ class TestServiceMetrics:
         # Test performance metrics
         services = [
             ("stt", "http://stt:9000"),
-            ("tts-bark", "http://tts-bark:7100"),
-            ("llm-flan", "http://llm-flan:8100"),
-            ("orchestrator-enhanced", "http://orchestrator-enhanced:8200"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
         ]
 
         for _service_name, base_url in services:

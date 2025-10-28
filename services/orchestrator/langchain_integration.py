@@ -46,7 +46,7 @@ def create_langchain_executor() -> AgentExecutor | None:
 
     try:
         # Get LLM URLs from environment
-        llm_primary_url = os.getenv("LLM_PRIMARY_URL", "http://llm-flan:8100")
+        llm_primary_url = os.getenv("LLM_PRIMARY_URL", "http://flan:8100")
 
         # Create LLM client (using primary FLAN-T5 service)
         llm = ChatOpenAI(

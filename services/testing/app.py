@@ -27,14 +27,14 @@ except ImportError:
     gr = None
 
 # Configure logging
-configure_logging("info", json_logs=True, service_name="testing_ui")
-logger = get_logger(__name__, service_name="testing_ui")
+configure_logging("info", json_logs=True, service_name="testing")
+logger = get_logger(__name__, service_name="testing")
 
 # FastAPI app for health checks
 app = FastAPI(title="Testing UI Service", version="1.0.0")
 
 # Health manager and observability
-health_manager = HealthManager("testing-ui")
+health_manager = HealthManager("testing")
 _observability_manager = None
 _http_metrics = {}
 
@@ -42,10 +42,10 @@ _http_metrics = {}
 client = httpx.AsyncClient(timeout=30.0)
 
 # Service URLs
-AUDIO_PREPROCESSOR_URL = "http://audio-processor:9100"
+AUDIO_PREPROCESSOR_URL = "http://audio:9100"
 STT_URL = "http://stt:9000"
-ORCHESTRATOR_URL = "http://orchestrator-enhanced:8200"
-TTS_BARK_URL = "http://tts-bark:7100"
+ORCHESTRATOR_URL = "http://orchestrator:8200"
+BARK_URL = "http://bark:7100"
 
 
 class TranscriptRequest(BaseModel):
@@ -154,7 +154,7 @@ async def test_pipeline(
         if response and response != "No response generated":
             try:
                 tts_response = await client.post(
-                    f"{TTS_BARK_URL}/synthesize",
+                    f"{BARK_URL}/synthesize",
                     json={"text": response, "voice": voice_preset},
                 )
                 tts_response.raise_for_status()
@@ -231,7 +231,7 @@ def create_gradio_interface() -> Any:
 @app.get("/health/live")  # type: ignore[misc]
 async def health_live() -> dict[str, str]:
     """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "testing-ui"}
+    return {"status": "alive", "service": "testing"}
 
 
 @app.get("/health/ready")  # type: ignore[misc]
@@ -268,7 +268,7 @@ async def health_ready() -> dict[str, Any]:
 
         # Check TTS
         try:
-            response = await client.get(f"{TTS_BARK_URL}/health/ready", timeout=5.0)
+            response = await client.get(f"{BARK_URL}/health/ready", timeout=5.0)
             service_checks["tts"] = response.status_code == 200
         except Exception:
             service_checks["tts"] = False
@@ -288,7 +288,7 @@ async def health_ready() -> dict[str, Any]:
 
         return {
             "status": status_str,
-            "service": "testing-ui",
+            "service": "testing",
             "service_checks": service_checks,
             "all_services_healthy": all_healthy,
             "health_details": health_status.details,
@@ -306,7 +306,7 @@ async def startup_event() -> None:
 
     try:
         # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("testing-ui", "1.0.0")
+        _observability_manager = setup_service_observability("testing", "1.0.0")
         _observability_manager.instrument_fastapi(app)
 
         # Create service-specific metrics
