@@ -217,14 +217,14 @@ jobs:
         service:
           [
             guardrails,
-            orchestrator_enhanced,
-            llm_flan,
-            audio_processor,
+            orchestrator,
+            flan,
+            audio,
             discord,
             stt,
-            tts_bark,
-            testing_ui,
-            monitoring_dashboard,
+            bark,
+            testing,
+            monitoring,
           ]
     steps:
       - name: "Checkout repository"
@@ -359,14 +359,14 @@ jobs:
         service:
           [
             guardrails,
-            orchestrator_enhanced,
-            llm_flan,
-            audio_processor,
+            orchestrator,
+            flan,
+            audio,
             discord,
             stt,
-            tts_bark,
-            testing_ui,
-            monitoring_dashboard,
+            bark,
+            testing,
+            monitoring,
           ]
     steps:
       - name: "Checkout repository"
