@@ -19,3 +19,11 @@ httpx>=0.26,<1.0
 #
 # Individual services should NOT reinstall these dependencies unless they need
 # specific versions different from the base image.
+
+# Observability (ensure availability for services using non-ML base images)
+opentelemetry-api>=1.24,<2.0
+opentelemetry-sdk>=1.24,<2.0
+opentelemetry-exporter-otlp-proto-http>=1.24,<2.0
+opentelemetry-instrumentation-fastapi>=0.45b0,<1.0
+opentelemetry-instrumentation-httpx>=0.45b0,<1.0
+opentelemetry-instrumentation-requests>=0.45b0,<1.0
