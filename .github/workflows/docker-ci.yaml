@@ -78,7 +78,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        image: [python-audio, python-ml, tools]
+        image: [python-audio, python-ml, python-web, tools]
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -171,6 +171,7 @@ jobs:
           docker pull ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/python-ml:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/python-audio:latest || true
+          docker pull ghcr.io/${{ github.repository_owner }}/python-web:latest || true
           echo "Cache warming complete for ${{ matrix.service }}"
       - name: "Clean up disk space before build"
         run: |
