@@ -13,7 +13,8 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from services.common.audio_metrics import create_guardrails_metrics, create_http_metrics
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -192,38 +193,20 @@ async def shutdown() -> None:
     logger.info("guardrails.shutdown")
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check."""
-    return {"status": "alive", "service": "guardrails"}
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="guardrails",
+    health_manager=_health_manager,
+    custom_components={
+        "toxicity_model_loaded": lambda: _toxicity_detector is not None,
+        "rate_limiter_available": lambda: _limiter is not None,
+        "transformers_available": lambda: TRANSFORMERS_AVAILABLE,
+        "slowapi_available": lambda: SLOWAPI_AVAILABLE,
+    },
+)
 
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check with component status."""
-    health_status = await _health_manager.get_health_status()
-
-    # Determine status string
-    if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
-    else:
-        status_str = "ready"
-
-    return {
-        "status": status_str,
-        "service": "guardrails",
-        "components": {
-            "toxicity_model_loaded": _toxicity_detector is not None,
-            "rate_limiter_available": _limiter is not None,
-            "transformers_available": TRANSFORMERS_AVAILABLE,
-            "slowapi_available": SLOWAPI_AVAILABLE,
-            "startup_complete": _health_manager._startup_complete,
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details,
-    }
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.post("/validate/input")  # type: ignore[misc]

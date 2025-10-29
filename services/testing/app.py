@@ -9,11 +9,12 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel
 
 from services.common.audio_metrics import create_http_metrics
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -228,75 +229,32 @@ def create_gradio_interface() -> Any:
     return demo
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "testing"}
-
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check - basic functionality."""
+async def _check_service_health(url: str) -> bool:
+    """Check if a service is healthy."""
     try:
-        health_status = await health_manager.get_health_status()
+        response = await client.get(f"{url}/health/ready", timeout=5.0)
+        return bool(response.status_code == 200)
+    except Exception:
+        return False
 
-        # Check if we can reach key services
-        service_checks = {}
 
-        # Check audio preprocessor
-        try:
-            response = await client.get(
-                f"{AUDIO_PREPROCESSOR_URL}/health/ready", timeout=5.0
-            )
-            service_checks["audio_preprocessor"] = response.status_code == 200
-        except Exception:
-            service_checks["audio_preprocessor"] = False
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="testing",
+    health_manager=health_manager,
+    custom_components={
+        "gradio_available": lambda: GRADIO_AVAILABLE,
+    },
+    custom_dependencies={
+        "audio_preprocessor": lambda: _check_service_health(AUDIO_PREPROCESSOR_URL),
+        "stt": lambda: _check_service_health(STT_URL),
+        "orchestrator": lambda: _check_service_health(ORCHESTRATOR_URL),
+        "tts": lambda: _check_service_health(BARK_URL),
+    },
+)
 
-        # Check STT
-        try:
-            response = await client.get(f"{STT_URL}/health/ready", timeout=5.0)
-            service_checks["stt"] = response.status_code == 200
-        except Exception:
-            service_checks["stt"] = False
-
-        # Check orchestrator
-        try:
-            response = await client.get(f"{ORCHESTRATOR_URL}/health/ready", timeout=5.0)
-            service_checks["orchestrator"] = response.status_code == 200
-        except Exception:
-            service_checks["orchestrator"] = False
-
-        # Check TTS
-        try:
-            response = await client.get(f"{BARK_URL}/health/ready", timeout=5.0)
-            service_checks["tts"] = response.status_code == 200
-        except Exception:
-            service_checks["tts"] = False
-
-        # Determine overall health
-        all_healthy = all(service_checks.values())
-
-        # Determine status string
-        if not health_status.ready:
-            status_str = (
-                "degraded"
-                if health_status.status == HealthStatus.DEGRADED
-                else "not_ready"
-            )
-        else:
-            status_str = "ready" if all_healthy else "degraded"
-
-        return {
-            "status": status_str,
-            "service": "testing",
-            "service_checks": service_checks,
-            "all_services_healthy": all_healthy,
-            "health_details": health_status.details,
-        }
-
-    except Exception as e:
-        logger.error("Health check failed", extra={"error": str(e)})
-        raise HTTPException(status_code=503, detail="Service not ready") from e
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.on_event("startup")  # type: ignore[misc]

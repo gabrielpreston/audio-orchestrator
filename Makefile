@@ -10,7 +10,7 @@ SHELL := /bin/bash
 .PHONY: lint lint-image lint-image-force lint-fix
 .PHONY: security security-image security-image-force
 .PHONY: clean docker-clean docker-clean-all
-.PHONY: docs-verify
+.PHONY: docs-verify validate-changes
 .PHONY: rotate-tokens rotate-tokens-dry-run validate-tokens
 .PHONY: models-download models-clean
 
@@ -433,6 +433,9 @@ docker-clean-all: ## Nuclear cleanup: stop compose stack, remove ALL images/volu
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
 	@./scripts/verify_last_updated.py --allow-divergence $(ARGS)
+
+validate-changes: ## Validate uncommitted changes (lint, tests); use ARGS='--verbose' to customize
+	@bash scripts/validate-changes.sh $(ARGS)
 
 # Token management
 rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files

@@ -26,7 +26,8 @@ from services.common.config import (
     TelemetryConfig,
     get_service_preset,
 )
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -161,44 +162,21 @@ async def shutdown_event() -> None:
         _logger.error("audio.shutdown_failed", error=str(exc))
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "audio"}
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="audio",
+    health_manager=_health_manager,
+    custom_components={
+        "processor_loaded": lambda: _audio is not None,
+        "enhancer_loaded": lambda: _audio_enhancer is not None,
+        "enhancer_enabled": lambda: (
+            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+        ),
+    },
+)
 
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check with component status."""
-    health_status = await _health_manager.get_health_status()
-
-    # Determine status string
-    if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
-    else:
-        status_str = "ready"
-
-    return {
-        "status": status_str,
-        "service": "audio",
-        "components": {
-            "processor_loaded": _audio is not None,
-            "enhancer_loaded": _audio_enhancer is not None,
-            "enhancer_enabled": _audio_enhancer.is_enhancement_enabled
-            if _audio_enhancer
-            else False,
-            "startup_complete": _health_manager._startup_complete,
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details,
-        "performance": {
-            "max_concurrent_requests": 10,
-            "frame_processing_timeout_ms": 20,
-            "enhancement_timeout_ms": 50,
-        },
-    }
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.post("/process/frame", response_model=ProcessingResponse)  # type: ignore[misc]

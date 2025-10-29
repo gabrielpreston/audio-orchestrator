@@ -81,3 +81,68 @@ class ServiceContract:
     performance: PerformanceContract | None = None
     security: SecurityContract | None = None
     health_endpoints: list[EndpointContract] = field(default_factory=list)
+
+    def __post_init__(self):
+        """Initialize standard health endpoints if not provided."""
+        if not self.health_endpoints:
+            self.health_endpoints = self._get_standard_health_endpoints()
+
+    def _get_standard_health_endpoints(self) -> list[EndpointContract]:
+        """Get standard health endpoints for all services."""
+        return [
+            EndpointContract(
+                name="health_live",
+                path="/health/live",
+                method="GET",
+                expected_status_codes=[200],
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "status": {"type": "string", "enum": ["alive"]},
+                        "service": {"type": "string"},
+                    },
+                    "required": ["status", "service"],
+                },
+            ),
+            EndpointContract(
+                name="health_ready",
+                path="/health/ready",
+                method="GET",
+                expected_status_codes=[200, 503],
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "status": {
+                            "type": "string",
+                            "enum": ["ready", "degraded", "not_ready"],
+                        },
+                        "service": {"type": "string"},
+                        "components": {"type": "object"},
+                        "dependencies": {"type": "object"},
+                        "health_details": {"type": "object"},
+                    },
+                    "required": [
+                        "status",
+                        "service",
+                        "components",
+                        "dependencies",
+                        "health_details",
+                    ],
+                },
+            ),
+            EndpointContract(
+                name="health_dependencies",
+                path="/health/dependencies",
+                method="GET",
+                expected_status_codes=[200],
+                response_schema={
+                    "type": "object",
+                    "properties": {
+                        "service": {"type": "string"},
+                        "dependencies": {"type": "object"},
+                        "startup_complete": {"type": "boolean"},
+                    },
+                    "required": ["service", "dependencies", "startup_complete"],
+                },
+            ),
+        ]

@@ -15,12 +15,6 @@ services:
       - test-network
     environment:
       - LOG_LEVEL=INFO
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
 
   stt:
     extends:
@@ -31,20 +25,6 @@ services:
     environment:
       - FW_MODEL=tiny # Fast model for tests
       - LOG_LEVEL=INFO
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:9000/health/ready",
-          "--timeout",
-          "3",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
@@ -57,20 +37,6 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - TTS_AUTH_TOKEN=test-token
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:7100/health/ready",
-          "--timeout",
-          "3",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
@@ -83,20 +49,6 @@ services:
     environment:
       - LOG_LEVEL=INFO
       - LLM_AUTH_TOKEN=test-token
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8100/health/ready",
-          "--timeout",
-          "3",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
 
   orchestrator-enhanced:
     extends:
@@ -108,25 +60,6 @@ services:
       - LOG_LEVEL=INFO
       - LLM_AUTH_TOKEN=test-token
       - TTS_AUTH_TOKEN=test-token
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8200/health/ready",
-          "--timeout",
-          "3",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    depends_on:
-      llm-flan:
-        condition: service_healthy
-      tts-bark:
-        condition: service_healthy
 
   # Discord service for E2E tests (optional, requires token)
   discord:
@@ -145,22 +78,3 @@ services:
       - STT_BASE_URL=http://stt:9000
       - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
       - LOG_LEVEL=INFO
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8001/health/ready",
-          "--timeout",
-          "3",
-        ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 10s
-    depends_on:
-      stt:
-        condition: service_healthy
-      orchestrator-enhanced:
-        condition: service_healthy

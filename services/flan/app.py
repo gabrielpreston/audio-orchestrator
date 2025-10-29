@@ -9,7 +9,8 @@ from fastapi import FastAPI, HTTPException
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -231,45 +232,19 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Health check endpoint."""
-    try:
-        health_status = await _health_manager.get_health_status()
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="flan",
+    health_manager=_health_manager,
+    custom_components={
+        "model_loaded": lambda: model is not None and tokenizer is not None,
+        "model_name": lambda: MODEL_NAME,
+        "model_size": lambda: MODEL_SIZE.name,
+    },
+)
 
-        if model is None or tokenizer is None:
-            return {
-                "status": "not_ready",
-                "service": "flan",
-                "error": "Model not loaded",
-                "health_details": health_status.details,
-            }
-
-        # Determine status string
-        if not health_status.ready:
-            status_str = (
-                "degraded"
-                if health_status.status == HealthStatus.DEGRADED
-                else "not_ready"
-            )
-        else:
-            status_str = "ready"
-
-        return {
-            "status": status_str,
-            "service": "flan",
-            "model": MODEL_NAME,
-            "model_size": MODEL_SIZE.name,
-            "health_details": health_status.details,
-        }
-    except Exception as e:
-        return {"status": "not_ready", "service": "flan", "error": str(e)}
-
-
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check endpoint."""
-    return {"status": "alive", "service": "flan"}
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.get("/models")  # type: ignore[misc]

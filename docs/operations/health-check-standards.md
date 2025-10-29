@@ -8,153 +8,185 @@ last-updated: 2025-01-27
 <!-- markdownlint-disable-next-line MD041 -->
 > Docs ▸ Operations ▸ Health Check Standards
 
-# Solo Health Check Standards
+# Health Check Standards
 
-This document defines simplified health check standards for solo development in the Discord Voice Lab system.
+This document defines the standardized health check implementation using the common health endpoints module across all services in the Discord Voice Lab system.
 
-## Basic Health Check Standards
+## Common Health Endpoints Module
 
-All services must implement simple health checks for solo development:
+All services now use the standardized `HealthEndpoints` class from `services.common.health_endpoints` to implement consistent health check endpoints.
 
-### Basic Health Endpoints
+### Standardized Health Endpoints
 
 -  **GET /health/live**: Always returns 200 if process is alive
--  **GET /health/ready**: Returns basic status if service can handle requests
+-  **GET /health/ready**: Returns detailed readiness status with component information
+-  **GET /health/dependencies**: Returns dependency health status
 
-### Simple Implementation
-
--  **Basic functionality**: Service can handle requests
--  **No complex metrics**: Keep it simple
--  **No extensive dependency checking**: Focus on core functionality
-
-## Simple Implementation Pattern
-
-### Basic Health Check Implementation
+### Common Module Implementation
 
 ```python
-from fastapi import FastAPI, HTTPException
-from typing import Dict, Any
+from services.common.health_endpoints import HealthEndpoints
+from services.common.health import HealthManager
 
-app = FastAPI()
+# Initialize health manager
+_health_manager = HealthManager("service_name")
 
-# Simple startup tracking
-_startup_complete = False
-
-@app.on_event("startup")
-async def _startup():
-    """Service startup event handler."""
-    global _startup_complete
-    try:
-        # Initialize core components
-        await _initialize_core_components()
-        _startup_complete = True
-    except Exception as exc:
-        # Continue without crashing - service will report not_ready
-        pass
-
-@app.get("/health/live")
-async def health_live():
-    """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "discord"}
-
-@app.get("/health/ready")
-async def health_ready() -> Dict[str, Any]:
-    """Readiness check - basic functionality."""
-    if not _startup_complete:
-        raise HTTPException(status_code=503, detail="Service not ready")
-    
-    return {
-        "status": "ready",
-        "service": "discord",
-        "startup_complete": _startup_complete
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="service_name",
+    health_manager=_health_manager,
+    custom_components={
+        "component_name": lambda: component_value,
+        "another_component": lambda: another_value,
+    },
+    custom_dependencies={
+        "dependency_name": dependency_check_function,
     }
+)
+
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 ```
 
-### Optional Dependency Health Checks
+### Standardized Response Formats
 
-```python
-async def _check_stt_service() -> bool:
-    """Check STT service health (optional)."""
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get("http://stt:9000/health/ready")
-            return response.status_code == 200
-    except Exception:
-        return False
+#### `/health/live` Response
 
-async def _check_orchestrator() -> bool:
-    """Check orchestrator service health (optional)."""
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get("http://orchestrator:8200/health/ready")
-            return response.status_code == 200
-    except Exception:
-        return False
+```json
+{
+    "status": "alive",
+    "service": "service_name"
+}
 ```
 
-## Simple Health Check Best Practices
+#### `/health/ready` Response
 
-### Basic Health Check Requirements
+```json
+{
+    "status": "ready|degraded|not_ready",
+    "service": "service_name",
+    "components": {
+        "startup_complete": true,
+        "component_name": true,
+        "another_component": false
+    },
+    "dependencies": {
+        "dependency_name": {
+            "status": "healthy|unhealthy|error",
+            "available": true
+        }
+    },
+    "health_details": {
+        "startup_complete": true,
+        "dependencies": {}
+    }
+}
+```
 
--  **Startup Management**: Track if service has completed initialization
--  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
--  **Simple Status**: Return basic status information
--  **No Complex Metrics**: Keep it simple for solo development
+#### `/health/dependencies` Response
 
-## Service-Specific Health Checks (Simplified)
+```json
+{
+    "service": "service_name",
+    "dependencies": {
+        "dependency_name": {
+            "status": "healthy|unhealthy|error",
+            "available": true,
+            "error": "error_message_if_error"
+        }
+    },
+    "startup_complete": true
+}
+```
+
+## Service-Specific Health Check Examples
 
 ### Discord Service Health
 
 ```python
-# services/discord/health.py
-class DiscordHealthManager:
-    """Discord service specific health management."""
-    
-    def __init__(self):
-        self._discord_connected = False
-        self._voice_channel_ready = False
-    
-    def set_discord_connected(self, connected: bool):
-        """Set Discord connection status."""
-        self._discord_connected = connected
-    
-    def set_voice_channel_ready(self, ready: bool):
-        """Set voice channel readiness."""
-        self._voice_channel_ready = ready
+# services/discord/app.py
+from services.common.health_endpoints import HealthEndpoints
+
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="discord",
+    health_manager=_health_manager,
+    custom_components={
+        "bot_connected": lambda: _bot is not None,
+        "mode": "http",
+    },
+    custom_dependencies={
+        "stt": _check_stt_health,
+        "orchestrator": _check_orchestrator_health,
+    }
+)
+
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 ```
 
 ### STT Service Health
 
 ```python
-# services/stt/health.py
-class STTHealthManager:
-    """STT service specific health management."""
-    
-    def __init__(self):
-        self._model_loaded = False
-        self._processor_ready = False
-    
-    def set_model_loaded(self, loaded: bool):
-        """Set model loaded status."""
-        self._model_loaded = loaded
-    
-    def set_processor_ready(self, ready: bool):
-        """Set processor readiness."""
-        self._processor_ready = ready
+# services/stt/app.py
+from services.common.health_endpoints import HealthEndpoints
+
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="stt",
+    health_manager=_health_manager,
+    custom_components={
+        "model_loaded": lambda: _model is not None,
+        "model_name": lambda: MODEL_NAME,
+        "enhancer_loaded": lambda: _audio_enhancer is not None,
+        "enhancer_enabled": lambda: (
+            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+        ),
+        "audio_processor_client_loaded": lambda: _audio_processor_client is not None,
+    },
+    custom_dependencies={
+        "audio_processor": lambda: _audio_processor_client is not None,
+    }
+)
+
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 ```
 
-## Quality Gates (Simplified)
+### Audio Service Health
 
-### Health Check Requirements
+```python
+# services/audio/app.py
+from services.common.health_endpoints import HealthEndpoints
 
--  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
--  **Startup Tracking**: Track if service has completed initialization
--  **Simple Status**: Return basic status information
--  **No Complex Metrics**: Keep it simple for solo development
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="audio",
+    health_manager=_health_manager,
+    custom_components={
+        "processor_loaded": lambda: _audio is not None,
+        "enhancer_loaded": lambda: _audio_enhancer is not None,
+        "enhancer_enabled": lambda: (
+            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+        ),
+    }
+)
 
-## Simple Testing Requirements
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
+```
 
-### Basic Health Check Tests
+## Health Check Requirements
+
+### Standardized Implementation
+
+-  **Common Module**: All services use `HealthEndpoints` from `services.common.health_endpoints`
+-  **Standardized Endpoints**: Implement `/health/live`, `/health/ready`, and `/health/dependencies`
+-  **Consistent Responses**: All services return standardized response formats
+-  **Component Tracking**: Track service-specific components and dependencies
+-  **Startup Management**: Properly track startup completion state
+
+### Health Check Testing
 
 ```python
 def test_health_live_endpoint():
@@ -162,28 +194,56 @@ def test_health_live_endpoint():
     response = client.get("/health/live")
     assert response.status_code == 200
     assert response.json()["status"] == "alive"
+    assert response.json()["service"] == "service_name"
 
 def test_health_ready_endpoint():
-    """Test readiness endpoint returns 200 when ready."""
+    """Test readiness endpoint returns correct status."""
     response = client.get("/health/ready")
+    if response.status_code == 200:
+        data = response.json()
+        assert "status" in data
+        assert "service" in data
+        assert "components" in data
+        assert "dependencies" in data
+    else:
+        # Service not ready - this is expected behavior
+        assert response.status_code == 503
+
+def test_health_dependencies_endpoint():
+    """Test dependencies endpoint returns dependency status."""
+    response = client.get("/health/dependencies")
     assert response.status_code == 200
-    assert response.json()["status"] == "ready"
+    data = response.json()
+    assert "service" in data
+    assert "dependencies" in data
+    assert "startup_complete" in data
 ```
 
-## Solo Development Notes
+## Benefits of Common Module Approach
 
-### Simplified Approach
+### Consistency
 
--  **No Complex Metrics**: Keep it simple for solo development
--  **Basic Functionality**: Focus on "does it work" over comprehensive monitoring
--  **Manual Testing**: Use manual testing for rapid iteration
--  **Essential Coverage**: Critical paths covered only
+-  **Standardized Responses**: All services return identical response formats
+-  **Unified Implementation**: Single source of truth for health endpoint logic
+-  **Easier Debugging**: Consistent health check patterns across all services
+
+### Maintainability
+
+-  **Code Reusability**: Common module eliminates duplication across 9 services
+-  **Centralized Updates**: Health endpoint changes only need to be made in one place
+-  **Type Safety**: Consistent typing and validation across all services
+
+### Reliability
+
+-  **Graceful Degradation**: Services handle dependency failures gracefully
+-  **Startup Independence**: Services can start without waiting for Docker health checks
+-  **Better CI Performance**: No health check timeouts in CI environment
 
 ## Summary
 
-This simplified health check approach focuses on:
+The common health endpoints module provides:
 
--  **Basic functionality**: Service can handle requests
--  **Simple implementation**: No complex metrics or extensive dependency checking
--  **Solo development**: Optimized for rapid iteration and manual testing
--  **Essential coverage**: Critical paths covered without over-engineering
+-  **Standardized Implementation**: Consistent health check patterns across all services
+-  **Code Reusability**: Single module eliminates duplication across 9 services
+-  **Better Reliability**: Graceful handling of dependency failures and startup independence
+-  **Easier Maintenance**: Centralized health endpoint logic with consistent response formats

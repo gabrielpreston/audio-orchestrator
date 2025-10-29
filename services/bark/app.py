@@ -10,7 +10,6 @@ This service provides HTTP API endpoints for text-to-speech synthesis including:
 from __future__ import annotations
 
 import time
-from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -25,7 +24,8 @@ from services.common.config import (
     TelemetryConfig,
     get_service_preset,
 )
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -134,38 +134,17 @@ async def _shutdown() -> None:
         _logger.error("service.shutdown_failed", error=str(exc))
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "bark"}
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="bark",
+    health_manager=_health_manager,
+    custom_components={
+        "bark_synthesizer_loaded": lambda: _bark_synthesizer is not None
+    },
+)
 
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check with component status."""
-    if _bark_synthesizer is None:
-        raise HTTPException(status_code=503, detail="Bark synthesizer not loaded")
-
-    health_status = await _health_manager.get_health_status()
-
-    # Determine status string
-    if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
-    else:
-        status_str = "ready"
-
-    return {
-        "status": status_str,
-        "service": "bark",
-        "components": {
-            "bark_synthesizer_loaded": _bark_synthesizer is not None,
-            "startup_complete": _health_manager._startup_complete,
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details,
-    }
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.post("/synthesize")  # type: ignore[misc]

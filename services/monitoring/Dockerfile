@@ -34,8 +34,5 @@ ENV STREAMLIT_SERVER_PORT=8501
 ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
 ENV PROMETHEUS_URL=http://prometheus:9090
 
-# Health check
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-    CMD python /app/scripts/health_check.py http://localhost:8501/health/ready
 
 CMD ["python", "services/monitoring/app.py"]

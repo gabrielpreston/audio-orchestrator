@@ -10,8 +10,53 @@ class TestServiceHealth:
     """Test service health endpoints."""
 
     @pytest.mark.integration
+    async def test_standardized_health_endpoints_format(self):
+        """Test that all services return standardized health endpoint formats."""
+        services = [
+            ("stt", "http://stt:9000"),
+            ("bark", "http://bark:7100"),
+            ("flan", "http://flan:8100"),
+            ("orchestrator", "http://orchestrator:8200"),
+            ("audio", "http://audio:8000"),
+            ("discord", "http://discord:3000"),
+            ("guardrails", "http://guardrails:8500"),
+            ("testing", "http://testing:8888"),
+            ("monitoring", "http://monitoring:3001"),
+        ]
+
+        async with httpx.AsyncClient() as client:
+            for service_name, base_url in services:
+                # Test /health/live endpoint
+                response = await client.get(f"{base_url}/health/live")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["status"] == "alive"
+                assert data["service"] == service_name
+
+                # Test /health/ready endpoint
+                response = await client.get(f"{base_url}/health/ready")
+                assert response.status_code in [200, 503]
+                if response.status_code == 200:
+                    data = response.json()
+                    assert "status" in data
+                    assert data["service"] == service_name
+                    assert "components" in data
+                    assert "dependencies" in data
+                    assert "health_details" in data
+                    # Check that status is one of the expected values
+                    assert data["status"] in ["ready", "degraded", "not_ready"]
+
+                # Test /health/dependencies endpoint
+                response = await client.get(f"{base_url}/health/dependencies")
+                assert response.status_code == 200
+                data = response.json()
+                assert data["service"] == service_name
+                assert "dependencies" in data
+                assert "startup_complete" in data
+
+    @pytest.mark.integration
     async def test_all_services_health_endpoints_accessible(self):
-        """Test all services health endpoints accessible with new format."""
+        """Test all services health endpoints accessible with standardized format."""
         async with httpx.AsyncClient() as client:
             # Test STT service health
             response = await client.get("http://stt:9000/health/ready")
@@ -20,34 +65,70 @@ class TestServiceHealth:
                 data = response.json()
                 assert data["service"] == "stt"
                 assert "components" in data
+                assert "dependencies" in data
                 assert "health_details" in data
 
             response = await client.get("http://stt:9000/health/live")
             assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "alive"
+            assert data["service"] == "stt"
+
+            # Test dependencies endpoint
+            response = await client.get("http://stt:9000/health/dependencies")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["service"] == "stt"
+            assert "dependencies" in data
+            assert "startup_complete" in data
 
             # Test TTS service health
             response = await client.get("http://bark:7100/health/ready")
             assert response.status_code in [200, 503]
             if response.status_code == 200:
                 data = response.json()
-                assert data["service"] == "tts"
+                assert data["service"] == "bark"
                 assert "components" in data
+                assert "dependencies" in data
                 assert "health_details" in data
 
             response = await client.get("http://bark:7100/health/live")
             assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "alive"
+            assert data["service"] == "bark"
+
+            # Test dependencies endpoint
+            response = await client.get("http://bark:7100/health/dependencies")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["service"] == "bark"
+            assert "dependencies" in data
+            assert "startup_complete" in data
 
             # Test LLM service health
             response = await client.get("http://flan:8100/health/ready")
             assert response.status_code in [200, 503]
             if response.status_code == 200:
                 data = response.json()
-                assert data["service"] == "llm"
+                assert data["service"] == "flan"
                 assert "components" in data
+                assert "dependencies" in data
                 assert "health_details" in data
 
             response = await client.get("http://flan:8100/health/live")
             assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "alive"
+            assert data["service"] == "flan"
+
+            # Test dependencies endpoint
+            response = await client.get("http://flan:8100/health/dependencies")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["service"] == "flan"
+            assert "dependencies" in data
+            assert "startup_complete" in data
 
             # Test Orchestrator service health
             response = await client.get("http://orchestrator:8200/health/ready")
@@ -56,10 +137,22 @@ class TestServiceHealth:
                 data = response.json()
                 assert data["service"] == "orchestrator"
                 assert "components" in data
+                assert "dependencies" in data
                 assert "health_details" in data
 
             response = await client.get("http://orchestrator:8200/health/live")
             assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "alive"
+            assert data["service"] == "orchestrator"
+
+            # Test dependencies endpoint
+            response = await client.get("http://orchestrator:8200/health/dependencies")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["service"] == "orchestrator"
+            assert "dependencies" in data
+            assert "startup_complete" in data
 
     @pytest.mark.integration
     async def test_service_startup_order_independence(self):

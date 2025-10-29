@@ -8,10 +8,11 @@ performance metrics, and guardrail statistics.
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 
 from services.common.audio_metrics import create_http_metrics
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -213,51 +214,32 @@ def display_system_metrics(_time_range: str) -> None:
         logger.error("System metrics fetch failed", error=str(e))
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - always returns 200 if process is alive."""
-    return {"status": "alive", "service": "monitoring"}
-
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check - basic functionality."""
+async def _check_prometheus_health() -> bool:
+    """Check if Prometheus is healthy."""
     try:
-        health_status = await health_manager.get_health_status()
-
-        # Check Prometheus connection via HTTP
-        prometheus_healthy = False
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{PROMETHEUS_URL}/api/v1/query",
-                    params={"query": "up"},
-                    timeout=5.0,
-                )
-                prometheus_healthy = response.status_code == 200
-        except Exception as e:
-            logger.warning("Prometheus connection failed", error=str(e))
-
-        # Determine status string
-        if not health_status.ready:
-            status_str = (
-                "degraded"
-                if health_status.status == HealthStatus.DEGRADED
-                else "not_ready"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{PROMETHEUS_URL}/api/v1/query",
+                params={"query": "up"},
+                timeout=5.0,
             )
-        else:
-            status_str = "ready" if prometheus_healthy else "degraded"
+            return bool(response.status_code == 200)
+    except Exception:
+        return False
 
-        return {
-            "status": status_str,
-            "service": "monitoring",
-            "prometheus_connected": prometheus_healthy,
-            "health_details": health_status.details,
-        }
 
-    except Exception as e:
-        logger.error("Health check failed", error=str(e))
-        raise HTTPException(status_code=503, detail="Service not ready") from e
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="monitoring",
+    health_manager=health_manager,
+    custom_components={
+        "dashboard_available": lambda: DASHBOARD_AVAILABLE,
+        "prometheus_connected": lambda: _check_prometheus_health(),
+    },
+)
+
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.on_event("startup")  # type: ignore[misc]

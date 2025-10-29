@@ -13,7 +13,8 @@ from services.common.audio_metrics import (
     create_http_metrics,
     create_stt_metrics,
 )
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 
 # Configure logging
 from services.common.structured_logging import get_logger
@@ -120,39 +121,22 @@ async def shutdown_event() -> None:
         logger.info("discord.http_api_shutdown")
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - is process running."""
-    return {"status": "alive", "service": "discord"}
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="discord",
+    health_manager=_health_manager,
+    custom_components={
+        "bot_connected": lambda: _bot is not None,
+        "mode": "http",
+    },
+    custom_dependencies={
+        "stt": _check_stt_health,
+        "orchestrator": _check_orchestrator_health,
+    },
+)
 
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check - can serve requests."""
-    if _bot is None:
-        raise HTTPException(status_code=503, detail="Bot not connected")
-
-    health_status = await _health_manager.get_health_status()
-
-    # Determine status string
-    if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
-    else:
-        status_str = "ready"
-
-    return {
-        "status": status_str,
-        "service": "discord",
-        "components": {
-            "bot_connected": _bot is not None,
-            "mode": "http",
-            "startup_complete": _health_manager._startup_complete,
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details,
-    }
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 @app.post("/api/v1/messages", response_model=MessageSendResponse)  # type: ignore[misc]

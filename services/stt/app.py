@@ -15,7 +15,8 @@ from services.common.config import (
     get_service_preset,
     load_config_from_env,
 )
-from services.common.health import HealthManager, HealthStatus
+from services.common.health import HealthManager
+from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import setup_service_observability
 
@@ -173,59 +174,26 @@ async def _warm_model() -> None:
         _health_manager.mark_startup_complete()
 
 
-@app.get("/health/live")  # type: ignore[misc]
-async def health_live() -> dict[str, str]:
-    """Liveness check - is process running."""
-    return {"status": "alive", "service": "stt"}
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="stt",
+    health_manager=_health_manager,
+    custom_components={
+        "model_loaded": lambda: _model is not None,
+        "model_name": lambda: MODEL_NAME,
+        "enhancer_loaded": lambda: _audio_enhancer is not None,
+        "enhancer_enabled": lambda: (
+            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+        ),
+        "audio_processor_client_loaded": lambda: _audio_processor_client is not None,
+    },
+    custom_dependencies={
+        "audio_processor": lambda: _audio_processor_client is not None,
+    },
+)
 
-
-@app.get("/health/ready")  # type: ignore[misc]
-async def health_ready() -> dict[str, Any]:
-    """Readiness check - can serve requests."""
-    if _model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-
-    health_status = await _health_manager.get_health_status()
-
-    # Determine status string
-    if not health_status.ready:
-        status_str = (
-            "degraded" if health_status.status == HealthStatus.DEGRADED else "not_ready"
-        )
-    else:
-        status_str = "ready"
-
-    return {
-        "status": status_str,
-        "service": "stt",
-        "components": {
-            "model_loaded": _model is not None,
-            "model_name": MODEL_NAME,
-            "enhancer_loaded": _audio_enhancer is not None,
-            "enhancer_enabled": (
-                _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
-            ),
-            "audio_processor_client_loaded": _audio_processor_client is not None,
-            "startup_complete": _health_manager._startup_complete,
-        },
-        "dependencies": health_status.details.get("dependencies", {}),
-        "health_details": health_status.details,
-        "enhancement_stats": {
-            "total_processed": _enhancement_stats["total_processed"],
-            "successful": _enhancement_stats["successful"],
-            "failed": _enhancement_stats["failed"],
-            "success_rate": (
-                int(_enhancement_stats["successful"] or 0)
-                / int(_enhancement_stats["total_processed"] or 1)
-                * 100
-                if int(_enhancement_stats["total_processed"] or 0) > 0
-                else 0
-            ),
-            "avg_duration_ms": _enhancement_stats["avg_duration_ms"],
-            "last_error": _enhancement_stats["last_error"],
-            "last_error_time": _enhancement_stats["last_error_time"],
-        },
-    }
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 def _parse_bool(value: str | None) -> bool:

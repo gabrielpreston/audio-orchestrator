@@ -4,13 +4,23 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
+# Install OpenBLAS development packages for building numpy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas-dev \
+    libopenblas-pthread-dev \
+    gfortran \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy service-specific requirements
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
-# Install Python deps with aggressive cleanup for GitHub Actions
+# Install Python deps, rebuilding numpy from source against system OpenBLAS
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r /app/services/requirements-base.txt && \
+    pip uninstall -y numpy || true && \
+    pip install --no-cache-dir --no-binary=numpy "numpy>=1.24,<2.0" && \
     pip install --no-cache-dir -r /app/services/stt/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
@@ -24,6 +34,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
+
+# Install OpenBLAS runtime libraries for numpy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas0 \
+    libopenblas0-pthread \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

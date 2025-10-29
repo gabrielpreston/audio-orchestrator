@@ -5,14 +5,25 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
+# Install OpenBLAS development packages for building numpy/scipy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas-dev \
+    libopenblas-pthread-dev \
+    gfortran \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy requirements FIRST for better caching
 COPY services/audio/requirements.txt /app/services/audio/requirements.txt
 COPY services/requirements-base.txt /app/services/requirements-base.txt
 
-# Install Python dependencies with aggressive cleanup for GitHub Actions
+# Install Python dependencies, rebuilding numpy/scipy from source against system OpenBLAS
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/requirements-base.txt && \
+    pip uninstall -y numpy scipy || true && \
+    pip install --no-cache-dir --no-binary=numpy,scipy \
+        "numpy>=1.24.0,<2.0" \
+        "scipy>=1.11.0,<2.0" && \
     pip install --no-cache-dir -r /app/services/audio/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
@@ -25,6 +36,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
+
+# Install OpenBLAS runtime libraries for numpy/scipy
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libopenblas0 \
+    libopenblas0-pthread \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy Python packages from builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
@@ -49,9 +66,6 @@ ENV PYTHONPATH=/app
 ENV AUDIO_PROCESSOR_SERVICE_PORT=9100
 ENV AUDIO_PROCESSOR_SERVICE_HOST=0.0.0.0
 
-# Health check - CORRECTED to use Python script
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
-    CMD python /app/scripts/health_check.py http://localhost:9100/health/ready --timeout 5
 
 # Expose port
 EXPOSE 9100

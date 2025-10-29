@@ -27,22 +27,6 @@ services:
     # Use minimal logging
     logging:
       driver: "none"
-    # CI-specific health checks for faster startup detection
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8001/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   stt:
     build:
@@ -65,21 +49,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:9000/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
 
   orchestrator:
@@ -103,21 +72,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8200/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
 
   # Add missing services for complete CI coverage
@@ -143,21 +97,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8100/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   bark:
     build:
@@ -181,21 +120,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:7100/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   audio:
     build:
@@ -218,12 +142,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 10s
 
   guardrails:
     build:
@@ -246,21 +164,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:9300/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   testing:
     build:
@@ -283,21 +186,6 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8080/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 10s
 
   monitoring:
     build:
@@ -320,18 +208,3 @@ services:
     restart: "no"
     logging:
       driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8501/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 10s

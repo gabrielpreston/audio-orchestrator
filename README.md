@@ -52,7 +52,7 @@ Each workflow runs independently based on detected changes, providing faster fee
 -  **Streaming audio pipeline** for low-latency voice interactions
 -  **Modular architecture** with independent, containerized services
 -  **Structured logging** with JSON output and correlation IDs
--  **Health checks** and circuit breakers for service resilience
+-  **Standardized health checks** with common module implementation across all services
 
 ## Development
 
