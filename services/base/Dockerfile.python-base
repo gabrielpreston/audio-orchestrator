@@ -18,9 +18,8 @@ RUN --mount=type=cache,target=/var/cache/apt \
         git \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy and install base requirements with constraints
+# Copy and install base requirements
 COPY services/requirements-base.txt /app/requirements-base.txt
-COPY constraints.txt /app/constraints.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip setuptools wheel && \
-    pip install -r /app/requirements-base.txt -c /app/constraints.txt
+    pip install -r /app/requirements-base.txt
