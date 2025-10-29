@@ -11,8 +11,8 @@ from .config import load_config
 def main() -> None:
     config = load_config()
     configure_logging(
-        config.telemetry.log_level,
-        json_logs=config.telemetry.log_json,
+        config.logging.level,
+        json_logs=config.logging.json_logs,
         service_name="discord",
     )
 
