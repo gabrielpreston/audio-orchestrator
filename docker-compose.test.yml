@@ -1,6 +1,5 @@
 # Test-specific Docker Compose configuration
 # Optimized for integration testing with fast startup and isolated network
-version: "3.8"
 
 networks:
   test-network:

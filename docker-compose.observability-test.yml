@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   # Observability Stack for Testing
   otel-collector:

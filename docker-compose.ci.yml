@@ -1,6 +1,5 @@
 # CI-specific Docker Compose overrides
 # Optimized for build speed over runtime performance
-version: "3.8"
 
 services:
   discord:
@@ -82,42 +81,6 @@ services:
       retries: 3
       start_period: 15s
 
-  llm:
-    build:
-      context: "."
-      dockerfile: "services/llm/Dockerfile"
-      cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
-        - ghcr.io/gabrielpreston/llm:latest
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/llm:latest"
-    ports: []
-    env_file:
-      - "./.env.ci"
-    environment:
-      - PYTHONPATH=/app
-      - PYTHONDONTWRITEBYTECODE=1
-      - PYTHONUNBUFFERED=1
-    restart: "no"
-    logging:
-      driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:8000/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   orchestrator:
     build:
@@ -156,48 +119,12 @@ services:
       retries: 3
       start_period: 15s
 
-  tts:
-    build:
-      context: "."
-      dockerfile: "services/tts/Dockerfile"
-      cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
-        - ghcr.io/gabrielpreston/tts:latest
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/tts:latest"
-    ports: []
-    env_file:
-      - "./.env.ci"
-    environment:
-      - PYTHONPATH=/app
-      - PYTHONDONTWRITEBYTECODE=1
-      - PYTHONUNBUFFERED=1
-    restart: "no"
-    logging:
-      driver: "none"
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "/app/scripts/health_check.py",
-          "http://localhost:7000/health/ready",
-          "--timeout",
-          "3",
-          "--ci",
-        ]
-      interval: 3s
-      timeout: 2s
-      retries: 3
-      start_period: 15s
 
   # Add missing services for complete CI coverage
   flan:
     build:
       context: "."
-      dockerfile: "services/llm_flan/Dockerfile"
+      dockerfile: "services/flan/Dockerfile"
       cache_from:
         - type=gha,scope=services
         - ghcr.io/gabrielpreston/python-ml:latest
@@ -399,7 +326,7 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:9090/health/ready",
+          "http://localhost:8501/health/ready",
           "--timeout",
           "3",
           "--ci",
