@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   build-python-base:
-    name: "Build python-base (Foundation)"
+    name: "Tier 0 (python-base)"
     if: inputs.base-changes || github.event_name == 'workflow_dispatch'
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
@@ -70,7 +70,7 @@ jobs:
           docker builder prune -f || true
 
   build-tier-1:
-    name: "Build Tier 1 Images"
+    name: "Tier 1"
     needs: ["build-python-base"]
     if: ${{ !cancelled() && needs.build-python-base.result == 'success' }}
     runs-on: "ubuntu-latest"
@@ -127,7 +127,7 @@ jobs:
           docker builder prune -f || true
 
   build-services:
-    name: "Build Services with Registry Caching"
+    name: "Tier 2"
     needs: ["build-tier-1"]
     if: ${{ !cancelled() && needs.build-tier-1.result == 'success' }}
     runs-on: "ubuntu-latest"
