@@ -17,6 +17,8 @@ services:
     # Disable unnecessary ports in CI
     ports: []
     # Use minimal environment for CI
+    env_file:
+      - "./.env.ci"
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
@@ -36,11 +38,12 @@ services:
           "http://localhost:8001/health/ready",
           "--timeout",
           "3",
+          "--ci",
         ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
 
   stt:
     build:
@@ -54,6 +57,8 @@ services:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/stt:latest"
     ports: []
+    env_file:
+      - "./.env.ci"
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
@@ -70,11 +75,12 @@ services:
           "http://localhost:9000/health/ready",
           "--timeout",
           "3",
+          "--ci",
         ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
 
   llm:
     build:
@@ -88,6 +94,8 @@ services:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/llm:latest"
     ports: []
+    env_file:
+      - "./.env.ci"
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
@@ -104,11 +112,12 @@ services:
           "http://localhost:8000/health/ready",
           "--timeout",
           "3",
+          "--ci",
         ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
 
   orchestrator:
     build:
@@ -122,6 +131,8 @@ services:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/orchestrator:latest"
     ports: []
+    env_file:
+      - "./.env.ci"
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
@@ -135,14 +146,15 @@ services:
           "CMD",
           "python",
           "/app/scripts/health_check.py",
-          "http://localhost:8000/health/ready",
+          "http://localhost:8200/health/ready",
           "--timeout",
           "3",
+          "--ci",
         ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
 
   tts:
     build:
@@ -156,6 +168,8 @@ services:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/tts:latest"
     ports: []
+    env_file:
+      - "./.env.ci"
     environment:
       - PYTHONPATH=/app
       - PYTHONDONTWRITEBYTECODE=1
@@ -172,8 +186,225 @@ services:
           "http://localhost:7000/health/ready",
           "--timeout",
           "3",
+          "--ci",
         ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-      start_period: 20s
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
+
+  # Add missing services for complete CI coverage
+  flan:
+    build:
+      context: "."
+      dockerfile: "services/llm_flan/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/flan:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/flan:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - FW_MODEL=tiny  # Use tiny model for faster CI
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8100/health/ready",
+          "--timeout",
+          "3",
+          "--ci",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
+
+  bark:
+    build:
+      context: "."
+      dockerfile: "services/bark/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/bark:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/bark:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - BARK_USE_SMALL_MODELS=true  # Use small models for faster CI
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:7100/health/ready",
+          "--timeout",
+          "3",
+          "--ci",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
+
+  audio:
+    build:
+      context: "."
+      dockerfile: "services/audio/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/audio:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/audio:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9100/health/ready"]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 10s
+
+  guardrails:
+    build:
+      context: "."
+      dockerfile: "services/guardrails/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/guardrails:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/guardrails:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9300/health/ready",
+          "--timeout",
+          "3",
+          "--ci",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 15s
+
+  testing:
+    build:
+      context: "."
+      dockerfile: "services/testing/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/testing:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/testing:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:8080/health/ready",
+          "--timeout",
+          "3",
+          "--ci",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 10s
+
+  monitoring:
+    build:
+      context: "."
+      dockerfile: "services/monitoring/Dockerfile"
+      cache_from:
+        - type=gha,scope=services
+        - ghcr.io/gabrielpreston/python-ml:latest
+        - ghcr.io/gabrielpreston/monitoring:latest
+      args:
+        BUILDKIT_INLINE_CACHE: "1"
+    image: "ghcr.io/gabrielpreston/monitoring:latest"
+    ports: []
+    env_file:
+      - "./.env.ci"
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    restart: "no"
+    logging:
+      driver: "none"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "/app/scripts/health_check.py",
+          "http://localhost:9090/health/ready",
+          "--timeout",
+          "3",
+          "--ci",
+        ]
+      interval: 3s
+      timeout: 2s
+      retries: 3
+      start_period: 10s

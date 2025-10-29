@@ -294,9 +294,44 @@ jobs:
         uses: "actions/checkout@v4.2.2"
       - name: "Prepare environment files"
         run: python scripts/prepare_env_files.py --force
+      - name: "Setup CI-optimized environment"
+        run: python scripts/ci_env_config.py
       - name: "Test ${{ matrix.service }}"
         run: |
-          docker compose up -d ${{ matrix.service }}
-          sleep 10
-          docker compose ps ${{ matrix.service }}
-          docker compose down
+          echo "Starting ${{ matrix.service }} service with CI-optimized configuration..."
+          docker compose -f docker-compose.ci.yml up -d ${{ matrix.service }}
+
+          # Wait up to 60 seconds with retries for service to be healthy
+          echo "Waiting for ${{ matrix.service }} to be healthy..."
+          for i in {1..12}; do
+            if docker compose -f docker-compose.ci.yml ps ${{ matrix.service }} | grep -q "healthy"; then
+              echo "✅ Service ${{ matrix.service }} is healthy (attempt $i)"
+              break
+            elif docker compose -f docker-compose.ci.yml ps ${{ matrix.service }} | grep -q "unhealthy"; then
+              echo "❌ Service ${{ matrix.service }} is unhealthy (attempt $i)"
+              echo "Service logs:"
+              docker compose -f docker-compose.ci.yml logs ${{ matrix.service }}
+              echo "Running diagnostics..."
+              python scripts/ci_diagnostics.py ${{ matrix.service }}
+              exit 1
+            else
+              echo "⏳ Attempt $i/12: Waiting for ${{ matrix.service }} to be healthy..."
+              sleep 5
+            fi
+          done
+
+          # Final check - if we get here and it's not healthy, fail
+          if ! docker compose -f docker-compose.ci.yml ps ${{ matrix.service }} | grep -q "healthy"; then
+            echo "❌ Service ${{ matrix.service }} failed to become healthy within 60 seconds"
+            echo "Service status:"
+            docker compose -f docker-compose.ci.yml ps ${{ matrix.service }}
+            echo "Service logs:"
+            docker compose -f docker-compose.ci.yml logs ${{ matrix.service }}
+            echo "Running comprehensive diagnostics..."
+            python scripts/ci_diagnostics.py ${{ matrix.service }}
+            exit 1
+          fi
+
+          echo "✅ Smoke test passed for ${{ matrix.service }}"
+          docker compose -f docker-compose.ci.yml ps ${{ matrix.service }}
+          docker compose -f docker-compose.ci.yml down
