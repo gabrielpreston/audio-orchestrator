@@ -1,3 +1,10 @@
+---
+title: Build Optimization Guide
+author: Audio Orchestrator Team
+status: active
+last-updated: 2025-10-29
+---
+
 # Build Optimization Guide
 
 This guide covers the build optimization strategies implemented in the Audio Orchestrator project to achieve faster, more reliable builds.

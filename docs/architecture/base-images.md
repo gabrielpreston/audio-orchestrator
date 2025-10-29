@@ -1,3 +1,10 @@
+---
+title: Base Image Architecture
+author: Audio Orchestrator Team
+status: active
+last-updated: 2025-10-29
+---
+
 # Base Image Architecture
 
 This document outlines the base image strategy for the Audio Orchestrator project, designed to optimize build performance and reduce image sizes.
