@@ -5,26 +5,16 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
-# Install OpenBLAS development packages for building numpy/scipy
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libopenblas-dev \
-    libopenblas-pthread-dev \
-    gfortran \
-    && rm -rf /var/lib/apt/lists/*
+# No additional system dependencies needed (numpy/scipy from ML base)
 
-# Copy requirements FIRST for better caching
+# Copy requirements and constraints FIRST for better caching
 COPY services/audio/requirements.txt /app/services/audio/requirements.txt
-COPY services/requirements-base.txt /app/services/requirements-base.txt
+COPY constraints.txt /app/constraints.txt
 
-# Install Python dependencies, rebuilding numpy/scipy from source against system OpenBLAS
+# Install Python dependencies (numpy/scipy already optimized in ML base image)
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/requirements-base.txt && \
-    pip uninstall -y numpy scipy || true && \
-    pip install --no-cache-dir --no-binary=numpy,scipy \
-        "numpy>=1.24.0,<2.0" \
-        "scipy>=1.11.0,<2.0" && \
-    pip install --no-cache-dir -r /app/services/audio/requirements.txt && \
+    pip install --no-cache-dir -r /app/services/audio/requirements.txt -c /app/constraints.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
@@ -37,11 +27,7 @@ FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 
-# Install OpenBLAS runtime libraries for numpy/scipy
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libopenblas0 \
-    libopenblas0-pthread \
-    && rm -rf /var/lib/apt/lists/*
+# No additional runtime dependencies needed (numpy/scipy from ML base)
 
 # Copy Python packages from builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages

@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM ghcr.io/gabrielpreston/python-web:latest
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -12,10 +12,11 @@ RUN apt-get update && \
         git=* && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install with pinned versions
+# Copy requirements and constraints and install with pinned versions
 COPY services/security/requirements.txt /workspace/services/security/requirements.txt
+COPY constraints.txt /workspace/constraints.txt
 RUN python -m pip install --upgrade pip==24.0 && \
-    pip install -r /workspace/services/security/requirements.txt
+    pip install -r /workspace/services/security/requirements.txt -c /workspace/constraints.txt
 
 COPY services/security/run-security.sh /usr/local/bin/run-security.sh
 RUN chmod +x /usr/local/bin/run-security.sh

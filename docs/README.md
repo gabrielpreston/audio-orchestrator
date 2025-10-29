@@ -21,6 +21,8 @@ and reference content aligned with the current repository layout.
 | Evaluate the project | [Project overview](../README.md) | Goals, stack summary, quickstart. |
 | Onboard & configure | [Getting started index](getting-started/README.md) | Environment setup, local workflows, troubleshooting. |
 | Understand the system | [Architecture overview](architecture/system-overview.md) | Service relationships, audio and transcript flows. |
+| Base images | [Base image architecture](architecture/base-images.md) | Base image strategy, service mapping, optimization. |
+| Build optimization | [Build optimization guide](operations/build-optimization.md) | Performance tuning, caching, wheel management. |
 | Shared utilities | [Shared utilities](architecture/shared-utilities.md) | Common libraries, configuration, debug management. |
 | Operate the stack | [Operations landing page](operations/README.md) | Runbooks, observability, security posture. |
 | Extend & integrate | [Reference catalog](reference/configuration-catalog.md) | Environment variables, API endpoints, manifests. |

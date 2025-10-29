@@ -11,17 +11,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy service-specific requirements
+# Copy service-specific requirements and constraints
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
-COPY services/requirements-base.txt /app/services/requirements-base.txt
+COPY constraints.txt /app/constraints.txt
 
 # Install Python deps, rebuilding numpy from source against system OpenBLAS
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/requirements-base.txt && \
+    pip install --no-cache-dir -r /app/services/stt/requirements.txt -c /app/constraints.txt && \
     pip uninstall -y numpy || true && \
     pip install --no-cache-dir --no-binary=numpy "numpy>=1.24,<2.0" && \
-    pip install --no-cache-dir -r /app/services/stt/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \

@@ -1,17 +1,18 @@
-# Use shared audio base image
+# Use shared web base image (includes audio system libs)
 # hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-audio:latest AS base
+FROM ghcr.io/gabrielpreston/python-web:latest AS base
 
 WORKDIR /app
 
-# Copy service-specific requirements FIRST for better caching
+# Copy service-specific requirements and constraints FIRST for better caching
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
-COPY services/requirements-base.txt /app/services/requirements-base.txt
+COPY constraints.txt /app/constraints.txt
 
-# Install Python dependencies with BuildKit cache mount
+# Install Python dependencies with BuildKit cache mount and wheel caching
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/discord/requirements.txt
+    --mount=type=cache,target=/tmp/wheels \
+    pip install --no-cache-dir --find-links=/tmp/wheels -r /app/services/discord/requirements.txt -c /app/constraints.txt
 
 # Set Python environment variables
 ENV PYTHONPATH=/app

@@ -5,7 +5,7 @@ SHELL := /bin/bash
 # =============================================================================
 .PHONY: all help
 .PHONY: run stop logs logs-dump docker-status
-.PHONY: docker-build docker-build-service docker-restart docker-shell docker-config
+.PHONY: docker-build docker-build-service docker-build-base docker-restart docker-shell docker-config
 .PHONY: test test-image test-image-force test-unit test-component test-integration test-observability test-observability-full
 .PHONY: lint lint-image lint-image-force lint-fix
 .PHONY: security security-image security-image-force
@@ -223,6 +223,13 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
+docker-build-base: ## Build base images (python-web, python-ml, python-audio, tools)
+	@printf "$(COLOR_GREEN)→ Building base images$(COLOR_OFF)\n"
+	@bash scripts/build-base-images.sh
+
+docker-build-wheels: ## Build and cache wheels for native dependencies
+	@printf "$(COLOR_GREEN)→ Building wheels for native dependencies$(COLOR_OFF)\n"
+	@bash scripts/build-wheels.sh
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"

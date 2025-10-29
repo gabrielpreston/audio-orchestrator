@@ -5,14 +5,14 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
-# Copy requirements FIRST for better caching
+# Copy requirements and constraints FIRST for better caching
 COPY services/flan/requirements.txt /app/services/flan/requirements.txt
-COPY services/requirements-base.txt /app/services/requirements-base.txt
+COPY constraints.txt /app/constraints.txt
 
 # Install Python dependencies with aggressive cleanup for GitHub Actions
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/flan/requirements.txt && \
+    pip install --no-cache-dir -r /app/services/flan/requirements.txt -c /app/constraints.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \

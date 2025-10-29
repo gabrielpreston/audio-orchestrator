@@ -1,0 +1,51 @@
+# Python Web Base Image
+# Lightweight base for web services that don't need ML libraries
+# Used by: Discord, Security, Testing UI, Monitoring
+ARG BASE_IMAGE=ghcr.io/gabrielpreston/python-base:latest
+FROM ${BASE_IMAGE} AS base
+
+# Install web-specific system dependencies
+RUN --mount=type=cache,target=/var/cache/apt \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        ca-certificates \
+        curl \
+        git \
+        libffi-dev \
+        libsodium-dev \
+        libopus0 \
+        libsndfile1 \
+        espeak-ng \
+        libespeak-ng1 \
+        libasound2 \
+        ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install core web dependencies with constraints
+COPY constraints.txt /app/constraints.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir \
+        "fastapi==0.118.0" \
+        "uvicorn[standard]==0.37.0" \
+        "pydantic==2.12.0" \
+        "structlog==24.1.0" \
+        "httpx==0.26.0" \
+        "opentelemetry-api==1.24.0" \
+        "opentelemetry-sdk==1.24.0" \
+        "opentelemetry-exporter-otlp-proto-http==1.24.0" \
+        "opentelemetry-instrumentation-fastapi==0.45b0" \
+        "opentelemetry-instrumentation-httpx==0.45b0" \
+        "opentelemetry-instrumentation-requests==0.45b0" \
+    && pip cache purge || true
+
+# Set Python environment variables
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Create models directory for consistency
+RUN mkdir -p /app/models
+
+LABEL phase="1" \
+    optimization="web-base" \
+    dependencies="fastapi,uvicorn,pydantic,httpx,structlog,opentelemetry"

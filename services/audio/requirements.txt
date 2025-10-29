@@ -1,38 +1,13 @@
 # Audio Processor Service Dependencies
 
-# Core dependencies
-fastapi>=0.104.0,<1.0
-uvicorn[standard]>=0.24.0,<1.0
-pydantic>=2.0.0,<3.0
+# Include base requirements
+-r ../requirements-base.txt
 
 # Audio processing - compatible versions
-numpy>=1.24.0,<2.0
-scipy>=1.11.0,<2.0
 webrtcvad>=2.0.10,<3.0
 
-# NOTE: PyTorch, torchaudio, speechbrain are now included in the python-ml base image
+# NOTE: PyTorch, torchaudio, speechbrain, numpy, scipy are included in the python-ml base image
 # Only add service-specific dependencies here
 
-# Common dependencies (installed via base requirements)
-
-# HTTP client
-httpx>=0.25.0,<1.0
-
-# Logging and monitoring
-structlog>=23.0.0,<24.0
+# Service-specific monitoring
 prometheus-client>=0.19.0,<1.0
-
-# OpenTelemetry dependencies (temporary fix until base image is updated)
-opentelemetry-api>=1.20,<1.30
-opentelemetry-sdk>=1.20,<1.30
-opentelemetry-instrumentation-fastapi>=0.42b0,<0.50
-opentelemetry-instrumentation-httpx>=0.42b0,<0.50
-opentelemetry-instrumentation-requests>=0.42b0,<0.50
-# Use HTTP exporters instead of gRPC to avoid compatibility issues
-opentelemetry-exporter-otlp-proto-http>=1.20,<1.30
-
-# Testing (development)
-pytest>=7.4.0,<8.0
-pytest-asyncio>=0.21.0,<1.0
-pytest-mock>=3.12.0,<4.0
-httpx>=0.25.0,<1.0

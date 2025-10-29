@@ -53,6 +53,7 @@ jobs:
         run: |
           echo "Pulling existing images to warm cache..."
           docker pull ghcr.io/${{ github.repository_owner }}/python-base:latest || true
+          docker pull ghcr.io/${{ github.repository_owner }}/python-web:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/python-audio:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/python-ml:latest || true
           docker pull ghcr.io/${{ github.repository_owner }}/tools:latest || true
@@ -72,6 +73,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Build and cache wheels for native dependencies"
+        run: |
+          echo "Building wheels for native dependencies..."
+          docker run --rm -v $(pwd):/workspace -w /workspace \
+            python:3.11-slim bash -c "
+              pip install --upgrade pip setuptools wheel &&
+              pip wheel --no-deps --wheel-dir=/workspace/wheels \
+                'numpy>=1.24,<2.0' 'scipy>=1.11,<2.0' 'webrtcvad>=2.0,<3.0' \
+                'PyNaCl>=1.5,<2.0' 'openwakeword>=0.6,<1.0' 'rapidfuzz>=3.5,<4.0' &&
+              echo 'Wheels built successfully'"
 
       - name: "Build and push Python Base Image with retry"
         uses: nick-fields/retry@v2
@@ -94,6 +106,21 @@ jobs:
           echo "Cleaning up between base image builds..."
           docker system prune -f || true
           df -h
+
+      - name: "Build and push Python Web Base Image with retry"
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 15
+          max_attempts: 3
+          command: |
+            docker buildx build \
+              --file services/base/Dockerfile.python-web \
+              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --tag ghcr.io/${{ github.repository_owner }}/python-web:latest \
+              --cache-from type=gha,scope=base-images \
+              --cache-to type=gha,mode=max,scope=base-images \
+              --load . && \
+            docker push ghcr.io/${{ github.repository_owner }}/python-web:latest
 
       - name: "Build and push Python Audio Base Image with retry"
         uses: nick-fields/retry@v2
@@ -191,6 +218,7 @@ jobs:
           echo "| Image | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| python-base | ✅ Built |" >> $GITHUB_STEP_SUMMARY
+          echo "| python-web | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY

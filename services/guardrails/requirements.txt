@@ -5,7 +5,3 @@
 # NOTE: PyTorch and transformers are now included in the python-ml base image
 # Only add service-specific dependencies here
 slowapi>=0.1.9,<1.0
-
-# Additional dependencies for guardrails
-httpx>=0.27.0,<1.0
-pydantic>=2.0,<3.0
