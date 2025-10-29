@@ -2,7 +2,7 @@
 -r ../requirements-base.txt
 
 # Monitoring dashboard specific dependencies
-streamlit>=1.40,<2.0
-plotly>=5.0,<6.0
-pandas>=2.0,<3.0
-prometheus-api-client>=0.5,<1.0
+streamlit==1.40.0
+plotly==5.0.0
+pandas==2.0.0
+prometheus-api-client==0.5.0

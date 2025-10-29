@@ -4,10 +4,10 @@
 -r ../requirements-base.txt
 
 # Audio processing - compatible versions
-webrtcvad>=2.0.10,<3.0
+webrtcvad==2.0.10
 
 # NOTE: PyTorch, torchaudio, speechbrain, numpy, scipy are included in the python-ml base image
 # Only add service-specific dependencies here
 
 # Service-specific monitoring
-prometheus-client>=0.19.0,<1.0
+prometheus-client==0.19.0

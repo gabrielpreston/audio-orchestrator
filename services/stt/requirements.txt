@@ -4,4 +4,4 @@
 # STT-specific dependencies
 # NOTE: PyTorch, speechbrain, librosa, soundfile, scipy, numpy, and faster-whisper are included in the python-ml base image
 # Only add service-specific dependencies here
-python-multipart>=0.0,<1.0
+python-multipart==0.0.6
