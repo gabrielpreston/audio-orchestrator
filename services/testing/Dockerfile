@@ -25,6 +25,9 @@ COPY services/common /app/services/common
 COPY services/testing /app/services/testing
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:8081/health/ready --ci
+
 # Create tmp directory for audio files
 RUN mkdir -p /tmp
 

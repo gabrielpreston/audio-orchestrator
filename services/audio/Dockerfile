@@ -56,6 +56,10 @@ COPY services/audio/config /app/config
 # Copy health check script
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+# Docker healthcheck via HTTP readiness
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:9100/health/ready --ci
+
 # Create models directory and clean up unnecessary files
 RUN mkdir -p /app/models && \
     apt-get clean && \

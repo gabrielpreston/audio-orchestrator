@@ -24,9 +24,9 @@ services:
       - PYTHONUNBUFFERED=1
     # Disable restart policy in CI
     restart: "no"
-    # Use minimal logging
+    # Enable readable logs in CI
     logging:
-      driver: "none"
+      driver: "json-file"
 
   stt:
     build:
@@ -48,7 +48,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
 
   orchestrator:
@@ -71,7 +71,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
 
   # Add missing services for complete CI coverage
@@ -96,7 +96,7 @@ services:
       - FW_MODEL=tiny  # Use tiny model for faster CI
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
   bark:
     build:
@@ -119,7 +119,7 @@ services:
       - BARK_USE_SMALL_MODELS=true  # Use small models for faster CI
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
   audio:
     build:
@@ -141,7 +141,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
   guardrails:
     build:
@@ -163,7 +163,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
   testing:
     build:
@@ -185,7 +185,7 @@ services:
       - PYTHONUNBUFFERED=1
     restart: "no"
     logging:
-      driver: "none"
+      driver: "json-file"
 
   monitoring:
     build:

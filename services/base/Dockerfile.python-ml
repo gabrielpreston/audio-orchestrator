@@ -91,9 +91,7 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Health check to verify all dependencies are available
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import torch, transformers, opentelemetry, grpc; print('All ML dependencies loaded successfully')"
+# (Deprecated HEALTHCHECK removed; service-level HTTP healthchecks will be used)
 
 LABEL phase="1" \
     optimization="ml-base" \

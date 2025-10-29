@@ -48,6 +48,9 @@ COPY services/flan /app/services/flan
 COPY services/common /app/services/common
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:8100/health/ready --ci
+
 
 # Expose port
 EXPOSE 8100

@@ -23,4 +23,7 @@ COPY services/common /app/services/common
 COPY services/discord /app/services/discord
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:8001/health/ready --ci
+
 CMD ["python", "-m", "services.discord.main"]

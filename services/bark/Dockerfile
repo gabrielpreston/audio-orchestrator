@@ -38,4 +38,7 @@ COPY services/common /app/services/common
 COPY services/bark /app/services/bark
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:7100/health/ready --ci
+
 CMD ["uvicorn", "services.bark.app:app", "--host", "0.0.0.0", "--port", "7100"]

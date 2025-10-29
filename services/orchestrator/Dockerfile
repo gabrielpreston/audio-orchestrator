@@ -25,6 +25,10 @@ COPY services/common /app/services/common
 COPY services/orchestrator /app/services/orchestrator
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+# Docker healthcheck via HTTP readiness
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:8200/health/ready --ci
+
 # Set Python environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1

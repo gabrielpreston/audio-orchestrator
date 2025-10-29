@@ -48,4 +48,7 @@ COPY services/common /app/services/common
 COPY services/guardrails /app/services/guardrails
 COPY scripts/health_check.py /app/scripts/health_check.py
 
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
+    CMD python /app/scripts/health_check.py http://localhost:9300/health/ready --ci
+
 CMD ["uvicorn", "services.guardrails.app:app", "--host", "0.0.0.0", "--port", "9300"]
