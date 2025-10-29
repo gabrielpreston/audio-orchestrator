@@ -10,8 +10,7 @@ import uuid
 from typing import Any
 
 from opentelemetry import trace, metrics
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
@@ -20,7 +19,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 
 from .structured_logging import get_logger
 
@@ -93,41 +92,7 @@ class TracingManager:
             tracer_provider.add_span_processor(otlp_processor)
             logger.info("tracing.otlp_exporter_configured", endpoint=otlp_endpoint)
 
-        # Jaeger exporter (fallback)
-        jaeger_endpoint = os.getenv("JAEGER_ENDPOINT")
-        if jaeger_endpoint:
-            try:
-                # Parse host and port safely
-                if ":" in jaeger_endpoint:
-                    host, port_str = jaeger_endpoint.split(":", 1)
-                    try:
-                        port = int(port_str)
-                    except ValueError:
-                        logger.warning(
-                            "tracing.jaeger_invalid_port",
-                            endpoint=jaeger_endpoint,
-                            port=port_str,
-                        )
-                        port = 14268
-                else:
-                    host = jaeger_endpoint
-                    port = 14268
-
-                jaeger_exporter = JaegerExporter(
-                    agent_host_name=host,
-                    agent_port=port,
-                )
-                jaeger_processor = BatchSpanProcessor(jaeger_exporter)
-                tracer_provider.add_span_processor(jaeger_processor)
-                logger.info(
-                    "tracing.jaeger_exporter_configured", endpoint=jaeger_endpoint
-                )
-            except Exception as exc:
-                logger.error(
-                    "tracing.jaeger_setup_failed",
-                    endpoint=jaeger_endpoint,
-                    error=str(exc),
-                )
+        # Jaeger exporter removed due to gRPC compatibility issues
 
     def instrument_fastapi(self, app: Any) -> None:
         """Instrument FastAPI application for tracing."""

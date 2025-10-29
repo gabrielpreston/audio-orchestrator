@@ -61,13 +61,11 @@ class BarkSynthesizer:
     async def initialize(self) -> None:
         """Initialize the Bark synthesizer."""
         try:
-            # Preload Bark models
-            preload_models()
-            self._models_loaded = True
-
-            self._logger.info("bark_synthesizer.models_loaded")
+            # Don't preload models during startup to prevent health check failures
+            # Models will be loaded lazily when first needed
+            self._logger.info("bark_synthesizer.initialized_without_preload")
         except Exception as exc:
-            self._logger.error("bark_synthesizer.model_load_failed", error=str(exc))
+            self._logger.error("bark_synthesizer.initialization_failed", error=str(exc))
             # Continue without Bark - will use Piper fallback
 
     async def cleanup(self) -> None:
@@ -93,8 +91,15 @@ class BarkSynthesizer:
         Returns:
             Tuple of (audio_data, engine_name)
         """
+        # Load models lazily if needed
         if not self._models_loaded:
-            raise RuntimeError("Bark models not loaded")
+            try:
+                preload_models()
+                self._models_loaded = True
+                self._logger.info("bark_synthesizer.models_loaded_lazily")
+            except Exception as exc:
+                self._logger.error("bark_synthesizer.lazy_load_failed", error=str(exc))
+                raise RuntimeError("Bark models not available") from exc
 
         try:
             start_time = time.time()

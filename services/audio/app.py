@@ -33,8 +33,8 @@ from services.common.tracing import setup_service_observability
 # Import local audio types
 from services.common.surfaces.types import AudioSegment, PCMFrame
 
-from .enhancement import AudioEnhancer
-from .processor import AudioProcessor
+from services.audio.enhancement import AudioEnhancer
+from services.audio.processor import AudioProcessor
 
 
 app = FastAPI(

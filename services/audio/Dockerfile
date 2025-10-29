@@ -12,6 +12,7 @@ COPY services/requirements-base.txt /app/services/requirements-base.txt
 # Install Python dependencies with aggressive cleanup for GitHub Actions
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-cache-dir -r /app/services/requirements-base.txt && \
     pip install --no-cache-dir -r /app/services/audio/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \

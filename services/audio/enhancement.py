@@ -49,8 +49,10 @@ class AudioEnhancer:
         self._metricgan_model: Any | None = None
         self._is_enhancement_enabled = False
 
+        # Don't load MetricGAN+ during initialization to prevent health check failures
+        # The model will be loaded lazily when first needed
         if self.enable_metricgan:
-            self._load_metricgan_model()
+            logger.info("audio_enhancer.metricgan_enabled_but_not_loaded")
 
     def _load_metricgan_model(self) -> None:
         """Load MetricGAN+ model."""
@@ -130,6 +132,10 @@ class AudioEnhancer:
         Returns:
             Enhanced audio array
         """
+        # Load model lazily if needed
+        if self.enable_metricgan and self._metricgan_model is None:
+            self._load_metricgan_model()
+
         if not self._is_enhancement_enabled or self._metricgan_model is None:
             logger.debug("audio_enhancer.enhancement_disabled")
             return audio
