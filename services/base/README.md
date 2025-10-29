@@ -13,8 +13,6 @@ python-base (3-4 min)
 │   │   └── llm_flan, guardrails services
 │   ├── python-ml-torch (2-3 min)
 │   │   └── Advanced ML services
-│   ├── python-ml-compiled (3-4 min)
-│   │   └── Pre-compiled wheels
 │   ├── stt, llm_flan, orchestrator_enhanced services
 │   ├── tts_bark, guardrails services
 │   ├── audio_processor, testing_ui services
@@ -59,7 +57,7 @@ The build system implements comprehensive disk space management to prevent "No s
 - Emergency cleanup on cancellation
 
 **Tier 2 Builds** (ML-heavy images):
-- Conservative cleanup with extra steps for python-ml-compiled
+- Conservative cleanup for ML-heavy builds
 - Disk space monitoring with 4GB threshold
 - Parallel build limits (max-parallel: 2) to prevent resource exhaustion
 - Emergency cleanup on cancellation
@@ -75,13 +73,11 @@ The build system implements comprehensive disk space management to prevent "No s
 ```text
 python-base (3-4min, ~2GB)
   → python-ml (4-5min, ~3GB PyTorch CPU)
-    → python-ml-compiled (3-4min, ~4.36GB CUDA libraries + wheels)
 ```
 
 **Peak Disk Usage**:
 - **python-base**: ~2GB
 - **python-ml**: ~3GB (PyTorch CPU)
-- **python-ml-compiled**: ~4.36GB (CUDA libraries) + build artifacts
 - **Total peak usage**: ~9-10GB (exceeds available space without cleanup)
 
 **GitHub Runner Constraints**:
@@ -100,11 +96,8 @@ python-base (3-4min, ~2GB)
     docker system prune -f || true
     docker builder prune -f || true
     # Conservative cleanup for ML builds
-    if [ "${{ matrix.image }}" = "python-ml-compiled" ]; then
-      echo "Extra cleanup for python-ml-compiled"
-      docker image prune -f || true  # Conservative: no -a flag
-      docker volume prune -f || true
-    fi
+    docker image prune -f || true  # Conservative: no -a flag
+    docker volume prune -f || true
     df -h
 ```
 
@@ -166,9 +159,6 @@ python-base (3-4min, ~2GB)
 - Used by: Advanced ML services
 - Build time: 2-3 minutes
 
-### python-ml-compiled
-- Pre-compiled wheels for faster installation
-- Used by: Services requiring compiled dependencies
 - Build time: 3-4 minutes
 
 ### tools
@@ -269,7 +259,7 @@ The workflow includes build performance reporting:
 #### Disk Space Issues
 
 **"No space left on device" Errors**:
-- **Symptoms**: Build failures during ML compilation, particularly python-ml-compiled
+- **Symptoms**: Build failures during ML compilation
 - **Root Causes**:
   1. Missing cleanup in base image builds
   2. Large ML package downloads (4.36GB)

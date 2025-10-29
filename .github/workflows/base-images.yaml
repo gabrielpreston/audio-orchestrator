@@ -155,21 +155,6 @@ jobs:
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-audio:latest
 
-      - name: "Build and push Python ML Compiled Base Image with retry"
-        uses: nick-fields/retry@v2
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          command: |
-            docker buildx build \
-              --file services/base/Dockerfile.python-ml-compiled \
-              --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-ml:latest \
-              --tag ghcr.io/${{ github.repository_owner }}/python-ml-compiled:latest \
-              --cache-from type=gha,scope=base-images \
-              --cache-to type=gha,mode=max,scope=base-images \
-              --load . && \
-            docker push ghcr.io/${{ github.repository_owner }}/python-ml-compiled:latest
-
       - name: "Build and push Python ML Torch Base Image with retry"
         uses: nick-fields/retry@v2
         with:
@@ -209,7 +194,6 @@ jobs:
           echo "| python-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-ml-compiled | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml-torch | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| python-ml-transformers | ✅ Built |" >> $GITHUB_STEP_SUMMARY
           echo "| tools | ✅ Built |" >> $GITHUB_STEP_SUMMARY

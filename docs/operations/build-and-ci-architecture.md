@@ -43,7 +43,7 @@ The build system implements comprehensive disk space management to prevent "No s
 
 **Tier 2 Builds** (ML-heavy images):
 
--  Conservative cleanup with extra steps for python-ml-compiled
+-  Conservative cleanup for ML-heavy builds
 -  Disk space monitoring with 4GB threshold
 -  Parallel build limits (max-parallel: 2) to prevent resource exhaustion
 -  Emergency cleanup on cancellation
@@ -85,11 +85,8 @@ The build system implements comprehensive disk space management to prevent "No s
     docker system prune -f || true
     docker builder prune -f || true
     # Conservative cleanup for ML builds
-    if [ "${{ matrix.image }}" = "python-ml-compiled" ]; then
-      echo "Extra cleanup for python-ml-compiled"
-      docker image prune -f || true  # Conservative: no -a flag
-      docker volume prune -f || true
-    fi
+    docker image prune -f || true  # Conservative: no -a flag
+    docker volume prune -f || true
     df -h
 ```
 
@@ -129,7 +126,7 @@ The build system implements comprehensive disk space management to prevent "No s
 |------------|---------|-----------|
 | Foundation | 20 minutes | Basic builds, minimal dependencies |
 | Tier 1 | 30 minutes | Standard ML dependencies |
-| Tier 2 | 50 minutes | Large ML downloads (4.36GB for python-ml-compiled) |
+| Tier 2 | 50 minutes | Large ML downloads |
 | Tier 3 | 20 minutes | Toolchain builds |
 | Services | 40 minutes | Service-specific builds with caching |
 
@@ -150,14 +147,12 @@ The build system implements comprehensive disk space management to prevent "No s
 ```text
 python-base (3-4min, ~2GB)
   → python-ml (4-5min, ~3GB PyTorch CPU)
-    → python-ml-compiled (3-4min, ~4.36GB CUDA libraries + wheels)
 ```
 
 #### Peak Disk Usage
 
 -  **python-base**: ~2GB
 -  **python-ml**: ~3GB (PyTorch CPU)
--  **python-ml-compiled**: ~4.36GB (CUDA libraries) + build artifacts
 -  **Total peak usage**: ~9-10GB (exceeds available space without cleanup)
 
 #### GitHub Runner Constraints
@@ -171,7 +166,7 @@ python-base (3-4min, ~2GB)
 
 #### "No space left on device" Errors
 
-**Symptoms**: Build failures during ML compilation, particularly python-ml-compiled
+**Symptoms**: Build failures during ML compilation
 **Root Causes**:
 
 1.  Missing cleanup in base image builds
@@ -387,8 +382,6 @@ python-base (3-4 min)
 │   │   └── llm_flan, guardrails services
 │   ├── python-ml-torch (2-3 min)
 │   │   └── Advanced ML services
-│   ├── python-ml-compiled (3-4 min)
-│   │   └── Pre-compiled wheels
 │   ├── stt, llm_flan, orchestrator_enhanced services
 │   ├── tts_bark, guardrails services
 │   ├── audio_processor, testing_ui services
