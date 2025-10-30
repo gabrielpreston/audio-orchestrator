@@ -234,7 +234,7 @@ health_endpoints = HealthEndpoints(
     health_manager=health_manager,
     custom_components={
         "dashboard_available": lambda: bool(DASHBOARD_AVAILABLE),
-        # Pass async function directly so it is awaited by HealthEndpoints
+        # Pass async function directly so HealthEndpoints awaits it
         "prometheus_connected": _check_prometheus_health,
     },
 )
