@@ -6,13 +6,12 @@ WORKDIR /app
 
 # Copy service-specific requirements and constraints FIRST for better caching
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
-COPY constraints.txt /app/constraints.txt
 
 # Install Python dependencies with BuildKit cache mount and wheel caching
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/tmp/wheels \
-    pip install --no-cache-dir --find-links=/tmp/wheels -r /app/services/discord/requirements.txt -c /app/constraints.txt
+    pip install --no-cache-dir --find-links=/tmp/wheels -r /app/services/discord/requirements.txt
 
 # Set Python environment variables
 ENV PYTHONPATH=/app

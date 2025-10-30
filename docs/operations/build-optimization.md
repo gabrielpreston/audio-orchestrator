@@ -76,11 +76,11 @@ RUN --mount=type=cache,target=/tmp/wheels \
 
 ### Global Constraints
 
-All services use a shared `constraints.txt` file for reproducible builds:
+All services use pinned versions in their individual `requirements.txt` files for reproducible builds:
 
 ```bash
-# Install with constraints for deterministic builds
-pip install -r requirements.txt -c constraints.txt
+# Install with pinned versions for deterministic builds
+pip install -r requirements.txt
 ```
 
 **Benefits:**
@@ -115,8 +115,8 @@ Dockerfiles are structured for maximum cache efficiency:
 RUN apt-get update && apt-get install -y ...
 
 # 2. Python packages (changes occasionally)
-COPY requirements.txt constraints.txt /app/
-RUN pip install -r requirements.txt -c constraints.txt
+COPY requirements.txt /app/
+RUN pip install -r requirements.txt
 
 # 3. Application code (changes frequently)
 COPY services/discord /app/services/discord
@@ -210,10 +210,10 @@ grep "FROM" services/discord/Dockerfile
 
 ```bash
 # Check constraints alignment
-pip check -c constraints.txt
+pip check
 
 # Verify service requirements
-pip install -r services/discord/requirements.txt -c constraints.txt --dry-run
+pip install -r services/discord/requirements.txt --dry-run
 ```
 
 **Wheel cache issues:**
@@ -249,7 +249,7 @@ docker run --rm ghcr.io/gabrielpreston/discord:latest pip list
 
 ### Base Image Updates
 
-1.  **Update constraints.txt** when adding packages
+1.  **Update requirements.txt** when adding packages
 2.  **Rebuild base images** after constraint changes
 3.  **Test all services** after base image updates
 4.  **Document changes** in base image coverage docs

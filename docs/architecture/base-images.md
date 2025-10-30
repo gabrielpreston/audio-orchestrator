@@ -235,14 +235,13 @@ FROM python-ml:latest
    ```dockerfile
    FROM ghcr.io/gabrielpreston/python-web:latest  # or python-ml
    COPY services/new-service/requirements.txt /app/
-   COPY constraints.txt /app/
-   RUN pip install -r /app/requirements.txt -c /app/constraints.txt
+   RUN pip install -r /app/requirements.txt
    ```
 
 ### Updating Base Images
 
 1.  **Modify base Dockerfile** in `services/base/`
-2.  **Update constraints.txt** if adding new packages
+2.  **Update requirements.txt** if adding new packages
 3.  **Rebuild base images:** `make docker-build-base`
 4.  **Test services:** `make docker-build-service SERVICE=<name>`
 
@@ -259,7 +258,7 @@ FROM python-ml:latest
 
 -  Ensure wheel caching is enabled
 -  Check if service is using correct base image
--  Verify constraints.txt is being used
+-  Verify requirements.txt has pinned versions
 
 **Image too large:**
 

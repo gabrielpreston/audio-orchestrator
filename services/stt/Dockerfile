@@ -13,12 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy service-specific requirements and constraints
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
-COPY constraints.txt /app/constraints.txt
 
 # Install Python deps, rebuilding numpy from source against system OpenBLAS
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/stt/requirements.txt -c /app/constraints.txt && \
+    pip install --no-cache-dir -r /app/services/stt/requirements.txt && \
     pip uninstall -y numpy || true && \
     pip install --no-cache-dir --no-binary=numpy "numpy>=1.24,<2.0" && \
     pip cache purge && \

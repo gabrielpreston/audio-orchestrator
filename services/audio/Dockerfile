@@ -9,12 +9,11 @@ WORKDIR /app
 
 # Copy requirements and constraints FIRST for better caching
 COPY services/audio/requirements.txt /app/services/audio/requirements.txt
-COPY constraints.txt /app/constraints.txt
 
 # Install Python dependencies (numpy/scipy already optimized in ML base image)
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/audio/requirements.txt -c /app/constraints.txt && \
+    pip install --no-cache-dir -r /app/services/audio/requirements.txt && \
     pip cache purge && \
     find /usr/local/lib/python3.11/site-packages -name "*.pyc" -delete && \
     find /usr/local/lib/python3.11/site-packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \

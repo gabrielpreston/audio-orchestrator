@@ -6,10 +6,9 @@ WORKDIR /app
 
 # Copy service-specific requirements and constraints
 COPY services/monitoring/requirements.txt /app/services/monitoring/requirements.txt
-COPY constraints.txt /app/constraints.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir -r /app/services/monitoring/requirements.txt -c /app/constraints.txt
+    pip install --no-cache-dir -r /app/services/monitoring/requirements.txt
 
 # Runtime stage using shared web base image
 # hadolint ignore=DL3007
