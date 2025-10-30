@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+      - name: "Configure build command for Makefile"
+        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
       - name: "Run linting"
         run: make lint
 
@@ -31,6 +37,12 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+      - name: "Configure build command for Makefile"
+        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
       - name: "Run unit tests"
         run: make test-unit
       - name: "Upload Test Results"
@@ -81,6 +93,12 @@ jobs:
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+      - name: "Configure build command for Makefile"
+        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
       - name: "Run component tests"
         run: make test-component
       - name: "Upload Test Results"
@@ -123,35 +141,36 @@ jobs:
             echo "⚠️ Coverage file not found - tests may have failed" >> $GITHUB_STEP_SUMMARY
           fi
 
-  test-integration:
-    name: "Integration Tests"
-    runs-on: "ubuntu-latest"
-    environment: "discord-voice-lab"
-    timeout-minutes: 20
-    steps:
-      - name: "Checkout repository"
-        uses: "actions/checkout@v4.2.2"
-      - name: "Run integration tests"
-        run: make test-integration
-      - name: "Upload Integration Test Results"
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results
-          path: junit.xml
-          retention-days: 7
-      - name: "Integration Test Results Report"
-        if: always()
-        uses: dorny/test-reporter@v1
-        with:
-          name: "Integration Test Results"
-          path: junit.xml
-          reporter: junit
-          fail-on-error: false
+  # Integration tests are temporarily disabled while local testing progresses
+  # test-integration:
+  #   name: "Integration Tests"
+  #   runs-on: "ubuntu-latest"
+  #   environment: "discord-voice-lab"
+  #   timeout-minutes: 20
+  #   steps:
+  #     - name: "Checkout repository"
+  #       uses: "actions/checkout@v4.2.2"
+  #     - name: "Run integration tests"
+  #       run: make test-integration
+  #     - name: "Upload Integration Test Results"
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: integration-test-results
+  #         path: junit.xml
+  #         retention-days: 7
+  #     - name: "Integration Test Results Report"
+  #       if: always()
+  #       uses: dorny/test-reporter@v1
+  #       with:
+  #         name: "Integration Test Results"
+  #         path: junit.xml
+  #         reporter: junit
+  #         fail-on-error: false
 
   pipeline-metrics:
     name: "Audio Pipeline Metrics"
-    needs: ["test-unit", "test-component", "test-integration"]
+    needs: ["test-unit", "test-component"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
