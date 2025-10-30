@@ -26,7 +26,7 @@ try:
     import streamlit as st
 
     DASHBOARD_AVAILABLE = True
-except ImportError:
+except Exception:
     DASHBOARD_AVAILABLE = False
     pd = None
     px = None
