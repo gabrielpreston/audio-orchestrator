@@ -5,6 +5,7 @@ Provides a Gradio interface for testing the complete audio pipeline
 including preprocessing, transcription, orchestration, and synthesis.
 """
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -31,13 +32,46 @@ except ImportError:
 configure_logging("info", json_logs=True, service_name="testing")
 logger = get_logger(__name__, service_name="testing")
 
-# FastAPI app for health checks
-app = FastAPI(title="Testing UI Service", version="1.0.0")
-
 # Health manager and observability
 health_manager = HealthManager("testing")
 _observability_manager = None
 _http_metrics = {}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> Any:
+    """Service lifespan event handler."""
+    global _observability_manager, _http_metrics
+
+    # Startup
+    try:
+        # Setup observability (tracing + metrics)
+        _observability_manager = setup_service_observability("testing", "1.0.0")
+        _observability_manager.instrument_fastapi(app)
+
+        # Create service-specific metrics
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Set observability manager in health manager
+        health_manager.set_observability_manager(_observability_manager)
+
+        logger.info("Testing UI service starting up")
+        health_manager.mark_startup_complete()
+    except Exception as exc:
+        logger.error("Testing UI service startup failed", error=str(exc))
+        # Continue without crashing - service will report not_ready
+
+    yield
+
+    # Shutdown
+    logger.info("Testing UI service shutting down")
+    await client.aclose()
+    # Health manager will handle shutdown automatically
+
+
+# FastAPI app for health checks
+app = FastAPI(title="Testing UI Service", version="1.0.0", lifespan=lifespan)
+
 
 # HTTP client for service communication
 client = httpx.AsyncClient(timeout=30.0)
@@ -195,7 +229,6 @@ def create_gradio_interface() -> Any:
         fn=test_pipeline,
         inputs=[
             gr.Audio(
-                source="microphone",
                 type="filepath",
                 label="Speak (or upload audio file)",
             ),
@@ -255,37 +288,6 @@ health_endpoints = HealthEndpoints(
 
 # Include the health endpoints router
 app.include_router(health_endpoints.get_router())
-
-
-@app.on_event("startup")  # type: ignore[misc]
-async def startup_event() -> None:
-    """Service startup event handler."""
-    global _observability_manager, _http_metrics
-
-    try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("testing", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
-
-        # Create service-specific metrics
-        _http_metrics = create_http_metrics(_observability_manager)
-
-        # Set observability manager in health manager
-        health_manager.set_observability_manager(_observability_manager)
-
-        logger.info("Testing UI service starting up")
-        health_manager.mark_startup_complete()
-    except Exception as exc:
-        logger.error("Testing UI service startup failed", error=str(exc))
-        # Continue without crashing - service will report not_ready
-
-
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown_event() -> None:
-    """Service shutdown event handler."""
-    logger.info("Testing UI service shutting down")
-    await client.aclose()
-    # Health manager will handle shutdown automatically
 
 
 if __name__ == "__main__":
