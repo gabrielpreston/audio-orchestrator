@@ -146,7 +146,6 @@ jobs:
           echo "    C --> F[📚 Docs CI]" >> $GITHUB_STEP_SUMMARY
           echo "    E --> H[🐍 Core CI]" >> $GITHUB_STEP_SUMMARY
           echo "    F --> I[✅ All Complete]" >> $GITHUB_STEP_SUMMARY
-          echo "    G --> I" >> $GITHUB_STEP_SUMMARY
           echo "    H --> I" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
