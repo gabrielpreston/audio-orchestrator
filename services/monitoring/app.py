@@ -258,12 +258,13 @@ async def startup_event() -> None:
 
         # Set observability manager in health manager
         health_manager.set_observability_manager(_observability_manager)
-
-        logger.info("Monitoring dashboard service starting up")
-        health_manager.mark_startup_complete()
     except Exception as exc:
         logger.error("Monitoring dashboard service startup failed", error=str(exc))
         # Continue without crashing - service will report not_ready
+    finally:
+        # Always mark startup complete so health endpoint becomes available
+        logger.info("Monitoring dashboard service starting up")
+        health_manager.mark_startup_complete()
 
 
 @app.on_event("shutdown")  # type: ignore[misc]
