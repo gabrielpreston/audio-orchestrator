@@ -4,8 +4,12 @@ FROM ghcr.io/gabrielpreston/tools:latest
 
 WORKDIR /workspace
 
-# Install additional linting tools
-RUN pip install bandit detect-secrets radon
+# Install additional linting tools (pin Ruff for stable GitHub formatting)
+RUN pip install \
+    ruff==0.6.7 \
+    bandit \
+    detect-secrets \
+    radon
 
 # Copy linting scripts
 COPY services/linter/run-lint.sh /usr/local/bin/

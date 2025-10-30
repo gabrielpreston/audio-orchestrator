@@ -160,17 +160,7 @@ jobs:
           set -euo pipefail
           mkdir -p ci
           ls -1 ci-report-*.json >/dev/null 2>&1 || { echo "[]" > ci/ci-summary.json; exit 0; }
-          echo "[" > ci/ci-summary.json
-          first=true
-          for f in ci-report-*.json; do
-            if [ "$first" = true ]; then
-              first=false
-            else
-              echo "," >> ci/ci-summary.json
-            fi
-            cat "$f" >> ci/ci-summary.json
-          done
-          echo "]" >> ci/ci-summary.json
+          jq -s '.' ci-report-*.json > ci/ci-summary.json
       - name: "Upload CI summary"
         uses: actions/upload-artifact@v4
         with:
@@ -194,23 +184,22 @@ jobs:
           path: ci
       - name: "Render PR comment body"
         id: render
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let body = '### CI Summary\n\n| Workflow | Status |\n|----------|--------|\n';
-            let data = [];
-            try {
-              data = JSON.parse(fs.readFileSync('ci/ci-summary.json', 'utf8'));
-            } catch (e) {
-              core.setOutput('body', 'CI summary artifact missing');
-              return;
-            }
-            const icon = (s) => s === 'success' ? '✅' : (s === 'failure' ? '❌' : (s === 'skipped' ? '⏭️' : '⚠️'));
-            for (const item of data) {
-              body += `| ${item.workflow || '?'} | ${icon(item.status)} ${item.status} |\n`;
-            }
-            core.setOutput('body', body);
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f ci/ci-summary.json ]; then
+            echo "body=CI summary artifact missing" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          body=$'### CI Summary\n\n| Workflow | Status |\n|----------|--------|\n'
+          rows=$(jq -r '
+            def icon($s): if $s=="success" then "✅"
+              elif $s=="failure" then "❌"
+              elif $s=="skipped" then "⏭️"
+              else "⚠️" end;
+            .[] | "| " + (.workflow // "?") + " | " + icon(.status) + " " + (.status // "?") + " |"
+          ' ci/ci-summary.json)
+          printf 'body=%s\n%s\n' "$body" "$rows" >> "$GITHUB_OUTPUT"
       - name: "Create or update PR comment"
         uses: peter-evans/create-or-update-comment@v4
         with:
