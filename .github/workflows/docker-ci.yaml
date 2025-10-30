@@ -209,55 +209,6 @@ jobs:
           docker system prune -f || true
           docker builder prune -f || true
 
-      - name: "Generate Build Metrics"
-        if: always()
-        run: |
-          # Create temporary file for this service's metrics
-          TEMP_FILE=$(mktemp)
-
-          # Build service metrics in temporary file
-          {
-            echo "### Service: ${{ matrix.service }}"
-            echo "| Metric | Value |"
-            echo "|--------|-------|"
-            echo "| Status | ${{ job.status }} |"
-            echo "| Timeout | 25 minutes |"
-            echo "| Registry | ghcr.io |"
-            echo "| Cache Strategy | GitHub Actions + Registry |"
-            echo ""
-            echo "### Build Configuration"
-            echo "- **Dockerfile**: \`services/${{ matrix.service }}/Dockerfile\`"
-            echo "- **Tag**: \`ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest\`"
-            echo "- **Cache From**: GitHub Actions + Registry"
-            echo "- **Cache To**: GitHub Actions + Registry"
-            echo ""
-            echo "### Performance Notes"
-            if [ "${{ matrix.service }}" = "stt" ] || [ "${{ matrix.service }}" = "flan" ] || [ "${{ matrix.service }}" = "audio" ] || [ "${{ matrix.service }}" = "guardrails" ]; then
-              echo "- **ML-Heavy Service**: Extra cleanup performed"
-              echo "- **Cache Warming**: Enhanced for ML dependencies"
-            else
-              echo "- **Standard Service**: Standard build process"
-            fi
-            echo ""
-          } > "$TEMP_FILE"
-
-          # Prepend this service's metrics to the summary (newest first)
-          if [ -f "$GITHUB_STEP_SUMMARY" ]; then
-            # If summary exists, prepend new content
-            cat "$TEMP_FILE" "$GITHUB_STEP_SUMMARY" > "${GITHUB_STEP_SUMMARY}.tmp"
-            mv "${GITHUB_STEP_SUMMARY}.tmp" "$GITHUB_STEP_SUMMARY"
-          else
-            # If no summary exists yet, start with header
-            {
-              echo "## 🐳 Docker Build Metrics"
-              echo ""
-              cat "$TEMP_FILE"
-            } > "$GITHUB_STEP_SUMMARY"
-          fi
-
-          # Clean up temporary file
-          rm -f "$TEMP_FILE"
-
   docker-smoke:
     name: "Docker Health Checks"
     needs: ["build-services"]
@@ -325,3 +276,41 @@ jobs:
           echo "✅ Smoke test passed for ${{ matrix.service }}"
           docker compose -f docker-compose.ci.yml ps ${{ matrix.service }}
           docker compose -f docker-compose.ci.yml down
+
+  emit-report:
+    name: "Emit CI Report"
+    needs:
+      ["build-python-base", "build-tier-1", "build-services", "docker-smoke"]
+    if: ${{ !cancelled() }}
+    runs-on: "ubuntu-latest"
+    steps:
+      - name: "Generate ci-report.json"
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          status="success"
+          for res in "${{ needs['build-python-base'].result }}" "${{ needs['build-tier-1'].result }}" "${{ needs['build-services'].result }}" "${{ needs['docker-smoke'].result }}"; do
+            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
+              status="$res"
+            fi
+          done
+          ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          mkdir -p ci
+          cat > ci/ci-report.json <<EOF
+          {
+            "workflow": "Docker CI",
+            "status": "${status}",
+            "startedAt": "${started_at}",
+            "endedAt": "${ended_at}",
+            "durations": {},
+            "keyMetrics": {},
+            "notes": []
+          }
+          EOF
+      - name: "Upload CI report"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-report-docker-ci.json
+          path: ci/ci-report.json
+          retention-days: 7

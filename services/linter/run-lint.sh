@@ -8,11 +8,11 @@ fi
 echo "Running Python linting with Ruff..."
 
 echo "Running ruff linting and formatting checks..."
-ruff check services
+ruff check --format=github services
 ruff format --check services
 
 echo "Running type checking with mypy..."
-mypy services
+mypy --error-format=github services
 
 echo "Linting YAML files..."
 # Auto-discover: docker-compose.yml + all workflow files

@@ -83,21 +83,7 @@ jobs:
             coverage.xml
             htmlcov/
           retention-days: 7
-      - name: "Coverage Summary"
-        if: always()
-        run: |
-          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f coverage.xml ]; then
-            coverage_percent=$(grep -oP 'line-rate="\K[0-9.]+' coverage.xml | head -1 | awk '{printf "%.1f", $1*100}')
-            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| Coverage | ${coverage_percent}% |" >> $GITHUB_STEP_SUMMARY
-            echo "| Threshold | 10% |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Coverage file not found - tests may have failed" >> $GITHUB_STEP_SUMMARY
-          fi
+
 
   test-component:
     name: "Component Tests"
@@ -146,21 +132,7 @@ jobs:
             coverage.xml
             htmlcov/
           retention-days: 7
-      - name: "Coverage Summary"
-        if: always()
-        run: |
-          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ -f coverage.xml ]; then
-            coverage_percent=$(grep -oP 'line-rate="\K[0-9.]+' coverage.xml | head -1 | awk '{printf "%.1f", $1*100}')
-            echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-            echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| Coverage | ${coverage_percent}% |" >> $GITHUB_STEP_SUMMARY
-            echo "| Threshold | 10% |" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "⚠️ Coverage file not found - tests may have failed" >> $GITHUB_STEP_SUMMARY
-          fi
+
 
   # Integration tests are temporarily disabled while local testing progresses
   # test-integration:
@@ -189,62 +161,46 @@ jobs:
 #         reporter: java-junit
   #         fail-on-error: false
 
-  pipeline-metrics:
-    name: "Audio Pipeline Metrics"
-    needs: ["test-unit", "test-component"]
+  emit-report:
+    name: "Emit CI Report"
+    needs: ["lint", "test-unit", "test-component"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
-      - name: "Checkout repository"
-        uses: "actions/checkout@v4.2.2"
+      - name: "Generate ci-report.json"
+        shell: bash
+        run: |
+          set -euo pipefail
+          started_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          # Derive status from upstream jobs
+          status="success"
+          for res in "${{ needs.lint.result }}" "${{ needs['test-unit'].result }}" "${{ needs['test-component'].result }}"; do
+            if [ "$res" = "failure" ] || [ "$res" = "cancelled" ]; then
+              status="$res"
+            fi
+          done
 
-      - name: "Generate Pipeline Metrics"
-        uses: actions/github-script@v7
+          coverage=""
+          if [ -f coverage.xml ]; then
+            coverage=$(grep -oP 'line-rate="\K[0-9.]+' coverage.xml | head -1 | awk '{printf "%.1f", $1*100}')
+          fi
+
+          ended_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          mkdir -p ci
+          cat > ci/ci-report.json <<EOF
+          {
+            "workflow": "Core CI",
+            "status": "${status}",
+            "startedAt": "${started_at}",
+            "endedAt": "${ended_at}",
+            "durations": {},
+            "keyMetrics": { "coverage": ${coverage:-0} },
+            "notes": []
+          }
+          EOF
+      - name: "Upload CI report"
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
-
-            // Audio pipeline performance targets from docs/testing/TESTING.md
-            const performanceTargets = {
-              'STT Latency': { target: '<300ms', status: '✅' },
-              'TTS Latency': { target: '<1s', status: '✅' },
-              'Wake Detection': { target: '<200ms', status: '✅' },
-              'End-to-End': { target: '<2s', status: '✅' },
-              'Memory Usage': { target: '<100MB', status: '✅' },
-              'CPU Usage': { target: '<50%', status: '✅' }
-            };
-
-            // Test pyramid distribution
-            const testDistribution = {
-              'Unit Tests': '70%',
-              'Component Tests': '20%',
-              'Integration Tests': '8%',
-              'E2E Tests': '2%'
-            };
-
-            let report = `## 🎵 Audio Pipeline Metrics\n\n`;
-            report += `### Performance Targets\n`;
-            report += `| Metric | Target | Status |\n`;
-            report += `|--------|--------|--------|\n`;
-
-            for (const [metric, data] of Object.entries(performanceTargets)) {
-              report += `| ${metric} | ${data.target} | ${data.status} |\n`;
-            }
-
-            report += `\n### Test Distribution\n`;
-            report += `| Category | Coverage |\n`;
-            report += `|----------|----------|\n`;
-
-            for (const [category, coverage] of Object.entries(testDistribution)) {
-              report += `| ${category} | ${coverage} |\n`;
-            }
-
-            report += `\n### Service Architecture\n`;
-            report += `- Discord Service (Voice Capture & Playback)\n`;
-            report += `- STT Service (faster-whisper)\n`;
-            report += `- Orchestrator Enhanced (LangChain)\n`;
-            report += `- LLM FLAN Service (OpenAI-compatible)\n`;
-            report += `- TTS Bark Service (Audio Synthesis)\n`;
-            report += `- Audio Processor (Unified Processing)\n`;
-
-            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);
+          name: ci-report-core-ci.json
+          path: ci/ci-report.json
+          retention-days: 7

@@ -212,21 +212,7 @@ jobs:
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-transformers:latest
 
-      - name: "Build Summary"
-        run: |
-          echo "## Base Images Built Successfully" >> $GITHUB_STEP_SUMMARY
-          echo "| Image | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| python-base | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-web | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-ml | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-ml-audio | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-ml-torch | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| python-ml-transformers | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "| tools | ✅ Built |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Base images are now available for use in CI builds." >> $GITHUB_STEP_SUMMARY
+
       - name: "Clean up after all builds"
         if: ${{ !cancelled() }}
         timeout-minutes: 3
@@ -297,18 +283,4 @@ jobs:
           echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
           echo "::endgroup::"
 
-      - name: "Build Performance Report"
-        if: ${{ !cancelled() }}
-        run: |
-          echo "## Build Performance Metrics" >> $GITHUB_STEP_SUMMARY
-          echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Total Workflow Time | ${{ github.event.workflow_run.duration }}s |" >> $GITHUB_STEP_SUMMARY
-          echo "| Runner | ubuntu-latest |" >> $GITHUB_STEP_SUMMARY
-          echo "| Cache Strategy | GitHub Actions Cache (GHA) |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Build Order" >> $GITHUB_STEP_SUMMARY
-          echo "1. python-base (foundation)" >> $GITHUB_STEP_SUMMARY
-          echo "2. python-audio, python-ml (parallel capable)" >> $GITHUB_STEP_SUMMARY
-          echo "3. Specialized ML images (parallel capable)" >> $GITHUB_STEP_SUMMARY
-          echo "4. tools (parallel capable)" >> $GITHUB_STEP_SUMMARY
+

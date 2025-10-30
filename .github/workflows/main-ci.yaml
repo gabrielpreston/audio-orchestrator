@@ -115,63 +115,6 @@ jobs:
           echo "run_core_on_workflow_change=$run_core" >> "$GITHUB_OUTPUT"
           echo "run_docker_on_workflow_change=$run_docker" >> "$GITHUB_OUTPUT"
           echo "run_docs_on_workflow_change=$run_docs" >> "$GITHUB_OUTPUT"
-      - name: "Generate enhanced change detection report"
-        run: |
-          echo "## 🔍 Change Detection Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Manual trigger detection
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "### 🚀 Manual Workflow Trigger" >> $GITHUB_STEP_SUMMARY
-            echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Triggered at:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
-            echo "**Reason:** Full CI validation requested" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "### 🔄 Automatic Trigger" >> $GITHUB_STEP_SUMMARY
-            echo "**Triggered by:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
-            echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          # Visual job flow map
-          echo "### 🗺️ Expected Job Flow" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`mermaid" >> $GITHUB_STEP_SUMMARY
-          echo "graph TD" >> $GITHUB_STEP_SUMMARY
-          echo "    A[🔍 Change Detection] --> B{Changes Detected?}" >> $GITHUB_STEP_SUMMARY
-          echo "    B -->|Yes| C[📊 Generate Report]" >> $GITHUB_STEP_SUMMARY
-          echo "    B -->|No| D[⏭️ Skip All Workflows]" >> $GITHUB_STEP_SUMMARY
-          echo "    C --> E[🐳 Docker CI]" >> $GITHUB_STEP_SUMMARY
-          echo "    C --> F[📚 Docs CI]" >> $GITHUB_STEP_SUMMARY
-          echo "    E --> H[🐍 Core CI]" >> $GITHUB_STEP_SUMMARY
-          echo "    F --> I[✅ All Complete]" >> $GITHUB_STEP_SUMMARY
-          echo "    H --> I" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          # Change detection results
-          echo "### 📊 Detected Changes" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | Status | Workflow |" >> $GITHUB_STEP_SUMMARY
-          echo "|------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
-
-          if [ "${{ steps.detect.outputs.python_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "| 🐍 Python Code | ✅ Active | Core CI |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 🐍 Python Code | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "${{ steps.detect.outputs.base_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.detect.outputs.services }}" != "[]" ]; then
-            echo "| 🐳 Docker/Base | ✅ Active | Docker CI |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 🐳 Docker/Base | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          if [ "${{ steps.detect.outputs.docs_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "| 📚 Documentation | ✅ Active | Docs CI |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 📚 Documentation | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          fi
 
   docker-ci:
     needs: ["changes"]
@@ -200,38 +143,81 @@ jobs:
     if: needs.changes.outputs.docs_changed == 'true' || needs.changes.outputs.run_docs_on_workflow_change == 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docs-ci.yaml
 
-  workflow-status:
+  aggregate-ci:
     needs: ["core-ci", "docker-ci", "docs-ci"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
+    timeout-minutes: 5
     steps:
-      - name: "Report workflow status"
-        uses: actions/github-script@v7
+      - name: "Download CI reports"
+        uses: actions/download-artifact@v4
         with:
-          script: |
-            const fs = require('fs');
+          pattern: ci-report-*.json
+          merge-multiple: true
+      - name: "Merge CI reports to ci-summary.json"
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ci
+          ls -1 ci-report-*.json >/dev/null 2>&1 || { echo "[]" > ci/ci-summary.json; exit 0; }
+          echo "[" > ci/ci-summary.json
+          first=true
+          for f in ci-report-*.json; do
+            if [ "$first" = true ]; then
+              first=false
+            else
+              echo "," >> ci/ci-summary.json
+            fi
+            cat "$f" >> ci/ci-summary.json
+          done
+          echo "]" >> ci/ci-summary.json
+      - name: "Upload CI summary"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-summary.json
+          path: ci/ci-summary.json
+          retention-days: 7
 
-            const results = {
-              'Core CI': '${{ needs.core-ci.result }}',
-              'Docker CI': '${{ needs.docker-ci.result }}',
-              'Docs CI': '${{ needs.docs-ci.result }}',
-            };
-
-            let report = `## 📊 Workflow Status Summary\n\n`;
-            report += `| Workflow | Status | Duration |\n`;
-            report += `|----------|--------|----------|\n`;
-
-            for (const [workflow, result] of Object.entries(results)) {
-              const icon = result === 'success' ? '✅' :
-                          result === 'failure' ? '❌' :
-                          result === 'skipped' ? '⏭️' : '⚠️';
-              report += `| ${workflow} | ${icon} ${result} | - |\n`;
-            }
-
-            report += `\n### Build Information\n`;
-            report += `- **Trigger**: ${{ github.event_name }}\n`;
-            report += `- **Branch**: ${{ github.ref_name }}\n`;
-            report += `- **Commit**: ${{ github.sha }}\n`;
-            report += `- **Actor**: ${{ github.actor }}\n`;
-
-            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, report);
+  comment-ci:
+    needs: ["aggregate-ci"]
+    if: github.event_name == 'pull_request' && !cancelled()
+    runs-on: "ubuntu-latest"
+    timeout-minutes: 3
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: "Download CI summary"
+        uses: actions/download-artifact@v4
+        with:
+          name: ci-summary.json
+          path: ci
+      - name: "Render PR comment body"
+        id: render
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f ci/ci-summary.json ]; then
+            echo "body=CI summary artifact missing" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          body=$'### CI Summary\n\n| Workflow | Status |\n|----------|--------|'
+          while IFS= read -r line; do :; done < /dev/null
+          rows=$(python3 - <<'PY'
+import json
+with open('ci/ci-summary.json') as f:
+    data = json.load(f)
+def icon(status):
+    return '✅' if status=='success' else ('❌' if status=='failure' else ('⏭️' if status=='skipped' else '⚠️'))
+for item in data:
+    print(f"| {item.get('workflow','?')} | {icon(item.get('status'))} {item.get('status')} |")
+PY
+)
+          echo "body=${body}
+${rows}" >> $GITHUB_OUTPUT
+      - name: "Create or update PR comment"
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          body: ${{ steps.render.outputs.body }}
+          edit-mode: replace
