@@ -28,45 +28,93 @@ jobs:
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     outputs:
-      python: "${{ steps.filter.outputs.python }}"
-      docker: "${{ steps.filter.outputs.docker }}"
-      docs: "${{ steps.filter.outputs.docs }}"
-      security-deps: "${{ steps.filter.outputs.security-deps }}"
-      base: "${{ steps.filter.outputs.base }}"
+      services: "${{ steps.detect.outputs.services }}"
+      base_changed: "${{ steps.detect.outputs.base_changed }}"
+      python_changed: "${{ steps.detect.outputs.python_changed }}"
+      docs_changed: "${{ steps.detect.outputs.docs_changed }}"
+      run_core_on_workflow_change: "${{ steps.detect.outputs.run_core_on_workflow_change }}"
+      run_docker_on_workflow_change: "${{ steps.detect.outputs.run_docker_on_workflow_change }}"
+      run_docs_on_workflow_change: "${{ steps.detect.outputs.run_docs_on_workflow_change }}"
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
         with:
-          fetch-depth: 2
-      - name: "Filter paths"
-        id: "filter"
-        uses: "dorny/paths-filter@v3"
-        with:
-          filters: |
-            python:
-              - 'services/**/*.py'
-              - 'pyproject.toml'
-              - 'Makefile'
-              - '.coveragerc'
-            docker:
-              - 'docker-compose.yml'
-              - 'docker-compose.ci.yml'
-              - 'services/**/Dockerfile'
-              - '.dockerignore'
-              - 'scripts/prepare_env_files.py'
-              - 'scripts/ci_env_config.py'
-              - 'scripts/ci_diagnostics.py'
-              - 'services/**/requirements.txt'
-            docs:
-              - 'README.md'
-              - 'docs/**'
-              - 'AGENTS.md'
-            security-deps:
-              - 'requirements-*.txt'
-              - 'services/**/requirements.txt'
-            base:
-              - 'services/base/**'
-              - 'requirements-base.txt'
+          fetch-depth: 0
+      - name: "Detect changes"
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base_ref="${{ github.base_ref }}"
+            git fetch origin "$base_ref":"refs/remotes/origin/$base_ref" --depth=1
+            DIFF_RANGE="origin/$base_ref...HEAD"
+          else
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              DIFF_RANGE="HEAD^...HEAD"
+            else
+              first_commit=$(git rev-list --max-parents=0 HEAD | tail -n1)
+              DIFF_RANGE="$first_commit...HEAD"
+            fi
+          fi
+
+          files=$(git diff --name-only $DIFF_RANGE || true)
+
+          python_changed=false
+          docs_changed=false
+          base_changed=false
+
+          run_core=false
+          run_docker=false
+          run_docs=false
+
+          services_set=()
+
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+
+            case "$f" in
+              services/*/*.py|*.py) python_changed=true ;;
+            esac
+
+            case "$f" in
+              docs/*|README.md|AGENTS.md) docs_changed=true ;;
+            esac
+
+            case "$f" in
+              services/base/*|requirements-base.txt) base_changed=true ;;
+            esac
+
+            if [[ "$f" =~ ^services/([^/]+)/ ]]; then
+              svc="${BASH_REMATCH[1]}"
+              case "$svc" in
+                guardrails|orchestrator|flan|audio|discord|stt|bark|testing|monitoring)
+                  services_set+=("$svc") ;;
+              esac
+            fi
+
+            case "$f" in
+              .github/workflows/core-ci.yaml) run_core=true ;;
+              .github/workflows/docker-ci.yaml) run_docker=true ;;
+              .github/workflows/docs-ci.yaml) run_docs=true ;;
+            esac
+          done <<< "$files"
+
+          if [ ${#services_set[@]} -gt 0 ]; then
+            mapfile -t uniq < <(printf '%s\n' "${services_set[@]}" | sort -u)
+            services_json=$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1].split()))' "${uniq[*]}")
+          else
+            services_json='[]'
+          fi
+
+          echo "services=$services_json" >> "$GITHUB_OUTPUT"
+          echo "base_changed=$base_changed" >> "$GITHUB_OUTPUT"
+          echo "python_changed=$python_changed" >> "$GITHUB_OUTPUT"
+          echo "docs_changed=$docs_changed" >> "$GITHUB_OUTPUT"
+          echo "run_core_on_workflow_change=$run_core" >> "$GITHUB_OUTPUT"
+          echo "run_docker_on_workflow_change=$run_docker" >> "$GITHUB_OUTPUT"
+          echo "run_docs_on_workflow_change=$run_docs" >> "$GITHUB_OUTPUT"
       - name: "Generate enhanced change detection report"
         run: |
           echo "## 🔍 Change Detection Report" >> $GITHUB_STEP_SUMMARY
@@ -96,10 +144,8 @@ jobs:
           echo "    B -->|No| D[⏭️ Skip All Workflows]" >> $GITHUB_STEP_SUMMARY
           echo "    C --> E[🐳 Docker CI]" >> $GITHUB_STEP_SUMMARY
           echo "    C --> F[📚 Docs CI]" >> $GITHUB_STEP_SUMMARY
-          echo "    C --> G[🔒 Security CI]" >> $GITHUB_STEP_SUMMARY
           echo "    E --> H[🐍 Core CI]" >> $GITHUB_STEP_SUMMARY
           echo "    F --> I[✅ All Complete]" >> $GITHUB_STEP_SUMMARY
-          echo "    G --> I" >> $GITHUB_STEP_SUMMARY
           echo "    H --> I" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -109,53 +155,49 @@ jobs:
           echo "| Component | Status | Workflow |" >> $GITHUB_STEP_SUMMARY
           echo "|------------|--------|----------|" >> $GITHUB_STEP_SUMMARY
 
-          if [ "${{ steps.filter.outputs.python }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ steps.detect.outputs.python_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "| 🐍 Python Code | ✅ Active | Core CI |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| 🐍 Python Code | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ steps.filter.outputs.docker }}" = "true" ] || [ "${{ steps.filter.outputs.base }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ steps.detect.outputs.base_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ steps.detect.outputs.services }}" != "[]" ]; then
             echo "| 🐳 Docker/Base | ✅ Active | Docker CI |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| 🐳 Docker/Base | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ steps.filter.outputs.docs }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ steps.detect.outputs.docs_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "| 📚 Documentation | ✅ Active | Docs CI |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| 📚 Documentation | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ steps.filter.outputs.security-deps }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "| 🔒 Security Deps | ✅ Active | Security CI |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 🔒 Security Deps | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          fi
+  docker-ci:
+    needs: ["changes"]
+    if: |
+      needs.changes.outputs.services != '[]' ||
+      needs.changes.outputs.base_changed == 'true' ||
+      needs.changes.outputs.run_docker_on_workflow_change == 'true' ||
+      github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/docker-ci.yaml
+    with:
+      services: ${{ (needs.changes.outputs.base_changed == 'true' || needs.changes.outputs.run_docker_on_workflow_change == 'true' || github.event_name == 'workflow_dispatch') && '["guardrails","orchestrator","flan","audio","discord","stt","bark","testing","monitoring"]' || needs.changes.outputs.services }}
+      rebuild-base: ${{ needs.changes.outputs.base_changed == 'true' }}
 
   core-ci:
     needs: ["changes", "docker-ci"]
     if: |
-      (needs.changes.outputs.python == 'true' || github.event_name == 'workflow_dispatch') &&
-      (needs.docker-ci.result == 'success' || needs.docker-ci.result == 'skipped')
+      needs.changes.outputs.python_changed == 'true' ||
+      needs.changes.outputs.run_core_on_workflow_change == 'true' ||
+      github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/core-ci.yaml
     with:
-      python-changes: ${{ needs.changes.outputs.python == 'true' }}
-
-  docker-ci:
-    needs: ["changes"]
-    if: |
-      needs.changes.outputs.docker == 'true' ||
-      needs.changes.outputs.base == 'true' ||
-      github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/docker-ci.yaml
-    with:
-      docker-changes: ${{ needs.changes.outputs.docker == 'true' }}
-      base-changes: ${{ needs.changes.outputs.base == 'true' }}
+      python-changes: ${{ needs.changes.outputs.python_changed == 'true' }}
 
   docs-ci:
     needs: ["changes"]
-    if: needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
+    if: needs.changes.outputs.docs_changed == 'true' || needs.changes.outputs.run_docs_on_workflow_change == 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docs-ci.yaml
 
   workflow-status:
@@ -172,7 +214,7 @@ jobs:
             const results = {
               'Core CI': '${{ needs.core-ci.result }}',
               'Docker CI': '${{ needs.docker-ci.result }}',
-              'Docs CI': '${{ needs.docs-ci.result }}'
+              'Docs CI': '${{ needs.docs-ci.result }}',
             };
 
             let report = `## 📊 Workflow Status Summary\n\n`;
