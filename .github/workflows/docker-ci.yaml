@@ -50,8 +50,10 @@ jobs:
           docker buildx build \
             --file services/base/Dockerfile.python-base \
             --tag ghcr.io/${{ github.repository_owner }}/python-base:latest \
+            --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-base:buildcache \
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
+            --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-base:buildcache,mode=max \
             --push .
       - name: "Clean up after build"
         if: ${{ !cancelled() }}
@@ -107,8 +109,10 @@ jobs:
           docker buildx build \
             --file services/base/Dockerfile.${{ matrix.image }} \
             --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest \
+            --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:buildcache \
             --cache-from type=gha,scope=base-images \
             --cache-to type=gha,mode=max,scope=base-images \
+            --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:buildcache,mode=max \
             --push .
       - name: "Clean up after build"
         if: ${{ !cancelled() }}
@@ -180,10 +184,11 @@ jobs:
           docker buildx build \
             --file services/${{ matrix.service }}/Dockerfile \
             --tag ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
+            --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:buildcache \
             --cache-from type=gha,scope=services \
             --cache-from ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
             --cache-to type=gha,mode=max,scope=services \
-            --cache-to ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest \
+            --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:buildcache,mode=max \
             --push .
       - name: "Clean up after build"
         if: ${{ !cancelled() }}

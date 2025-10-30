@@ -94,8 +94,10 @@ jobs:
             docker buildx build \
               --file services/base/Dockerfile.python-base \
               --tag ghcr.io/${{ github.repository_owner }}/python-base:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-base:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-base:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-base:latest
 
@@ -117,8 +119,10 @@ jobs:
               --file services/base/Dockerfile.python-web \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-web:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-web:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-web:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-web:latest
 
@@ -132,8 +136,10 @@ jobs:
               --file services/base/Dockerfile.python-audio \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-audio:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-audio:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-audio:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-audio:latest
 
@@ -147,8 +153,10 @@ jobs:
               --file services/base/Dockerfile.python-ml \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-ml:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml:latest
 
@@ -162,8 +170,10 @@ jobs:
               --file services/base/Dockerfile.tools \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-base:latest \
               --tag ghcr.io/${{ github.repository_owner }}/tools:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/tools:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/tools:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/tools:latest
 
@@ -177,8 +187,10 @@ jobs:
               --file services/base/Dockerfile.python-ml-audio \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-ml:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-ml-audio:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-audio:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-audio:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-audio:latest
 
@@ -192,8 +204,10 @@ jobs:
               --file services/base/Dockerfile.python-ml-torch \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-ml:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-ml-torch:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-torch:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-torch:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-torch:latest
 
@@ -207,8 +221,10 @@ jobs:
               --file services/base/Dockerfile.python-ml-transformers \
               --build-arg BASE_IMAGE=ghcr.io/${{ github.repository_owner }}/python-ml:latest \
               --tag ghcr.io/${{ github.repository_owner }}/python-ml-transformers:latest \
+              --cache-from type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-transformers:buildcache \
               --cache-from type=gha,scope=base-images \
               --cache-to type=gha,mode=max,scope=base-images \
+              --cache-to type=registry,ref=ghcr.io/${{ github.repository_owner }}/python-ml-transformers:buildcache,mode=max \
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-transformers:latest
 

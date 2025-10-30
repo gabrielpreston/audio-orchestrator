@@ -64,43 +64,79 @@ COMPOSE_DOCKER_CLI_BUILD ?= 1
 # Docker build command (override in CI to use buildx)
 DOCKER_BUILD_CMD ?= docker build
 
+# Buildx detection and toggles for local builds
+HAS_BUILDX := $(shell docker buildx version >/dev/null 2>&1 && echo 1 || echo 0)
+AO_USE_BUILDX ?= 1
+AO_PLATFORM ?= linux/amd64
+USING_BUILDX := $(findstring buildx,$(DOCKER_BUILD_CMD))
+
+ifeq ($(AO_USE_BUILDX),1)
+ifneq ($(HAS_BUILDX),0)
+DOCKER_BUILD_CMD := docker buildx build
+USING_BUILDX := yes
+endif
+endif
+
 # Docker build optimization helpers
 define image_exists
 @docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false"
 endef
 
 define build_if_missing
-@if [ "$$(docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false")" = "false" ]; then \
+@if [ "$(shell docker image inspect $(1) >/dev/null 2>&1 && echo true || echo false)" = "false" ]; then \
     printf "$(COLOR_YELLOW)→ Building $(1) (not found)$(COLOR_OFF)\n"; \
-    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-        --tag $(1) \
-        --cache-from type=gha,scope=services \
-        --cache-to type=gha,mode=max,scope=services \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        -f $(2) .; \
+    if [ "$(USING_BUILDX)" = "yes" ]; then \
+        DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+            --platform $(AO_PLATFORM) \
+            --tag $(1) \
+            --cache-from type=registry,ref=$(1):buildcache \
+            --cache-to type=registry,ref=$(1):buildcache,mode=max \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            -f $(2) .; \
+    else \
+        DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+            --tag $(1) \
+            --cache-from $(1):latest \
+            -f $(2) .; \
+    fi; \
 else \
     printf "$(COLOR_GREEN)→ Using existing $(1)$(COLOR_OFF)\n"; \
 fi
 endef
 
 define build_with_cache
-@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-    --tag $(1) \
-    --cache-from type=gha,scope=services \
-    --cache-to type=gha,mode=max,scope=services \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    -f $(2) .
+@if [ "$(USING_BUILDX)" = "yes" ]; then \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+        --platform $(AO_PLATFORM) \
+        --tag $(1) \
+        --cache-from type=registry,ref=$(1):buildcache \
+        --cache-to type=registry,ref=$(1):buildcache,mode=max \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        -f $(2) .; \
+else \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+        --tag $(1) \
+        --cache-from $(1):latest \
+        -f $(2) .; \
+fi
 endef
 
 define build_service_with_enhanced_cache
 @printf "$(COLOR_CYAN)→ Building $(1) with enhanced caching$(COLOR_OFF)\n"; \
-DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-    --tag $(1) \
-    --cache-from type=gha,scope=services \
-    --cache-from type=gha,scope=base-images \
-    --cache-to type=gha,mode=max,scope=services \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    -f $(2) .
+if [ "$(USING_BUILDX)" = "yes" ]; then \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+        --platform $(AO_PLATFORM) \
+        --tag $(1) \
+        --cache-from type=registry,ref=$(1):buildcache \
+        --cache-to type=registry,ref=$(1):buildcache,mode=max \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        -f $(2) .; \
+else \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+        --tag $(1) \
+        --cache-from $(1):latest \
+        -f $(2) .; \
+fi
 endef
 
 # Source paths and file discovery
