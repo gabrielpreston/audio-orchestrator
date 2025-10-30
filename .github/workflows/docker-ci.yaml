@@ -270,7 +270,7 @@ jobs:
           rm -f "$TEMP_FILE"
 
   docker-smoke:
-    name: "Docker Smoke Tests"
+    name: "Docker Health Checks"
     needs: ["build-services"]
     if: ${{ !cancelled() && (needs.build-services.result == 'success' || needs.build-services.result == 'skipped') }}
     runs-on: "ubuntu-latest"
