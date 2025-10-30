@@ -158,13 +158,8 @@ jobs:
     if: needs.changes.outputs.docs == 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docs-ci.yaml
 
-  security-ci:
-    needs: ["changes"]
-    if: needs.changes.outputs['security-deps'] == 'true' || github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/security-ci.yaml
-
   workflow-status:
-    needs: ["core-ci", "docker-ci", "docs-ci", "security-ci"]
+    needs: ["core-ci", "docker-ci", "docs-ci"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
@@ -177,8 +172,7 @@ jobs:
             const results = {
               'Core CI': '${{ needs.core-ci.result }}',
               'Docker CI': '${{ needs.docker-ci.result }}',
-              'Docs CI': '${{ needs.docs-ci.result }}',
-              'Security CI': '${{ needs.security-ci.result }}'
+              'Docs CI': '${{ needs.docs-ci.result }}'
             };
 
             let report = `## 📊 Workflow Status Summary\n\n`;

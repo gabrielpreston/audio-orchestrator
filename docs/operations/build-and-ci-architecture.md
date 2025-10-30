@@ -368,7 +368,6 @@ Main CI uses path-based change detection to decide which reusable workflows to r
    -  Core CI runs on python changes; optionally decouple from Docker CI failures.
    -  Docker CI runs on docker or base changes.
    -  Docs CI runs on docs changes.
-   -  Security CI runs on dependency manifest changes (to be wired in Main CI).
 
 #### Docker CI Tier Gating
 
@@ -378,7 +377,7 @@ Main CI uses path-based change detection to decide which reusable workflows to r
 
 #### Workflow Summary Generation
 
--  Main CI includes a summary job that reports the status of Core CI, Docker CI, Docs CI, and will include Security CI after wiring.
+-  Main CI includes a summary job that reports the status of Core CI, Docker CI, and Docs CI.
 
 ### Core CI (Python Focus)
 
