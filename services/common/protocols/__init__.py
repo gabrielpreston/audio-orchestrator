@@ -8,9 +8,9 @@ from .core import LifecycleProtocol, HealthProtocol, ConfigurableProtocol
 from .service import ServiceDiscoveryProtocol, ServiceCommunicationProtocol
 
 __all__ = [
-    "LifecycleProtocol",
-    "HealthProtocol",
     "ConfigurableProtocol",
-    "ServiceDiscoveryProtocol",
+    "HealthProtocol",
+    "LifecycleProtocol",
     "ServiceCommunicationProtocol",
+    "ServiceDiscoveryProtocol",
 ]

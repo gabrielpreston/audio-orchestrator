@@ -122,6 +122,11 @@ ignore = [
     # Minor cleanups
     "PIE790",    # unnecessary pass
     "RUF010",    # explicit conversion flag
+    # Import placement inside functions/methods is allowed in this codebase
+    "PLC0415",
+    # Allow flexible __all__ ordering and some readability-focused patterns
+    "RUF022",
+    "SIM103",
     # Complexity/structure where current implementations intentionally branch/return early
     "PLR0911",
 ]
@@ -151,6 +156,11 @@ ignore = [
     "PTH123",  # open() usage in tests
     "DTZ003",  # utcnow in tests
     "DTZ005",  # datetime.now() without tz in tests
+    # Relax strict pytest and ruff rules commonly triggered in tests
+    "PT006",    # parametrize first arg must be tuple
+    "PT028",    # default arg in test function parameters
+    "RUF022",   # __all__ sorted enforcement not required in tests
+    "RUF059",   # allow unused unpacked variables in tests
 ]
 "services/common/test_config.py" = [
     "PT009",  # allow unittest-style asserts in this legacy test module

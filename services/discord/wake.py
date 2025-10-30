@@ -6,7 +6,7 @@ import audioop
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 from rapidfuzz import fuzz, process, utils
@@ -177,10 +177,10 @@ class WakeDetector:
     def _detect_transcript(self, transcript: str | None) -> WakeDetectionResult | None:
         if not transcript or not self._normalized_phrases:
             return None
-        normalized_transcript = utils.default_process(transcript)
+        normalized_transcript = cast("str", utils.default_process(transcript) or "")
         if not normalized_transcript:
             return None
-        match = process.extractOne(
+        match: Any = process.extractOne(
             normalized_transcript,
             self._normalized_phrases,
             scorer=fuzz.partial_ratio,
@@ -188,7 +188,8 @@ class WakeDetector:
         )
         if not match:
             return None
-        _, score, index = match
+        phrase_match = cast("tuple[Any, float, int]", match)
+        _, score, index = phrase_match
         if index < 0 or index >= len(
             self._phrases
         ):  # pragma: no cover - defensive guard
@@ -228,7 +229,7 @@ class WakeDetector:
     def _normalize_phrase(value: str) -> str:
         """Normalize phrases the same way RapidFuzz normalizes inputs."""
 
-        return utils.default_process(value) or ""
+        return cast("str", utils.default_process(value) or "")
 
 
 __all__ = ["WakeDetectionResult", "WakeDetector"]

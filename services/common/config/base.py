@@ -108,13 +108,13 @@ class BaseConfig(ABC):
 
     def _convert_env_value(self, value: str, field_type: type[Any]) -> Any:
         """Convert environment variable string to appropriate type."""
-        if field_type == bool:
+        if field_type is bool:
             return value.lower() in ("true", "1", "yes", "on")
-        elif field_type == int:
+        elif field_type is int:
             return int(value)
-        elif field_type == float:
+        elif field_type is float:
             return float(value)
-        elif field_type == list:
+        elif field_type is list:
             return [item.strip() for item in value.split(",")]
         else:
             return value

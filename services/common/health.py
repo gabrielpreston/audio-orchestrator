@@ -193,4 +193,4 @@ class HealthManager:
                 )
 
 
-__all__ = ["HealthStatus", "HealthCheck", "HealthManager"]
+__all__ = ["HealthCheck", "HealthManager", "HealthStatus"]

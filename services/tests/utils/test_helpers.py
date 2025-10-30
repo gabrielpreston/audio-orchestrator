@@ -249,9 +249,9 @@ def assert_audio_data_valid(
         expected_dtype: Expected data type
     """
     assert isinstance(audio_data, np.ndarray), "Audio data must be a numpy array"
-    assert (
-        audio_data.dtype == expected_dtype
-    ), f"Expected dtype {expected_dtype}, got {audio_data.dtype}"
+    assert audio_data.dtype == expected_dtype, (
+        f"Expected dtype {expected_dtype}, got {audio_data.dtype}"
+    )
     assert len(audio_data.shape) == 1, "Audio data must be 1D"
     assert len(audio_data) > 0, "Audio data cannot be empty"
 
@@ -280,16 +280,16 @@ def assert_http_response_valid(
         expected_content_type: Expected content type
     """
     assert hasattr(response, "status_code"), "Response must have status_code attribute"
-    assert (
-        response.status_code == expected_status
-    ), f"Expected status {expected_status}, got {response.status_code}"
+    assert response.status_code == expected_status, (
+        f"Expected status {expected_status}, got {response.status_code}"
+    )
 
     if expected_content_type is not None:
         assert hasattr(response, "headers"), "Response must have headers attribute"
         content_type = response.headers.get("Content-Type", "")
-        assert (
-            expected_content_type in content_type
-        ), f"Expected content type {expected_content_type}, got {content_type}"
+        assert expected_content_type in content_type, (
+            f"Expected content type {expected_content_type}, got {content_type}"
+        )
 
 
 def load_test_fixture(fixture_name: str) -> dict[str, Any]:

@@ -118,13 +118,13 @@ def get_env_with_default(key: str, default: Any, env_type: type = str) -> Any:
         return default
 
     try:
-        if env_type == bool:
+        if env_type is bool:
             return value.lower() in ("true", "1", "yes", "on")
-        elif env_type == int:
+        elif env_type is int:
             return int(value)
-        elif env_type == float:
+        elif env_type is float:
             return float(value)
-        elif env_type == list:
+        elif env_type is list:
             return [item.strip() for item in value.split(",")]
         else:
             return value

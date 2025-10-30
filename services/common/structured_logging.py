@@ -244,12 +244,12 @@ def correlation_context(
 
 
 __all__ = [
-    "configure_logging",
-    "get_logger",
     "bind_correlation_id",
+    "configure_logging",
     "correlation_context",
-    "should_sample",
+    "get_logger",
     "should_rate_limit",
+    "should_sample",
 ]
 
 

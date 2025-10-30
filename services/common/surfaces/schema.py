@@ -341,18 +341,13 @@ class SchemaValidator:
             return True
 
         if (
-            expected_type == "string"
-            and not isinstance(value, str)
-            or expected_type == "number"
-            and not isinstance(value, (int, float))
+            (expected_type == "string" and not isinstance(value, str))
+            or (expected_type == "number" and not isinstance(value, (int, float)))
             or (
-                expected_type == "boolean"
-                and not isinstance(value, bool)
-                or expected_type == "array"
-                and not isinstance(value, list)
+                (expected_type == "boolean" and not isinstance(value, bool))
+                or (expected_type == "array" and not isinstance(value, list))
             )
-            or expected_type == "object"
-            and not isinstance(value, dict)
+            or (expected_type == "object" and not isinstance(value, dict))
         ):
             return False
 

@@ -88,11 +88,11 @@ def generate_audio_samples():
 
         # Generate PCM data
         pcm_data = generate_test_audio(
-            duration=cast(float, sample["duration"]),
+            duration=cast("float", sample["duration"]),
             sample_rate=16000,
-            frequency=cast(float, sample["frequency"]),
-            amplitude=cast(float, sample["amplitude"]),
-            noise_level=cast(float, sample["noise_level"]),
+            frequency=cast("float", sample["frequency"]),
+            amplitude=cast("float", sample["amplitude"]),
+            noise_level=cast("float", sample["noise_level"]),
         )
 
         # Create WAV file

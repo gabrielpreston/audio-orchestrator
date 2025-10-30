@@ -55,9 +55,9 @@ class TestCorrelationIDValidation:
         for correlation_id, expected_error in invalid_correlation_ids:
             is_valid, error_msg = validate_correlation_id(correlation_id)
             assert not is_valid, f"Invalid ID should fail validation: {correlation_id}"
-            assert (
-                expected_error in error_msg
-            ), f"Expected error '{expected_error}' not in '{error_msg}'"
+            assert expected_error in error_msg, (
+                f"Expected error '{expected_error}' not in '{error_msg}'"
+            )
 
     @pytest.mark.unit
     def test_validation_edge_cases(self):

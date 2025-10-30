@@ -107,10 +107,10 @@ def generate_audio_samples():
 
         # Generate PCM data
         pcm_data = generate_sine_wave(
-            duration=cast(float, sample["duration"]),
+            duration=cast("float", sample["duration"]),
             sample_rate=16000,
-            frequency=cast(float, sample["frequency"]),
-            amplitude=cast(float, sample["amplitude"]),
+            frequency=cast("float", sample["frequency"]),
+            amplitude=cast("float", sample["amplitude"]),
         )
 
         # Create WAV file

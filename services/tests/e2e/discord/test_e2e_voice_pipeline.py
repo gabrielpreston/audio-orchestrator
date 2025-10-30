@@ -112,9 +112,9 @@ class TestE2EVoicePipeline:
 
             # Step 5: Validate end-to-end performance
             total_latency = time.time() - start_time
-            assert (
-                total_latency < 5.0
-            ), f"E2E latency {total_latency:.3f}s exceeds 5s threshold"
+            assert total_latency < 5.0, (
+                f"E2E latency {total_latency:.3f}s exceeds 5s threshold"
+            )
 
             print("E2E Voice Pipeline Test Results:")
             print(f"  Transcript: {transcript}")
@@ -286,9 +286,9 @@ class TestE2EVoicePipeline:
         successful_results = [
             r for r in results if isinstance(r, dict) and r.get("success")
         ]
-        assert (
-            len(successful_results) >= 2
-        ), f"Only {len(successful_results)} concurrent E2E requests succeeded"
+        assert len(successful_results) >= 2, (
+            f"Only {len(successful_results)} concurrent E2E requests succeeded"
+        )
 
     async def test_discord_bot_health_monitoring(self):
         """Test Discord bot health monitoring during E2E operations."""
@@ -311,9 +311,9 @@ class TestE2EVoicePipeline:
 
             # All health checks should pass
             healthy_checks = [h for h in health_checks if h["healthy"]]
-            assert (
-                len(healthy_checks) >= 4
-            ), f"Only {len(healthy_checks)}/5 health checks passed"
+            assert len(healthy_checks) >= 4, (
+                f"Only {len(healthy_checks)}/5 health checks passed"
+            )
 
             print("Discord Bot Health Monitoring:")
             for check in health_checks:

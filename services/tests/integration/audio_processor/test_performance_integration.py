@@ -71,14 +71,20 @@ class TestPerformanceIntegration:
             # Validate performance thresholds
             assert (
                 stt_latency < test_voice_performance_thresholds["max_stt_latency_s"]
-            ), f"STT latency {stt_latency:.3f}s exceeds {test_voice_performance_thresholds['max_stt_latency_s']}s threshold"
+            ), (
+                f"STT latency {stt_latency:.3f}s exceeds {test_voice_performance_thresholds['max_stt_latency_s']}s threshold"
+            )
             assert (
                 tts_latency < test_voice_performance_thresholds["max_tts_latency_s"]
-            ), f"TTS latency {tts_latency:.3f}s exceeds {test_voice_performance_thresholds['max_tts_latency_s']}s threshold"
+            ), (
+                f"TTS latency {tts_latency:.3f}s exceeds {test_voice_performance_thresholds['max_tts_latency_s']}s threshold"
+            )
             assert (
                 total_latency
                 < test_voice_performance_thresholds["max_end_to_end_latency_s"]
-            ), f"Total latency {total_latency:.3f}s exceeds {test_voice_performance_thresholds['max_end_to_end_latency_s']}s threshold"
+            ), (
+                f"Total latency {total_latency:.3f}s exceeds {test_voice_performance_thresholds['max_end_to_end_latency_s']}s threshold"
+            )
 
             # Log performance metrics
             print("Performance Benchmarks:")
@@ -189,15 +195,15 @@ class TestPerformanceIntegration:
         print(f"  Exceptions: {len(exceptions)}")
 
         # At least 3 should succeed
-        assert (
-            len(successful_results) >= 3
-        ), f"Only {len(successful_results)} concurrent requests succeeded, expected at least 3"
+        assert len(successful_results) >= 3, (
+            f"Only {len(successful_results)} concurrent requests succeeded, expected at least 3"
+        )
 
         # Check that successful requests completed within reasonable time
         for result in successful_results:
-            assert (
-                result["total_latency"] < 5.0
-            ), f"Request {result['request_id']} took {result['total_latency']:.3f}s, exceeds 5s threshold"
+            assert result["total_latency"] < 5.0, (
+                f"Request {result['request_id']} took {result['total_latency']:.3f}s, exceeds 5s threshold"
+            )
 
     async def test_service_health_under_load(
         self,
@@ -241,9 +247,9 @@ class TestPerformanceIntegration:
 
         # All services should be healthy
         for result in health_results:
-            assert result[
-                "healthy"
-            ], f"Service {result['service']} is not healthy: {result.get('error', 'Unknown error')}"
+            assert result["healthy"], (
+                f"Service {result['service']} is not healthy: {result.get('error', 'Unknown error')}"
+            )
 
     async def test_memory_usage_under_load(
         self,
@@ -314,9 +320,9 @@ class TestPerformanceIntegration:
         successful_results = [
             r for r in results if isinstance(r, dict) and r.get("success")
         ]
-        assert (
-            len(successful_results) >= 2
-        ), f"Only {len(successful_results)} memory-intensive requests succeeded"
+        assert len(successful_results) >= 2, (
+            f"Only {len(successful_results)} memory-intensive requests succeeded"
+        )
 
     async def test_latency_consistency(
         self,
@@ -374,9 +380,9 @@ class TestPerformanceIntegration:
                 total_latency = time.time() - start_time
                 latencies.append(total_latency)
 
-        assert (
-            len(latencies) >= 3
-        ), f"Only {len(latencies)} requests succeeded, expected at least 3"
+        assert len(latencies) >= 3, (
+            f"Only {len(latencies)} requests succeeded, expected at least 3"
+        )
 
         # Calculate latency statistics
         avg_latency = sum(latencies) / len(latencies)
@@ -394,9 +400,9 @@ class TestPerformanceIntegration:
         print(f"  Std Dev: {latency_std:.3f}s")
 
         # Latency should be consistent (low variance)
-        assert (
-            latency_std < 1.0
-        ), f"Latency standard deviation {latency_std:.3f}s is too high, indicates inconsistent performance"
-        assert (
-            max_latency < 3.0
-        ), f"Maximum latency {max_latency:.3f}s exceeds 3s threshold"
+        assert latency_std < 1.0, (
+            f"Latency standard deviation {latency_std:.3f}s is too high, indicates inconsistent performance"
+        )
+        assert max_latency < 3.0, (
+            f"Maximum latency {max_latency:.3f}s exceeds 3s threshold"
+        )

@@ -308,7 +308,7 @@ async def _transcribe_request(
         ) or request.query_params.get("correlation_id")
         wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
 
-        channels, sampwidth, framerate = _extract_audio_metadata(wav_bytes)
+        channels, _sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
     model = _lazy_load_model()
     device = _cfg.faster_whisper.device
