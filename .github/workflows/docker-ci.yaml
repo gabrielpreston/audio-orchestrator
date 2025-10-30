@@ -4,10 +4,10 @@ name: "Docker CI"
 on:
   workflow_call:
     inputs:
-      docker-changes:
+      services:
         required: true
-        type: boolean
-      base-changes:
+        type: string
+      rebuild-base:
         required: true
         type: boolean
 
@@ -18,7 +18,7 @@ permissions:
 jobs:
   build-python-base:
     name: "Tier 0 (python-base)"
-    if: inputs.base-changes || github.event_name == 'workflow_dispatch'
+    if: inputs.rebuild-base || github.event_name == 'workflow_dispatch'
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 20
@@ -72,7 +72,7 @@ jobs:
   build-tier-1:
     name: "Tier 1"
     needs: ["build-python-base"]
-    if: ${{ !cancelled() && (inputs.docker-changes || inputs.base-changes || github.event_name == 'workflow_dispatch') && (needs.build-python-base.result == 'success' || needs.build-python-base.result == 'skipped') }}
+    if: ${{ !cancelled() && (inputs.rebuild-base || github.event_name == 'workflow_dispatch') && (needs.build-python-base.result == 'success' || needs.build-python-base.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30
@@ -129,24 +129,13 @@ jobs:
   build-services:
     name: "Tier 2"
     needs: ["build-tier-1"]
-    if: ${{ !cancelled() && (inputs.docker-changes || inputs.base-changes || github.event_name == 'workflow_dispatch') && (needs.build-tier-1.result == 'success' || needs.build-tier-1.result == 'skipped') }}
+    if: ${{ !cancelled() && (inputs.rebuild-base || inputs.services != '[]' || github.event_name == 'workflow_dispatch') && (needs.build-tier-1.result == 'success' || needs.build-tier-1.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 40
     strategy:
       matrix:
-        service:
-          [
-            guardrails,
-            orchestrator,
-            flan,
-            audio,
-            discord,
-            stt,
-            bark,
-            testing,
-            monitoring,
-          ]
+        service: ${{ fromJSON(inputs.services) }}
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
