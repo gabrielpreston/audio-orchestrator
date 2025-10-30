@@ -32,7 +32,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Configure build command for Makefile"
-        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
+        run: echo "DOCKER_BUILD_CMD=docker buildx build --load" >> $GITHUB_ENV
       - name: "Run linting"
         run: make lint
 
@@ -55,7 +55,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Configure build command for Makefile"
-        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
+        run: echo "DOCKER_BUILD_CMD=docker buildx build --load" >> $GITHUB_ENV
       - name: "Run unit tests"
         run: make test-unit
       - name: "Upload Test Results"
@@ -117,7 +117,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: "Configure build command for Makefile"
-        run: echo "DOCKER_BUILD_CMD=docker buildx build" >> $GITHUB_ENV
+        run: echo "DOCKER_BUILD_CMD=docker buildx build --load" >> $GITHUB_ENV
       - name: "Run component tests"
         run: make test-component
       - name: "Upload Test Results"

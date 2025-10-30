@@ -74,9 +74,7 @@ define build_if_missing
     DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
         --tag $(1) \
         --cache-from type=gha,scope=services \
-        --cache-from $(1) \
         --cache-to type=gha,mode=max,scope=services \
-        --cache-to $(1) \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         -f $(2) .; \
 else \
@@ -88,9 +86,7 @@ define build_with_cache
 @DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
     --tag $(1) \
     --cache-from type=gha,scope=services \
-    --cache-from $(1) \
     --cache-to type=gha,mode=max,scope=services \
-    --cache-to $(1) \
     --build-arg BUILDKIT_INLINE_CACHE=1 \
     -f $(2) .
 endef
@@ -101,9 +97,7 @@ DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
     --tag $(1) \
     --cache-from type=gha,scope=services \
     --cache-from type=gha,scope=base-images \
-    --cache-from $(1) \
     --cache-to type=gha,mode=max,scope=services \
-    --cache-to $(1) \
     --build-arg BUILDKIT_INLINE_CACHE=1 \
     -f $(2) .
 endef
