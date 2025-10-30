@@ -6,6 +6,7 @@ SHELL := /bin/bash
 .PHONY: all help
 .PHONY: run stop logs logs-dump docker-status
 .PHONY: docker-build docker-build-service docker-build-base docker-restart docker-shell docker-config
+.PHONY: docker-pull-images docker-warm-cache
 .PHONY: test test-image test-image-force test-unit test-component test-integration test-observability test-observability-full
 .PHONY: lint lint-image lint-image-force lint-fix
 .PHONY: security security-image security-image-force
@@ -253,6 +254,29 @@ docker-config: ## Render the effective docker-compose configuration
 	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) config
 
+
+# =============================================================================
+# DOCKER IMAGE PULL (CACHE WARMUP)
+# =============================================================================
+
+docker-pull-images: ## Pre-pull images for all compose files and toolchain (cache warmup)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@printf "$(COLOR_GREEN)→ Pulling images defined in docker-compose files$(COLOR_OFF)\n"
+	@for f in docker-compose.yml docker-compose.test.yml docker-compose.observability-test.yml docker-compose.ci.yml; do \
+		if [ -f "$$f" ]; then \
+			printf "$(COLOR_CYAN)→ Pulling images from %s$(COLOR_OFF)\n" "$$f"; \
+			$(DOCKER_COMPOSE) -f "$$f" pull --ignore-pull-failures || true; \
+		fi; \
+	 done
+	@printf "$(COLOR_GREEN)→ Pulling toolchain images$(COLOR_OFF)\n"
+	@for img in $(LINT_IMAGE) $(TEST_IMAGE) $(SECURITY_IMAGE); do \
+		printf "Pulling %s\n" "$$img"; \
+		docker pull "$$img" || true; \
+	 done
+	@printf "$(COLOR_GREEN)→ Docker cache warmup complete$(COLOR_OFF)\n"
+
+docker-warm-cache: docker-pull-images ## Alias: warm Docker cache by downloading images first
 
 # =============================================================================
 # TESTING

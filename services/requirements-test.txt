@@ -10,6 +10,9 @@ psutil==6.1.0
 # Dependencies needed for testing specific services
 # Audio processor dependencies
 webrtcvad==2.0.10
+# Include audio libs for test image (not provided by test base image)
+librosa==0.10.1
+soundfile==0.12.1
 # NOTE: speechbrain, torch, torchaudio are now included in the python-ml base image
 
 # Discord dependencies
