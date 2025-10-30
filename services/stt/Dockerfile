@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gfortran \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy service-specific requirements and constraints
+# Copy requirements files
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/stt/requirements.txt /app/services/stt/requirements.txt
 
 # Install Python deps, rebuilding numpy from source against system OpenBLAS

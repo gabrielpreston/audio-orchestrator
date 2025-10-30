@@ -4,7 +4,8 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
-# Copy service-specific requirements and constraints
+# Copy requirements files
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/guardrails/requirements.txt /app/services/guardrails/requirements.txt
 # Install Python dependencies with aggressive cleanup for GitHub Actions
 # hadolint ignore=DL3013

@@ -7,7 +7,8 @@ WORKDIR /app
 
 # No additional system dependencies needed (numpy/scipy from ML base)
 
-# Copy requirements and constraints FIRST for better caching
+# Copy requirements files FIRST for better caching
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/audio/requirements.txt /app/services/audio/requirements.txt
 
 # Install Python dependencies (numpy/scipy already optimized in ML base image)

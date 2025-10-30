@@ -5,7 +5,8 @@ FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
-# Copy requirements and constraints FIRST for better caching
+# Copy requirements files FIRST for better caching
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/flan/requirements.txt /app/services/flan/requirements.txt
 
 # Install Python dependencies with aggressive cleanup for GitHub Actions

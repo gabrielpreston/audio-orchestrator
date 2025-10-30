@@ -4,7 +4,8 @@ FROM ghcr.io/gabrielpreston/python-web:latest AS builder
 
 WORKDIR /app
 
-# Copy service-specific requirements and constraints
+# Copy requirements files
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/testing/requirements.txt /app/services/testing/requirements.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \

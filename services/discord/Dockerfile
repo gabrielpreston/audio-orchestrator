@@ -4,7 +4,8 @@ FROM ghcr.io/gabrielpreston/python-web:latest AS base
 
 WORKDIR /app
 
-# Copy service-specific requirements and constraints FIRST for better caching
+# Copy requirements files FIRST for better caching
+COPY services/requirements-base.txt /app/services/requirements-base.txt
 COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 
 # Install Python dependencies with BuildKit cache mount and wheel caching
