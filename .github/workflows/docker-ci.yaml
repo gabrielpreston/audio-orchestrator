@@ -72,7 +72,7 @@ jobs:
   build-tier-1:
     name: "Tier 1"
     needs: ["build-python-base"]
-    if: ${{ !cancelled() && needs.build-python-base.result == 'success' }}
+    if: ${{ !cancelled() && (inputs.docker-changes || inputs.base-changes || github.event_name == 'workflow_dispatch') && (needs.build-python-base.result == 'success' || needs.build-python-base.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 30
@@ -129,7 +129,7 @@ jobs:
   build-services:
     name: "Tier 2"
     needs: ["build-tier-1"]
-    if: ${{ !cancelled() && needs.build-tier-1.result == 'success' }}
+    if: ${{ !cancelled() && (inputs.docker-changes || inputs.base-changes || github.event_name == 'workflow_dispatch') && (needs.build-tier-1.result == 'success' || needs.build-tier-1.result == 'skipped') }}
     runs-on: "ubuntu-latest"
     environment: "discord-voice-lab"
     timeout-minutes: 40

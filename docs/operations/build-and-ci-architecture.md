@@ -347,6 +347,39 @@ make docker-build  # Rebuilds all services in parallel
 -  **Runtime**: ~2-3 minutes (change detection only)
 -  **Caching**: Routes to appropriate specialized workflows
 
+#### Change Detection and Triggers
+
+Main CI uses path-based change detection to decide which reusable workflows to run.
+
+-  Filters (current):
+   -  docker: `docker-compose.yml`, `services/**/Dockerfile`
+   -  python: `services/**/*.py`, `pyproject.toml`
+   -  docs: `README.md`, `docs/**`, `AGENTS.md`
+   -  security-deps: `requirements-*.txt`, `services/**/requirements.txt`
+   -  base: `services/base/**`, `requirements-base.txt`
+
+-  Planned additions (in this iteration):
+   -  docker: add `docker-compose.ci.yml`, `.dockerignore`, `scripts/prepare_env_files.py`, `scripts/ci_env_config.py`, `scripts/ci_diagnostics.py`, `services/**/requirements.txt`
+   -  python: add `Makefile`, `.coveragerc`, `pyproject.toml` (already present)
+   -  docs: unchanged
+   -  security-deps: unchanged (requirements files)
+
+-  Workflow routing:
+   -  Core CI runs on python changes; optionally decouple from Docker CI failures.
+   -  Docker CI runs on docker or base changes.
+   -  Docs CI runs on docs changes.
+   -  Security CI runs on dependency manifest changes (to be wired in Main CI).
+
+#### Docker CI Tier Gating
+
+-  Tier 0 (`build-python-base`) runs only on base changes.
+-  Tier 1 and Tier 2 will run when docker/base changes are present even if upstream tiers were skipped, by allowing `success || skipped` in the gating condition.
+-  `docker-smoke` runs when service builds are `success || skipped`, validating compose boot.
+
+#### Workflow Summary Generation
+
+-  Main CI includes a summary job that reports the status of Core CI, Docker CI, Docs CI, and will include Security CI after wiring.
+
 ### Core CI (Python Focus)
 
 -  **Purpose**: Fast Python feedback
