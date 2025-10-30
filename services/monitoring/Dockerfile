@@ -26,7 +26,7 @@ COPY services/monitoring /app/services/monitoring
 COPY scripts/health_check.py /app/scripts/health_check.py
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
-    CMD python /app/scripts/health_check.py http://localhost:8502/health/ready --ci
+    CMD python /app/scripts/health_check.py http://127.0.0.1:8502/health/ready --ci
 
 # Set Python environment variables
 ENV PYTHONPATH=/app

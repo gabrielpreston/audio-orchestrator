@@ -295,7 +295,5 @@ if __name__ == "__main__":
     streamlit_thread.daemon = True
     streamlit_thread.start()
 
-    # Start FastAPI server for health checks
-    uvicorn.run(app, host="127.0.0.1", port=8502)
-    # Start FastAPI server for health checks
-    uvicorn.run(app, host="127.0.0.1", port=8502)
+    # Start FastAPI server for health checks (bind to all interfaces for reliability)
+    uvicorn.run(app, host="0.0.0.0", port=8502)
