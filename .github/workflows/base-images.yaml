@@ -212,7 +212,6 @@ jobs:
               --load . && \
             docker push ghcr.io/${{ github.repository_owner }}/python-ml-transformers:latest
 
-
       - name: "Clean up after all builds"
         if: ${{ !cancelled() }}
         timeout-minutes: 3
@@ -282,5 +281,4 @@ jobs:
           echo "Cache: GitHub Actions Cache v2 enabled"
           echo "Retry: Native GitHub Actions retry (3 attempts, 15min timeout)"
           echo "::endgroup::"
-
 
