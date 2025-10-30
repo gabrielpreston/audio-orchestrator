@@ -71,8 +71,9 @@ jobs:
         with:
           name: "Unit Test Results"
           path: junit.xml
-          reporter: junit
+          reporter: java-junit
           fail-on-error: false
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: "Upload Coverage Artifact"
         if: always()
         uses: actions/upload-artifact@v4
@@ -133,8 +134,9 @@ jobs:
         with:
           name: "Component Test Results"
           path: junit.xml
-          reporter: junit
+          reporter: java-junit
           fail-on-error: false
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: "Upload Coverage Artifact"
         if: always()
         uses: actions/upload-artifact@v4
@@ -184,7 +186,7 @@ jobs:
   #       with:
   #         name: "Integration Test Results"
   #         path: junit.xml
-  #         reporter: junit
+#         reporter: java-junit
   #         fail-on-error: false
 
   pipeline-metrics:
