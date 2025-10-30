@@ -32,11 +32,9 @@ jobs:
       base_changed: "${{ steps.detect.outputs.base_changed }}"
       python_changed: "${{ steps.detect.outputs.python_changed }}"
       docs_changed: "${{ steps.detect.outputs.docs_changed }}"
-      security_changed: "${{ steps.detect.outputs.security_changed }}"
       run_core_on_workflow_change: "${{ steps.detect.outputs.run_core_on_workflow_change }}"
       run_docker_on_workflow_change: "${{ steps.detect.outputs.run_docker_on_workflow_change }}"
       run_docs_on_workflow_change: "${{ steps.detect.outputs.run_docs_on_workflow_change }}"
-      run_security_on_workflow_change: "${{ steps.detect.outputs.run_security_on_workflow_change }}"
     steps:
       - name: "Checkout repository"
         uses: "actions/checkout@v4.2.2"
@@ -65,13 +63,11 @@ jobs:
 
           python_changed=false
           docs_changed=false
-          security_changed=false
           base_changed=false
 
           run_core=false
           run_docker=false
           run_docs=false
-          run_security=false
 
           services_set=()
 
@@ -84,10 +80,6 @@ jobs:
 
             case "$f" in
               docs/*|README.md|AGENTS.md) docs_changed=true ;;
-            esac
-
-            case "$f" in
-              requirements-*.txt|services/*/requirements.txt) security_changed=true ;;
             esac
 
             case "$f" in
@@ -106,7 +98,6 @@ jobs:
               .github/workflows/core-ci.yaml) run_core=true ;;
               .github/workflows/docker-ci.yaml) run_docker=true ;;
               .github/workflows/docs-ci.yaml) run_docs=true ;;
-              .github/workflows/security-ci.yaml) run_security=true ;;
             esac
           done <<< "$files"
 
@@ -121,11 +112,9 @@ jobs:
           echo "base_changed=$base_changed" >> "$GITHUB_OUTPUT"
           echo "python_changed=$python_changed" >> "$GITHUB_OUTPUT"
           echo "docs_changed=$docs_changed" >> "$GITHUB_OUTPUT"
-          echo "security_changed=$security_changed" >> "$GITHUB_OUTPUT"
           echo "run_core_on_workflow_change=$run_core" >> "$GITHUB_OUTPUT"
           echo "run_docker_on_workflow_change=$run_docker" >> "$GITHUB_OUTPUT"
           echo "run_docs_on_workflow_change=$run_docs" >> "$GITHUB_OUTPUT"
-          echo "run_security_on_workflow_change=$run_security" >> "$GITHUB_OUTPUT"
       - name: "Generate enhanced change detection report"
         run: |
           echo "## 🔍 Change Detection Report" >> $GITHUB_STEP_SUMMARY
@@ -155,7 +144,6 @@ jobs:
           echo "    B -->|No| D[⏭️ Skip All Workflows]" >> $GITHUB_STEP_SUMMARY
           echo "    C --> E[🐳 Docker CI]" >> $GITHUB_STEP_SUMMARY
           echo "    C --> F[📚 Docs CI]" >> $GITHUB_STEP_SUMMARY
-          echo "    C --> G[🔒 Security CI]" >> $GITHUB_STEP_SUMMARY
           echo "    E --> H[🐍 Core CI]" >> $GITHUB_STEP_SUMMARY
           echo "    F --> I[✅ All Complete]" >> $GITHUB_STEP_SUMMARY
           echo "    G --> I" >> $GITHUB_STEP_SUMMARY
@@ -186,12 +174,6 @@ jobs:
             echo "| 📚 Documentation | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
           fi
 
-          if [ "${{ steps.detect.outputs.security_changed }}" = "true" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "| 🔒 Security Deps | ✅ Active | Security CI |" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "| 🔒 Security Deps | ⏭️ Skipped | - |" >> $GITHUB_STEP_SUMMARY
-          fi
-
   docker-ci:
     needs: ["changes"]
     if: |
@@ -219,13 +201,8 @@ jobs:
     if: needs.changes.outputs.docs_changed == 'true' || needs.changes.outputs.run_docs_on_workflow_change == 'true' || github.event_name == 'workflow_dispatch'
     uses: ./.github/workflows/docs-ci.yaml
 
-  security-ci:
-    needs: ["changes"]
-    if: needs.changes.outputs.security_changed == 'true' || needs.changes.outputs.run_security_on_workflow_change == 'true' || github.event_name == 'workflow_dispatch'
-    uses: ./.github/workflows/security-ci.yaml
-
   workflow-status:
-    needs: ["core-ci", "docker-ci", "docs-ci", "security-ci"]
+    needs: ["core-ci", "docker-ci", "docs-ci"]
     if: ${{ !cancelled() }}
     runs-on: "ubuntu-latest"
     steps:
@@ -239,7 +216,6 @@ jobs:
               'Core CI': '${{ needs.core-ci.result }}',
               'Docker CI': '${{ needs.docker-ci.result }}',
               'Docs CI': '${{ needs.docs-ci.result }}',
-              'Security CI': '${{ needs.security-ci.result }}'
             };
 
             let report = `## 📊 Workflow Status Summary\n\n`;
