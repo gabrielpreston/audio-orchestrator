@@ -4,10 +4,14 @@
 
 # Ignore specific rules that are too strict for our development use case
 # These rules are important for production but can be overly restrictive during development
-ignore:
+ignored:
   # Use specific tags instead of latest (DL3006)
   # Reason: Development images often use 'latest' for convenience and faster iteration
   - DL3006
+
+  # Using latest is prone to errors if the image will ever update (DL3007)
+  # Reason: Intentionally using 'latest' tags for development flexibility
+  - DL3007
 
   # Use specific digest instead of tag (DL3008)
   # Reason: Tags are more readable and manageable in development

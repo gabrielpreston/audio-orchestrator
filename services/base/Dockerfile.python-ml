@@ -79,7 +79,6 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 ENV TORCH_CUDA_ARCH_LIST=""
 ENV TORCH_USE_CUDA_DETERMINISTIC=1
 ENV PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
-ENV TRANSFORMERS_CACHE=/app/models
 ENV HF_HOME=/app/models
 ENV AUDIO_CACHE_DIR=/app/models
 

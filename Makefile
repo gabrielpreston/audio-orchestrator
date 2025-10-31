@@ -173,7 +173,41 @@ help: ## Show this help (default)
 # APPLICATION LIFECYCLE
 # =============================================================================
 
-run: stop ## Start docker-compose stack
+models-fix-permissions: ## Fix host model directory permissions (creates directories and sets ownership)
+	@printf "$(COLOR_CYAN)→ Ensuring model directories exist with correct permissions$(COLOR_OFF)\n"
+	@PUID=$${PUID:-$$(id -u)}; \
+	PGID=$${PGID:-$$(id -g)}; \
+	for dir in stt flan-t5 guardrails bark audio; do \
+		full_path="./services/models/$$dir"; \
+		if [ ! -d "$$full_path" ]; then \
+			printf "$(COLOR_YELLOW)  Creating $$full_path$(COLOR_OFF)\n"; \
+			mkdir -p "$$full_path"; \
+		fi; \
+		current_owner=$$(stat -c '%U:%G' "$$full_path" 2>/dev/null || echo "unknown"); \
+		current_uid=$$(stat -c '%u' "$$full_path" 2>/dev/null || echo "0"); \
+		if [ "$$current_uid" != "$$PUID" ] && [ "$$current_uid" = "0" ]; then \
+			printf "$(COLOR_YELLOW)  Fixing permissions for $$full_path (was $$current_owner, setting to UID $$PUID:$$PGID)$(COLOR_OFF)\n"; \
+			sudo chown -R "$$PUID:$$PGID" "$$full_path" 2>/dev/null || \
+			( printf "$(COLOR_RED)    Warning: Could not fix permissions (may need sudo)$(COLOR_OFF)\n"; ) ; \
+			chmod -R 755 "$$full_path" 2>/dev/null || true; \
+		else \
+			printf "$(COLOR_GREEN)  ✓ $$full_path permissions OK ($$current_owner)$(COLOR_OFF)\n"; \
+		fi; \
+	done
+	@PUID=$${PUID:-$$(id -u)}; \
+	PGID=$${PGID:-$$(id -g)}; \
+	bark_cache="./services/models/bark/.cache"; \
+	if [ ! -d "$$bark_cache" ]; then \
+		printf "$(COLOR_YELLOW)  Creating $$bark_cache for Bark models$(COLOR_OFF)\n"; \
+		mkdir -p "$$bark_cache"; \
+		current_uid=$$(stat -c '%u' "$$bark_cache" 2>/dev/null || echo "0"); \
+		if [ "$$current_uid" = "0" ]; then \
+			sudo chown -R "$$PUID:$$PGID" "$$bark_cache" 2>/dev/null || true; \
+		fi; \
+		chmod -R 755 "$$bark_cache" 2>/dev/null || true; \
+	fi
+
+run: stop models-fix-permissions ## Start docker-compose stack (fixes model permissions first)
 	@printf "$(COLOR_GREEN)→ Starting containers with cached images$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans
 
@@ -508,4 +542,34 @@ models-clean: ## Remove downloaded models from ./services/models/
 		echo "Models cleaned."; \
 	else \
 		echo "No models directory found."; \
+	fi
+
+# Service name to environment variable mapping for force download
+FORCE_DOWNLOAD_ENV_VARS := \
+	stt:FORCE_MODEL_DOWNLOAD_WHISPER_MODEL \
+	flan:FORCE_MODEL_DOWNLOAD_FLAN_T5 \
+	guardrails:FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL \
+	bark:FORCE_MODEL_DOWNLOAD_BARK_MODELS \
+	audio:FORCE_MODEL_DOWNLOAD_METRICGAN
+
+models-force-download: ## Force download all models (sets FORCE_MODEL_DOWNLOAD=true)
+	@printf "$(COLOR_GREEN)→ Force downloading all models$(COLOR_OFF)\n"
+	@FORCE_MODEL_DOWNLOAD=true $(DOCKER_COMPOSE) restart stt flan guardrails bark audio
+
+models-force-download-service: ## Force download for specific service (set SERVICE=stt|flan|guardrails|bark|audio)
+	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=stt|flan|guardrails|bark|audio$(COLOR_OFF)\n" && exit 1) || true
+	@found=0; \
+	for mapping in $(FORCE_DOWNLOAD_ENV_VARS); do \
+		svc=$$(echo $$mapping | cut -d: -f1); \
+		env_var=$$(echo $$mapping | cut -d: -f2); \
+		if [ "$$svc" = "$(SERVICE)" ]; then \
+			printf "$(COLOR_GREEN)→ Force downloading models for $(SERVICE) service$(COLOR_OFF)\n"; \
+			$$env_var=true $(DOCKER_COMPOSE) restart $(SERVICE); \
+			found=1; \
+			break; \
+		fi; \
+	done; \
+	if [ $$found -eq 0 ]; then \
+		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: stt, flan, guardrails, bark, audio$(COLOR_OFF)\n"; \
+		exit 1; \
 	fi

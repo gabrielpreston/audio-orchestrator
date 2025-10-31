@@ -5,6 +5,8 @@ Provides a Gradio interface for testing the complete audio pipeline
 including preprocessing, transcription, orchestration, and synthesis.
 """
 
+import hashlib
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +15,10 @@ from pydantic import BaseModel
 
 from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics
+from services.common.config import (
+    LoggingConfig,
+    get_service_preset,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
@@ -27,8 +33,16 @@ except ImportError:
     GRADIO_AVAILABLE = False
     gr = None
 
-# Configure logging
-configure_logging("info", json_logs=True, service_name="testing")
+# Load configuration using standard config classes
+_config_preset = get_service_preset("testing")
+_logging_config = LoggingConfig(**_config_preset["logging"])
+
+# Configure logging using config class
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="testing",
+)
 logger = get_logger(__name__, service_name="testing")
 
 # Health manager and observability
@@ -100,7 +114,7 @@ class TranscriptResponse(BaseModel):
 
 async def test_pipeline(
     audio: str | None, text_input: str, voice_preset: str
-) -> tuple[str, str, str]:
+) -> tuple[str, str, str | None]:
     """
     Test the complete audio pipeline.
 
@@ -115,7 +129,7 @@ async def test_pipeline(
     try:
         transcript = ""
         response = ""
-        audio_output_path = ""
+        audio_output_path: str | None = None
 
         if audio:
             # Audio input path
@@ -123,10 +137,15 @@ async def test_pipeline(
 
             # 1. Preprocess with MetricGAN+
             try:
+                # Read bytes before sending (file closes automatically after read)
                 with Path(audio).open("rb") as f:
-                    enhanced_response = await client.post(
-                        f"{AUDIO_PREPROCESSOR_URL}/denoise", files={"audio": f}
-                    )
+                    audio_bytes = f.read()
+
+                enhanced_response = await client.post(
+                    f"{AUDIO_PREPROCESSOR_URL}/denoise",
+                    content=audio_bytes,
+                    headers={"Content-Type": "audio/wav"},
+                )
                 enhanced_response.raise_for_status()
                 logger.info("Audio preprocessing completed")
             except Exception as e:
@@ -141,13 +160,21 @@ async def test_pipeline(
                 if enhanced_response:
                     transcript_response = await client.post(
                         f"{STT_URL}/transcribe",
-                        files={"audio": enhanced_response.content},
+                        files={
+                            "file": (
+                                "audio.wav",
+                                enhanced_response.content,
+                                "audio/wav",
+                            )
+                        },
                     )
                 else:
                     with Path(audio).open("rb") as f:
-                        transcript_response = await client.post(
-                            f"{STT_URL}/transcribe", files={"audio": f}
-                        )
+                        audio_bytes = f.read()
+                    transcript_response = await client.post(
+                        f"{STT_URL}/transcribe",
+                        files={"file": ("audio.wav", audio_bytes, "audio/wav")},
+                    )
                 transcript_response.raise_for_status()
                 transcript_data = transcript_response.json()
                 transcript = transcript_data.get("text", "")
@@ -164,7 +191,7 @@ async def test_pipeline(
             logger.info("Using text input", extra={"text_length": len(transcript)})
 
         if not transcript.strip():
-            return "No input provided", "No response generated", ""
+            return "No input provided", "No response generated", None
 
         # 3. Process with orchestrator
         try:
@@ -197,27 +224,39 @@ async def test_pipeline(
                 tts_response.raise_for_status()
 
                 # Save audio output
-                import os
-                import tempfile
+                # Generate safe filename (sha256 produces hex string, no negative values)
+                filename_hash = hashlib.sha256(response.encode()).hexdigest()
+                temp_dir = Path(tempfile.gettempdir())
 
-                temp_dir = tempfile.gettempdir()
-                audio_output_path = os.path.join(
-                    temp_dir, f"output_{hash(response)}.wav"
-                )
-                with Path(audio_output_path).open("wb") as f:
+                # Ensure temp directory exists and is writable
+                temp_dir.mkdir(parents=True, exist_ok=True)
+
+                audio_file_path = temp_dir / f"output_{filename_hash}.wav"
+
+                # Write file
+                with audio_file_path.open("wb") as f:
                     f.write(tts_response.content)
+
+                # Verify it's a file (not directory) before returning to Gradio
+                audio_file_path = audio_file_path.resolve()
+                if not audio_file_path.is_file():
+                    raise ValueError(f"Output path is not a file: {audio_file_path}")
+
+                # Convert to string for Gradio
+                audio_output_path = str(audio_file_path)
+
                 logger.info(
                     "TTS synthesis completed", extra={"output_path": audio_output_path}
                 )
             except Exception as e:
                 logger.error("TTS synthesis failed", extra={"error": str(e)})
-                audio_output_path = ""
+                audio_output_path = None
 
         return transcript, response, audio_output_path
 
     except Exception as e:
         logger.error("Pipeline test failed", extra={"error": str(e)})
-        return f"Error: {str(e)}", "", ""
+        return f"Error: {str(e)}", "", None
 
 
 def create_gradio_interface() -> Any:

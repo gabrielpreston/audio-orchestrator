@@ -6,12 +6,10 @@ unified audio processor service for audio enhancement.
 
 from __future__ import annotations
 
-import asyncio
 import time
-from typing import Any
 
-import httpx
-
+from services.common.http_client_factory import create_resilient_client
+from services.common.resilient_http import ServiceUnavailableError
 from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,7 +21,7 @@ class STTAudioProcessorClient:
     def __init__(
         self,
         base_url: str = "http://audio:9100",
-        timeout: float = 50.0,  # 50ms timeout for enhancement
+        timeout: float = 50.0,  # 50 second timeout for enhancement
         max_retries: int = 3,
         retry_delay: float = 1.0,
     ) -> None:
@@ -32,8 +30,8 @@ class STTAudioProcessorClient:
         Args:
             base_url: Base URL for the audio processor service
             timeout: Request timeout in seconds
-            max_retries: Maximum number of retry attempts
-            retry_delay: Delay between retries in seconds
+            max_retries: Maximum number of retry attempts (used by ResilientHTTPClient)
+            retry_delay: Delay between retries in seconds (not used - ResilientHTTPClient handles retries)
         """
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -41,10 +39,11 @@ class STTAudioProcessorClient:
         self.retry_delay = retry_delay
         self._logger = get_logger(__name__)
 
-        # Create HTTP client with timeout
-        self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(timeout),
-            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        # Create resilient HTTP client with circuit breaker and connection pooling
+        self._client = create_resilient_client(
+            service_name="audio",
+            base_url=base_url,
+            env_prefix="STT_AUDIO_PROCESSOR",
         )
 
         self._logger.info(
@@ -53,7 +52,7 @@ class STTAudioProcessorClient:
 
     async def close(self) -> None:
         """Close the HTTP client."""
-        await self._client.aclose()
+        await self._client.close()
         self._logger.info("stt_audio_processor_client.closed")
 
     async def enhance_audio(
@@ -71,15 +70,28 @@ class STTAudioProcessorClient:
         start_time = time.time()
 
         try:
-            # Make request to audio processor
-            response = await self._make_request_with_retry(
-                "POST",
-                f"{self.base_url}/enhance/audio",
-                content=audio_data,
-                headers={"X-Correlation-ID": correlation_id}
-                if correlation_id
-                else None,
-            )
+            # Make request to audio processor using resilient client
+            headers = {}
+            if correlation_id:
+                headers["X-Correlation-ID"] = correlation_id
+
+            try:
+                response = await self._client.post_with_retry(
+                    "/enhance/audio",
+                    content=audio_data,
+                    headers=headers if headers else None,
+                    timeout=self.timeout,
+                    max_retries=self.max_retries,
+                )
+            except ServiceUnavailableError as exc:
+                enhancement_duration = (time.time() - start_time) * 1000
+                self._logger.error(
+                    "stt_audio_processor_client.service_unavailable",
+                    correlation_id=correlation_id,
+                    error=str(exc),
+                    enhancement_duration_ms=enhancement_duration,
+                )
+                return audio_data  # Return original data on failure
 
             if response.status_code == 200:
                 enhancement_duration = (time.time() - start_time) * 1000
@@ -116,52 +128,4 @@ class STTAudioProcessorClient:
         Returns:
             True if service is healthy, False otherwise
         """
-        try:
-            response = await self._client.get(f"{self.base_url}/health/ready")
-            return bool(response.status_code == 200)
-        except Exception as exc:
-            self._logger.warning(
-                "stt_audio_processor_client.health_check_failed", error=str(exc)
-            )
-            return False
-
-    async def _make_request_with_retry(
-        self, method: str, url: str, **kwargs: Any
-    ) -> httpx.Response:
-        """Make HTTP request with retry logic.
-
-        Args:
-            method: HTTP method
-            url: Request URL
-            **kwargs: Additional request parameters
-
-        Returns:
-            HTTP response
-        """
-        last_exception = None
-
-        for attempt in range(self.max_retries + 1):
-            try:
-                response = await self._client.request(method, url, **kwargs)
-                return response
-            except Exception as exc:
-                last_exception = exc
-                if attempt < self.max_retries:
-                    self._logger.warning(
-                        "stt_audio_processor_client.retry_attempt",
-                        attempt=attempt + 1,
-                        max_retries=self.max_retries,
-                        error=str(exc),
-                    )
-                    await asyncio.sleep(
-                        self.retry_delay * (2**attempt)
-                    )  # Exponential backoff
-                else:
-                    self._logger.error(
-                        "stt_audio_processor_client.max_retries_exceeded",
-                        max_retries=self.max_retries,
-                        error=str(exc),
-                    )
-
-        # If we get here, all retries failed
-        raise last_exception or Exception("Request failed after all retries")
+        return await self._client.check_health()

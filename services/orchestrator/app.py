@@ -13,10 +13,16 @@ from fastapi import HTTPException
 
 from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
+from services.common.config import (
+    LoggingConfig,
+    get_service_preset,
+)
 from services.common.config.loader import load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.http_client_factory import create_resilient_client
+from services.common.resilient_http import ServiceUnavailableError
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
 
@@ -44,8 +50,16 @@ try:
 except ImportError:
     AgentExecutor = Any
 
-# Configure logging
-configure_logging("info", json_logs=True, service_name="orchestrator")
+# Load configuration using standard config classes
+_config_preset = get_service_preset("orchestrator")
+_logging_config = LoggingConfig(**_config_preset["logging"])
+
+# Configure logging using config class
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="orchestrator",
+)
 logger = get_logger(__name__, service_name="orchestrator")
 
 # Health manager and observability
@@ -157,12 +171,16 @@ async def process_transcript(
         # Input validation with guardrails
         guardrails_url = os.getenv("GUARDRAILS_URL", "http://guardrails:9300")
         try:
-            import httpx
+            guardrails_client = create_resilient_client(
+                service_name="guardrails",
+                base_url=guardrails_url,
+                env_prefix="GUARDRAILS",
+            )
 
-            async with httpx.AsyncClient() as client:
+            try:
                 # Validate input
-                validation_response = await client.post(
-                    f"{guardrails_url}/validate/input",
+                validation_response = await guardrails_client.post_with_retry(
+                    "/validate/input",
                     json={"text": request.transcript, "validation_type": "input"},
                     timeout=5.0,
                 )
@@ -181,6 +199,7 @@ async def process_transcript(
                             1, attributes={"model": "orchestrator", "status": "blocked"}
                         )
 
+                    await guardrails_client.close()
                     return TranscriptProcessResponse(
                         success=False,
                         response_text="I'm sorry, but I can't process that request.",
@@ -192,6 +211,12 @@ async def process_transcript(
                 sanitized_transcript = validation_data.get(
                     "sanitized", request.transcript
                 )
+                await guardrails_client.close()
+
+            except ServiceUnavailableError as e:
+                await guardrails_client.close()
+                logger.warning("orchestrator.guardrails_unavailable", error=str(e))
+                sanitized_transcript = request.transcript
 
         except Exception as e:
             logger.warning("orchestrator.guardrails_unavailable", error=str(e))
@@ -204,10 +229,16 @@ async def process_transcript(
 
         # Output validation with guardrails
         try:
-            async with httpx.AsyncClient() as client:
+            guardrails_client = create_resilient_client(
+                service_name="guardrails",
+                base_url=guardrails_url,
+                env_prefix="GUARDRAILS",
+            )
+
+            try:
                 # Validate output
-                output_validation = await client.post(
-                    f"{guardrails_url}/validate/output",
+                output_validation = await guardrails_client.post_with_retry(
+                    "/validate/output",
                     json={"text": response, "validation_type": "output"},
                     timeout=5.0,
                 )
@@ -222,6 +253,12 @@ async def process_transcript(
                 else:
                     # Use filtered output
                     response = output_data.get("filtered", response)
+
+                await guardrails_client.close()
+
+            except ServiceUnavailableError as e:
+                await guardrails_client.close()
+                logger.warning("orchestrator.output_validation_failed", error=str(e))
 
         except Exception as e:
             logger.warning("orchestrator.output_validation_failed", error=str(e))

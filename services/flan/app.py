@@ -1,22 +1,37 @@
 # FLAN-T5 LLM Service
+from enum import Enum
 import os
 import time
-from enum import Enum
 from typing import Any
 
-import torch
 from fastapi import HTTPException
+import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
+from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
+from services.common.config import (
+    LoggingConfig,
+    get_service_preset,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
-from services.common.app_factory import create_service_app
+from services.common.model_loader import BackgroundModelLoader
+from services.common.model_utils import force_download_transformers
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
+from services.common.permissions import ensure_model_directory
 
-# Configure logging
-configure_logging("info", json_logs=True, service_name="flan")
+# Load configuration using standard config classes
+_config_preset = get_service_preset("flan")
+_logging_config = LoggingConfig(**_config_preset["logging"])
+
+# Configure logging using config class
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="flan",
+)
 logger = get_logger(__name__, service_name="flan")
 
 
@@ -41,12 +56,15 @@ else:
     MODEL_SIZE = enum_mapping.get(model_size_env, ModelSize.LARGE)
 MODEL_NAME = MODEL_SIZE.value
 
-# Cache configuration
-CACHE_DIR = os.getenv("TRANSFORMERS_CACHE", "/app/models")
+# Cache configuration (migrated to HF_HOME per transformers v5 deprecation)
+CACHE_DIR = os.getenv("HF_HOME", os.getenv("TRANSFORMERS_CACHE", "/app/models"))
 
-# Global model and tokenizer
+# Global model and tokenizer (for backward compatibility)
 model = None
 tokenizer = None
+
+# Model loader for background loading
+_model_loader: BackgroundModelLoader | None = None
 
 # Health manager and observability
 _health_manager = HealthManager("flan")
@@ -55,9 +73,150 @@ _llm_metrics = {}
 _http_metrics = {}
 
 
+def _load_from_cache() -> tuple[Any, Any] | None:
+    """Try loading model and tokenizer from cache."""
+    import time
+
+    cache_start = time.time()
+    logger.debug(
+        "flan.cache_load_start",
+        model_name=MODEL_NAME,
+        cache_dir=CACHE_DIR,
+        phase="cache_check",
+    )
+
+    try:
+        model_start = time.time()
+        logger.debug("flan.loading_model_from_cache", phase="model_cache_load")
+        cached_model = AutoModelForSeq2SeqLM.from_pretrained(
+            MODEL_NAME,
+            cache_dir=CACHE_DIR,
+            local_files_only=True,  # Only use local files
+        )
+        model_duration = time.time() - model_start
+
+        tokenizer_start = time.time()
+        logger.debug("flan.loading_tokenizer_from_cache", phase="tokenizer_cache_load")
+        cached_tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_NAME, cache_dir=CACHE_DIR, local_files_only=True
+        )
+        tokenizer_duration = time.time() - tokenizer_start
+        total_duration = time.time() - cache_start
+
+        logger.info(
+            "flan.model_loaded_from_cache",
+            model_name=MODEL_NAME,
+            cache_dir=CACHE_DIR,
+            model_duration_ms=round(model_duration * 1000, 2),
+            tokenizer_duration_ms=round(tokenizer_duration * 1000, 2),
+            total_duration_ms=round(total_duration * 1000, 2),
+            phase="cache_load_complete",
+        )
+        return (cached_model, cached_tokenizer)
+    except (OSError, ImportError, RuntimeError) as e:
+        total_duration = time.time() - cache_start
+        logger.debug(
+            "flan.cache_load_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            duration_ms=round(total_duration * 1000, 2),
+            phase="cache_load_failed",
+        )
+        return None
+
+
+def _load_with_download() -> tuple[Any, Any]:
+    """Load model and tokenizer with download fallback."""
+    import time
+
+    download_start = time.time()
+
+    # Check if force download is enabled
+    force_download = False
+    if _model_loader is not None:
+        force_download = _model_loader.is_force_download()
+
+    logger.info(
+        "flan.download_load_start",
+        model_name=MODEL_NAME,
+        cache_dir=CACHE_DIR,
+        force_download=force_download,
+        phase="download_start",
+    )
+
+    # Log the exact parameters that will be used for loading
+    model_params: dict[str, Any] = {
+        "model_name": MODEL_NAME,
+        "cache_dir": CACHE_DIR,
+    }
+    if force_download:
+        model_params["force_download"] = True
+
+    logger.debug(
+        "flan.model_load_parameters",
+        phase="model_load_params",
+        model_parameters=model_params,
+        tokenizer_parameters=model_params,
+        message="Parameters for AutoModelForSeq2SeqLM and AutoTokenizer",
+    )
+
+    # Use force download helper if enabled
+    if force_download:
+        logger.info(
+            "flan.force_download_enabled",
+            model_name=MODEL_NAME,
+            phase="force_download_prep",
+        )
+        model_start = time.time()
+        downloaded_model = force_download_transformers(
+            model_name=MODEL_NAME,
+            cache_dir=CACHE_DIR,
+            force=True,
+            model_class=AutoModelForSeq2SeqLM,
+        )
+        model_duration = time.time() - model_start
+
+        tokenizer_start = time.time()
+        downloaded_tokenizer = force_download_transformers(
+            model_name=MODEL_NAME,
+            cache_dir=CACHE_DIR,
+            force=True,
+            model_class=AutoTokenizer,
+        )
+        tokenizer_duration = time.time() - tokenizer_start
+    else:
+        model_start = time.time()
+        logger.debug("flan.downloading_model", phase="model_download")
+        downloaded_model = AutoModelForSeq2SeqLM.from_pretrained(
+            MODEL_NAME, cache_dir=CACHE_DIR
+        )
+        model_duration = time.time() - model_start
+
+        tokenizer_start = time.time()
+        logger.debug("flan.downloading_tokenizer", phase="tokenizer_download")
+        downloaded_tokenizer = AutoTokenizer.from_pretrained(
+            MODEL_NAME, cache_dir=CACHE_DIR
+        )
+        tokenizer_duration = time.time() - tokenizer_start
+
+    total_duration = time.time() - download_start
+
+    logger.info(
+        "flan.model_downloaded_and_loaded",
+        model_name=MODEL_NAME,
+        cache_dir=CACHE_DIR,
+        force_download=force_download,
+        model_duration_ms=round(model_duration * 1000, 2),
+        tokenizer_duration_ms=round(tokenizer_duration * 1000, 2),
+        total_duration_ms=round(total_duration * 1000, 2),
+        phase="download_complete",
+    )
+    return (downloaded_model, downloaded_tokenizer)
+
+
 async def _startup() -> None:
     """Load the FLAN-T5 model and tokenizer on startup."""
-    global model, tokenizer, _observability_manager, _llm_metrics, _http_metrics
+    global _model_loader, _observability_manager, _llm_metrics, _http_metrics
 
     try:
         # Get observability manager (factory already setup observability)
@@ -70,33 +229,41 @@ async def _startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
+        # Ensure cache directory is writable
+        if not ensure_model_directory(CACHE_DIR):
+            logger.warning(
+                "flan.cache_directory_not_writable",
+                cache_dir=CACHE_DIR,
+                message="Model loading may fail if cache directory is not writable",
+            )
+
         logger.info(
             "Loading FLAN-T5 model", extra={"model": MODEL_NAME, "cache_dir": CACHE_DIR}
         )
 
-        # Try to load from cache first
-        model = AutoModelForSeq2SeqLM.from_pretrained(
-            MODEL_NAME,
-            cache_dir=CACHE_DIR,
-            local_files_only=True,  # Only use local files
+        # Initialize model loader with cache-first + download fallback
+        _model_loader = BackgroundModelLoader(
+            cache_loader_func=_load_from_cache,
+            download_loader_func=_load_with_download,
+            logger=logger,
+            loader_name="flan_t5",
         )
-        tokenizer = AutoTokenizer.from_pretrained(
-            MODEL_NAME, cache_dir=CACHE_DIR, local_files_only=True
-        )
-        logger.info("FLAN-T5 model loaded successfully from cache")
+
+        # Start background loading (non-blocking)
+        await _model_loader.initialize()
+        logger.info("flan.model_loader_initialized", model_name=MODEL_NAME)
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
 
-    except Exception as e:
-        logger.error(f"Failed to load FLAN-T5 model from cache: {e}")
-        # Fallback to downloading if cache miss
-        logger.info("Attempting to download model...")
-        model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME)
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-        logger.info("FLAN-T5 model downloaded and loaded successfully")
-
-        # Mark startup complete even after fallback
+    except (OSError, ImportError, RuntimeError) as e:
+        logger.warning(
+            "flan.model_loader_init_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            note="Service will continue with graceful degradation",
+        )
+        # Mark startup complete even after error (graceful degradation)
         _health_manager.mark_startup_complete()
 
 
@@ -139,8 +306,42 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
     start_time = time.time()
 
     try:
-        if model is None or tokenizer is None:
-            raise HTTPException(status_code=503, detail="Model not loaded")
+        # Check model status before processing (non-blocking)
+        if _model_loader is None:
+            raise HTTPException(status_code=503, detail="Model loader not initialized")
+
+        if _model_loader.is_loading():
+            raise HTTPException(
+                status_code=503,
+                detail="Models are currently loading. Please try again shortly.",
+            )
+
+        if not _model_loader.is_loaded():
+            status = _model_loader.get_status()
+            error_msg = status.get("error", "Models not available")
+            raise HTTPException(
+                status_code=503, detail=f"Models not available: {error_msg}"
+            )
+
+        # Ensure models are loaded (may trigger lazy load if background failed)
+        if not await _model_loader.ensure_loaded():
+            status = _model_loader.get_status()
+            error_msg = status.get("error", "Models not available")
+            raise HTTPException(
+                status_code=503, detail=f"Models not available: {error_msg}"
+            )
+
+        # Get model and tokenizer from loader (tuple return)
+        model_tokenizer_tuple = _model_loader.get_model()
+        if model_tokenizer_tuple is None:
+            raise HTTPException(status_code=503, detail="Models not available")
+
+        loaded_model, loaded_tokenizer = model_tokenizer_tuple
+
+        # Update global variables for backward compatibility
+        global model, tokenizer
+        model = loaded_model
+        tokenizer = loaded_tokenizer
 
         messages = request.get("messages", [])
         if not messages:
@@ -235,7 +436,7 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
             )
 
         logger.error(f"Error in chat completions: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 # Initialize health endpoints
@@ -243,7 +444,7 @@ health_endpoints = HealthEndpoints(
     service_name="flan",
     health_manager=_health_manager,
     custom_components={
-        "model_loaded": lambda: model is not None and tokenizer is not None,
+        "model_loaded": lambda: _model_loader.is_loaded() if _model_loader else False,
         "model_name": lambda: MODEL_NAME,
         "model_size": lambda: MODEL_SIZE.name,
     },

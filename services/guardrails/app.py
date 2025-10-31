@@ -13,11 +13,20 @@ from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from services.common.audio_metrics import create_guardrails_metrics, create_http_metrics
+from services.common.config import (
+    LoggingConfig,
+    get_service_preset,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.model_loader import BackgroundModelLoader
 from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
+from services.common.permissions import (
+    check_directory_permissions,
+    ensure_model_directory,
+)
 
 
 # ML imports for toxicity detection
@@ -37,8 +46,16 @@ try:
 except ImportError:
     SLOWAPI_AVAILABLE = False
 
-# Configure logging
-configure_logging("info", json_logs=True, service_name="guardrails")
+# Load configuration using standard config classes
+_config_preset = get_service_preset("guardrails")
+_logging_config = LoggingConfig(**_config_preset["logging"])
+
+# Configure logging using config class
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="guardrails",
+)
 logger = get_logger(__name__, service_name="guardrails")
 
 # Health manager and observability
@@ -50,6 +67,8 @@ _http_metrics = {}
 # Configuration
 _toxicity_detector = None
 _limiter = None
+# Model loader for background loading
+_model_loader: BackgroundModelLoader | None = None
 
 # PII patterns
 PII_PATTERNS = {
@@ -100,24 +119,143 @@ class EscalationResponse(BaseModel):
     escalated: bool = Field(..., description="Whether escalation was successful")
 
 
-def initialize_models() -> None:
-    """Initialize ML models for toxicity detection."""
-    global _toxicity_detector
-
+def _load_toxicity_model() -> Any | None:
+    """Load toxicity detection model (used by BackgroundModelLoader)."""
     if not TRANSFORMERS_AVAILABLE:
         logger.warning(
             "guardrails.transformers_unavailable", message="Transformers not available"
         )
-        return
+        return None
 
     try:
+        # Check if force download is enabled
+        force_download = False
+        if _model_loader is not None:
+            force_download = _model_loader.is_force_download()
+
         # Load toxicity detection model
+        # HuggingFace pipeline has built-in caching
         model_name = "unitary/toxic-bert"
-        _toxicity_detector = pipeline("text-classification", model=model_name)
-        logger.info("guardrails.toxicity_model_loaded", model=model_name)
+
+        # Get cache directory from environment (migrated to HF_HOME per transformers v5 deprecation)
+        import os
+        import time
+
+        load_start = time.time()
+        cache_dir = os.getenv("HF_HOME", os.getenv("TRANSFORMERS_CACHE", "/app/models"))
+
+        logger.info(
+            "guardrails.model_load_start",
+            model_name=model_name,
+            cache_dir=cache_dir,
+            force_download=force_download,
+            phase="load_start",
+        )
+
+        # Ensure cache directory is writable
+        if not ensure_model_directory(cache_dir):
+            diagnostics = check_directory_permissions(cache_dir)
+            logger.error(
+                "guardrails.cache_directory_not_writable",
+                cache_dir=cache_dir,
+                diagnostics=diagnostics,
+                user_id=os.getuid(),
+                group_id=os.getgid(),
+                phase="permission_check_failed",
+            )
+            return None
+
+        # Log exact parameters that will be passed to pipeline
+        pipeline_params: dict[str, Any] = {
+            "task": "text-classification",
+            "model": model_name,
+        }
+        if force_download:
+            pipeline_params["model_kwargs"] = {
+                "force_download": True,
+                "cache_dir": cache_dir,
+            }
+        else:
+            pipeline_params["model_kwargs"] = {"cache_dir": cache_dir}
+
+        logger.debug(
+            "guardrails.pipeline_parameters",
+            phase="pipeline_params",
+            pipeline_parameters=pipeline_params,
+            message="Parameters for transformers pipeline",
+        )
+
+        # Pass force_download and cache_dir to pipeline if enabled
+        pipeline_start = time.time()
+        if force_download:
+            logger.info(
+                "guardrails.force_download_loading",
+                model=model_name,
+                cache_dir=cache_dir,
+                phase="force_download",
+            )
+            detector = pipeline(
+                "text-classification",
+                model=model_name,
+                model_kwargs={"force_download": True, "cache_dir": cache_dir},
+            )
+            pipeline_duration = time.time() - pipeline_start
+            total_duration = time.time() - load_start
+
+            logger.info(
+                "guardrails.toxicity_model_loaded",
+                model=model_name,
+                force_download=True,
+                cache_dir=cache_dir,
+                pipeline_duration_ms=round(pipeline_duration * 1000, 2),
+                total_duration_ms=round(total_duration * 1000, 2),
+                phase="load_complete",
+            )
+        else:
+            logger.debug(
+                "guardrails.loading_model",
+                model=model_name,
+                cache_dir=cache_dir,
+                phase="normal_load",
+            )
+            detector = pipeline(
+                "text-classification",
+                model=model_name,
+                model_kwargs={"cache_dir": cache_dir},
+            )
+            pipeline_duration = time.time() - pipeline_start
+            total_duration = time.time() - load_start
+
+            logger.info(
+                "guardrails.toxicity_model_loaded",
+                model=model_name,
+                cache_dir=cache_dir,
+                pipeline_duration_ms=round(pipeline_duration * 1000, 2),
+                total_duration_ms=round(total_duration * 1000, 2),
+                phase="load_complete",
+            )
+
+        return detector
+    except PermissionError as e:
+        import os
+
+        diagnostics = check_directory_permissions(
+            os.getenv("HF_HOME", os.getenv("TRANSFORMERS_CACHE", "/app/models"))
+        )
+        logger.error(
+            "guardrails.model_loading_permission_error",
+            error=str(e),
+            cache_dir=os.getenv(
+                "HF_HOME", os.getenv("TRANSFORMERS_CACHE", "/app/models")
+            ),
+            diagnostics=diagnostics,
+            user_id=os.getuid(),
+            group_id=os.getgid(),
+        )
+        return None
     except Exception as e:
         logger.error("guardrails.model_loading_failed", error=str(e))
-        _toxicity_detector = None
+        return None
 
 
 def initialize_rate_limiter(app_instance: Any) -> None:
@@ -142,7 +280,12 @@ def initialize_rate_limiter(app_instance: Any) -> None:
 
 async def _startup() -> None:
     """Initialize the guardrails service."""
-    global _observability_manager, _guardrails_metrics, _http_metrics
+    global \
+        _toxicity_detector, \
+        _model_loader, \
+        _observability_manager, \
+        _guardrails_metrics, \
+        _http_metrics
 
     try:
         # Get observability manager (factory already setup observability)
@@ -155,12 +298,27 @@ async def _startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Initialize models
-        initialize_models()
+        # Initialize model loader (HuggingFace pipeline has built-in caching)
+        # Use cache_loader_func=None since pipeline handles caching internally
+        _model_loader = BackgroundModelLoader(
+            cache_loader_func=None,  # Pipeline has built-in caching
+            download_loader_func=_load_toxicity_model,
+            logger=logger,
+            loader_name="toxicity_model",
+        )
+
+        # Start background loading (non-blocking)
+        await _model_loader.initialize()
+        logger.info("guardrails.model_loader_initialized")
+
+        # Get model from loader and set global for backward compatibility
+        if _model_loader.is_loaded():
+            _toxicity_detector = _model_loader.get_model()
 
         # Register dependencies
         _health_manager.register_dependency(
-            "toxicity_model", lambda: _toxicity_detector is not None
+            "toxicity_model",
+            lambda: _model_loader.is_loaded() if _model_loader else False,
         )
         _health_manager.register_dependency(
             "rate_limiter", lambda: _limiter is not None
@@ -204,7 +362,9 @@ health_endpoints = HealthEndpoints(
     service_name="guardrails",
     health_manager=_health_manager,
     custom_components={
-        "toxicity_model_loaded": lambda: _toxicity_detector is not None,
+        "toxicity_model_loaded": lambda: _model_loader.is_loaded()
+        if _model_loader
+        else False,
         "rate_limiter_available": lambda: _limiter is not None,
         "transformers_available": lambda: TRANSFORMERS_AVAILABLE,
         "slowapi_available": lambda: SLOWAPI_AVAILABLE,
@@ -321,10 +481,31 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
     try:
         text = request.text
 
+        # Check model status and get detector (non-blocking)
+        global _toxicity_detector
+        if _model_loader is None:
+            logger.debug("guardrails.model_loader_not_initialized")
+            # Continue without toxicity check
+            detector = None
+        elif _model_loader.is_loading():
+            logger.debug("guardrails.model_loading", skipping_check=True)
+            # Continue without toxicity check
+            detector = None
+        elif not _model_loader.is_loaded():
+            # Ensure model is loaded (may trigger lazy load)
+            if await _model_loader.ensure_loaded():
+                detector = _model_loader.get_model()
+                _toxicity_detector = detector
+            else:
+                detector = None
+        else:
+            detector = _model_loader.get_model()
+            _toxicity_detector = detector
+
         # Toxicity check
-        if _toxicity_detector is not None:
+        if detector is not None:
             try:
-                result = _toxicity_detector(text)[0]
+                result = detector(text)[0]
 
                 # Record toxicity check metric
                 if _guardrails_metrics and "toxicity_checks" in _guardrails_metrics:

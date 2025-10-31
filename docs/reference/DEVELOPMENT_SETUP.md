@@ -143,9 +143,9 @@ Each service has its own `requirements.txt` with:
 
 -  `faster-whisper`, `python-multipart`
 
-**LLM Service**:
+**FLAN Service**:
 
--  `llama-cpp-python`
+-  `transformers` (Hugging Face)
 
 **Orchestrator Service**:
 

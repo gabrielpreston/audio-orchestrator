@@ -13,7 +13,7 @@ import base64
 import time
 from typing import Any
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request, Response
 from pydantic import BaseModel
 import uvicorn
 
@@ -31,6 +31,7 @@ from services.common.health_endpoints import HealthEndpoints
 from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
+from services.common.permissions import ensure_model_directory
 
 # Import local audio types
 from services.common.surfaces.types import AudioSegment, PCMFrame
@@ -130,8 +131,35 @@ async def _startup() -> None:
         await _audio.initialize()
 
         # Initialize audio enhancer
+        # Get model savedir from environment or use default
+        import os
+
+        model_savedir = os.getenv(
+            "METRICGAN_MODEL_SAVEDIR", "/app/models/metricgan-plus"
+        )
+        model_source = os.getenv(
+            "METRICGAN_MODEL_SOURCE", "speechbrain/metricgan-plus-voicebank"
+        )
+
+        # Ensure model directory is writable
+        from pathlib import Path
+
+        model_path = Path(model_savedir)
+        parent = model_path.parent
+        # If parent is root or current dir, use default
+        model_dir = str(parent) if str(parent) not in (".", "/") else "/app/models"
+        if not ensure_model_directory(model_dir):
+            _logger.warning(
+                "audio.model_directory_not_writable",
+                model_dir=model_dir,
+                message="MetricGAN model downloads may fail",
+            )
+
         _audio_enhancer = AudioEnhancer(
-            enable_metricgan=_audio_config.enable_enhancement, device="cpu"
+            enable_metricgan=_audio_config.enable_enhancement,
+            device="cpu",
+            model_source=model_source,
+            model_savedir=model_savedir,
         )
 
         # Mark startup complete
@@ -374,14 +402,14 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
 
 
 @app.post("/enhance/audio")  # type: ignore[misc]
-async def enhance_audio(request: Request) -> bytes:
+async def enhance_audio(request: Request) -> Response:
     """Apply audio enhancement to WAV data.
 
     Args:
         request: HTTP request with audio file
 
     Returns:
-        Enhanced audio data
+        Enhanced audio data as binary response
     """
     start_time = time.perf_counter()
 
@@ -406,7 +434,11 @@ async def enhance_audio(request: Request) -> bytes:
             processing_time_ms=processing_time,
         )
 
-        return bytes(enhanced_data)
+        return Response(
+            content=bytes(enhanced_data),
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=enhanced.wav"},
+        )
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
@@ -417,11 +449,16 @@ async def enhance_audio(request: Request) -> bytes:
         )
 
         # Return original data on failure
-        return bytes(await request.body())
+        original_data = await request.body()
+        return Response(
+            content=bytes(original_data),
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=original.wav"},
+        )
 
 
 @app.post("/denoise")  # type: ignore[misc]
-async def denoise_audio(request: Request) -> bytes:
+async def denoise_audio(request: Request) -> Response:
     """Denoise full audio file using MetricGAN+."""
     start_time = time.perf_counter()
 
@@ -446,7 +483,11 @@ async def denoise_audio(request: Request) -> bytes:
             processing_time_ms=processing_time,
         )
 
-        return bytes(denoised_data)
+        return Response(
+            content=bytes(denoised_data),
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=denoised.wav"},
+        )
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
@@ -457,11 +498,16 @@ async def denoise_audio(request: Request) -> bytes:
         )
 
         # Return original data on failure
-        return bytes(await request.body())
+        original_data = await request.body()
+        return Response(
+            content=bytes(original_data),
+            media_type="audio/wav",
+            headers={"Content-Disposition": "attachment; filename=original.wav"},
+        )
 
 
 @app.post("/denoise/streaming")  # type: ignore[misc]
-async def denoise_streaming(request: Request) -> bytes:
+async def denoise_streaming(request: Request) -> Response:
     """Denoise streaming audio frames using MetricGAN+."""
     start_time = time.perf_counter()
 
@@ -486,7 +532,13 @@ async def denoise_streaming(request: Request) -> bytes:
             processing_time_ms=processing_time,
         )
 
-        return bytes(denoised_data)
+        return Response(
+            content=bytes(denoised_data),
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": "attachment; filename=denoised_streaming.wav"
+            },
+        )
 
     except Exception as exc:
         processing_time = (time.perf_counter() - start_time) * 1000
@@ -497,7 +549,14 @@ async def denoise_streaming(request: Request) -> bytes:
         )
 
         # Return original data on failure
-        return bytes(await request.body())
+        original_data = await request.body()
+        return Response(
+            content=bytes(original_data),
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": "attachment; filename=original_streaming.wav"
+            },
+        )
 
 
 async def _check_audio_health() -> bool:

@@ -10,14 +10,25 @@ from typing import Any
 
 from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics
+from services.common.config import (
+    LoggingConfig,
+    get_service_preset,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
 
+# Load configuration using standard config classes
+_config_preset = get_service_preset("monitoring")
+_logging_config = LoggingConfig(**_config_preset["logging"])
 
 # Configure logging early so we can log import errors
-configure_logging("info", json_logs=True, service_name="monitoring")
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="monitoring",
+)
 logger = get_logger(__name__, service_name="monitoring")
 
 # Import optional dependencies with error handling
@@ -119,7 +130,12 @@ def display_service_health() -> None:
                     response.raise_for_status()
                     return dict(response.json())
                 except Exception as e:
-                    logger.error("Failed to query Prometheus", error=str(e))
+                    logger.warning(
+                        "monitoring.prometheus_query_failed",
+                        error=str(e),
+                        error_type=type(e).__name__,
+                        note="Prometheus may be unavailable",
+                    )
                     return None
 
         # For now, show placeholder data since we can't easily make async calls in Streamlit
@@ -145,7 +161,12 @@ def display_service_health() -> None:
 
     except Exception as e:
         st.error(f"Failed to fetch health data: {str(e)}")
-        logger.error("Health data fetch failed", error=str(e))
+        logger.warning(
+            "monitoring.health_data_fetch_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            note="Dashboard will show placeholder data",
+        )
 
 
 def display_performance_metrics(_time_range: str) -> None:
@@ -166,7 +187,12 @@ def display_performance_metrics(_time_range: str) -> None:
 
     except Exception as e:
         st.error(f"Failed to fetch performance data: {str(e)}")
-        logger.error("Performance data fetch failed", error=str(e))
+        logger.warning(
+            "monitoring.performance_data_fetch_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            note="Dashboard will show placeholder data",
+        )
 
 
 def display_guardrail_metrics(_time_range: str) -> None:
@@ -194,7 +220,12 @@ def display_guardrail_metrics(_time_range: str) -> None:
 
     except Exception as e:
         st.error(f"Failed to fetch guardrail data: {str(e)}")
-        logger.error("Guardrail data fetch failed", error=str(e))
+        logger.warning(
+            "monitoring.guardrail_data_fetch_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            note="Dashboard will show placeholder data",
+        )
 
 
 def display_system_metrics(_time_range: str) -> None:
@@ -215,7 +246,12 @@ def display_system_metrics(_time_range: str) -> None:
 
     except Exception as e:
         st.error(f"Failed to fetch system metrics: {str(e)}")
-        logger.error("System metrics fetch failed", error=str(e))
+        logger.warning(
+            "monitoring.system_metrics_fetch_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            note="Dashboard will show placeholder data",
+        )
 
 
 async def _check_prometheus_health() -> bool:

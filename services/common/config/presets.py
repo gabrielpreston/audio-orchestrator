@@ -224,23 +224,6 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "enable_enhancement": True,
             },
         },
-        "llm": {
-            "logging": {"level": "INFO", "json_logs": True, "service_name": "llm"},
-            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
-            "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9096, "jaeger_endpoint": ""},
-            "llama": {
-                "model_path": "/app/models/llama",
-                "context_length": 2048,
-                "threads": 4,
-            },
-            "tts": {
-                "base_url": "http://tts:8000",
-                "voice": "default",
-                "auth_token": "",
-                "timeout": 30.0,
-            },
-        },
         "tts": {
             "logging": {"level": "INFO", "json_logs": True, "service_name": "tts"},
             "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
@@ -302,6 +285,78 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             },
             "service": {"port": 9100, "host": "0.0.0.0", "workers": 1},
             "telemetry": {"enabled": True, "metrics_port": 9095, "jaeger_endpoint": ""},
+        },
+        "flan": {
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "flan",
+            },
+            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
+            "audio": {
+                "sample_rate": 16000,
+                "channels": 1,
+                "enable_enhancement": False,
+                "enable_vad": False,
+                "service_url": "http://audio:9100",
+                "service_timeout": 20,
+            },
+            "service": {"port": 8100, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9096, "jaeger_endpoint": ""},
+        },
+        "guardrails": {
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "guardrails",
+            },
+            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
+            "audio": {
+                "sample_rate": 16000,
+                "channels": 1,
+                "enable_enhancement": False,
+                "enable_vad": False,
+                "service_url": "http://audio:9100",
+                "service_timeout": 20,
+            },
+            "service": {"port": 9300, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9097, "jaeger_endpoint": ""},
+        },
+        "testing": {
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "testing",
+            },
+            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
+            "audio": {
+                "sample_rate": 16000,
+                "channels": 1,
+                "enable_enhancement": False,
+                "enable_vad": False,
+                "service_url": "http://audio:9100",
+                "service_timeout": 20,
+            },
+            "service": {"port": 8500, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9098, "jaeger_endpoint": ""},
+        },
+        "monitoring": {
+            "logging": {
+                "level": "INFO",
+                "json_logs": True,
+                "service_name": "monitoring",
+            },
+            "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
+            "audio": {
+                "sample_rate": 16000,
+                "channels": 1,
+                "enable_enhancement": False,
+                "enable_vad": False,
+                "service_url": "http://audio:9100",
+                "service_timeout": 20,
+            },
+            "service": {"port": 8502, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9099, "jaeger_endpoint": ""},
         },
     }
 

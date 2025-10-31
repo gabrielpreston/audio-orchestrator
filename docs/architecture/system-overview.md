@@ -113,7 +113,7 @@ The platform uses a flexible agent system for intelligent response generation:
 
 -  **REST API Integration** — Services communicate through REST API endpoints for tool discovery and execution.
 -  **Discord tokens** — Configure via `services/discord/.env.service` with guild and channel identifiers.
--  **Llama.cpp runtime** — Tuned through `services/llm/.env.service` to set model paths, context size, and threading.
+-  **FLAN-T5 runtime** — Configured through `services/flan/.env.service` to set model size, generation parameters, and Hugging Face cache settings.
 -  **LiveKit integration** — Planned future capability for enhanced real-time audio processing and multi-participant voice interactions.
 
 For deeper service details, explore the [service deep dives](service-deep-dives/discord.md) and the [REST API documentation](api/rest-api.md).

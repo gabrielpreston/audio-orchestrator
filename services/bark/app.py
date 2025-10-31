@@ -29,6 +29,7 @@ from services.common.health_endpoints import HealthEndpoints
 from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
+from services.common.permissions import ensure_model_directory
 
 from .synthesis import BarkSynthesizer
 
@@ -98,6 +99,35 @@ async def _startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
+        # Ensure model directories are writable (bark uses /app/.cache/suno/bark_v0)
+        import os
+
+        cache_dir = os.getenv("HF_HOME", "/app/models")
+        home_dir = os.getenv("HOME", "/app")
+        cache_subdir = os.path.join(home_dir, ".cache", "suno")
+
+        # Ensure both HF cache and HOME/.cache/suno are writable
+        if not ensure_model_directory(cache_dir):
+            _logger.warning(
+                "bark.cache_directory_not_writable",
+                cache_dir=cache_dir,
+                message="Bark model downloads may fail",
+            )
+
+        # Bark uses ~/.cache/suno/bark_v0 - ensure this path exists and is writable
+        if not ensure_model_directory(cache_subdir):
+            _logger.warning(
+                "bark.cache_subdirectory_not_writable",
+                cache_subdir=cache_subdir,
+                message="Bark may not be able to write to ~/.cache/suno",
+            )
+        else:
+            _logger.debug(
+                "bark.cache_subdirectory_ready",
+                cache_subdir=cache_subdir,
+                phase="startup_permissions_check",
+            )
+
         # Initialize Bark synthesizer
         _bark_synthesizer = BarkSynthesizer(_audio_config)
         await _bark_synthesizer.initialize()
@@ -154,6 +184,22 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
     """Synthesize text to speech using Bark with Piper fallback."""
     if _bark_synthesizer is None:
         raise HTTPException(status_code=503, detail="Bark synthesizer not available")
+
+    # Check if models are loading (non-blocking)
+    if _bark_synthesizer._model_loader.is_loading():
+        raise HTTPException(
+            status_code=503,
+            detail="Bark models are currently loading. Please try again shortly.",
+        )
+
+    # Check if models are loaded (non-blocking)
+    if not _bark_synthesizer._model_loader.is_loaded():
+        status = _bark_synthesizer._model_loader.get_status()
+        error_msg = status.get("error", "Models not available")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Bark models not available: {error_msg}",
+        )
 
     start_time = time.time()
 

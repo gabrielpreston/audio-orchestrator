@@ -55,10 +55,13 @@ class HealthManager:
                 unit="s",
                 description="Health check execution duration",
             )
+            # Use gauge (observable gauge) for current health status
+            # Note: OpenTelemetry Python SDK doesn't have a direct synchronous gauge,
+            # so we use up_down_counter with reset semantics (add positive for healthy, add negative to reset)
             self._health_status_gauge = meter.create_up_down_counter(
                 "service_health_status",
                 unit="1",
-                description="Current service health status",
+                description="Current service health status (1=healthy, 0.5=degraded, 0=unhealthy)",
             )
             self._dependency_status_gauge = meter.create_up_down_counter(
                 "service_dependency_health",

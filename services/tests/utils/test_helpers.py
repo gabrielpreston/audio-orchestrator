@@ -177,7 +177,7 @@ def create_mock_transcription_result(
 
 def create_mock_llm_response(
     content: str = "The weather is sunny today with a temperature of 75°F.",
-    model: str = "llama-2-7b",
+    model: str = "flan-t5-large",
     usage: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Create mock LLM response for testing.

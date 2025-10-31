@@ -9,6 +9,7 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/guardrails:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "9310:9300" # External: 9310, Internal: 9300
     env_file:
@@ -18,7 +19,10 @@ services:
     environment:
       - TOXICITY_MODEL=unitary/toxic-bert
       - ENABLE_PII_DETECTION=true
+      - FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL=${FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL:-false}
+      - HF_HOME=/app/models
     volumes:
+      - ./services/models/guardrails:/app/models
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
       - "./services/guardrails:/app/services/guardrails"
@@ -79,6 +83,7 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/flan:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "8110:8100" # External: 8110, Internal: 8100
     env_file:
@@ -87,10 +92,10 @@ services:
       - "./services/flan/.env.service"
     environment:
       - MODEL_NAME=${FLAN_T5_MODEL_SIZE:-google/flan-t5-large}
-      - TRANSFORMERS_CACHE=/app/models
+      - HF_HOME=/app/models
+      - FORCE_MODEL_DOWNLOAD_FLAN_T5=${FORCE_MODEL_DOWNLOAD_FLAN_T5:-false}
     volumes:
-      - ./services/models/flan-t5:/app/models:ro
-      - ~/.cache/huggingface:/root/.cache/huggingface:ro
+      - ./services/models/flan-t5:/app/models
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
       - "./services/flan:/app/services/flan"
@@ -115,13 +120,18 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/audio:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "8010:9100"
     env_file:
       - "./.env.common"
       - "./.env.docker"
       - "./services/audio/.env.service"
+    environment:
+      - FORCE_MODEL_DOWNLOAD_METRICGAN=${FORCE_MODEL_DOWNLOAD_METRICGAN:-false}
+      - METRICGAN_MODEL_SAVEDIR=/app/models/metricgan-plus
     volumes:
+      - ./services/models/audio:/app/models
       - "./debug:/app/debug"
       - "./services/audio/config:/app/config"
       # Mount source code for development (overrides COPY in Dockerfile)
@@ -148,6 +158,7 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/discord:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "8009:8001"
     env_file:
@@ -180,14 +191,17 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/stt:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "8011:9000"
     env_file:
       - "./.env.common"
       - "./.env.docker"
       - "./services/stt/.env.service"
+    environment:
+      - FORCE_MODEL_DOWNLOAD_WHISPER_MODEL=${FORCE_MODEL_DOWNLOAD_WHISPER_MODEL:-false}
     volumes:
-      - "./services/models/stt:/app/models:ro"
+      - "./services/models/stt:/app/models"
       - "./debug:/app/debug"
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
@@ -214,6 +228,7 @@ services:
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/bark:latest"
+    user: "${PUID:-1000}:${PGID:-1000}"
     ports:
       - "7120:7100" # External: 7120, Internal: 7100
     env_file:
@@ -221,15 +236,22 @@ services:
       - "./.env.docker"
       - "./services/bark/.env.service"
     environment:
-      - BARK_USE_SMALL_MODELS=false
+      - BARK_USE_SMALL_MODELS=true
+      - FORCE_MODEL_DOWNLOAD_BARK_MODELS=${FORCE_MODEL_DOWNLOAD_BARK_MODELS:-false}
+      - HF_HOME=/app/models
+      - HOME=/app
+      - XDG_CACHE_HOME=/app/models
     volumes:
+      - ./services/models/bark:/app/models
+      # Mount /app/.cache so Bark can write to ~/.cache/suno/bark_v0
+      - ./services/models/bark/.cache:/app/.cache
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
       - "./services/bark:/app/services/bark"
     deploy:
       resources:
         limits:
-          memory: 4G # Optimized for Bark
+          memory: 6G # Increased for Bark model loading (was 4G, OOM during preload_models)
           cpus: "2"
     restart: "unless-stopped"
     logging:
@@ -361,6 +383,7 @@ services:
     environment:
       - COLLECTOR_OTLP_ENABLED=true
       - SPAN_STORAGE_TYPE=memory
+      - LOG_LEVEL=warn
     ports:
       - "16686:16686" # Jaeger UI
       - "14250:14250" # gRPC
@@ -385,8 +408,7 @@ services:
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
-      # Mount entire config directory instead of individual files
-      - ./config/grafana:/etc/grafana/provisioning:ro
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"

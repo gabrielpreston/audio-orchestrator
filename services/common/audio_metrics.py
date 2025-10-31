@@ -119,20 +119,41 @@ def create_tts_metrics(observability_manager: ObservabilityManager) -> dict[str,
 
 def create_http_metrics(observability_manager: ObservabilityManager) -> dict[str, Any]:
     """Create HTTP-specific metrics."""
+    from .structured_logging import get_logger
+
+    logger = get_logger(__name__)
     meter = observability_manager.get_meter()
     if not meter:
+        logger.warning(
+            "http_metrics.no_meter", service=observability_manager.service_name
+        )
         return {}
 
-    return {
-        "http_requests": meter.create_counter(
-            "http_requests_total", unit="1", description="Total HTTP requests"
-        ),
-        "http_request_duration": meter.create_histogram(
-            "http_request_duration_seconds",
-            unit="s",
-            description="HTTP request duration",
-        ),
-    }
+    try:
+        metrics = {
+            "http_requests": meter.create_counter(
+                "http_requests_total", unit="1", description="Total HTTP requests"
+            ),
+            "http_request_duration": meter.create_histogram(
+                "http_request_duration_seconds",
+                unit="s",
+                description="HTTP request duration",
+            ),
+        }
+        logger.debug(
+            "http_metrics.created",
+            service=observability_manager.service_name,
+            metrics=list(metrics.keys()),
+        )
+        return metrics
+    except Exception as exc:
+        logger.exception(
+            "http_metrics.creation_failed",
+            service=observability_manager.service_name,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return {}
 
 
 def create_guardrails_metrics(

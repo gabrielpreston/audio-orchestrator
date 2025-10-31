@@ -18,8 +18,11 @@ from services.common.config import (
 from services.common.app_factory import create_service_app
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.model_loader import BackgroundModelLoader
+from services.common.model_utils import force_download_faster_whisper
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
+from services.common.permissions import ensure_model_directory
 
 from .audio_processor_client import STTAudioProcessorClient
 
@@ -34,6 +37,8 @@ MODEL_NAME = _cfg.faster_whisper.model
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
 # Module-level cached model to avoid repeated loads
 _model: Any = None
+# Model loader for background loading
+_model_loader: BackgroundModelLoader | None = None
 # Audio enhancer for preprocessing
 _audio_enhancer: Any = None
 # Audio processor client for remote enhancement
@@ -65,6 +70,258 @@ configure_logging(
 logger = get_logger(__name__, service_name="stt")
 
 
+def _load_from_cache() -> Any | None:
+    """Try loading model from local cache."""
+    import time
+
+    cache_start = time.time()
+    logger.debug(
+        "stt.cache_load_start",
+        model_name=MODEL_NAME,
+        model_path=MODEL_PATH,
+        phase="cache_check",
+    )
+
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        logger.error(
+            "stt.model_import_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="import_check",
+        )
+        return None
+
+    # Check if we have a local model directory
+    local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
+    if not os.path.exists(local_model_path):
+        logger.debug(
+            "stt.cache_directory_not_found",
+            model_path=local_model_path,
+            phase="cache_check",
+        )
+        return None
+
+    logger.debug(
+        "stt.cache_directory_found",
+        model_path=local_model_path,
+        phase="cache_found",
+    )
+
+    # Try loading from local path
+    device = _cfg.faster_whisper.device
+    compute_type = _cfg.faster_whisper.compute_type
+
+    # Validate device/compute_type compatibility
+    if device == "cpu" and compute_type == "float16":
+        compute_type = "int8"
+        logger.debug(
+            "stt.compute_type_adjusted",
+            original="float16",
+            adjusted="int8",
+            reason="CPU does not support float16",
+        )
+
+    load_start = time.time()
+    try:
+        if compute_type:
+            model = WhisperModel(
+                local_model_path, device=device, compute_type=compute_type
+            )
+        else:
+            model = WhisperModel(local_model_path, device=device)
+
+        load_duration = time.time() - load_start
+        total_duration = time.time() - cache_start
+
+        logger.info(
+            "stt.model_loaded_from_cache",
+            model_name=MODEL_NAME,
+            model_path=local_model_path,
+            device=device,
+            compute_type=compute_type or "default",
+            load_duration_ms=round(load_duration * 1000, 2),
+            total_duration_ms=round(total_duration * 1000, 2),
+            phase="cache_load_complete",
+        )
+        return model
+    except Exception as e:
+        load_duration = time.time() - load_start
+        logger.warning(
+            "stt.cache_load_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            model_path=local_model_path,
+            load_duration_ms=round(load_duration * 1000, 2),
+            phase="cache_load_failed",
+        )
+        return None
+
+
+def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
+    """Load model with fallback logic (try primary, then tiny.en)."""
+    import time
+
+    download_start = time.time()
+    logger.info(
+        "stt.download_load_start",
+        model_name=model_name,
+        model_path=MODEL_PATH,
+        phase="download_start",
+    )
+
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        logger.error(
+            "stt.model_import_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="import_check",
+        )
+        raise RuntimeError(f"faster-whisper import error: {e}") from e
+
+    device = _cfg.faster_whisper.device
+    compute_type = _cfg.faster_whisper.compute_type
+
+    # Validate device/compute_type compatibility
+    if device == "cpu" and compute_type == "float16":
+        logger.warning(
+            "stt.compute_type_corrected",
+            device=device,
+            original_compute_type=compute_type,
+            corrected_compute_type="int8",
+            reason="float16 not supported on CPU",
+            phase="config_validation",
+        )
+        compute_type = "int8"
+
+    # Check if force download is enabled (check env var directly as fallback)
+    force_download = False
+    if _model_loader is not None:
+        force_download = _model_loader.is_force_download()
+    else:
+        # Fallback: check environment variable directly
+        force_val = os.getenv("FORCE_MODEL_DOWNLOAD_WHISPER_MODEL", "").lower()
+        global_val = os.getenv("FORCE_MODEL_DOWNLOAD", "false").lower()
+        force_download = force_val in ("true", "1", "yes") or global_val in (
+            "true",
+            "1",
+            "yes",
+        )
+
+    # Use force download helper if enabled
+    if force_download:
+        logger.info(
+            "stt.force_download_clearing_cache",
+            model_name=model_name,
+            model_path=MODEL_PATH,
+            phase="force_download_prep",
+        )
+        model_path_or_name = force_download_faster_whisper(
+            model_name=model_name,
+            download_root=MODEL_PATH,
+            force=True,
+        )
+        logger.info(
+            "stt.force_download_cache_cleared",
+            model_name=model_name,
+            model_path_or_name=model_path_or_name,
+            phase="force_download_ready",
+        )
+    else:
+        # Check if we have a local model directory for the specified model
+        local_model_path = os.path.join(MODEL_PATH, model_name)
+        model_path_or_name = (
+            local_model_path if os.path.exists(local_model_path) else model_name
+        )
+        if os.path.exists(local_model_path):
+            logger.debug(
+                "stt.using_local_model",
+                model_name=model_name,
+                model_path=local_model_path,
+                phase="download_local_found",
+            )
+        else:
+            logger.info(
+                "stt.downloading_model",
+                model_name=model_name,
+                download_root=MODEL_PATH,
+                phase="download_required",
+            )
+
+    model_init_start = time.time()
+    try:
+        # Log exact parameters that will be passed to WhisperModel
+        whisper_params = {
+            "model_path_or_name": model_path_or_name,
+            "device": device,
+        }
+        if compute_type:
+            whisper_params["compute_type"] = compute_type
+
+        logger.info(
+            "stt.model_initialization_start",
+            model_name=model_name,
+            model_path_or_name=model_path_or_name,
+            device=device,
+            compute_type=compute_type or "default",
+            force_download=force_download,
+            whisper_model_parameters=whisper_params,
+            phase="model_init",
+        )
+
+        if compute_type:
+            model = WhisperModel(
+                model_path_or_name, device=device, compute_type=compute_type
+            )
+        else:
+            model = WhisperModel(model_path_or_name, device=device)
+
+        model_init_duration = time.time() - model_init_start
+        total_duration = time.time() - download_start
+
+        logger.info(
+            "stt.model_loaded",
+            model_name=model_name,
+            model_path=model_path_or_name,
+            is_local=os.path.exists(os.path.join(MODEL_PATH, model_name)),
+            device=device,
+            compute_type=compute_type or "default",
+            init_duration_ms=round(model_init_duration * 1000, 2),
+            total_duration_ms=round(total_duration * 1000, 2),
+            phase="download_complete",
+        )
+        return model
+    except Exception as e:
+        model_init_duration = time.time() - model_init_start
+        total_duration = time.time() - download_start
+
+        logger.exception(
+            "stt.model_load_error",
+            model_name=model_name,
+            device=device,
+            compute_type=compute_type,
+            error=str(e),
+            error_type=type(e).__name__,
+            init_duration_ms=round(model_init_duration * 1000, 2),
+            total_duration_ms=round(total_duration * 1000, 2),
+            phase="download_failed",
+        )
+        # If primary model fails and not already trying fallback, try tiny.en
+        if model_name != "tiny.en":
+            logger.warning(
+                "stt.primary_model_failed",
+                trying_fallback="tiny.en",
+                primary_model=model_name,
+                phase="fallback_triggered",
+            )
+            return _load_with_fallback("tiny.en")
+        # If fallback also fails, raise
+        raise RuntimeError(f"model load error: {e}") from e
+
+
 def _update_enhancement_stats(
     success: bool, duration_ms: float, error: str | None = None
 ) -> None:
@@ -93,27 +350,46 @@ def _update_enhancement_stats(
 
 async def _startup() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global _model, _audio_processor_client, _observability_manager
+    global \
+        _model_loader, \
+        _audio_processor_client, \
+        _observability_manager, \
+        _stt_metrics, \
+        _http_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("stt")
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Try to load model with fallback
-        try:
-            _model = _lazy_load_model()
-            logger.info("stt.model_loaded", model_name=MODEL_NAME)
-        except Exception as exc:
-            logger.warning("stt.model_load_failed", error=str(exc))
-            # Try fallback to smaller model
-            try:
-                fallback_model_name = "tiny.en"  # Fallback model
-                _model = _lazy_load_model()
-                logger.info("stt.fallback_model_loaded", model_name=fallback_model_name)
-            except Exception as fallback_exc:
-                logger.error("stt.fallback_model_failed", error=str(fallback_exc))
-                _model = None
+        # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_stt_metrics,
+            create_http_metrics,
+        )
+
+        _stt_metrics = create_stt_metrics(_observability_manager)
+        _http_metrics = create_http_metrics(_observability_manager)
+
+        # Ensure model directory is writable
+        if not ensure_model_directory(MODEL_PATH):
+            logger.warning(
+                "stt.model_directory_not_writable",
+                model_path=MODEL_PATH,
+                message="Model downloads may fail if directory is not writable",
+            )
+
+        # Initialize model loader with cache-first + download fallback
+        _model_loader = BackgroundModelLoader(
+            cache_loader_func=_load_from_cache,
+            download_loader_func=lambda: _load_with_fallback(MODEL_NAME),
+            logger=logger,
+            loader_name="whisper_model",
+        )
+
+        # Start background loading (non-blocking)
+        await _model_loader.initialize()
+        logger.info("stt.model_loader_initialized", model_name=MODEL_NAME)
 
         # Initialize audio processor client with fallback
         try:
@@ -185,7 +461,7 @@ health_endpoints = HealthEndpoints(
     service_name="stt",
     health_manager=_health_manager,
     custom_components={
-        "model_loaded": lambda: _model is not None,
+        "model_loaded": lambda: _model_loader.is_loaded() if _model_loader else False,
         "model_name": lambda: MODEL_NAME,
         "enhancer_loaded": lambda: _audio_enhancer is not None,
         "enhancer_enabled": lambda: (
@@ -209,64 +485,16 @@ def _parse_bool(value: str | None) -> bool:
 
 
 def _lazy_load_model() -> Any:
+    """Get model from loader (maintains backward compatibility)."""
     global _model
-    try:
-        from faster_whisper import WhisperModel
-    except Exception as e:
-        logger.exception("stt.model_import_failed", error=str(e))
-        raise HTTPException(
-            status_code=500, detail=f"faster-whisper import error: {e}"
-        ) from e
-
-    if _model is not None:
-        logger.debug("stt.model_cache_hit", model_name=MODEL_NAME)
-        return _model
-
-    device = _cfg.faster_whisper.device
-    compute_type = _cfg.faster_whisper.compute_type
-
-    # Validate device/compute_type compatibility
-    # float16 is not supported on CPU - auto-correct to int8
-    if device == "cpu" and compute_type == "float16":
-        logger.warning(
-            "stt.compute_type_corrected",
-            device=device,
-            original_compute_type=compute_type,
-            corrected_compute_type="int8",
-            reason="float16 not supported on CPU",
-        )
-        compute_type = "int8"
-
-    # Check if we have a local model directory
-    local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
-    model_path_or_name = (
-        local_model_path if os.path.exists(local_model_path) else MODEL_NAME
-    )
-
-    try:
-        if compute_type:
-            _model = WhisperModel(
-                model_path_or_name, device=device, compute_type=compute_type
-            )
-        else:
-            _model = WhisperModel(model_path_or_name, device=device)
-        logger.info(
-            "stt.model_loaded",
-            model_name=MODEL_NAME,
-            model_path=model_path_or_name,
-            is_local=os.path.exists(local_model_path),
-            device=device,
-            compute_type=compute_type or "default",
-        )
-    except Exception as e:
-        logger.exception(
-            "stt.model_load_error",
-            model_name=MODEL_NAME,
-            device=device,
-            compute_type=compute_type,
-            error=str(e),
-        )
-        raise HTTPException(status_code=500, detail=f"model load error: {e}") from e
+    if _model_loader is None:
+        raise HTTPException(status_code=503, detail="Model loader not initialized")
+    # Get model from loader (may trigger lazy load)
+    model = _model_loader.get_model()
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not available")
+    # Cache in global for backward compatibility
+    _model = model
     return _model
 
 
@@ -329,7 +557,35 @@ async def _transcribe_request(
 
         channels, _sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
-    model = _lazy_load_model()
+    # Check model status before processing (non-blocking)
+    if _model_loader is None:
+        raise HTTPException(status_code=503, detail="Model loader not initialized")
+
+    if _model_loader.is_loading():
+        raise HTTPException(
+            status_code=503,
+            detail="Model is currently loading. Please try again shortly.",
+        )
+
+    if not _model_loader.is_loaded():
+        status = _model_loader.get_status()
+        error_msg = status.get("error", "Model not available")
+        raise HTTPException(status_code=503, detail=f"Model not available: {error_msg}")
+
+    # Ensure model is loaded (may trigger lazy load if background failed)
+    if not await _model_loader.ensure_loaded():
+        status = _model_loader.get_status()
+        error_msg = status.get("error", "Model not available")
+        raise HTTPException(status_code=503, detail=f"Model not available: {error_msg}")
+
+    model = _model_loader.get_model()
+    if model is None:
+        raise HTTPException(status_code=503, detail="Model not available")
+
+    # Cache in global for backward compatibility
+    global _model
+    _model = model
+
     device = _cfg.faster_whisper.device
     # Write incoming WAV bytes to a temp file and let the model handle I/O
     import tempfile
@@ -456,13 +712,16 @@ async def _transcribe_request(
                 segments_list = [raw_segments]
         proc_end = time.time()
         processing_ms = int((proc_end - proc_start) * 1000)
+        processing_seconds = processing_ms / 1000.0
 
-        # Track STT metrics (disabled for now)
-        # _metrics_collector.track_stt_request(
-        #     duration=processing_ms / 1000.0,
-        #     audio_duration=audio_duration,
-        #     status="success"
-        # )
+        # Record STT metrics
+        if _stt_metrics:
+            if "stt_requests" in _stt_metrics:
+                _stt_metrics["stt_requests"].add(1, attributes={"status": "success"})
+            if "stt_latency" in _stt_metrics:
+                _stt_metrics["stt_latency"].record(
+                    processing_seconds, attributes={"status": "success"}
+                )
 
         request_logger.info(
             "stt.request_processed",
@@ -506,13 +765,16 @@ async def _transcribe_request(
                     segment_entry["words"] = word_entries
                 segments_out.append(segment_entry)
     except Exception as e:
-        # Track error metrics (disabled for now)
-        # _metrics_collector.track_stt_request(
-        #     duration=0,
-        #     audio_duration=audio_duration,
-        #     status="error"
-        # )
-        # _metrics_collector.track_error("transcription_error", "stt")
+        # Record error metrics
+        if _stt_metrics:
+            if "stt_requests" in _stt_metrics:
+                _stt_metrics["stt_requests"].add(1, attributes={"status": "error"})
+            if "stt_latency" in _stt_metrics:
+                # Record latency even for errors (if we have timing info)
+                elapsed = time.time() - req_start if "req_start" in locals() else 0
+                _stt_metrics["stt_latency"].record(
+                    elapsed, attributes={"status": "error"}
+                )
 
         logger.exception(
             "stt.transcription_error", correlation_id=correlation_id, error=str(e)
@@ -610,7 +872,7 @@ async def _enhance_audio_if_enabled(
     # Try remote audio processor first
     if _audio_processor_client is not None:
         try:
-            enhanced_wav = await _audio_processor_client.enhance_audio(
+            enhanced_wav: bytes = await _audio_processor_client.enhance_audio(
                 wav_bytes, correlation_id
             )
             if enhanced_wav != wav_bytes:  # Enhancement was applied
@@ -664,7 +926,7 @@ async def _enhance_audio_if_enabled(
         enhanced_pcm = enhanced_int16.tobytes()
 
         # Convert back to WAV
-        enhanced_wav = processor.pcm_to_wav(
+        local_enhanced_wav: bytes = processor.pcm_to_wav(
             enhanced_pcm,
             sample_rate=metadata.sample_rate,
             channels=metadata.channels,
@@ -679,7 +941,7 @@ async def _enhance_audio_if_enabled(
             "stt.audio_enhanced_local",
             correlation_id=correlation_id,
             input_size=len(wav_bytes),
-            output_size=len(enhanced_wav),
+            output_size=len(local_enhanced_wav),
             enhancement_duration_ms=enhancement_duration,
             sample_rate=metadata.sample_rate,
             channels=metadata.channels,
@@ -688,7 +950,7 @@ async def _enhance_audio_if_enabled(
         # Update enhancement statistics
         _update_enhancement_stats(success=True, duration_ms=enhancement_duration)
 
-        return enhanced_wav
+        return local_enhanced_wav
 
     except Exception as exc:
         # Calculate error duration

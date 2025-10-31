@@ -110,7 +110,23 @@ class TracingManager:
             # Ensure endpoint has http:// prefix for HTTP protocol
             if not otlp_endpoint.startswith(("http://", "https://")):
                 otlp_endpoint = f"http://{otlp_endpoint}"
-            otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+
+            # OTLP HTTP exporter REQUIRES the full endpoint URL including /v1/traces path
+            # Extract base endpoint and append traces path if not already present
+            from urllib.parse import urlparse, urlunparse
+
+            parsed = urlparse(otlp_endpoint)
+            base_endpoint = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+
+            # If endpoint already has /v1/traces, use it; otherwise append it
+            if otlp_endpoint.endswith("/v1/traces"):
+                traces_endpoint = otlp_endpoint
+            else:
+                # Remove trailing slash if present, then add /v1/traces
+                base_endpoint = base_endpoint.rstrip("/")
+                traces_endpoint = f"{base_endpoint}/v1/traces"
+
+            otlp_exporter = OTLPSpanExporter(endpoint=traces_endpoint)
             otlp_processor = BatchSpanProcessor(otlp_exporter)
 
             # Only add processor if:
@@ -364,7 +380,35 @@ class ObservabilityManager(TracingManager):
             # OpenTelemetry MeterProvider doesn't support adding readers after creation,
             # so only the first service creates the provider with a reader.
             # All services share the same provider and export metrics via the single reader.
-            if type(current_meter_provider).__name__ == "NoOpMeterProvider":
+            # Note: OpenTelemetry uses _ProxyMeterProvider as a thread-safe wrapper.
+            # _real_meter_provider is None when underlying provider is NoOpMeterProvider.
+            provider_type = type(current_meter_provider).__name__
+            is_noop = False
+
+            if provider_type == "_ProxyMeterProvider":
+                # Check _real_meter_provider attribute - None means NoOp provider
+                if hasattr(current_meter_provider, "_real_meter_provider"):
+                    real_provider = current_meter_provider._real_meter_provider
+                    is_noop = real_provider is None
+                else:
+                    # Fallback: assume NoOp if we can't check
+                    is_noop = True
+            elif provider_type == "NoOpMeterProvider":
+                is_noop = True
+
+            logger.debug(
+                "metrics.provider_check",
+                service=self.service_name,
+                provider_type=provider_type,
+                is_noop=is_noop,
+                has_real_provider=hasattr(
+                    current_meter_provider, "_real_meter_provider"
+                )
+                if provider_type == "_ProxyMeterProvider"
+                else None,
+            )
+
+            if is_noop:
                 # Only create reader and provider for the first service
                 # Setup OTLP metric exporter
                 # Use same endpoint as traces (port 4318 for HTTP protocol)
@@ -379,8 +423,34 @@ class ObservabilityManager(TracingManager):
                         # Replace gRPC port with HTTP port
                         otlp_endpoint = otlp_endpoint.replace(":4317", ":4318")
                     otlp_endpoint = f"http://{otlp_endpoint}"
+
+                # OTLP HTTP exporter REQUIRES the full endpoint URL including /v1/metrics path
+                # Extract base endpoint (protocol, host, port) and append metrics path
+                from urllib.parse import urlparse, urlunparse
+
+                parsed = urlparse(otlp_endpoint)
+
+                # Remove any existing path to get clean base endpoint
+                base_endpoint = urlunparse(
+                    (parsed.scheme, parsed.netloc, "", "", "", "")
+                )
+
+                # If endpoint already has /v1/metrics, use it; otherwise append it
+                if otlp_endpoint.endswith("/v1/metrics"):
+                    metrics_endpoint = otlp_endpoint
+                else:
+                    # Remove trailing slash if present, then add /v1/metrics
+                    base_endpoint = base_endpoint.rstrip("/")
+                    metrics_endpoint = f"{base_endpoint}/v1/metrics"
+
+                logger.info(
+                    "metrics.exporter_configured",
+                    service=self.service_name,
+                    endpoint=metrics_endpoint,
+                    protocol="http",
+                )
                 metric_reader = PeriodicExportingMetricReader(
-                    OTLPMetricExporter(endpoint=otlp_endpoint),
+                    OTLPMetricExporter(endpoint=metrics_endpoint),
                     export_interval_millis=15000,
                 )
                 meter_provider = MeterProvider(

@@ -27,6 +27,9 @@ class ResilientHTTPClient:
         circuit_config: CircuitBreakerConfig | None = None,
         timeout: float = 30.0,
         health_check_interval: float = 10.0,
+        health_check_startup_grace_seconds: float = 30.0,
+        max_connections: int = 10,
+        max_keepalive_connections: int = 5,
     ):
         self._service_name = service_name
         self._base_url = base_url.rstrip("/")
@@ -38,12 +41,23 @@ class ResilientHTTPClient:
         self._logger = get_logger(__name__)
         self._last_health_check: float = 0
         self._health_check_interval = health_check_interval
+        self._health_check_startup_grace_seconds = health_check_startup_grace_seconds
+        self._service_start_time: float = time.time()
         self._is_healthy: bool = False
+        self._max_connections = max_connections
+        self._max_keepalive_connections = max_keepalive_connections
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
         if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self._timeout)
+            limits = httpx.Limits(
+                max_connections=self._max_connections,
+                max_keepalive_connections=self._max_keepalive_connections,
+            )
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                limits=limits,
+            )
         return self._client
 
     async def check_health(self) -> bool:
@@ -53,6 +67,20 @@ class ResilientHTTPClient:
         # Skip health check if we checked recently
         if now - self._last_health_check < self._health_check_interval:
             return self._is_healthy
+
+        # Check if we're still in startup grace period
+        elapsed_since_startup = now - self._service_start_time
+        if elapsed_since_startup < self._health_check_startup_grace_seconds:
+            self._logger.debug(
+                "resilient_http.health_check_grace_period",
+                service=self._service_name,
+                elapsed_seconds=elapsed_since_startup,
+                grace_period=self._health_check_startup_grace_seconds,
+            )
+            # During grace period, assume healthy to allow startup
+            self._is_healthy = True
+            self._last_health_check = now
+            return True
 
         try:
             client = await self._get_client()
@@ -87,6 +115,7 @@ class ResilientHTTPClient:
         files: dict[str, tuple[str, bytes, str]] | None = None,
         data: dict[str, Any] | None = None,
         json: Any | None = None,
+        content: bytes | None = None,
         headers: dict[str, str] | None = None,
         params: dict[str, Any] | None = None,
         max_retries: int = 3,
@@ -113,6 +142,7 @@ class ResilientHTTPClient:
             files=files,
             data=data,
             json=json,
+            content=content,
             headers=headers,
             params=params,
             max_retries=max_retries,
@@ -141,6 +171,62 @@ class ResilientHTTPClient:
 
         return await self._circuit.call(
             client.get,
+            url,
+            headers=request_headers,
+            params=params,
+            timeout=timeout,
+        )
+
+    async def put(
+        self,
+        endpoint: str,
+        *,
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        json: Any | None = None,
+        content: bytes | None = None,
+        timeout: float | httpx.Timeout | None = None,
+    ) -> httpx.Response:
+        """PUT request with circuit breaker protection."""
+        if not self._circuit.is_available():
+            raise ServiceUnavailableError(f"{self._service_name} circuit is open")
+
+        # Auto-inject correlation ID from context
+        request_headers = inject_correlation_id(headers)
+
+        client = await self._get_client()
+        url = f"{self._base_url}{endpoint}"
+
+        return await self._circuit.call(
+            client.put,
+            url,
+            headers=request_headers,
+            params=params,
+            json=json,
+            content=content,
+            timeout=timeout,
+        )
+
+    async def delete(
+        self,
+        endpoint: str,
+        *,
+        headers: dict[str, str] | None = None,
+        params: dict[str, Any] | None = None,
+        timeout: float | httpx.Timeout | None = None,
+    ) -> httpx.Response:
+        """DELETE request with circuit breaker protection."""
+        if not self._circuit.is_available():
+            raise ServiceUnavailableError(f"{self._service_name} circuit is open")
+
+        # Auto-inject correlation ID from context
+        request_headers = inject_correlation_id(headers)
+
+        client = await self._get_client()
+        url = f"{self._base_url}{endpoint}"
+
+        return await self._circuit.call(
+            client.delete,
             url,
             headers=request_headers,
             params=params,

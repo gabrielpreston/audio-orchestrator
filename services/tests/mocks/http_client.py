@@ -171,7 +171,7 @@ def create_mock_stt_response(
 
 def create_mock_llm_response(
     content: str = "The weather is sunny today with a temperature of 75°F.",
-    model: str = "llama-2-7b",
+    model: str = "flan-t5-large",
 ) -> MockHttpResponse:
     """Create a mock LLM response for testing.
 

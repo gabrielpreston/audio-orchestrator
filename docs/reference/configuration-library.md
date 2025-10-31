@@ -183,24 +183,11 @@ config = (
 )
 ```
 
-### LLM Service
+### FLAN Service
 
-```python
-from services.common.service_configs import (
-    LlamaConfig, LLMServiceConfig, TTSClientConfig, LoggingConfig, HttpConfig, TelemetryConfig
-)
-
-config = (
-    ConfigBuilder.for_service("llm", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("llama", LlamaConfig)
-    .add_config("service", LLMServiceConfig)
-    .add_config("tts", TTSClientConfig)
-    .add_config("telemetry", TelemetryConfig)
-    .load()
-)
-```
+The FLAN service uses the standard service configuration pattern. Since FLAN-T5 is accessed via HTTP from
+the orchestrator service, no special configuration classes are required for the FLAN service itself. The
+orchestrator service configuration includes the FLAN service URL.
 
 ## Validation
 

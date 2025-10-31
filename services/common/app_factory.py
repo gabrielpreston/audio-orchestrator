@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import warnings
 from contextlib import asynccontextmanager
 from typing import Any
 from collections.abc import Awaitable, Callable
@@ -12,6 +13,26 @@ from fastapi import FastAPI
 from services.common.middleware import ObservabilityMiddleware
 from services.common.structured_logging import get_logger
 from services.common.tracing import setup_service_observability
+
+# Suppress deprecation warnings (known issues, will be resolved by dependency updates)
+warnings.filterwarnings(
+    "ignore",
+    category=DeprecationWarning,
+    module="pkg_resources",
+)
+# Suppress transformers TRANSFORMERS_CACHE deprecation warnings (we've migrated to HF_HOME)
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    module="transformers.utils.hub",
+    message=".*TRANSFORMERS_CACHE.*",
+)
+warnings.filterwarnings(
+    "ignore",
+    category=FutureWarning,
+    module="transformers",
+    message=".*TRANSFORMERS_CACHE.*",
+)
 
 logger = get_logger(__name__)
 
@@ -123,6 +144,29 @@ def create_service_app(
     # Instrument FastAPI IMMEDIATELY after app creation (before middleware is added)
     # This ensures instrumentation happens before uvicorn initializes the app
     observability_manager.instrument_fastapi(app)
+
+    # Store service name and create HTTP metrics for middleware access
+    # Services can override this in their startup callbacks if needed
+    from services.common.audio_metrics import create_http_metrics
+
+    app.state.service_name = service_name
+    http_metrics = create_http_metrics(observability_manager)
+    app.state.http_metrics = http_metrics
+
+    # Debug: Log metrics creation
+    if http_metrics:
+        logger.debug(
+            "http_metrics.created",
+            service=service_name,
+            metrics=list(http_metrics.keys()),
+            has_meter=observability_manager.get_meter() is not None,
+        )
+    else:
+        logger.warning(
+            "http_metrics.not_created",
+            service=service_name,
+            has_meter=observability_manager.get_meter() is not None,
+        )
 
     # Add observability middleware automatically (after instrumentation)
     app.add_middleware(ObservabilityMiddleware)

@@ -5,7 +5,7 @@ FROM ghcr.io/gabrielpreston/tools:latest
 WORKDIR /workspace
 
 # Install additional linting tools (pin Ruff for stable GitHub formatting)
-RUN pip install \
+RUN pip install --no-cache-dir \
     ruff==0.6.7 \
     bandit \
     detect-secrets \

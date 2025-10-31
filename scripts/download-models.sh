@@ -8,16 +8,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
 
-mkdir -p ./services/models/llm ./services/models/tts ./services/models/stt
-
-echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
-if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then
-	wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
-	"https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" || \
-	echo "Failed to download LLM model. You may need to download it manually."
-else
-	echo "LLM model already exists, skipping download."
-fi
+mkdir -p ./services/models/tts ./services/models/stt
 
 echo "Downloading TTS model (en_US-amy-medium)..."
 if [ ! -f "./services/models/tts/en_US-amy-medium.onnx" ]; then
@@ -66,7 +57,6 @@ fi
 
 echo "Model download complete"
 echo "Models downloaded to:"
-echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
 echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
 echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
 echo "  - STT: ./services/models/stt/medium.en/"

@@ -78,16 +78,61 @@ Structured logging utilities:
 -  **Configurable Verbosity**: Environment-controlled log levels
 -  **Context Preservation**: Rich metadata in all log entries
 
-### HTTP Utilities (`http_client.py`, `resilient_http.py`, `optimized_http.py`)
+### HTTP Utilities (`http_client.py`, `resilient_http.py`, `http_client_factory.py`, `optimized_http.py`)
 
 HTTP client management and utilities:
 
+-  **Unified Resilience Pattern**: All service-to-service HTTP calls use `ResilientHTTPClient` with circuit breaker protection
+-  **Circuit Breaker**: Automatic protection against cascading failures with configurable thresholds
+-  **Health Checks**: Proactive health monitoring with startup grace period
+-  **Connection Pooling**: Efficient connection reuse with configurable limits
 -  **Consistent Timeouts**: Standardized timeout configurations
 -  **Retry Logic**: Configurable retry behavior for resilience
 -  **Authentication**: Bearer token and API key management
--  **Error Handling**: Comprehensive error response processing
--  **Connection Pooling**: Efficient connection reuse
+-  **Error Handling**: Comprehensive error response processing with service-specific degradation strategies
 -  **Automatic Correlation ID Propagation**: All HTTP clients automatically inject correlation IDs from context
+-  **Environment-Based Configuration**: Factory function loads configuration from environment variables with sensible defaults
+
+**ResilientHTTPClient Features**:
+
+-  **Circuit Breaker Protection**: Opens circuit after failure threshold, recovers with success threshold
+-  **Health Check Integration**: Checks service health before requests, with configurable intervals
+-  **Startup Grace Period**: Allows services time to start before health checks fail requests
+-  **Connection Pooling**: Reuses connections with configurable max_connections and max_keepalive_connections
+-  **HTTP Methods**: Supports GET, POST, PUT, DELETE with circuit breaker protection
+-  **ServiceUnavailableError**: Raises specific exception when circuit is open or service is unhealthy
+
+**Factory Pattern**:
+
+```python
+from services.common.http_client_factory import create_resilient_client
+
+# Create resilient client with environment-based configuration
+client = create_resilient_client(
+    service_name="orchestrator",
+    base_url="http://orchestrator:8200",
+    env_prefix="ORCHESTRATOR",  # Optional: defaults to service_name.upper()
+)
+```
+
+**Configuration Variables** (per-service prefix pattern):
+
+-  `{PREFIX}_BASE_URL`: Service base URL
+-  `{PREFIX}_CIRCUIT_FAILURE_THRESHOLD`: Failures before opening circuit (default: 5)
+-  `{PREFIX}_CIRCUIT_SUCCESS_THRESHOLD`: Successes to close from half-open (default: 2)
+-  `{PREFIX}_CIRCUIT_TIMEOUT_SECONDS`: Base timeout for circuit recovery (default: 30.0)
+-  `{PREFIX}_TIMEOUT_SECONDS`: Request timeout in seconds (default: 30.0)
+-  `{PREFIX}_HEALTH_CHECK_INTERVAL`: Seconds between health checks (default: 10.0)
+-  `{PREFIX}_HEALTH_CHECK_STARTUP_GRACE_SECONDS`: Grace period during startup (default: 30.0)
+-  `{PREFIX}_MAX_CONNECTIONS`: Max concurrent connections (default: 10)
+-  `{PREFIX}_MAX_KEEPALIVE_CONNECTIONS`: Max persistent connections (default: 5)
+
+**Service-Specific Error Handling**:
+
+-  **Audio Processor Clients**: Return original data/None on failure (graceful degradation)
+-  **Orchestrator Client**: Return error dict with graceful message
+-  **Guardrails**: Fallback to unsanitized input when unavailable
+-  **Testing Service**: Return error messages in response model
 
 ### HTTP Headers (`http_headers.py`)
 

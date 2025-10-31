@@ -5,8 +5,8 @@ Orchestrator client for Discord service to communicate with the LLM orchestrator
 from types import TracebackType
 from typing import Any
 
-import httpx
-
+from services.common.http_client_factory import create_resilient_client
+from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__, service_name="discord")
@@ -17,12 +17,16 @@ class OrchestratorClient:
 
     def __init__(self, orchestrator_url: str = "http://orchestrator:8200"):
         self.orchestrator_url = orchestrator_url
-        self._http_client: httpx.AsyncClient | None = None
+        self._http_client: ResilientHTTPClient | None = None
 
-    async def _get_http_client(self) -> httpx.AsyncClient:
+    async def _get_http_client(self) -> ResilientHTTPClient:
         """Get or create HTTP client."""
         if self._http_client is None:
-            self._http_client = httpx.AsyncClient(timeout=30.0)
+            self._http_client = create_resilient_client(
+                service_name="orchestrator",
+                base_url=self.orchestrator_url,
+                env_prefix="ORCHESTRATOR",
+            )
         return self._http_client
 
     async def __aenter__(self) -> "OrchestratorClient":
@@ -37,7 +41,7 @@ class OrchestratorClient:
     ) -> None:
         """Async context manager exit."""
         if self._http_client:
-            await self._http_client.aclose()
+            await self._http_client.close()
             self._http_client = None
 
     async def process_transcript(
@@ -60,13 +64,13 @@ class OrchestratorClient:
                 "correlation_id": correlation_id,
             }
 
-            # Pass correlation ID in headers
+            # Pass correlation ID in headers (resilient client auto-injects from context too)
             headers = {}
             if correlation_id:
                 headers["X-Correlation-ID"] = correlation_id
 
-            response = await client.post(
-                f"{self.orchestrator_url}/api/v1/transcripts",
+            response = await client.post_with_retry(
+                "/api/v1/transcripts",
                 json=payload,
                 headers=headers,
                 timeout=30.0,
@@ -85,6 +89,16 @@ class OrchestratorClient:
 
             return result
 
+        except ServiceUnavailableError as exc:
+            logger.error(
+                "discord.orchestrator_unavailable",
+                error=str(exc),
+                guild_id=guild_id,
+                channel_id=channel_id,
+                user_id=user_id,
+                correlation_id=correlation_id,
+            )
+            return {"error": "Orchestrator service is currently unavailable"}
         except Exception as exc:
             logger.error(
                 "discord.orchestrator_communication_failed",
@@ -109,8 +123,8 @@ class OrchestratorClient:
                 "message": message,
             }
 
-            response = await client.post(
-                f"{self.orchestrator_url}/api/v1/messages", json=payload, timeout=30.0
+            response = await client.post_with_retry(
+                "/api/v1/messages", json=payload, timeout=30.0
             )
             response.raise_for_status()
 
@@ -124,6 +138,14 @@ class OrchestratorClient:
 
             return result
 
+        except ServiceUnavailableError as exc:
+            logger.error(
+                "discord.orchestrator_unavailable",
+                error=str(exc),
+                guild_id=guild_id,
+                channel_id=channel_id,
+            )
+            return {"error": "Orchestrator service is currently unavailable"}
         except Exception as exc:
             logger.error(
                 "discord.message_send_failed",
@@ -136,5 +158,5 @@ class OrchestratorClient:
     async def close(self) -> None:
         """Close HTTP client."""
         if self._http_client:
-            await self._http_client.aclose()
+            await self._http_client.close()
             self._http_client = None

@@ -85,13 +85,12 @@ config = (
 ### Orchestrator Service
 
 ```python
-from services.common.service_configs import LlamaConfig, OrchestratorConfig
+from services.common.service_configs import OrchestratorConfig
 
 config = (
     ConfigBuilder.for_service("orchestrator", Environment.DOCKER)
     .add_config("logging", LoggingConfig)
     .add_config("http", HttpConfig)
-    .add_config("llama", LlamaConfig)
     .add_config("orchestrator", OrchestratorConfig)
     .load()
 )
@@ -205,6 +204,183 @@ python -m pytest test_config.py -v
 
 -  [Configuration Library Reference](../docs/reference/configuration-library.md)
 -  [Migration Guide](../docs/reference/config-migration-guide.md)
+
+## BackgroundModelLoader
+
+The `BackgroundModelLoader` provides a unified pattern for model loading across all services with:
+- **Cache-first + download fallback**: Try local cache first, download if needed
+- **Background loading**: Non-blocking startup (models load in background)
+- **Lazy loading fallback**: If background fails, models load on first request
+- **Graceful API handling**: Services can check status and return 503 when models aren't ready
+- **Race condition protection**: Multiple concurrent requests handled safely
+
+### Basic Usage
+
+```python
+from services.common.model_loader import BackgroundModelLoader
+from services.common.structured_logging import get_logger
+
+logger = get_logger(__name__)
+
+# Define loader functions
+def load_from_cache() -> Any | None:
+    """Try loading from local cache."""
+    # Return model if cache hit, None if cache miss
+    pass
+
+def load_with_download() -> Any:
+    """Download and load model."""
+    # Return loaded model
+    pass
+
+# Create loader
+model_loader = BackgroundModelLoader(
+    cache_loader_func=load_from_cache,
+    download_loader_func=load_with_download,
+    logger=logger,
+    loader_name="my_model",
+)
+
+# Start background loading (non-blocking)
+await model_loader.initialize()
+
+# Check status in API endpoints
+if model_loader.is_loading():
+    raise HTTPException(status_code=503, detail="Model loading...")
+
+if not model_loader.is_loaded():
+    raise HTTPException(status_code=503, detail="Model not available")
+
+# Get model
+model = model_loader.get_model()
+```
+
+### Patterns
+
+#### Side-Effect Functions (Bark)
+
+Some loaders don't return a model object, they load into memory:
+
+```python
+model_loader = BackgroundModelLoader(
+    cache_loader_func=None,
+    download_loader_func=preload_models,  # Doesn't return model
+    logger=logger,
+    loader_name="bark_models",
+    is_side_effect=True,  # Indicates side-effect function
+)
+```
+
+#### Tuple Returns (FLAN)
+
+Some loaders return multiple objects (model + tokenizer):
+
+```python
+def load_from_cache() -> tuple[Any, Any] | None:
+    return (model, tokenizer) if cached else None
+
+def load_with_download() -> tuple[Any, Any]:
+    return (model, tokenizer)
+
+model_loader = BackgroundModelLoader(
+    cache_loader_func=load_from_cache,
+    download_loader_func=load_with_download,
+    logger=logger,
+    loader_name="flan_t5",
+)
+
+# Get tuple
+model, tokenizer = model_loader.get_model()
+```
+
+#### Lazy Loading Only (Audio Enhancer)
+
+For services that load models only when used:
+
+```python
+model_loader = BackgroundModelLoader(
+    cache_loader_func=load_from_cache,
+    download_loader_func=load_with_download,
+    logger=logger,
+    loader_name="metricgan",
+    enable_background_load=False,  # Don't load at startup
+)
+
+# Load on first use
+if not model_loader.is_loaded():
+    await model_loader.ensure_loaded()
+```
+
+#### Force Download
+
+Force download allows bypassing the cache to re-download models. This is useful when you need to ensure you have the latest model versions or want to refresh cached models.
+
+```python
+# Force download via environment variable
+# Set FORCE_MODEL_DOWNLOAD=true (global) or
+# FORCE_MODEL_DOWNLOAD_{LOADER_NAME_UPPERCASE}=true (service-specific)
+model_loader = BackgroundModelLoader(
+    cache_loader_func=load_from_cache,
+    download_loader_func=load_with_download,
+    logger=logger,
+    loader_name="whisper_model",  # Maps to FORCE_MODEL_DOWNLOAD_WHISPER_MODEL
+)
+
+# Or force download programmatically
+model_loader = BackgroundModelLoader(
+    cache_loader_func=load_from_cache,
+    download_loader_func=load_with_download,
+    logger=logger,
+    loader_name="whisper_model",
+    force_download=True,  # Overrides environment variables
+)
+
+# Check if force download is enabled
+if model_loader.is_force_download():
+    print("Force download is enabled - cache will be bypassed")
+```
+
+**Environment Variable Mapping:**
+- Global: `FORCE_MODEL_DOWNLOAD=true` applies to all services
+- Service-specific: `FORCE_MODEL_DOWNLOAD_{LOADER_NAME_UPPERCASE}=true` (e.g., `FORCE_MODEL_DOWNLOAD_WHISPER_MODEL=true`)
+- Service-specific overrides global setting
+
+### API Request Handling Pattern
+
+Standard pattern for all service endpoints:
+
+```python
+@app.post("/endpoint")
+async def endpoint(request: Request):
+    # Check if model is loading (non-blocking)
+    if _model_loader.is_loading():
+        raise HTTPException(
+            status_code=503,
+            detail="Model is currently loading. Please try again shortly."
+        )
+
+    # Check if model is loaded (non-blocking)
+    if not _model_loader.is_loaded():
+        status = _model_loader.get_status()
+        error_msg = status.get("error", "Model not available")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Model not available: {error_msg}"
+        )
+
+    # Model is loaded, proceed
+    model = _model_loader.get_model()
+    # ... use model ...
+```
+
+### Integration with Health Checks
+
+```python
+# In health check registration
+_health_manager.register_dependency(
+    "model_loaded", lambda: _model_loader.is_loaded()
+)
+```
 
 ## Migration from Current Approach
 

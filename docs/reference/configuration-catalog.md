@@ -84,6 +84,17 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `ORCHESTRATOR_WAKE_PHRASES` | Orchestrator-specific wake phrases. | *(empty)* |
 | `ORCHESTRATOR_URL` | Orchestrator service URL. | `http://orchestrator:8000` |
 
+## Force Model Download (`.env.common` or service-specific)
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `FORCE_MODEL_DOWNLOAD` | Global setting to force re-download of all models on startup (bypasses cache). | `false` |
+| `FORCE_MODEL_DOWNLOAD_WHISPER_MODEL` | Force download for STT service Whisper model (overrides global). | `false` |
+| `FORCE_MODEL_DOWNLOAD_FLAN_T5` | Force download for FLAN service FLAN-T5 model (overrides global). | `false` |
+| `FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL` | Force download for Guardrails service toxicity model (overrides global). | `false` |
+| `FORCE_MODEL_DOWNLOAD_BARK_MODELS` | Force download for Bark service models (overrides global). | `false` |
+| `FORCE_MODEL_DOWNLOAD_METRICGAN` | Force download for Audio service MetricGAN model (overrides global). | `false` |
+
 ## STT Service (`services/stt/.env.service`)
 
 | Variable | Description | Default |
@@ -92,28 +103,28 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `FW_DEVICE` | Execution target (`cpu`, `cuda`). | `cpu` |
 | `FW_COMPUTE_TYPE` | Precision trade-off for inference. | `int8` |
 
-## LLM Service (`services/llm/.env.service`)
+## FLAN Service (`services/flan/.env.service`)
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `LLAMA_BIN` | Path to the llama.cpp binary. | `/app/llama.cpp/build/bin/llama-cli` |
-| `LLAMA_MODEL_PATH` | GGUF model path. | `/app/models/llama-2-7b.Q4_K_M.gguf` |
-| `LLAMA_CTX` | Context window size. | `2048` |
-| `LLAMA_THREADS` | Number of CPU threads to use. | `4` |
-| `LLM_AUTH_TOKEN` | Bearer token for LLM service authentication. | `changeme` |
-| `PORT` | HTTP listen port. | `8000` |
-| `TTS_BASE_URL` | Downstream TTS endpoint. | `http://tts:7000` |
-| `TTS_VOICE` | Default voice identifier. | *(empty)* |
-| `TTS_TIMEOUT` | Timeout for TTS requests (seconds). | `30` |
+| `PORT` | HTTP listen port. | `8100` |
+| `FLAN_T5_MODEL_SIZE` | FLAN-T5 model size (`google/flan-t5-base`, `google/flan-t5-large`, `google/flan-t5-xl`). | `google/flan-t5-large` |
+| `TRANSFORMERS_CACHE` | Hugging Face cache directory. | `/app/models` |
+| `ENABLE_MODEL_CACHING` | Enable model caching. | `true` |
+| `MAX_SEQUENCE_LENGTH` | Maximum sequence length for input. | `512` |
+| `TEMPERATURE` | Generation temperature. | `0.7` |
+| `TOP_P` | Top-p sampling parameter. | `0.9` |
+| `TOP_K` | Top-k sampling parameter. | `50` |
+| `REPETITION_PENALTY` | Repetition penalty. | `1.1` |
 
 ## Orchestrator Service (`services/orchestrator/.env.service`)
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `PORT` | HTTP listen port. | `8000` |
-| `LLM_BASE_URL` | LLM service URL. | `http://llm:8000` |
-| `LLM_AUTH_TOKEN` | Bearer token for LLM service authentication. | `changeme` |
-| `TTS_BASE_URL` | TTS service URL. | `http://tts:7000` |
+| `PORT` | HTTP listen port. | `8200` |
+| `LLM_PRIMARY_URL` | Primary LLM service URL (FLAN-T5). | `http://flan:8100` |
+| `GUARDRAILS_URL` | Guardrails service URL. | `http://guardrails:9300` |
+| `TTS_BASE_URL` | TTS service URL. | `http://bark:7100` |
 | `TTS_AUTH_TOKEN` | Bearer token for TTS service authentication. | `changeme` |
 | `ORCHESTRATOR_DEBUG_SAVE` | Enable debug data collection. | `false` |
 

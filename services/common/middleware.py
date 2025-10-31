@@ -1,4 +1,4 @@
-"""Unified FastAPI middleware for observability (correlation IDs, logging, timing)."""
+"""Unified FastAPI middleware for observability (correlation IDs, logging, timing, metrics)."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import time
 import uuid
 from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -54,7 +54,21 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
         should_log = request.url.path not in self.EXCLUDED_PATHS
         start_time = time.perf_counter() if should_log else None
 
-        # 4. Log request start (if not excluded)
+        # 4. Get HTTP metrics from app state (if available)
+        http_metrics: dict[str, Any] | None = None
+        service_name: str | None = None
+        if hasattr(request.app, "state"):
+            http_metrics = getattr(request.app.state, "http_metrics", None)
+            service_name = getattr(request.app.state, "service_name", None)
+            if should_log and not http_metrics:
+                logger.debug(
+                    "metrics.not_available",
+                    has_state=hasattr(request.app, "state"),
+                    service=service_name,
+                    path=request.url.path,
+                )
+
+        # 5. Log request start (if not excluded)
         if should_log:
             logger.info(
                 "http.request.start",
@@ -67,10 +81,82 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             )
 
         try:
-            # 5. Process request
+            # 6. Process request
             response = await call_next(request)
 
-            # 6. Log response with timing (if not excluded)
+            # 7. Record HTTP metrics
+            if http_metrics and start_time:
+                duration_seconds = time.perf_counter() - start_time
+                status = "success" if 200 <= response.status_code < 400 else "error"
+                method = request.method
+                route = request.url.path
+
+                try:
+                    # Record request count
+                    if "http_requests" in http_metrics:
+                        attributes: dict[str, Any] = {
+                            "method": method,
+                            "route": route,
+                            "status": status,
+                        }
+                        if service_name:
+                            attributes["service"] = service_name
+                        http_metrics["http_requests"].add(1, attributes=attributes)
+                        logger.debug(
+                            "metric.recorded",
+                            metric="http_requests_total",
+                            value=1,
+                            attributes=attributes,
+                            service=service_name,
+                        )
+                    else:
+                        logger.warning(
+                            "metric.missing_key",
+                            key="http_requests",
+                            available_keys=list(http_metrics.keys())
+                            if http_metrics
+                            else [],
+                            service=service_name,
+                        )
+
+                    # Record request duration
+                    if "http_request_duration" in http_metrics:
+                        attributes = {
+                            "method": method,
+                            "route": route,
+                        }
+                        if service_name:
+                            attributes["service"] = service_name
+                        http_metrics["http_request_duration"].record(
+                            duration_seconds, attributes=attributes
+                        )
+                        logger.debug(
+                            "metric.recorded",
+                            metric="http_request_duration_seconds",
+                            value=duration_seconds,
+                            attributes=attributes,
+                            service=service_name,
+                        )
+                    else:
+                        logger.warning(
+                            "metric.missing_key",
+                            key="http_request_duration",
+                            available_keys=list(http_metrics.keys())
+                            if http_metrics
+                            else [],
+                            service=service_name,
+                        )
+                except Exception as metric_exc:
+                    logger.exception(
+                        "metric.recording_failed",
+                        error=str(metric_exc),
+                        error_type=type(metric_exc).__name__,
+                        service=service_name,
+                        method=method,
+                        route=route,
+                    )
+
+            # 8. Log response with timing (if not excluded)
             if should_log and start_time:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.info(
@@ -82,12 +168,43 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
                     correlation_id=correlation_id,
                 )
 
-            # 7. Include correlation ID in response headers
+            # 9. Include correlation ID in response headers
             response.headers[self.CORRELATION_HEADER] = correlation_id
             return response
 
         except Exception as exc:
-            # 8. Log errors with timing (if not excluded)
+            # 10. Record error metrics
+            if http_metrics and start_time:
+                duration_seconds = (
+                    (time.perf_counter() - start_time) if start_time else 0
+                )
+                method = request.method
+                route = request.url.path
+
+                # Record request count (error)
+                if "http_requests" in http_metrics:
+                    attributes = {
+                        "method": method,
+                        "route": route,
+                        "status": "error",
+                    }
+                    if service_name:
+                        attributes["service"] = service_name
+                    http_metrics["http_requests"].add(1, attributes=attributes)
+
+                # Record request duration (error)
+                if "http_request_duration" in http_metrics:
+                    attributes = {
+                        "method": method,
+                        "route": route,
+                    }
+                    if service_name:
+                        attributes["service"] = service_name
+                    http_metrics["http_request_duration"].record(
+                        duration_seconds, attributes=attributes
+                    )
+
+            # 11. Log errors with timing (if not excluded)
             if should_log and start_time:
                 duration_ms = (time.perf_counter() - start_time) * 1000
                 logger.error(
