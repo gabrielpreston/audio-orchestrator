@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import time
 
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel
 import uvicorn
 
@@ -26,17 +26,12 @@ from services.common.config import (
 )
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 from .synthesis import BarkSynthesizer
 
-
-app = FastAPI(
-    title="Bark TTS Service",
-    description="Text-to-speech service using Bark with Piper fallback for audio-orchestrator",
-    version="1.0.0",
-)
 
 # Global variables
 _bark_synthesizer: BarkSynthesizer | None = None
@@ -88,15 +83,13 @@ class SynthesisResponse(BaseModel):
     voice_used: str
 
 
-@app.on_event("startup")  # type: ignore[misc]
 async def _startup() -> None:
     """Initialize the Bark TTS service."""
     global _bark_synthesizer, _observability_manager, _tts_metrics, _http_metrics
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("bark", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("bark")
 
         # Create service-specific metrics
         _tts_metrics = create_tts_metrics(_observability_manager)
@@ -123,7 +116,6 @@ async def _startup() -> None:
         # Continue without crashing - service will report not_ready
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
 async def _shutdown() -> None:
     """Cleanup resources on shutdown."""
     try:
@@ -132,6 +124,16 @@ async def _shutdown() -> None:
         _logger.info("service.shutdown_complete", service="bark")
     except Exception as exc:
         _logger.error("service.shutdown_failed", error=str(exc))
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "bark",
+    "1.0.0",
+    title="Bark TTS Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 # Initialize health endpoints

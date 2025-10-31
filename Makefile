@@ -4,11 +4,12 @@ SHELL := /bin/bash
 # PHONY TARGETS
 # =============================================================================
 .PHONY: all help
-.PHONY: run stop logs logs-dump docker-status
-.PHONY: docker-build docker-build-service docker-build-base docker-restart docker-shell docker-config
-.PHONY: docker-buildx-setup docker-buildx-reset
+.PHONY: run stop logs logs-dump docker-status run-with-build
+.PHONY: docker-build docker-build-enhanced docker-build-service docker-build-base docker-build-wheels
+.PHONY: docker-buildx-setup docker-buildx-reset docker-restart docker-shell docker-config
 .PHONY: docker-pull-images docker-warm-cache
-.PHONY: test test-image test-image-force test-unit test-component test-integration test-observability test-observability-full
+.PHONY: test test-unit test-component test-integration test-observability test-observability-full
+.PHONY: test-image test-image-force
 .PHONY: lint lint-image lint-image-force lint-fix
 .PHONY: security security-image security-image-force
 .PHONY: clean docker-clean docker-clean-all
@@ -53,16 +54,43 @@ DOCKER_BUILD_CMD ?= docker buildx build
 # Ensure a buildx builder exists and is selected
 BUILDX_BUILDER_NAME ?= ao-builder
 
-# Docker build optimization helpers
-define image_exists
-@docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false"
-endef
+# Registry configuration
+REGISTRY ?= ghcr.io/gabrielpreston
+CACHE_SERVICES_REF := $(REGISTRY)/cache:services
+CACHE_BASE_IMAGES_REF := $(REGISTRY)/cache:base-images
+
+# Script directory
+SCRIPT_DIR := $(CURDIR)/scripts
+
+# Container images and paths
+LINT_IMAGE ?= $(REGISTRY)/lint:latest
+LINT_DOCKERFILE := services/linter/Dockerfile
+LINT_WORKDIR := /workspace
+TEST_IMAGE ?= $(REGISTRY)/test:latest
+TEST_DOCKERFILE := services/tester/Dockerfile
+TEST_WORKDIR := /workspace
+SECURITY_IMAGE ?= $(REGISTRY)/security:latest
+SECURITY_DOCKERFILE := services/security/Dockerfile
+SECURITY_WORKDIR := /workspace
+
+# Test configuration
+PYTEST_ARGS ?=
+
+# Dynamic service discovery
+SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
+
+# Runtime services (excludes tooling services like linter, tester, security)
+RUNTIME_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
 
 # Helper to ensure Docker is authenticated to GHCR
 # Priority: GHCR_TOKEN > GitHub CLI
 define ensure_docker_ghcr_auth
-if ! (docker pull ghcr.io/gabrielpreston/cache:services >/dev/null 2>&1 && \
-      docker push ghcr.io/gabrielpreston/cache:services >/dev/null 2>&1) 2>/dev/null; then \
+if ! (docker pull $(CACHE_SERVICES_REF) >/dev/null 2>&1 && \
+      docker push $(CACHE_SERVICES_REF) >/dev/null 2>&1) 2>/dev/null; then \
     printf "$(COLOR_CYAN)→ Authenticating Docker to GHCR...$(COLOR_OFF)\n"; \
     if [ -n "$${GHCR_TOKEN:-}" ]; then \
         GHCR_USER=$${GHCR_USERNAME:-$$(gh api user --jq .login 2>/dev/null || echo $$(whoami))}; \
@@ -80,86 +108,38 @@ if ! (docker pull ghcr.io/gabrielpreston/cache:services >/dev/null 2>&1 && \
 fi
 endef
 
+# Build image only if it doesn't exist locally
 define build_if_missing
 @if [ "$$(docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false")" = "false" ]; then \
     printf "$(COLOR_YELLOW)→ Building $(1) (not found)$(COLOR_OFF)\n"; \
     $(call ensure_docker_ghcr_auth); \
     DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
         --tag $(1) \
-        --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
+        --cache-from type=registry,ref=$(CACHE_SERVICES_REF) \
+        --cache-to type=registry,ref=$(CACHE_SERVICES_REF),mode=max \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
         --load \
+        --push \
         -f $(2) . || exit 1; \
-    printf "$(COLOR_CYAN)→ Pushing $(1) to registry and exporting cache...$(COLOR_OFF)\n"; \
-    docker push $(1) || exit 1; \
-    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-        --tag $(1) \
-        --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
-        --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
-        --build-arg BUILDKIT_INLINE_CACHE=1 \
-        -f $(2) . --push || exit 1; \
 else \
     printf "$(COLOR_GREEN)→ Using existing $(1)$(COLOR_OFF)\n"; \
 fi
 endef
 
-define build_with_cache
-@printf "$(COLOR_CYAN)→ Building $(1) with registry caching$(COLOR_OFF)\n"; \
-$(call ensure_docker_ghcr_auth); \
+# Build image with registry caching (always builds)
+# $(1)=image, $(2)=dockerfile, $(3)=additional cache-from refs (optional)
+define build_with_registry_cache
+@$(call ensure_docker_ghcr_auth); \
 DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
     --tag $(1) \
-    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    --load \
-    -f $(2) . || exit 1; \
-printf "$(COLOR_CYAN)→ Pushing $(1) to registry and exporting cache...$(COLOR_OFF)\n"; \
-docker push $(1) || exit 1; \
-DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-    --tag $(1) \
-    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
-    --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
-    --build-arg BUILDKIT_INLINE_CACHE=1 \
-    -f $(2) . --push || exit 1
-endef
-
-define build_service_with_enhanced_cache
-@printf "$(COLOR_CYAN)→ Building $(1) with enhanced caching$(COLOR_OFF)\n"; \
-$(call ensure_docker_ghcr_auth); \
-DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-    --tag $(1) \
-    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
-    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:base-images \
-    --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
+    --cache-from type=registry,ref=$(CACHE_SERVICES_REF) \
+    $(if $(3),--cache-from type=registry,ref=$(3),) \
+    --cache-to type=registry,ref=$(CACHE_SERVICES_REF),mode=max \
     --build-arg BUILDKIT_INLINE_CACHE=1 \
     --load \
     --push \
-    -f $(2) .
+    -f $(2) . || exit 1
 endef
-
-# Source paths and file discovery
-PYTHON_SOURCES := services
-MYPY_PATHS ?= services
-DOCKERFILES := $(shell find services -type f -name 'Dockerfile' 2>/dev/null)
-YAML_FILES := docker-compose.yml $(shell find .github/workflows -type f -name '*.yaml' -o -name '*.yml' 2>/dev/null)
-MARKDOWN_FILES := README.md AGENTS.md $(shell find docs -type f -name '*.md' 2>/dev/null)
-
-# Container images and paths
-LINT_IMAGE ?= ghcr.io/gabrielpreston/lint:latest
-LINT_DOCKERFILE := services/linter/Dockerfile
-LINT_WORKDIR := /workspace
-TEST_IMAGE ?= ghcr.io/gabrielpreston/test:latest
-TEST_DOCKERFILE := services/tester/Dockerfile
-TEST_WORKDIR := /workspace
-SECURITY_IMAGE ?= ghcr.io/gabrielpreston/security:latest
-SECURITY_DOCKERFILE := services/security/Dockerfile
-SECURITY_WORKDIR := /workspace
-
-# Test configuration
-PYTEST_ARGS ?=
-
-# =============================================================================
-# HELPER FUNCTIONS
-# =============================================================================
 
 # Helper function for Docker container execution
 define run_docker_container
@@ -174,13 +154,6 @@ define run_docker_container
 	$(3)
 endef
 
-# Dynamic service discovery
-SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
-VALID_SERVICES := $(shell echo "$(SERVICES)" | tr '\n' ' ')
-
-# Runtime services (excludes tooling services like linter, tester, security)
-RUNTIME_SERVICES := discord stt flan orchestrator bark audio monitoring testing
-
 # =============================================================================
 # DEFAULT TARGETS
 # =============================================================================
@@ -192,7 +165,7 @@ help: ## Show this help (default)
 	@echo
 	@echo "Usage: make <target>"
 	@echo
-	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-14s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST) 2>/dev/null || true
+	@awk 'BEGIN {FS = ":.*## "} /^[^[:space:]#].*:.*##/ { printf "  %-20s - %s\n", $$1, $$2 }' $(MAKEFILE_LIST) 2>/dev/null || true
 
 .DEFAULT_GOAL := help
 
@@ -200,33 +173,50 @@ help: ## Show this help (default)
 # APPLICATION LIFECYCLE
 # =============================================================================
 
-run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
+run: stop ## Start docker-compose stack
 	@printf "$(COLOR_GREEN)→ Starting containers with cached images$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans
 
-run-with-build: docker-build-enhanced run ## Build with caching then start containers
+run-with-build: docker-build-enhanced run ## Build with enhanced caching then start containers (base images must exist)
 
-stop: ## Stop and remove containers for the compose stack
+stop: ## Stop and remove containers
 	@printf "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) down --remove-orphans
+
+restart: ## Restart compose services (set SERVICE=name to limit scope)
+	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
+	@if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) restart; else $(DOCKER_COMPOSE) restart $(SERVICE); fi
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
 	@printf "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)\n"; \
 	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs -f --tail=100; else $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); fi
 
-logs-dump: ## Capture docker logs to ./docker.logs
+logs-dump: ## Capture docker logs to ./debug/docker.logs
 	@printf "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) logs > ./debug/docker.logs
 
 docker-status: ## Show status of docker-compose services
 	@$(DOCKER_COMPOSE) ps
 
+docker-shell: ## Open an interactive shell inside a running service (set SERVICE=name)
+	@if [ -z "$(SERVICE)" ]; then \
+		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
+		exit 1; \
+	fi
+	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
+		exit 1; \
+	fi
+	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
+
+docker-config: ## Render the effective docker-compose configuration
+	@$(DOCKER_COMPOSE) config
+
 # =============================================================================
-# DOCKER BUILD & MANAGEMENT
+# DOCKER BUILD & IMAGE MANAGEMENT
 # =============================================================================
 
-# Buildx setup
-.PHONY: docker-buildx-setup
+# Buildx setup and management
 docker-buildx-setup: ## Create/select a local buildx builder if missing
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@if ! docker buildx ls | grep -q "^$(BUILDX_BUILDER_NAME)"; then \
@@ -248,15 +238,15 @@ docker-buildx-reset: ## Reset local buildx/buildkit after Docker Desktop crash
 	@docker buildx create --use --name $(BUILDX_BUILDER_NAME) --driver docker-container
 	@docker buildx inspect --bootstrap
 
-docker-build: docker-buildx-setup ## Build or rebuild images for the compose stack (smart incremental by default)
+# Service image builds
+docker-build: docker-buildx-setup ## Build service images using smart incremental detection
 	@printf "$(COLOR_GREEN)→ Building docker images (smart incremental)$(COLOR_OFF)\n"
-	@bash scripts/build-incremental.sh
+	@export RUNTIME_SERVICES="$(RUNTIME_SERVICES)"; bash $(SCRIPT_DIR)/build-incremental.sh
 
-docker-build-enhanced: ## Build with enhanced multi-source caching (GitHub Actions + registry)
+docker-build-enhanced: ## Build all services in parallel with registry caching (use for CI)
 	@printf "$(COLOR_GREEN)→ Building docker images with enhanced caching$(COLOR_OFF)\n"
 	@$(call ensure_docker_ghcr_auth)
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
-
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then \
@@ -270,41 +260,16 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
+# Base image builds
 docker-build-base: ## Build base images (python-web, python-ml, python-audio, tools)
 	@printf "$(COLOR_GREEN)→ Building base images$(COLOR_OFF)\n"
-	@bash scripts/build-base-images.sh
+	@bash $(SCRIPT_DIR)/build-base-images.sh
 
 docker-build-wheels: ## Build and cache wheels for native dependencies
 	@printf "$(COLOR_GREEN)→ Building wheels for native dependencies$(COLOR_OFF)\n"
-	@bash scripts/build-wheels.sh
+	@bash $(SCRIPT_DIR)/build-wheels.sh
 
-docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
-	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
-	@if [ -z "$(SERVICE)" ]; then \
-	$(DOCKER_COMPOSE) restart; \
-	else \
-	$(DOCKER_COMPOSE) restart $(SERVICE); \
-	fi
-
-docker-shell: ## Open an interactive shell inside a running service (SERVICE=name)
-	@if [ -z "$(SERVICE)" ]; then \
-		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
-		exit 1; \
-	fi
-	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
-		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
-		exit 1; \
-	fi
-	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
-
-docker-config: ## Render the effective docker-compose configuration
-	@$(DOCKER_COMPOSE) config
-
-
-# =============================================================================
-# DOCKER IMAGE PULL (CACHE WARMUP)
-# =============================================================================
-
+# Image cache management
 docker-pull-images: ## Pre-pull images for all compose files and toolchain (cache warmup)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@printf "$(COLOR_GREEN)→ Pulling images defined in docker-compose files$(COLOR_OFF)\n"
@@ -327,46 +292,19 @@ docker-warm-cache: docker-pull-images ## Alias: warm Docker cache by downloading
 # TESTING
 # =============================================================================
 
-test: test-unit test-component ## Run unit and component tests (fast, reliable)
-
-
-
-test-image-force: ## Force rebuild the test toolchain container image
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
-	@printf "$(COLOR_YELLOW)→ Force rebuilding $(TEST_IMAGE)$(COLOR_OFF)\n"
-	$(call build_with_cache,$(TEST_IMAGE),$(TEST_DOCKERFILE))
-
-lint-image-force: ## Force rebuild the lint toolchain container image (no cache)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE) (no cache)$(COLOR_OFF)\n"
-	@docker rmi $(LINT_IMAGE) 2>/dev/null || true
-	@$(call ensure_docker_ghcr_auth); \
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-		--tag $(LINT_IMAGE) \
-		--no-cache \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
-		--load \
-		-f $(LINT_DOCKERFILE) . || exit 1; \
-	printf "$(COLOR_CYAN)→ Pushing $(LINT_IMAGE) to registry...$(COLOR_OFF)\n"; \
-	docker push $(LINT_IMAGE) || exit 1; \
-	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
-		--tag $(LINT_IMAGE) \
-		--no-cache \
-		--cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
-		--build-arg BUILDKIT_INLINE_CACHE=1 \
-		-f $(LINT_DOCKERFILE) . --push || exit 1
-
-security-image-force: ## Force rebuild the security scanning container image
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
-	@printf "$(COLOR_YELLOW)→ Force rebuilding $(SECURITY_IMAGE)$(COLOR_OFF)\n"
-	$(call build_with_cache,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
-
+# Test toolchain image management
 test-image: ## Build the test toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
 	$(call build_if_missing,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
+test-image-force: ## Force rebuild the test toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(TEST_IMAGE)$(COLOR_OFF)\n"
+	$(call build_with_registry_cache,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
-# Test categories
+# Test execution
+test: test-unit test-component ## Run unit and component tests (fast, reliable)
+
 test-unit: test-image ## Run unit tests (fast, isolated)
 	@printf "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m unit $(PYTEST_ARGS))
@@ -449,25 +387,36 @@ test-observability-full: test-image ## Run full observability stack with applica
 	@printf "$(COLOR_YELLOW)→ Stopping full stack$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) down -v
 
-
 # =============================================================================
 # LINTING & CODE QUALITY
 # =============================================================================
 
-# =============================================================================
-# LINTING TARGETS
-# =============================================================================
+# Lint toolchain image management
+lint-image: ## Build the lint toolchain container image (only if missing)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+	$(call build_if_missing,$(LINT_IMAGE),$(LINT_DOCKERFILE))
 
+lint-image-force: ## Force rebuild the lint toolchain container image (no cache)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE) (no cache)$(COLOR_OFF)\n"
+	@docker rmi $(LINT_IMAGE) 2>/dev/null || true
+	@$(call ensure_docker_ghcr_auth); \
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+		--tag $(LINT_IMAGE) \
+		--no-cache \
+		--cache-to type=registry,ref=$(CACHE_SERVICES_REF),mode=max \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--load \
+		--push \
+		-f $(LINT_DOCKERFILE) . || exit 1
+
+# Lint execution
 lint: lint-image ## Run all linters (validation only)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		bash $(LINT_WORKDIR)/services/linter/run-lint.sh
-
-lint-image: ## Build the lint toolchain container image (only if missing)
-	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	$(call build_if_missing,$(LINT_IMAGE),$(LINT_DOCKERFILE))
 
 lint-fix: lint-image ## Apply all automatic fixes
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
@@ -476,19 +425,24 @@ lint-fix: lint-image ## Apply all automatic fixes
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		bash $(LINT_WORKDIR)/services/linter/run-lint-fix.sh
 
-
 # =============================================================================
-# SECURITY & QUALITY GATES
+# SECURITY
 # =============================================================================
 
-security: security-image ## Run security scanning with pip-audit
-	@printf "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)\n"
-	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
-
+# Security toolchain image management
 security-image: ## Build the security scanning container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
 	$(call build_if_missing,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
 
+security-image-force: ## Force rebuild the security scanning container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(SECURITY_IMAGE)$(COLOR_OFF)\n"
+	$(call build_with_registry_cache,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
+
+# Security execution
+security: security-image ## Run security scanning with pip-audit
+	@printf "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)\n"
+	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
 # =============================================================================
 # CLEANUP & MAINTENANCE
@@ -517,84 +471,34 @@ docker-clean-all: ## Nuclear cleanup: stop compose stack, remove ALL images/volu
 # =============================================================================
 
 docs-verify: ## Validate documentation last-updated metadata and indexes
-	@./scripts/verify_last_updated.py --allow-divergence $(ARGS)
+	@python3 $(SCRIPT_DIR)/verify_last_updated.py --allow-divergence $(ARGS)
 
 validate-changes: ## Validate uncommitted changes (lint, tests); use ARGS='--verbose' to customize
-	@bash scripts/validate-changes.sh $(ARGS)
+	@bash $(SCRIPT_DIR)/validate-changes.sh $(ARGS)
 
-# Token management
+# =============================================================================
+# TOKEN MANAGEMENT
+# =============================================================================
+
 rotate-tokens: ## Rotate AUTH_TOKEN values across all environment files
 	@printf "$(COLOR_CYAN)→ Rotating AUTH_TOKEN values$(COLOR_OFF)\n"
-	@./scripts/rotate_auth_tokens.py
+	@python3 $(SCRIPT_DIR)/rotate_auth_tokens.py
 
 rotate-tokens-dry-run: ## Show what token rotation would change without modifying files
 	@printf "$(COLOR_CYAN)→ Dry run: AUTH_TOKEN rotation preview$(COLOR_OFF)\n"
-	@./scripts/rotate_auth_tokens.py --dry-run
+	@python3 $(SCRIPT_DIR)/rotate_auth_tokens.py --dry-run
 
 validate-tokens: ## Validate AUTH_TOKEN consistency across environment files
 	@printf "$(COLOR_CYAN)→ Validating AUTH_TOKEN consistency$(COLOR_OFF)\n"
-	@./scripts/rotate_auth_tokens.py --validate-only
+	@python3 $(SCRIPT_DIR)/rotate_auth_tokens.py --validate-only
 
-# Model management
+# =============================================================================
+# MODEL MANAGEMENT
+# =============================================================================
+
 models-download: ## Download required models to ./services/models/ subdirectories
 	@printf "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)\n"
-	@mkdir -p ./services/models/llm ./services/models/tts ./services/models/stt
-	@echo "Downloading LLM model (llama-2-7b.Q4_K_M.gguf)..."
-	@if [ ! -f "./services/models/llm/llama-2-7b.Q4_K_M.gguf" ]; then \
-		wget -O ./services/models/llm/llama-2-7b.Q4_K_M.gguf \
-		"https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" || \
-		echo "Failed to download LLM model. You may need to download it manually."; \
-	else \
-		echo "LLM model already exists, skipping download."; \
-	fi
-	@echo "Downloading TTS model (en_US-amy-medium)..."
-	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx" ]; then \
-		wget -O ./services/models/tts/en_US-amy-medium.onnx \
-		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx" || \
-		echo "Failed to download TTS model. You may need to download it manually."; \
-	else \
-		echo "TTS model already exists, skipping download."; \
-	fi
-	@if [ ! -f "./services/models/tts/en_US-amy-medium.onnx.json" ]; then \
-		wget -O ./services/models/tts/en_US-amy-medium.onnx.json \
-		"https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/amy/medium/en_US-amy-medium.onnx.json" || \
-		echo "Failed to download TTS model config. You may need to download it manually."; \
-	else \
-		echo "TTS model config already exists, skipping download."; \
-	fi
-	@echo "Downloading STT model (faster-whisper medium.en)..."
-	@if [ ! -d "./services/models/stt/medium.en" ]; then \
-		mkdir -p ./services/models/stt/medium.en; \
-		wget -O ./services/models/stt/medium.en/config.json \
-		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/config.json" || \
-		echo "Failed to download STT model config."; \
-		wget -O ./services/models/stt/medium.en/model.bin \
-		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/model.bin" || \
-		echo "Failed to download STT model weights."; \
-		wget -O ./services/models/stt/medium.en/tokenizer.json \
-		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/tokenizer.json" || \
-		echo "Failed to download STT tokenizer."; \
-		wget -O ./services/models/stt/medium.en/vocabulary.txt \
-		"https://huggingface.co/Systran/faster-whisper-medium.en/resolve/main/vocabulary.txt" || \
-		echo "Failed to download STT vocabulary."; \
-	else \
-		echo "STT model already exists, skipping download."; \
-	fi
-	@echo "Downloading FLAN-T5 model (flan-t5-large)..."
-	@if [ ! -d "./services/models/flan-t5" ]; then \
-		mkdir -p ./services/models/flan-t5; \
-		python3 scripts/download_flan_t5.py large || \
-		echo "Failed to download FLAN-T5 model. You may need to download it manually."; \
-	else \
-		echo "FLAN-T5 model already exists, skipping download."; \
-	fi
-	@printf "$(COLOR_GREEN)→ Model download complete$(COLOR_OFF)\n"
-	@echo "Models downloaded to:"
-	@echo "  - LLM: ./services/models/llm/llama-2-7b.Q4_K_M.gguf"
-	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx"
-	@echo "  - TTS: ./services/models/tts/en_US-amy-medium.onnx.json"
-	@echo "  - STT: ./services/models/stt/medium.en/"
-	@echo "  - FLAN-T5: ./services/models/flan-t5/"
+	@bash $(SCRIPT_DIR)/download-models.sh
 
 models-clean: ## Remove downloaded models from ./services/models/
 	@printf "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)\n"

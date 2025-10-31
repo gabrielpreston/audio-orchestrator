@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 import httpx
+from services.common.http_headers import inject_correlation_id
 from services.common.structured_logging import get_logger
 from services.common.performance import ConnectionPool, profile_function
 
@@ -110,6 +111,12 @@ class OptimizedHTTPClient:
         Returns:
             HTTP response
         """
+        # Extract headers if present, inject correlation ID
+        headers = kwargs.pop("headers", None)
+        request_headers = inject_correlation_id(headers)
+        if request_headers:
+            kwargs["headers"] = request_headers
+
         start_time = time.perf_counter()
         self._stats["total_requests"] += 1
 

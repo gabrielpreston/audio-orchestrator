@@ -9,15 +9,16 @@ import os
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 
+from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
 from services.common.config.loader import load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 # LangChain imports
 from .langchain_integration import (
@@ -28,12 +29,12 @@ from .langchain_integration import (
 
 # Import new REST API models
 from .models import (
-    TranscriptProcessRequest,
-    TranscriptProcessResponse,
     CapabilitiesResponse,
     CapabilityInfo,
-    StatusResponse,
     ConnectionInfo,
+    StatusResponse,
+    TranscriptProcessRequest,
+    TranscriptProcessResponse,
 )
 
 
@@ -46,7 +47,6 @@ except ImportError:
 # Configure logging
 configure_logging("info", json_logs=True, service_name="orchestrator")
 logger = get_logger(__name__, service_name="orchestrator")
-app = FastAPI(title="Enhanced Orchestrator", version="1.0.0")
 
 # Health manager and observability
 _health_manager = HealthManager("orchestrator")
@@ -62,9 +62,8 @@ _langchain_executor: AgentExecutor | None = None
 PROMPT_VERSION = "v1.0"
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def startup() -> None:
-    """Initialize the enhanced orchestrator service."""
+async def _startup() -> None:
+    """Service-specific startup logic."""
     global \
         _cfg, \
         _langchain_executor, \
@@ -73,9 +72,8 @@ async def startup() -> None:
         _http_metrics
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("orchestrator", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("orchestrator")
 
         # Create service-specific metrics
         _llm_metrics = create_llm_metrics(_observability_manager)
@@ -118,10 +116,19 @@ async def startup() -> None:
         # Continue without crashing - service will report not_ready
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown() -> None:
-    """Cleanup on shutdown."""
+async def _shutdown() -> None:
+    """Service-specific shutdown logic."""
     logger.info("orchestrator.shutdown")
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "orchestrator",
+    "1.0.0",
+    title="Enhanced Orchestrator",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 # Initialize health endpoints

@@ -310,7 +310,7 @@ services:
 
 ```bash
 # Smart incremental builds (recommended for development)
-make docker-build-incremental  # Detects changes, rebuilds only affected services
+make docker-build  # Detects changes, rebuilds only affected services
 
 # Enhanced caching builds (maximum cache utilization)
 make docker-build-enhanced     # Multi-source caching (GitHub Actions + registry)
@@ -417,7 +417,7 @@ python-base (3-4 min)
 │   ├── stt, llm_flan, orchestrator_enhanced services
 │   ├── tts_bark, guardrails services
 │   ├── audio_processor, testing_ui services
-│   └── monitoring_dashboard service
+│   └── monitoring service
 ├── tools (8-10 min after optimization)
 │   └── linter, tester services
 └── specialized-services (5-7 min)

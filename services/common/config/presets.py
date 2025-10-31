@@ -218,7 +218,7 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "model": "medium.en",
                 "model_path": "/app/models",
                 "device": "cpu",
-                "compute_type": "float16",
+                "compute_type": "int8",
                 "audio_service_url": "http://audio:9100",
                 "audio_service_timeout": 50.0,
                 "enable_enhancement": True,

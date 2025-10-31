@@ -37,9 +37,12 @@ The orchestrator enhanced service coordinates transcript processing, LangChain t
 
 ## Observability
 
+-  **Unified Middleware**: Uses `ObservabilityMiddleware` for automatic correlation ID propagation and request/response logging
+-  **Service Factory**: Uses `create_service_app()` factory for standardized observability setup
+-  **Correlation IDs**: Automatically propagated through all HTTP requests and logs
 -  Structured logs track request IDs and latency breakdowns.
 -  `/metrics` exposes request counters and duration histograms when scraped.
--  Use `make logs SERVICE=orchestrator-enhanced` to monitor orchestrated tool chains and LLM service interactions.
+-  Use `make logs SERVICE=orchestrator` to monitor orchestrated tool chains and LLM service interactions.
 
 ## Dependencies
 

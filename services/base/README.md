@@ -5,18 +5,18 @@
 ```
 python-base (3-4 min)
 ├── python-audio (3-4 min)
-│   └── discord, tts_bark services
+│   └── discord, bark services
 ├── python-ml (4-5 min)
 │   ├── python-ml-audio (2-3 min)
-│   │   └── stt, audio_processor services
+│   │   └── stt, audio services
 │   ├── python-ml-transformers (2-3 min)
-│   │   └── llm_flan, guardrails services
+│   │   └── flan, guardrails services
 │   ├── python-ml-torch (2-3 min)
 │   │   └── Advanced ML services
-│   ├── stt, llm_flan, orchestrator_enhanced services
-│   ├── tts_bark, guardrails services
-│   ├── audio_processor, testing_ui services
-│   └── monitoring_dashboard service
+│   ├── stt, flan, orchestrator services
+│   ├── bark, guardrails services
+│   ├── audio, testing services
+│   └── monitoring service
 ├── tools (8-10 min after optimization)
 │   └── linter, tester services
 └── specialized-services (5-7 min)
@@ -136,22 +136,22 @@ python-base (3-4min, ~2GB)
 
 ### python-audio
 - Audio processing libraries (librosa, soundfile, ffmpeg)
-- Used by: discord, tts_bark services
+- Used by: discord, bark services
 - Build time: 3-4 minutes
 
 ### python-ml
 - Machine learning libraries (PyTorch, transformers, etc.)
-- Used by: stt, llm_flan, orchestrator_enhanced, tts_bark, guardrails, audio_processor, testing_ui, monitoring_dashboard
+- Used by: stt, flan, orchestrator, bark, guardrails, audio, testing, monitoring
 - Build time: 4-5 minutes
 
 ### python-ml-audio
 - ML + Audio processing combination
-- Used by: stt, audio_processor services
+- Used by: stt, audio services
 - Build time: 2-3 minutes
 
 ### python-ml-transformers
 - ML + Transformers libraries
-- Used by: llm_flan, guardrails services
+- Used by: flan, guardrails services
 - Build time: 2-3 minutes
 
 ### python-ml-torch

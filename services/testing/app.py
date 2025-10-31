@@ -5,19 +5,18 @@ Provides a Gradio interface for testing the complete audio pipeline
 including preprocessing, transcription, orchestration, and synthesis.
 """
 
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI
 from pydantic import BaseModel
 
+from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 # Import gradio with error handling
 try:
@@ -38,16 +37,13 @@ _observability_manager = None
 _http_metrics = {}
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> Any:
-    """Service lifespan event handler."""
+async def _startup() -> None:
+    """Service startup event handler."""
     global _observability_manager, _http_metrics
 
-    # Startup
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("testing", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("testing")
 
         # Create service-specific metrics
         _http_metrics = create_http_metrics(_observability_manager)
@@ -61,16 +57,22 @@ async def lifespan(app: FastAPI) -> Any:
         logger.error("Testing UI service startup failed", error=str(exc))
         # Continue without crashing - service will report not_ready
 
-    yield
 
-    # Shutdown
+async def _shutdown() -> None:
+    """Service shutdown event handler."""
     logger.info("Testing UI service shutting down")
     await client.aclose()
     # Health manager will handle shutdown automatically
 
 
-# FastAPI app for health checks
-app = FastAPI(title="Testing UI Service", version="1.0.0", lifespan=lifespan)
+# Create app using factory pattern
+app = create_service_app(
+    "testing",
+    "1.0.0",
+    title="Testing UI Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 # HTTP client for service communication

@@ -9,14 +9,15 @@ import re
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
 from services.common.audio_metrics import create_guardrails_metrics, create_http_metrics
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 
 # ML imports for toxicity detection
@@ -39,7 +40,6 @@ except ImportError:
 # Configure logging
 configure_logging("info", json_logs=True, service_name="guardrails")
 logger = get_logger(__name__, service_name="guardrails")
-app = FastAPI(title="Guardrails Service", version="1.0.0")
 
 # Health manager and observability
 _health_manager = HealthManager("guardrails")
@@ -120,7 +120,7 @@ def initialize_models() -> None:
         _toxicity_detector = None
 
 
-def initialize_rate_limiter() -> None:
+def initialize_rate_limiter(app_instance: Any) -> None:
     """Initialize rate limiter."""
     global _limiter
 
@@ -132,23 +132,21 @@ def initialize_rate_limiter() -> None:
 
     try:
         _limiter = Limiter(key_func=get_remote_address)
-        app.state.limiter = _limiter
-        app.add_exception_handler(429, _rate_limit_exceeded_handler)
+        app_instance.state.limiter = _limiter
+        app_instance.add_exception_handler(429, _rate_limit_exceeded_handler)
         logger.info("guardrails.rate_limiter_initialized")
     except Exception as e:
         logger.error("guardrails.rate_limiter_failed", error=str(e))
         _limiter = None
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def startup() -> None:
+async def _startup() -> None:
     """Initialize the guardrails service."""
     global _observability_manager, _guardrails_metrics, _http_metrics
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("guardrails", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("guardrails")
 
         # Create service-specific metrics
         _guardrails_metrics = create_guardrails_metrics(_observability_manager)
@@ -159,7 +157,6 @@ async def startup() -> None:
 
         # Initialize models
         initialize_models()
-        initialize_rate_limiter()
 
         # Register dependencies
         _health_manager.register_dependency(
@@ -187,10 +184,19 @@ async def startup() -> None:
         # Continue without crashing - service will report not_ready
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown() -> None:
+async def _shutdown() -> None:
     """Cleanup on shutdown."""
     logger.info("guardrails.shutdown")
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "guardrails",
+    "1.0.0",
+    title="Guardrails Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 # Initialize health endpoints

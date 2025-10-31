@@ -69,7 +69,7 @@ When working on the project:
 
 The project includes optimized Docker builds:
 
--  **Local Development**: Use `make docker-build-incremental` for smart rebuilds (50-80% faster)
+-  **Local Development**: Use `make docker-build` for smart rebuilds (50-80% faster)
 -  **CI/CD**: Uses path-based change detection and matrix parallelization (already optimal)
 -  **Base Images**: Shared base images cached in GHCR reduce build times by 80-90%
 -  **Parallel Builds**: All services build in parallel when using `--parallel` flag
@@ -79,7 +79,7 @@ The project includes optimized Docker builds:
 #### Incremental Build (Recommended for Development)
 
 ```bash
-make docker-build-incremental
+make docker-build
 ```
 
 Detects changes via git and rebuilds only affected services. 50-80% faster for typical changes.

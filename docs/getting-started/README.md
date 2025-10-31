@@ -22,6 +22,7 @@ local workflows before touching production infrastructure.
   Docker routines.
 -  [Troubleshooting](troubleshooting.md) — Common issues and remediation steps for audio,
   Docker, and permissions.
+-  [Service URLs Reference](../reference/service-urls.md) — Complete list of all service URLs accessible in your browser.
 
 ## Prerequisites
 

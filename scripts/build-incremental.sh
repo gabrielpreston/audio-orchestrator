@@ -36,7 +36,7 @@ case "$CHANGED" in
         printf "${COLOR_YELLOW}⚠ Common files changed - rebuilding ALL services${COLOR_OFF}\n"
         echo "  Reason: services/common/, requirements-base.txt, or .dockerignore changed"
         echo ""
-        SERVICES="discord stt flan orchestrator bark audio monitoring testing"
+        SERVICES="${RUNTIME_SERVICES:-discord stt flan orchestrator bark audio monitoring testing guardrails}"
         ;;
     "base-images")
         printf "${COLOR_RED}⚠ Base images changed - manual rebuild required${COLOR_OFF}\n"
@@ -53,7 +53,8 @@ case "$CHANGED" in
         SERVICES="$CHANGED"
         printf "${COLOR_GREEN}✓ Selective rebuild${COLOR_OFF}\n"
         echo "  Building: $SERVICES"
-        echo "  Skipping: $(echo \"discord stt flan orchestrator bark audio monitoring testing\" | tr ' ' '\n' | grep -v -w -f <(echo \"$SERVICES\" | tr ' ' '\n') | xargs)"
+        ALL_SERVICES="${RUNTIME_SERVICES:-discord stt flan orchestrator bark audio monitoring testing guardrails}"
+        echo "  Skipping: $(echo \"$ALL_SERVICES\" | tr ' ' '\n' | grep -v -w -f <(echo \"$SERVICES\" | tr ' ' '\n') | xargs)"
         echo ""
         ;;
 esac
@@ -82,7 +83,7 @@ DURATION=$((END_TIME - START_TIME))
 # Estimate savings (rough heuristic: full build ~10min, single service ~2min)
 FULL_BUILD_TIME=600  # 10 minutes average
 SERVICE_COUNT=$(echo "$SERVICES" | wc -w)
-TOTAL_SERVICES=7
+TOTAL_SERVICES=$(echo "${RUNTIME_SERVICES:-discord stt flan orchestrator bark audio monitoring testing guardrails}" | wc -w)
 if [ "$SERVICE_COUNT" -lt "$TOTAL_SERVICES" ]; then
     ESTIMATED_FULL=$FULL_BUILD_TIME
     SAVED=$((ESTIMATED_FULL - DURATION))

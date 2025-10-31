@@ -79,7 +79,7 @@ The project now includes multi-layer caching for maximum build performance:
 
 ```bash
 # Smart incremental builds (recommended for development)
-make docker-build-incremental  # Detects changes, rebuilds only affected services
+make docker-build  # Detects changes, rebuilds only affected services
 
 # Enhanced caching builds (maximum cache utilization)
 make docker-build-enhanced     # Multi-source caching (GitHub Actions + registry)

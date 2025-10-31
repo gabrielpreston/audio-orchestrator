@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import sys
 import threading
 import time
@@ -45,6 +46,7 @@ def configure_logging(
     json_logs: bool = True,
     service_name: str | None = None,
     stream: IO[str] | None = None,
+    full_tracebacks: bool | None = None,
 ) -> None:
     """Configure structlog + stdlib logging for the process.
 
@@ -54,6 +56,10 @@ def configure_logging(
         service_name: Optional service name to include in all log messages
         stream: Optional output stream for logs (defaults to sys.stdout).
                 Useful for testing to capture log output to StringIO.
+        full_tracebacks: Whether to use full tracebacks (dict_tracebacks) or
+                        summary format (format_exc_info). If None, defaults to
+                        full tracebacks for DEBUG level, summary for INFO+.
+                        Can also be set via LOG_FULL_TRACEBACKS environment variable.
 
     Example:
         # Production usage
@@ -68,12 +74,31 @@ def configure_logging(
     numeric_level = _numeric_level(level)
     output_stream = stream if stream is not None else sys.stdout
 
+    # Determine exception processor
+    # Priority: explicit parameter > environment variable > log level inference
+    if full_tracebacks is None:
+        # Check environment variable
+        env_full_tracebacks = os.getenv("LOG_FULL_TRACEBACKS", "").lower()
+        if env_full_tracebacks in ("true", "1", "yes"):
+            full_tracebacks = True
+        elif env_full_tracebacks in ("false", "0", "no"):
+            full_tracebacks = False
+        else:
+            # Default: full tracebacks only in DEBUG
+            full_tracebacks = numeric_level <= logging.DEBUG
+
+    exception_processor = (
+        structlog.processors.dict_tracebacks
+        if full_tracebacks
+        else structlog.processors.format_exc_info
+    )
+
     shared_processors = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
         _add_service(service_name),
-        structlog.processors.dict_tracebacks,
+        exception_processor,  # Configurable processor
     ]
     if json_logs:
         formatter_processors = [
@@ -130,6 +155,13 @@ def configure_logging(
     logging.getLogger("multipart").setLevel(logging.WARNING)
     logging.getLogger("multipart.multipart").setLevel(logging.WARNING)
 
+    # Suppress OpenTelemetry SDK error spam (connection failures handled internally)
+    # These errors are logged by OTEL SDK but don't require service-level error logs
+    logging.getLogger("opentelemetry.sdk.metrics").setLevel(logging.WARNING)
+    logging.getLogger("opentelemetry.sdk.trace").setLevel(logging.WARNING)
+    # Suppress OTEL exporter connection errors (they retry automatically)
+    logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.WARNING)
+
     structlog.configure(
         processors=[
             *shared_processors,
@@ -165,6 +197,16 @@ def get_logger(
     except ImportError:
         # OpenTelemetry not available, continue without trace context
         pass
+
+    # Auto-bind correlation ID from context if not explicitly provided
+    if correlation_id is None:
+        try:
+            from services.common.middleware import get_correlation_id
+
+            correlation_id = get_correlation_id()
+        except ImportError:
+            # Middleware not available, skip auto-binding
+            pass
 
     if correlation_id:
         logger = logger.bind(correlation_id=correlation_id)

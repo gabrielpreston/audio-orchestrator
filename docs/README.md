@@ -26,6 +26,7 @@ and reference content aligned with the current repository layout.
 | Shared utilities | [Shared utilities](architecture/shared-utilities.md) | Common libraries, configuration, debug management. |
 | Operate the stack | [Operations landing page](operations/README.md) | Runbooks, observability, security posture. |
 | Extend & integrate | [Reference catalog](reference/configuration-catalog.md) | Environment variables, API endpoints, manifests. |
+| Access services | [Service URLs Reference](reference/service-urls.md) | Complete list of all browser-accessible service URLs. |
 | Scripts & tools | [Scripts reference](reference/scripts-reference.md) | Utility scripts, maintenance procedures. |
 | Track strategy | [Roadmap index](roadmaps/README.md) | Active plans, historical revisions. |
 | Review research | [Reports index](reports/README.md) | Implementation notes, evaluation findings. |

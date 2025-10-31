@@ -22,8 +22,9 @@ Update this file whenever you add, rename, or remove configuration keys.
 
 | Variable | Description | Default |
 | --- | --- | --- |
-| `LOG_LEVEL` | Global logging verbosity (`debug`, `info`, `warning`). | `info` |
+| `LOG_LEVEL` | Global logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`). Case-insensitive - accepts lowercase. | `INFO` |
 | `LOG_JSON` | Emit JSON-formatted logs when `true`. | `true` |
+| `LOG_FULL_TRACEBACKS` | Control exception traceback verbosity. `true` forces full tracebacks, `false` forces summary format. If unset, uses full tracebacks for DEBUG level and summary for INFO+ level. | *(auto)* |
 | `LOG_SAMPLE_VAD_N` | Sample high-frequency VAD events to reduce log volume. | `50` |
 | `LOG_SAMPLE_UNKNOWN_USER_N` | Sample unknown user events to reduce log volume. | `100` |
 | `LOG_RATE_LIMIT_PACKET_WARN_S` | Rate limit for packet warning logs (seconds). | `10` |
@@ -105,7 +106,7 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TTS_VOICE` | Default voice identifier. | *(empty)* |
 | `TTS_TIMEOUT` | Timeout for TTS requests (seconds). | `30` |
 
-## Orchestrator Enhanced Service (`services/orchestrator_enhanced/.env.service`)
+## Orchestrator Service (`services/orchestrator/.env.service`)
 
 | Variable | Description | Default |
 | --- | --- | --- |
@@ -131,6 +132,10 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TTS_LENGTH_SCALE` | Speech tempo modifier. | `1.0` |
 | `TTS_NOISE_SCALE` | Controls noise added during synthesis. | `0.667` |
 | `TTS_NOISE_W` | Controls breathiness of speech. | `0.8` |
+
+## Service URLs
+
+For a complete list of all service URLs accessible from your browser, including health check endpoints and API documentation, see the [Service URLs Reference](service-urls.md).
 
 ## Change Management
 

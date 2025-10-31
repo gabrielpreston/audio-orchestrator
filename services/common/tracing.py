@@ -49,20 +49,36 @@ class TracingManager:
             return
 
         try:
-            # Create resource with service information
-            resource = Resource.create(
-                {
-                    "service.name": self.service_name,
-                    "service.version": self.service_version,
-                    "service.namespace": "audio-orchestrator",
-                }
-            )
+            # Get existing tracer provider or create new one
+            current_provider = trace.get_tracer_provider()
 
-            # Set up tracer provider
-            trace.set_tracer_provider(TracerProvider(resource=resource))
+            # Only set new provider if it's the default NoOpTracerProvider
+            # (checking by type name to avoid importing NoOpTracerProvider)
+            provider_created = False
+            if type(current_provider).__name__ == "NoOpTracerProvider":
+                # Create resource with service information
+                resource = Resource.create(
+                    {
+                        "service.name": self.service_name,
+                        "service.version": self.service_version,
+                        "service.namespace": "audio-orchestrator",
+                    }
+                )
+                # Set up tracer provider (only if not already set)
+                trace.set_tracer_provider(TracerProvider(resource=resource))
+                provider_created = True
+                logger.info(
+                    "tracing.tracer_provider_created", service=self.service_name
+                )
+            else:
+                # Provider already exists, use it
+                logger.debug(
+                    "tracing.using_existing_provider", service=self.service_name
+                )
 
             # Configure exporters based on environment
-            self._setup_exporters()
+            # Pass provider_created flag so exporter setup knows if we can add processors
+            self._setup_exporters(provider_created=provider_created)
 
             # Get tracer
             self._tracer = trace.get_tracer(self.service_name, self.service_version)
@@ -80,17 +96,48 @@ class TracingManager:
             # Continue without tracing if setup fails
             self._tracer = None
 
-    def _setup_exporters(self) -> None:
-        """Set up trace exporters based on configuration."""
+    def _setup_exporters(self, *, provider_created: bool = False) -> None:
+        """Set up trace exporters based on configuration.
+
+        Args:
+            provider_created: True if this service created the provider, False if using existing
+        """
         tracer_provider = trace.get_tracer_provider()
 
         # OTLP exporter (for Jaeger, Zipkin, etc.)
         otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
         if otlp_endpoint:
+            # Ensure endpoint has http:// prefix for HTTP protocol
+            if not otlp_endpoint.startswith(("http://", "https://")):
+                otlp_endpoint = f"http://{otlp_endpoint}"
             otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
             otlp_processor = BatchSpanProcessor(otlp_exporter)
-            tracer_provider.add_span_processor(otlp_processor)
-            logger.info("tracing.otlp_exporter_configured", endpoint=otlp_endpoint)
+
+            # Only add processor if:
+            # 1. We created the provider (first service), OR
+            # 2. Provider is SDK TracerProvider (not ProxyTracerProvider/NoOpTracerProvider)
+            # ProxyTracerProvider wraps SDK provider for thread-safety but doesn't expose add_span_processor
+            if provider_created or isinstance(tracer_provider, TracerProvider):
+                try:
+                    tracer_provider.add_span_processor(otlp_processor)
+                    logger.info(
+                        "tracing.otlp_exporter_configured", endpoint=otlp_endpoint
+                    )
+                except AttributeError:
+                    # Provider doesn't support add_span_processor (ProxyTracerProvider)
+                    logger.debug(
+                        "tracing.provider_does_not_support_processors",
+                        provider_type=type(tracer_provider).__name__,
+                        service=self.service_name,
+                    )
+            else:
+                # Provider is ProxyTracerProvider or NoOpTracerProvider - exporter will still work
+                # via the proxy, but we can't add processors directly
+                logger.debug(
+                    "tracing.provider_is_proxy",
+                    provider_type=type(tracer_provider).__name__,
+                    service=self.service_name,
+                )
 
         # Jaeger exporter removed due to gRPC compatibility issues
 
@@ -310,18 +357,46 @@ class ObservabilityManager(TracingManager):
                 }
             )
 
-            # Setup OTLP metric exporter
-            otlp_endpoint = os.getenv(
-                "OTEL_EXPORTER_OTLP_ENDPOINT", "otel-collector:4317"
-            )
-            metric_reader = PeriodicExportingMetricReader(
-                OTLPMetricExporter(endpoint=otlp_endpoint, insecure=True),
-                export_interval_millis=15000,
-            )
-            meter_provider = MeterProvider(
-                resource=resource, metric_readers=[metric_reader]
-            )
-            metrics.set_meter_provider(meter_provider)
+            # Get existing meter provider or create new one
+            current_meter_provider = metrics.get_meter_provider()
+
+            # Only set new provider if it's the default NoOpMeterProvider
+            # OpenTelemetry MeterProvider doesn't support adding readers after creation,
+            # so only the first service creates the provider with a reader.
+            # All services share the same provider and export metrics via the single reader.
+            if type(current_meter_provider).__name__ == "NoOpMeterProvider":
+                # Only create reader and provider for the first service
+                # Setup OTLP metric exporter
+                # Use same endpoint as traces (port 4318 for HTTP protocol)
+                otlp_endpoint = os.getenv(
+                    "OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318"
+                )
+                # Use HTTP endpoint format for insecure connections
+                # For HTTP protocol, use http:// instead of https:// for insecure
+                if not otlp_endpoint.startswith(("http://", "https://")):
+                    # If no protocol specified, default to HTTP on port 4318
+                    if ":4317" in otlp_endpoint:
+                        # Replace gRPC port with HTTP port
+                        otlp_endpoint = otlp_endpoint.replace(":4317", ":4318")
+                    otlp_endpoint = f"http://{otlp_endpoint}"
+                metric_reader = PeriodicExportingMetricReader(
+                    OTLPMetricExporter(endpoint=otlp_endpoint),
+                    export_interval_millis=15000,
+                )
+                meter_provider = MeterProvider(
+                    resource=resource, metric_readers=[metric_reader]
+                )
+                metrics.set_meter_provider(meter_provider)
+                logger.info("metrics.meter_provider_created", service=self.service_name)
+            else:
+                # Meter provider already exists - all services share the same provider
+                # Each service creates its own meter via get_meter(), and all metrics
+                # are collected by the shared provider's reader(s)
+                # DO NOT create a MetricReader here - it will trigger warnings because
+                # PeriodicExportingMetricReader starts a background thread that calls collect()
+                logger.debug(
+                    "metrics.using_existing_provider", service=self.service_name
+                )
 
             # Get meter
             self._meter = metrics.get_meter(self.service_name, self.service_version)

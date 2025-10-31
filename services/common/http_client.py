@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 from structlog.stdlib import BoundLogger
 
+from .http_headers import inject_correlation_id
 from .structured_logging import get_logger
 
 
@@ -34,6 +35,8 @@ async def post_with_retries(
     attempt = 0
     log = logger or get_logger(__name__)
     extra = dict(log_fields or {})
+    # Auto-inject correlation ID from context using shared utility
+    request_headers = inject_correlation_id(headers)
     while True:
         attempt += 1
         try:
@@ -42,7 +45,7 @@ async def post_with_retries(
                 files=files,
                 data=data,
                 json=json,
-                headers=headers,
+                headers=request_headers,
                 params=params,
                 timeout=timeout,
             )

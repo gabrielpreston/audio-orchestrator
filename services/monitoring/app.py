@@ -8,14 +8,17 @@ performance metrics, and guardrail statistics.
 import os
 from typing import Any
 
-from fastapi import FastAPI
-
+from services.common.app_factory import create_service_app
 from services.common.audio_metrics import create_http_metrics
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
+
+# Configure logging early so we can log import errors
+configure_logging("info", json_logs=True, service_name="monitoring")
+logger = get_logger(__name__, service_name="monitoring")
 
 # Import optional dependencies with error handling
 try:
@@ -26,20 +29,21 @@ try:
     import streamlit as st
 
     DASHBOARD_AVAILABLE = True
-except Exception:
+    logger.debug("monitoring.dashboard_dependencies_available")
+except Exception as exc:
     DASHBOARD_AVAILABLE = False
     pd = None
     px = None
     go = None
     st = None
     httpx = None
+    # Log the actual error for debugging
+    logger.warning(
+        "monitoring.dashboard_dependencies_unavailable",
+        error=str(exc),
+        error_type=type(exc).__name__,
+    )
 
-# Configure logging
-configure_logging("info", json_logs=True, service_name="monitoring")
-logger = get_logger(__name__, service_name="monitoring")
-
-# FastAPI app for health checks
-app = FastAPI(title="Monitoring Dashboard Service", version="1.0.0")
 
 # Health manager and observability
 health_manager = HealthManager("monitoring")
@@ -228,30 +232,13 @@ async def _check_prometheus_health() -> bool:
         return False
 
 
-# Initialize health endpoints
-health_endpoints = HealthEndpoints(
-    service_name="monitoring",
-    health_manager=health_manager,
-    custom_components={
-        "dashboard_available": lambda: bool(DASHBOARD_AVAILABLE),
-        # Pass async function directly so HealthEndpoints awaits it
-        "prometheus_connected": _check_prometheus_health,
-    },
-)
-
-# Include the health endpoints router
-app.include_router(health_endpoints.get_router())
-
-
-@app.on_event("startup")  # type: ignore[misc]
-async def startup_event() -> None:
+async def _startup() -> None:
     """Service startup event handler."""
     global _observability_manager, _http_metrics
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("monitoring", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("monitoring")
 
         # Create service-specific metrics
         _http_metrics = create_http_metrics(_observability_manager)
@@ -267,11 +254,35 @@ async def startup_event() -> None:
         health_manager.mark_startup_complete()
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown_event() -> None:
+async def _shutdown() -> None:
     """Service shutdown event handler."""
     logger.info("Monitoring dashboard service shutting down")
     # Health manager will handle shutdown automatically
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "monitoring",
+    "1.0.0",
+    title="Monitoring Dashboard Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
+
+
+# Initialize health endpoints
+health_endpoints = HealthEndpoints(
+    service_name="monitoring",
+    health_manager=health_manager,
+    custom_components={
+        "dashboard_available": lambda: bool(DASHBOARD_AVAILABLE),
+        # Pass async function directly so HealthEndpoints awaits it
+        "prometheus_connected": _check_prometheus_health,
+    },
+)
+
+# Include the health endpoints router
+app.include_router(health_endpoints.get_router())
 
 
 if __name__ == "__main__":
@@ -287,7 +298,7 @@ if __name__ == "__main__":
             [
                 "streamlit",
                 "run",
-                "services/monitoring_dashboard/app.py",
+                "services/monitoring/dashboard.py",
                 "--server.port=8501",
                 "--server.address=0.0.0.0",
             ],

@@ -9,6 +9,7 @@ import httpx
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .http_client import post_with_retries
+from .http_headers import inject_correlation_id
 from .structured_logging import get_logger
 
 
@@ -132,13 +133,16 @@ class ResilientHTTPClient:
         if not self._circuit.is_available():
             raise ServiceUnavailableError(f"{self._service_name} circuit is open")
 
+        # Auto-inject correlation ID from context
+        request_headers = inject_correlation_id(headers)
+
         client = await self._get_client()
         url = f"{self._base_url}{endpoint}"
 
         return await self._circuit.call(
             client.get,
             url,
-            headers=headers,
+            headers=request_headers,
             params=params,
             timeout=timeout,
         )

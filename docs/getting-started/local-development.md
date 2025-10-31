@@ -60,7 +60,7 @@ pip install -r services/guardrails/requirements.txt
 pip install -r services/tts_bark/requirements.txt
 pip install -r services/audio_processor/requirements.txt
 pip install -r services/testing_ui/requirements.txt
-pip install -r services/monitoring_dashboard/requirements.txt
+pip install -r services/monitoring/requirements.txt
 pip install -r services/security/requirements.txt
 pip install -r services/linter/requirements.txt
 pip install -r services/tester/requirements.txt

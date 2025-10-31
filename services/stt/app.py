@@ -5,7 +5,7 @@ import time
 from typing import Any, cast
 import wave
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
@@ -15,18 +15,17 @@ from services.common.config import (
     get_service_preset,
     load_config_from_env,
 )
+from services.common.app_factory import create_service_app
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 from .audio_processor_client import STTAudioProcessorClient
 
 
 # Configuration classes are now handled by the new config system
 
-
-app = FastAPI(title="audio-orchestrator STT (faster-whisper)")
 
 # Centralized configuration
 _cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("stt"))
@@ -92,15 +91,13 @@ def _update_enhancement_stats(
         _enhancement_stats["last_error_time"] = time.time()
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def _warm_model() -> None:
+async def _startup() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
     global _model, _audio_processor_client, _observability_manager
 
     try:
-        # Setup observability first (most likely to succeed)
-        _observability_manager = setup_service_observability("stt", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("stt")
         _health_manager.set_observability_manager(_observability_manager)
 
         # Try to load model with fallback
@@ -174,6 +171,15 @@ async def _warm_model() -> None:
         _health_manager.mark_startup_complete()
 
 
+# Create app using factory pattern
+app = create_service_app(
+    "stt",
+    "1.0.0",
+    title="audio-orchestrator STT (faster-whisper)",
+    startup_callback=_startup,
+)
+
+
 # Initialize health endpoints
 health_endpoints = HealthEndpoints(
     service_name="stt",
@@ -218,6 +224,19 @@ def _lazy_load_model() -> Any:
 
     device = _cfg.faster_whisper.device
     compute_type = _cfg.faster_whisper.compute_type
+
+    # Validate device/compute_type compatibility
+    # float16 is not supported on CPU - auto-correct to int8
+    if device == "cpu" and compute_type == "float16":
+        logger.warning(
+            "stt.compute_type_corrected",
+            device=device,
+            original_compute_type=compute_type,
+            corrected_compute_type="int8",
+            reason="float16 not supported on CPU",
+        )
+        compute_type = "int8"
+
     # Check if we have a local model directory
     local_model_path = os.path.join(MODEL_PATH, MODEL_NAME)
     model_path_or_name = (

@@ -117,6 +117,8 @@ class BaseConfig(ABC):
         elif field_type is list:
             return [item.strip() for item in value.split(",")]
         else:
+            # For string fields, normalize case for fields with choices
+            # This ensures case-insensitive validation for enum-like choices
             return value
 
     def _validate(self) -> None:
@@ -131,6 +133,9 @@ class BaseConfig(ABC):
             # Apply field validation
             if value is not None:
                 self._validate_field(field_def, value)
+                # Use value from _values dict in case _validate_field normalized it
+                if field_def.name in self._values:
+                    value = self._values[field_def.name]
                 self._values[field_def.name] = value
 
     def _validate_field(self, field_def: FieldDefinition, value: Any) -> None:
@@ -141,11 +146,28 @@ class BaseConfig(ABC):
                 field_def.name, value, f"Expected {field_def.field_type.__name__}"
             )
 
-        # Choices validation
-        if field_def.choices and value not in field_def.choices:
-            raise ValidationError(
-                field_def.name, value, f"Must be one of {field_def.choices}"
-            )
+        # Choices validation with case-insensitive normalization for strings
+        if field_def.choices:
+            normalized_value = value
+            # Normalize string values case-insensitively when choices exist
+            if isinstance(value, str):
+                # Try case-insensitive matching
+                value_upper = value.upper()
+                matching_choice = None
+                for choice in field_def.choices:
+                    if isinstance(choice, str) and choice.upper() == value_upper:
+                        matching_choice = choice
+                        break
+                if matching_choice is not None:
+                    normalized_value = matching_choice
+                    # Update the value in _values dict to use canonical case
+                    if field_def.name in self._values:
+                        self._values[field_def.name] = normalized_value
+
+            if normalized_value not in field_def.choices:
+                raise ValidationError(
+                    field_def.name, value, f"Must be one of {field_def.choices}"
+                )
 
         # Range validation
         if field_def.min_value is not None and value < field_def.min_value:

@@ -15,7 +15,7 @@ This guide documents simplified logging and health check expectations for solo d
 ## Logging
 
 -  All Python services use `services.common.logging` to emit JSON-formatted logs.
--  Configure verbosity with `LOG_LEVEL` (`debug`, `info`, `warning`) in `.env.common`.
+-  Configure verbosity with `LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` - case-insensitive, accepts lowercase) in `.env.common`.
 -  Toggle JSON output via `LOG_JSON`; switch to plain text when debugging locally.
 -  Use `make logs SERVICE=<name>` to stream per-service output and correlate events across the stack.
 
@@ -102,6 +102,126 @@ All services return consistent health check responses:
 -  **Basic Endpoints**: Implement `/health/live` and `/health/ready`
 -  **Simple Status**: Return basic status information
 -  **No Complex Metrics**: Keep it simple for solo development
+
+## Unified Observability Middleware
+
+All services now use a unified `ObservabilityMiddleware` that provides:
+
+-  **Automatic Correlation ID Propagation**: Correlation IDs are automatically extracted from incoming requests or generated if missing
+-  **Request/Response Logging**: All HTTP requests are automatically logged with method, path, status code, and duration
+-  **Timing Metrics**: Request duration is measured and included in logs
+-  **Health Check Filtering**: Health check endpoints (`/health/live`, `/health/ready`, `/metrics`) are excluded from verbose logging
+
+### Correlation ID Flow
+
+Correlation IDs automatically propagate through the entire request chain:
+
+1.  **Incoming Request**: Middleware extracts `X-Correlation-ID` header or generates a UUID
+2.  **Context Storage**: Correlation ID is stored in async context using `contextvars`
+3.  **Automatic Logging**: All loggers automatically include the correlation ID (via `get_logger()`)
+4.  **HTTP Client Propagation**: All HTTP clients automatically inject the correlation ID into outgoing requests
+5.  **Response Headers**: Correlation ID is included in response headers for client tracing
+
+### Request/Response Logging
+
+The middleware automatically logs:
+
+-  **Request Start**: `http.request.start` event with method, path, correlation_id
+-  **Request Complete**: `http.request.complete` event with status_code, duration_ms, correlation_id
+-  **Request Error**: `http.request.error` event with error details and timing
+
+Example log entries:
+
+```json
+{
+  "event": "http.request.start",
+  "method": "POST",
+  "path": "/api/v1/transcripts",
+  "correlation_id": "abc123-def456-ghi789"
+}
+```
+
+```json
+{
+  "event": "http.request.complete",
+  "method": "POST",
+  "path": "/api/v1/transcripts",
+  "status_code": 200,
+  "duration_ms": 45.23,
+  "correlation_id": "abc123-def456-ghi789"
+}
+```
+
+## Service Factory Pattern
+
+All services now use the `create_service_app()` factory function for standardized FastAPI app creation:
+
+```python
+from services.common.app_factory import create_service_app
+from services.common.tracing import get_observability_manager
+
+async def _startup():
+    # Observability is already setup by factory
+    _observability_manager = get_observability_manager("service_name")
+
+    # Create service-specific metrics
+    _metrics = create_service_metrics(_observability_manager)
+
+    # Set in health manager
+    _health_manager.set_observability_manager(_observability_manager)
+
+    # Service-specific initialization
+    _health_manager.mark_startup_complete()
+
+app = create_service_app(
+    "service_name",
+    "1.0.0",
+    title="Service Title",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
+```
+
+### Factory Benefits
+
+-  **Automatic Observability Setup**: OpenTelemetry instrumentation configured before app starts
+-  **Automatic Middleware**: `ObservabilityMiddleware` automatically registered
+-  **Standardized Lifespan**: Consistent startup/shutdown pattern across all services
+-  **No Boilerplate**: Eliminates repetitive observability setup code
+
+### Accessing Observability Manager
+
+Services access the observability manager using `get_observability_manager()`:
+
+```python
+from services.common.tracing import get_observability_manager
+
+# Get the manager (created by factory during startup)
+observability_manager = get_observability_manager("service_name")
+
+# Create service-specific metrics
+metrics = create_service_metrics(observability_manager)
+
+# Set in health manager
+health_manager.set_observability_manager(observability_manager)
+```
+
+## Exception Logging
+
+Exception logging verbosity is configurable:
+
+-  **Production (INFO+)**: Summary format (5-10 lines) using `format_exc_info` processor
+-  **Debug (DEBUG)**: Full tracebacks (50-100+ lines) using `dict_tracebacks` processor
+
+### Configuration
+
+Configure exception logging via environment variable:
+
+```bash
+LOG_FULL_TRACEBACKS=true   # Force full tracebacks
+LOG_FULL_TRACEBACKS=false  # Force summary format
+# Omit variable for automatic level-based selection (full in DEBUG, summary in INFO+)
+```
 
 ## Solo Development Summary
 

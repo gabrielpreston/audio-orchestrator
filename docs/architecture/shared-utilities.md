@@ -78,7 +78,7 @@ Structured logging utilities:
 -  **Configurable Verbosity**: Environment-controlled log levels
 -  **Context Preservation**: Rich metadata in all log entries
 
-### HTTP Utilities (`http.py`)
+### HTTP Utilities (`http_client.py`, `resilient_http.py`, `optimized_http.py`)
 
 HTTP client management and utilities:
 
@@ -87,6 +87,35 @@ HTTP client management and utilities:
 -  **Authentication**: Bearer token and API key management
 -  **Error Handling**: Comprehensive error response processing
 -  **Connection Pooling**: Efficient connection reuse
+-  **Automatic Correlation ID Propagation**: All HTTP clients automatically inject correlation IDs from context
+
+### HTTP Headers (`http_headers.py`)
+
+Shared utilities for HTTP header propagation:
+
+-  **Correlation ID Injection**: `inject_correlation_id()` automatically adds correlation IDs to HTTP requests
+-  **Context-Aware**: Reads correlation IDs from async context (set by `ObservabilityMiddleware`)
+-  **Non-Breaking**: Only injects if correlation ID not already present in headers
+-  **Single Source of Truth**: Ensures consistent correlation ID propagation across all HTTP clients
+
+### Observability Middleware (`middleware.py`)
+
+Unified FastAPI middleware for observability:
+
+-  **Correlation ID Management**: Extracts from headers, generates if missing, stores in context
+-  **Request/Response Logging**: Automatic logging of all HTTP requests with timing
+-  **Health Check Filtering**: Excludes verbose logging for health endpoints
+-  **Error Logging**: Automatic error logging with timing and correlation IDs
+
+### Service Factory (`app_factory.py`)
+
+Standardized FastAPI app creation factory:
+
+-  **Automatic Observability Setup**: Configures OpenTelemetry instrumentation before app starts
+-  **Automatic Middleware Registration**: Adds `ObservabilityMiddleware` automatically
+-  **Standardized Lifespan**: Provides consistent startup/shutdown pattern
+-  **Service Callbacks**: Supports service-specific startup/shutdown logic
+-  **Code Reduction**: Eliminates ~80% of boilerplate code per service
 
 ### Surface Architecture (`surfaces/`)
 

@@ -13,7 +13,7 @@ import base64
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 import uvicorn
 
@@ -28,8 +28,9 @@ from services.common.config import (
 )
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 # Import local audio types
 from services.common.surfaces.types import AudioSegment, PCMFrame
@@ -37,12 +38,6 @@ from services.common.surfaces.types import AudioSegment, PCMFrame
 from services.audio.enhancement import AudioEnhancer
 from services.audio.processor import AudioProcessor
 
-
-app = FastAPI(
-    title="Audio Processor Service",
-    description="Unified audio processing service for audio-orchestrator",
-    version="1.0.0",
-)
 
 # Global variables
 _audio: AudioProcessor | None = None
@@ -102,8 +97,7 @@ class ProcessingResponse(BaseModel):
     error: str | None = None
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def startup_event() -> None:
+async def _startup() -> None:
     """Initialize audio processor and enhancer on startup."""
     global \
         _audio, \
@@ -115,9 +109,8 @@ async def startup_event() -> None:
     try:
         _logger.info("audio.startup_started")
 
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("audio", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("audio")
 
         # Create service-specific metrics
         _audio_metrics = create_audio_metrics(_observability_manager)
@@ -151,8 +144,7 @@ async def startup_event() -> None:
         # Continue without crashing - service will report not_ready
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown_event() -> None:
+async def _shutdown() -> None:
     """Cleanup on shutdown."""
     try:
         if _audio:
@@ -160,6 +152,16 @@ async def shutdown_event() -> None:
         _logger.info("audio.shutdown_completed")
     except Exception as exc:
         _logger.error("audio.shutdown_failed", error=str(exc))
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "audio",
+    "1.0.0",
+    title="Audio Processor Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 # Initialize health endpoints

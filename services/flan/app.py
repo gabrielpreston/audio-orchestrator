@@ -5,20 +5,19 @@ from enum import Enum
 from typing import Any
 
 import torch
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from services.common.audio_metrics import create_http_metrics, create_llm_metrics
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.app_factory import create_service_app
 from services.common.structured_logging import configure_logging, get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
 
 # Configure logging
 configure_logging("info", json_logs=True, service_name="flan")
 logger = get_logger(__name__, service_name="flan")
-
-app = FastAPI(title="FLAN-T5 LLM Service", version="1.0.0")
 
 
 class ModelSize(Enum):
@@ -56,15 +55,13 @@ _llm_metrics = {}
 _http_metrics = {}
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def load_model() -> None:
+async def _startup() -> None:
     """Load the FLAN-T5 model and tokenizer on startup."""
     global model, tokenizer, _observability_manager, _llm_metrics, _http_metrics
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("flan", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("flan")
 
         # Create service-specific metrics
         _llm_metrics = create_llm_metrics(_observability_manager)
@@ -101,6 +98,15 @@ async def load_model() -> None:
 
         # Mark startup complete even after fallback
         _health_manager.mark_startup_complete()
+
+
+# Create app using factory pattern
+app = create_service_app(
+    "flan",
+    "1.0.0",
+    title="FLAN-T5 LLM Service",
+    startup_callback=_startup,
+)
 
 
 def format_instruction_prompt(messages: list[dict[str, str]]) -> str:

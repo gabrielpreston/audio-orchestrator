@@ -30,16 +30,19 @@ The STT service exposes an HTTP transcription API optimized for low-latency stre
 
 -  `FW_MODEL` — faster-whisper model name (e.g., `medium.en`).
 -  `FW_DEVICE` — Execution target (`cpu`, `cuda`).
--  `FW_COMPUTE_TYPE` — Precision trade-off (`int8`, `float16`, etc.).
+-  `FW_COMPUTE_TYPE` — Precision trade-off (`int8` for CPU, `float16` for CUDA/GPU). Note: `float16` is not supported on CPU and will be automatically corrected to `int8`.
 -  Shared logging controlled via `.env.common`.
 
 ## Observability
 
+-  **Unified Middleware**: Uses `ObservabilityMiddleware` for automatic correlation ID propagation and request/response logging
+-  **Service Factory**: Uses `create_service_app()` factory for standardized observability setup
+-  **Correlation IDs**: Automatically extracted from incoming requests and propagated to downstream services
 -  Structured logs capture transcription duration and detected language codes.
 -  Use `make logs SERVICE=stt` to confirm model warmup and request throughput.
 -  Monitor `/metrics` for latency histograms if Prometheus scraping is enabled.
 
 ## Dependencies
 
--  Receives audio from `services/discord` and returns transcripts to `services/orchestrator_enhanced` via the bot.
+-  Receives audio from `services/discord` and returns transcripts to `services/orchestrator` via the bot.
 -  Requires the faster-whisper model files bundled in the Docker image or mounted volume.

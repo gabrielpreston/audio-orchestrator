@@ -7,7 +7,7 @@ from contextlib import suppress
 import os
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import HTTPException
 import httpx
 
 from services.common.audio_metrics import (
@@ -20,7 +20,8 @@ from services.common.health_endpoints import HealthEndpoints
 
 # Configure logging
 from services.common.structured_logging import get_logger
-from services.common.tracing import setup_service_observability
+from services.common.tracing import get_observability_manager
+from services.common.app_factory import create_service_app
 
 from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
@@ -37,8 +38,6 @@ from .wake import WakeDetector
 
 
 logger = get_logger(__name__, service_name="discord")
-
-app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
 # Global instances
 _bot: Any | None = None
@@ -118,17 +117,15 @@ async def _start_discord_bot(config: Any, observability_manager: Any) -> None:
             _bot_task = None
 
 
-@app.on_event("startup")  # type: ignore[misc]
-async def startup_event() -> None:
+async def _startup() -> None:
     """Initialize Discord bot and HTTP API on startup."""
     global _observability_manager, _stt_metrics, _audio_metrics, _http_metrics
 
     logger.info("discord.startup_event_called")
 
     try:
-        # Setup observability (tracing + metrics)
-        _observability_manager = setup_service_observability("discord", "1.0.0")
-        _observability_manager.instrument_fastapi(app)
+        # Get observability manager (factory already setup observability)
+        _observability_manager = get_observability_manager("discord")
 
         # Create service-specific metrics
         _stt_metrics = create_stt_metrics(_observability_manager)
@@ -184,8 +181,7 @@ async def _check_orchestrator_health() -> bool:
         return False
 
 
-@app.on_event("shutdown")  # type: ignore[misc]
-async def shutdown_event() -> None:
+async def _shutdown() -> None:
     """Shutdown HTTP API and Discord bot."""
     global _bot, _bot_task
 
@@ -223,6 +219,16 @@ async def shutdown_event() -> None:
 
     _bot = None
     logger.info("discord.http_api_shutdown")
+
+
+# Create app using factory pattern (after all function definitions)
+app = create_service_app(
+    "discord",
+    "1.0.0",
+    title="Discord Voice Service",
+    startup_callback=_startup,
+    shutdown_callback=_shutdown,
+)
 
 
 def _get_bot_status() -> dict[str, Any]:
