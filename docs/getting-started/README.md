@@ -25,7 +25,7 @@ local workflows before touching production infrastructure.
 
 ## Prerequisites
 
--  Docker Engine with `docker-compose` support.
+-  Docker Engine with `docker compose` support.
 -  `make` for invoking repository workflows.
 -  Access to Discord, STT, LLM, and TTS credentials as required by your deployment plan.
 

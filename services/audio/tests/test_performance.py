@@ -195,9 +195,9 @@ class TestAudioProcessorPerformance:
             total_time = time.perf_counter() - start
 
             assert all(r.status_code == 200 for r in responses)
-            assert total_time < 0.100, (
-                f"10 concurrent requests took {total_time * 1000:.1f}ms"
-            )
+            assert (
+                total_time < 0.100
+            ), f"10 concurrent requests took {total_time * 1000:.1f}ms"
 
     @pytest.mark.asyncio
     async def test_concurrent_load_50_requests(self, client):
@@ -226,9 +226,9 @@ class TestAudioProcessorPerformance:
             total_time = time.perf_counter() - start
 
             assert all(r.status_code == 200 for r in responses)
-            assert total_time < 0.500, (
-                f"50 concurrent requests took {total_time * 1000:.1f}ms"
-            )
+            assert (
+                total_time < 0.500
+            ), f"50 concurrent requests took {total_time * 1000:.1f}ms"
 
     @pytest.mark.asyncio
     async def test_memory_stability_under_load(self, client):
@@ -296,9 +296,9 @@ class TestAudioProcessorPerformance:
 
             total_latency = time.perf_counter() - start
 
-            assert total_latency < 0.100, (
-                f"E2E pipeline took {total_latency * 1000:.1f}ms"
-            )
+            assert (
+                total_latency < 0.100
+            ), f"E2E pipeline took {total_latency * 1000:.1f}ms"
 
     def test_processing_time_consistency(self, client):
         """Test that processing time is consistent across requests."""
@@ -327,12 +327,12 @@ class TestAudioProcessorPerformance:
             avg_time = np.mean(processing_times)
             std_time = np.std(processing_times)
 
-            assert avg_time < 50, (
-                f"Average processing time {avg_time:.1f}ms is too high"
-            )
-            assert std_time < avg_time * 0.5, (
-                f"Processing time variance {std_time:.1f}ms is too high"
-            )
+            assert (
+                avg_time < 50
+            ), f"Average processing time {avg_time:.1f}ms is too high"
+            assert (
+                std_time < avg_time * 0.5
+            ), f"Processing time variance {std_time:.1f}ms is too high"
 
     def test_throughput_under_load(self, client):
         """Test throughput under sustained load."""

@@ -125,9 +125,11 @@ class TestSTTEnhancementIntegration:
                     # Check if we have a budget defined
                     if "overall_pass" in validation["enhancement_integration"]:
                         # Budget is defined, check if we pass
-                        assert validation["enhancement_integration"]["overall_pass"], (
-                            f"Enhancement latency exceeded budget: {validation['enhancement_integration']}"
-                        )
+                        assert validation[
+                            "enhancement_integration"
+                        ][
+                            "overall_pass"
+                        ], f"Enhancement latency exceeded budget: {validation['enhancement_integration']}"
                     else:
                         # No budget defined, just verify we got measurements
                         stats = validation["enhancement_integration"]["stats"]

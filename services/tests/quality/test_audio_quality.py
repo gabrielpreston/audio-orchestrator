@@ -57,9 +57,9 @@ class TestAudioQuality:
                 # Verify we got results for noisy audio
                 assert len(results) > 0
                 successful_results = [r for r in results if r["status"] == "success"]
-                assert len(successful_results) > 0, (
-                    "No successful transcriptions for noisy audio"
-                )
+                assert (
+                    len(successful_results) > 0
+                ), "No successful transcriptions for noisy audio"
 
                 # Document observations for future WER implementation
                 for result in successful_results:
@@ -131,9 +131,9 @@ class TestAudioQuality:
 
                 # Duration should be similar (same audio length)
                 duration_variance = max(durations) - min(durations)
-                assert duration_variance < 1.0, (
-                    f"Duration variance too high: {duration_variance}"
-                )
+                assert (
+                    duration_variance < 1.0
+                ), f"Duration variance too high: {duration_variance}"
 
                 # Transcripts should be similar (same audio content)
                 # Note: Without ground truth, we can only check they're not empty

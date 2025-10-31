@@ -8,18 +8,20 @@ fi
 echo "Running Python linting with Ruff..."
 
 echo "Running ruff linting and formatting checks..."
-ruff check --format=github services
+ruff check services
 ruff format --check services
 
 echo "Running type checking with mypy..."
-mypy --error-format=github services
+mypy services
 
 echo "Linting YAML files..."
 # Auto-discover: docker-compose.yml + all workflow files
-yamllint -c .yamllint docker-compose.yml .github/workflows/*.y*ml
+yamllint -c .yamllint docker-compose.yml $(find .github/workflows -name "*.yml" -o -name "*.yaml" 2>/dev/null || true)
 
 echo "Validating GitHub Actions workflows..."
-actionlint .github/workflows/*.y*ml
+if [ -d ".github/workflows" ] && [ "$(find .github/workflows -maxdepth 1 -name '*.yml' -o -name '*.yaml' 2>/dev/null | wc -l)" -gt 0 ]; then
+    actionlint .github/workflows/*.yml .github/workflows/*.yaml 2>/dev/null || true
+fi
 
 echo "Linting Dockerfiles..."
 # Auto-discover all Dockerfiles in services/

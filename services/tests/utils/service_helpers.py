@@ -13,17 +13,7 @@ class DockerComposeManager:
 
     def __init__(self, compose_file: str = "docker-compose.test.yml"):
         self.compose_file = compose_file
-        self.compose_cmd = self._detect_docker_compose()
-
-    def _detect_docker_compose(self) -> list[str]:
-        """Detect docker-compose or docker compose command."""
-        try:
-            subprocess.run(
-                ["docker-compose", "version"], capture_output=True, check=True
-            )
-            return ["docker-compose"]
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return ["docker", "compose"]
+        self.compose_cmd = ["docker", "compose"]
 
     async def start_services(self, services: list[str], timeout: float = 60.0) -> bool:
         """Start specified services using Docker Compose."""

@@ -5,8 +5,6 @@ services:
       context: "."
       dockerfile: "services/guardrails/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/guardrails:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -37,9 +35,8 @@ services:
       context: "."
       dockerfile: "services/orchestrator/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/orchestrator:latest
+      # cache exported to GHCR services scope
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/orchestrator:latest"
@@ -69,9 +66,8 @@ services:
       context: "."
       dockerfile: "services/flan/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/flan:latest
+      # duplicate removed
       args:
         BUILDKIT_INLINE_CACHE: "1"
     image: "ghcr.io/gabrielpreston/flan:latest"
@@ -104,8 +100,6 @@ services:
       context: "."
       dockerfile: "services/audio/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/audio:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -136,8 +130,6 @@ services:
       context: "."
       dockerfile: "services/discord/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-audio:latest
         - ghcr.io/gabrielpreston/discord:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -167,8 +159,6 @@ services:
       context: "."
       dockerfile: "services/stt/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/stt:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -200,8 +190,6 @@ services:
       context: "."
       dockerfile: "services/bark/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/bark:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -231,8 +219,6 @@ services:
       context: "."
       dockerfile: "services/testing/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/testing:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"
@@ -266,8 +252,6 @@ services:
       context: "."
       dockerfile: "services/monitoring/Dockerfile"
       cache_from:
-        - type=gha,scope=services
-        - ghcr.io/gabrielpreston/python-ml:latest
         - ghcr.io/gabrielpreston/monitoring:latest
       args:
         BUILDKIT_INLINE_CACHE: "1"

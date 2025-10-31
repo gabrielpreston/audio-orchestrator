@@ -6,6 +6,7 @@ SHELL := /bin/bash
 .PHONY: all help
 .PHONY: run stop logs logs-dump docker-status
 .PHONY: docker-build docker-build-service docker-build-base docker-restart docker-shell docker-config
+.PHONY: docker-buildx-setup docker-buildx-reset
 .PHONY: docker-pull-images docker-warm-cache
 .PHONY: test test-image test-image-force test-unit test-component test-integration test-observability test-observability-full
 .PHONY: lint lint-image lint-image-force lint-fix
@@ -39,67 +40,99 @@ else
         COLOR_CYAN := $(shell printf '\033[36m')
 endif
 
-# Docker Compose detection
-DOCKER_COMPOSE := $(shell \
-        if command -v docker-compose >/dev/null 2>&1; then \
-		    echo "docker-compose"; \
-        elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then \
-		    echo "docker compose"; \
-        else \
-		    echo ""; \
-        fi)
-
-ifeq ($(strip $(DOCKER_COMPOSE)),)
-HAS_DOCKER_COMPOSE := 0
-else
-HAS_DOCKER_COMPOSE := 1
-endif
-
-COMPOSE_MISSING_MESSAGE := Docker Compose was not found (checked docker compose and docker-compose); please install Docker Compose.
+# Docker Compose (v2) command
+DOCKER_COMPOSE := docker compose
 
 # Docker BuildKit configuration
 DOCKER_BUILDKIT ?= 1
 COMPOSE_DOCKER_CLI_BUILD ?= 1
 
-# Docker build command (override in CI to use buildx)
-DOCKER_BUILD_CMD ?= docker build
+# Docker build command — standardize on buildx for local builds
+DOCKER_BUILD_CMD ?= docker buildx build
+
+# Ensure a buildx builder exists and is selected
+BUILDX_BUILDER_NAME ?= ao-builder
 
 # Docker build optimization helpers
 define image_exists
 @docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false"
 endef
 
+# Helper to ensure Docker is authenticated to GHCR
+# Priority: GHCR_TOKEN > GitHub CLI
+define ensure_docker_ghcr_auth
+if ! (docker pull ghcr.io/gabrielpreston/cache:services >/dev/null 2>&1 && \
+      docker push ghcr.io/gabrielpreston/cache:services >/dev/null 2>&1) 2>/dev/null; then \
+    printf "$(COLOR_CYAN)→ Authenticating Docker to GHCR...$(COLOR_OFF)\n"; \
+    if [ -n "$${GHCR_TOKEN:-}" ]; then \
+        GHCR_USER=$${GHCR_USERNAME:-$$(gh api user --jq .login 2>/dev/null || echo $$(whoami))}; \
+        echo "$${GHCR_TOKEN}" | docker login ghcr.io -u "$${GHCR_USER}" --password-stdin 2>/dev/null || \
+            { printf "$(COLOR_RED)→ Error: Failed to authenticate Docker to GHCR using GHCR_TOKEN$(COLOR_OFF)\n"; exit 1; }; \
+    elif command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then \
+        echo $$(gh auth token) | docker login ghcr.io -u $$(gh api user --jq .login 2>/dev/null || echo $$(whoami)) --password-stdin 2>/dev/null || \
+            { printf "$(COLOR_RED)→ Error: Failed to authenticate Docker to GHCR$(COLOR_OFF)\n"; exit 1; }; \
+    else \
+        printf "$(COLOR_RED)→ Error: Cannot authenticate to GHCR. Either:\n$(COLOR_OFF)"; \
+        printf "  1. Set GHCR_TOKEN environment variable (with write:packages scope)\n"; \
+        printf "  2. Authenticate GitHub CLI: gh auth login --scopes write:packages\n"; \
+        exit 1; \
+    fi; \
+fi
+endef
+
 define build_if_missing
 @if [ "$$(docker image inspect $(1) >/dev/null 2>&1 && echo "true" || echo "false")" = "false" ]; then \
     printf "$(COLOR_YELLOW)→ Building $(1) (not found)$(COLOR_OFF)\n"; \
+    $(call ensure_docker_ghcr_auth); \
     DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
         --tag $(1) \
-        --cache-from type=gha,scope=services \
-        --cache-to type=gha,mode=max,scope=services \
+        --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
         --build-arg BUILDKIT_INLINE_CACHE=1 \
-        -f $(2) .; \
+        --load \
+        -f $(2) . || exit 1; \
+    printf "$(COLOR_CYAN)→ Pushing $(1) to registry and exporting cache...$(COLOR_OFF)\n"; \
+    docker push $(1) || exit 1; \
+    DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+        --tag $(1) \
+        --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
+        --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        -f $(2) . --push || exit 1; \
 else \
     printf "$(COLOR_GREEN)→ Using existing $(1)$(COLOR_OFF)\n"; \
 fi
 endef
 
 define build_with_cache
-@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+@printf "$(COLOR_CYAN)→ Building $(1) with registry caching$(COLOR_OFF)\n"; \
+$(call ensure_docker_ghcr_auth); \
+DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
     --tag $(1) \
-    --cache-from type=gha,scope=services \
-    --cache-to type=gha,mode=max,scope=services \
+    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
     --build-arg BUILDKIT_INLINE_CACHE=1 \
-    -f $(2) .
+    --load \
+    -f $(2) . || exit 1; \
+printf "$(COLOR_CYAN)→ Pushing $(1) to registry and exporting cache...$(COLOR_OFF)\n"; \
+docker push $(1) || exit 1; \
+DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+    --tag $(1) \
+    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
+    --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
+    --build-arg BUILDKIT_INLINE_CACHE=1 \
+    -f $(2) . --push || exit 1
 endef
 
 define build_service_with_enhanced_cache
 @printf "$(COLOR_CYAN)→ Building $(1) with enhanced caching$(COLOR_OFF)\n"; \
+$(call ensure_docker_ghcr_auth); \
 DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
     --tag $(1) \
-    --cache-from type=gha,scope=services \
-    --cache-from type=gha,scope=base-images \
-    --cache-to type=gha,mode=max,scope=services \
+    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:services \
+    --cache-from type=registry,ref=ghcr.io/gabrielpreston/cache:base-images \
+    --cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
     --build-arg BUILDKIT_INLINE_CACHE=1 \
+    --load \
+    --push \
     -f $(2) .
 endef
 
@@ -169,47 +202,63 @@ help: ## Show this help (default)
 
 run: stop ## Start docker-compose stack (Discord bot + STT + LLM + orchestrator)
 	@printf "$(COLOR_GREEN)→ Starting containers with cached images$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans
 
 run-with-build: docker-build-enhanced run ## Build with caching then start containers
 
 stop: ## Stop and remove containers for the compose stack
 	@printf "$(COLOR_BLUE)→ Bringing down containers$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) down --remove-orphans
 
 logs: ## Tail logs for compose services (set SERVICE=name to filter)
 	@printf "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)\n"; \
-	if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi; \
 	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs -f --tail=100; else $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); fi
 
 logs-dump: ## Capture docker logs to ./docker.logs
 	@printf "$(COLOR_CYAN)→ Dumping all logs for docker services$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) logs > ./debug/docker.logs
 
 docker-status: ## Show status of docker-compose services
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) ps
 
 # =============================================================================
 # DOCKER BUILD & MANAGEMENT
 # =============================================================================
 
-docker-build: ## Build or rebuild images for the compose stack (smart incremental by default)
+# Buildx setup
+.PHONY: docker-buildx-setup
+docker-buildx-setup: ## Create/select a local buildx builder if missing
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if ! docker buildx ls | grep -q "^$(BUILDX_BUILDER_NAME)"; then \
+		echo "Creating buildx builder: $(BUILDX_BUILDER_NAME)"; \
+		docker buildx create --use --name $(BUILDX_BUILDER_NAME); \
+	else \
+		echo "Using buildx builder: $(BUILDX_BUILDER_NAME)"; \
+		docker buildx use $(BUILDX_BUILDER_NAME); \
+	fi
+
+docker-buildx-reset: ## Reset local buildx/buildkit after Docker Desktop crash
+	@printf "$(COLOR_YELLOW)→ Resetting buildx/buildkit (builder: $(BUILDX_BUILDER_NAME))$(COLOR_OFF)\n"
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@docker buildx ls || true
+	@docker buildx stop $(BUILDX_BUILDER_NAME) || true
+	@docker buildx rm -f $(BUILDX_BUILDER_NAME) || true
+	@docker builder prune -a -f || true
+	@docker ps -a --filter name=buildx_buildkit_ -q | xargs -r docker rm -f || true
+	@docker buildx create --use --name $(BUILDX_BUILDER_NAME) --driver docker-container
+	@docker buildx inspect --bootstrap
+
+docker-build: docker-buildx-setup ## Build or rebuild images for the compose stack (smart incremental by default)
 	@printf "$(COLOR_GREEN)→ Building docker images (smart incremental)$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@bash scripts/build-incremental.sh
 
 docker-build-enhanced: ## Build with enhanced multi-source caching (GitHub Actions + registry)
 	@printf "$(COLOR_GREEN)→ Building docker images with enhanced caching$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
+	@$(call ensure_docker_ghcr_auth)
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
 		exit 1; \
@@ -231,7 +280,6 @@ docker-build-wheels: ## Build and cache wheels for native dependencies
 
 docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
 	$(DOCKER_COMPOSE) restart; \
 	else \
@@ -239,7 +287,6 @@ docker-restart: ## Restart compose services (set SERVICE=name to limit scope)
 	fi
 
 docker-shell: ## Open an interactive shell inside a running service (SERVICE=name)
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@if [ -z "$(SERVICE)" ]; then \
 		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
 		exit 1; \
@@ -251,7 +298,6 @@ docker-shell: ## Open an interactive shell inside a running service (SERVICE=nam
 	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
 
 docker-config: ## Render the effective docker-compose configuration
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@$(DOCKER_COMPOSE) config
 
 
@@ -261,7 +307,6 @@ docker-config: ## Render the effective docker-compose configuration
 
 docker-pull-images: ## Pre-pull images for all compose files and toolchain (cache warmup)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@printf "$(COLOR_GREEN)→ Pulling images defined in docker-compose files$(COLOR_OFF)\n"
 	@for f in docker-compose.yml docker-compose.test.yml docker-compose.observability-test.yml docker-compose.ci.yml; do \
 		if [ -f "$$f" ]; then \
@@ -291,15 +336,30 @@ test-image-force: ## Force rebuild the test toolchain container image
 	@printf "$(COLOR_YELLOW)→ Force rebuilding $(TEST_IMAGE)$(COLOR_OFF)\n"
 	$(call build_with_cache,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
-lint-image-force: ## Force rebuild the lint toolchain container image
+lint-image-force: ## Force rebuild the lint toolchain container image (no cache)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
-	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE)$(COLOR_OFF)\n"
-	$(call build_with_cache,$(LINT_IMAGE),$(LINT_DOCKERFILE))
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE) (no cache)$(COLOR_OFF)\n"
+	@docker rmi $(LINT_IMAGE) 2>/dev/null || true
+	@$(call ensure_docker_ghcr_auth); \
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+		--tag $(LINT_IMAGE) \
+		--no-cache \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		--load \
+		-f $(LINT_DOCKERFILE) . || exit 1; \
+	printf "$(COLOR_CYAN)→ Pushing $(LINT_IMAGE) to registry...$(COLOR_OFF)\n"; \
+	docker push $(LINT_IMAGE) || exit 1; \
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) $(DOCKER_BUILD_CMD) \
+		--tag $(LINT_IMAGE) \
+		--no-cache \
+		--cache-to type=registry,ref=ghcr.io/gabrielpreston/cache:services,mode=max \
+		--build-arg BUILDKIT_INLINE_CACHE=1 \
+		-f $(LINT_DOCKERFILE) . --push || exit 1
 
 security-image-force: ## Force rebuild the security scanning container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
 	@printf "$(COLOR_YELLOW)→ Force rebuilding $(SECURITY_IMAGE)$(COLOR_OFF)\n"
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) docker build --pull --tag $(SECURITY_IMAGE) -f $(SECURITY_DOCKERFILE) .
+	$(call build_with_cache,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
 
 test-image: ## Build the test toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
@@ -316,7 +376,6 @@ test-component: test-image ## Run component tests (with mocked external dependen
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m component $(PYTEST_ARGS))
 
 test-integration: test-image ## Run integration tests (requires Docker Compose)
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@printf "$(COLOR_CYAN)→ Running integration tests with Docker Compose$(COLOR_OFF)\n"
 	@printf "$(COLOR_YELLOW)→ Building test services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml build
@@ -341,7 +400,6 @@ test-integration: test-image ## Run integration tests (requires Docker Compose)
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down -v
 
 test-observability: test-image ## Run observability stack integration tests
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@printf "$(COLOR_CYAN)→ Running observability stack tests$(COLOR_OFF)\n"
 	@printf "$(COLOR_YELLOW)→ Building observability test services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml build
@@ -366,7 +424,6 @@ test-observability: test-image ## Run observability stack integration tests
 	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml down -v
 
 test-observability-full: test-image ## Run full observability stack with application services
-	@if [ "$(HAS_DOCKER_COMPOSE)" = "0" ]; then echo "$(COMPOSE_MISSING_MESSAGE)"; exit 1; fi
 	@printf "$(COLOR_CYAN)→ Running full observability stack tests$(COLOR_OFF)\n"
 	@printf "$(COLOR_YELLOW)→ Building all services$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) build
@@ -406,7 +463,7 @@ lint: lint-image ## Run all linters (validation only)
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint.sh
+		bash $(LINT_WORKDIR)/services/linter/run-lint.sh
 
 lint-image: ## Build the lint toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
@@ -417,7 +474,7 @@ lint-fix: lint-image ## Apply all automatic fixes
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
-		/usr/local/bin/run-lint-fix.sh
+		bash $(LINT_WORKDIR)/services/linter/run-lint-fix.sh
 
 
 # =============================================================================

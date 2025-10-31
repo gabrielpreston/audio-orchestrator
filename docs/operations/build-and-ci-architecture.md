@@ -1,16 +1,16 @@
 ---
-title: Build & CI/CD Architecture
+title: Build Architecture (Local-First)
 author: Discord Voice Lab Team
-status: active
+status: archived
 last-updated: 2025-01-27
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
 > Docs ▸ Operations ▸ Build & CI/CD Architecture
 
-# Build & CI/CD Architecture
+# Build Architecture (Archived CI Notes)
 
-This document describes the comprehensive build and CI/CD architecture implemented in the audio-orchestrator project, including multi-layer caching strategies designed for maximum build performance and fast feedback.
+This document previously described CI/CD workflows. The project now uses a local-first build workflow standardized on Docker Buildx with GHCR-backed registry cache. CI sections are archived; prefer local instructions in README and Makefile targets.
 
 ## Architecture Benefits
 

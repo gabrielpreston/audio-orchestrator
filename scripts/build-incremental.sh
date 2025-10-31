@@ -12,11 +12,10 @@ COLOR_CYAN=${COLOR_CYAN:-'\033[36m'}
 COLOR_BLUE=${COLOR_BLUE:-'\033[34m'}
 COLOR_RED=${COLOR_RED:-'\033[31m'}
 
-# Export Docker BuildKit settings
+# Export Docker BuildKit settings (Buildx handles this; keep enabled)
 export DOCKER_BUILDKIT="${DOCKER_BUILDKIT:-1}"
-export COMPOSE_DOCKER_CLI_BUILD="${COMPOSE_DOCKER_CLI_BUILD:-1}"
 
-DOCKER_COMPOSE="${DOCKER_COMPOSE:-docker-compose}"
+DOCKER_COMPOSE="docker compose"
 START_TIME=$(date +%s)
 
 # Detect changes
@@ -54,7 +53,7 @@ case "$CHANGED" in
         SERVICES="$CHANGED"
         printf "${COLOR_GREEN}✓ Selective rebuild${COLOR_OFF}\n"
         echo "  Building: $SERVICES"
-        echo "  Skipping: $(echo "discord stt llm-flan orchestrator-enhanced tts-bark" | tr ' ' '\n' | grep -v -w -f <(echo "$SERVICES" | tr ' ' '\n') | xargs)"
+        echo "  Skipping: $(echo \"discord stt flan orchestrator bark audio monitoring testing\" | tr ' ' '\n' | grep -v -w -f <(echo \"$SERVICES\" | tr ' ' '\n') | xargs)"
         echo ""
         ;;
 esac

@@ -190,20 +190,19 @@ python-base (3-4min, ~2GB)
 - **Individual builds**: 15-20 minutes
 - **Tools build**: 20 minutes (increased from 15)
 
-### Cache Strategy
+### Cache Strategy (Local-First)
 
 **Multi-Layer Caching Architecture:**
 
-1. **GitHub Actions Cache (GHA)**
-   - **Base images**: `type=gha,scope=base-images`
-   - **Service images**: `type=gha,scope=services`
+1. **Registry Cache (GHCR) — Primary**
+   - **Cache refs**: `type=registry,ref=ghcr.io/gabrielpreston/cache:base-images` and `...:services`
    - **Mode**: `max` for maximum cache retention
-   - **Benefits**: Cross-run cache sharing, 10GB limit per scope
+   - **Benefits**: Persistent, cross-machine cache for local builds
 
-2. **Registry Cache**
+2. **Image Reuse**
    - **Base images**: `ghcr.io/gabrielpreston/python-*:latest`
    - **Service images**: `ghcr.io/gabrielpreston/{service}:latest`
-   - **Benefits**: Cross-workflow cache sharing, persistent storage
+   - **Benefits**: Fast pulls; complements registry cache layers
 
 3. **BuildKit Cache Mounts**
    - **pip cache**: `--mount=type=cache,target=/root/.cache/pip`

@@ -16,7 +16,7 @@ Use this checklist to resolve the most common setup issues when running the stac
 
 | Symptom | Resolution |
 | --- | --- |
-| Containers exit immediately | Run `docker-compose logs` to capture stack traces; confirm `.env.service` files exist. |
+| Containers exit immediately | Run `docker compose logs` to capture stack traces; confirm `.env.service` files exist. |
 | Permission denied on mounted volumes | Set `PUID`/`PGID` in `.env.docker` to match your host user ID and rerun `make run`. |
 | Network ports already in use | Stop conflicting services or update exposed ports in `docker-compose.yml`. |
 

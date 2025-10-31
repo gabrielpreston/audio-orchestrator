@@ -158,9 +158,7 @@ ignore = [
     "DTZ005",  # datetime.now() without tz in tests
     # Relax strict pytest and ruff rules commonly triggered in tests
     "PT006",    # parametrize first arg must be tuple
-    "PT028",    # default arg in test function parameters
     "RUF022",   # __all__ sorted enforcement not required in tests
-    "RUF059",   # allow unused unpacked variables in tests
 ]
 "services/common/test_config.py" = [
     "PT009",  # allow unittest-style asserts in this legacy test module

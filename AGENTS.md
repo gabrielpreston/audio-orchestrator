@@ -231,7 +231,7 @@ docs/
   inspect `make logs` (optionally scoped via `SERVICE`), and perform focused service smoke tests
   rather than deferring checks to later.
 -  When editing Dockerfiles or Compose definitions, test with `make run` and ensure workflows rely
-  on `docker-compose`.
+  on `docker compose`.
 -  Mount paths introduced in Compose must work with the existing `.env.*` structure and repository
   directories mounted into the containers (e.g., `./logs`, `./.wavs`).
 

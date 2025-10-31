@@ -7,10 +7,10 @@ networks:
     name: audio-orchestrator-test
 
 services:
-  audio-processor:
+  audio:
     extends:
       file: docker-compose.yml
-      service: audio-processor
+      service: audio
     networks:
       - test-network
     environment:
@@ -28,10 +28,10 @@ services:
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
-  tts-bark:
+  bark:
     extends:
       file: docker-compose.yml
-      service: tts-bark
+      service: bark
     networks:
       - test-network
     environment:
@@ -40,20 +40,20 @@ services:
     volumes:
       - ./services/tests/fixtures:/app/test-fixtures:ro
 
-  llm-flan:
+  flan:
     extends:
       file: docker-compose.yml
-      service: llm-flan
+      service: flan
     networks:
       - test-network
     environment:
       - LOG_LEVEL=INFO
       - LLM_AUTH_TOKEN=test-token
 
-  orchestrator-enhanced:
+  orchestrator:
     extends:
       file: docker-compose.yml
-      service: orchestrator-enhanced
+      service: orchestrator
     networks:
       - test-network
     environment:
