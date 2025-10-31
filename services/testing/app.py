@@ -271,6 +271,27 @@ async def _check_service_health(url: str) -> bool:
         return False
 
 
+# Create async wrapper functions for dependency checks
+async def _check_audio_preprocessor_health() -> bool:
+    """Check audio preprocessor service health."""
+    return await _check_service_health(AUDIO_PREPROCESSOR_URL)
+
+
+async def _check_stt_health() -> bool:
+    """Check STT service health."""
+    return await _check_service_health(STT_URL)
+
+
+async def _check_orchestrator_health() -> bool:
+    """Check orchestrator service health."""
+    return await _check_service_health(ORCHESTRATOR_URL)
+
+
+async def _check_tts_health() -> bool:
+    """Check TTS service health."""
+    return await _check_service_health(BARK_URL)
+
+
 # Initialize health endpoints
 health_endpoints = HealthEndpoints(
     service_name="testing",
@@ -279,10 +300,10 @@ health_endpoints = HealthEndpoints(
         "gradio_available": lambda: GRADIO_AVAILABLE,
     },
     custom_dependencies={
-        "audio_preprocessor": lambda: _check_service_health(AUDIO_PREPROCESSOR_URL),
-        "stt": lambda: _check_service_health(STT_URL),
-        "orchestrator": lambda: _check_service_health(ORCHESTRATOR_URL),
-        "tts": lambda: _check_service_health(BARK_URL),
+        "audio_preprocessor": _check_audio_preprocessor_health,
+        "stt": _check_stt_health,
+        "orchestrator": _check_orchestrator_health,
+        "tts": _check_tts_health,
     },
 )
 

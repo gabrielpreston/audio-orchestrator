@@ -154,6 +154,17 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
     """
     presets = {
         "discord": {
+            "discord": {
+                "token": "",
+                "guild_id": 0,
+                "voice_channel_id": 0,
+                "auto_join": False,
+                "intents": ["guilds", "guild_voice_states"],
+                "voice_connect_timeout_seconds": 10.0,
+                "voice_connect_max_attempts": 3,
+                "voice_reconnect_initial_backoff_seconds": 2.0,
+                "voice_reconnect_max_backoff_seconds": 60.0,
+            },
             "logging": {"level": "INFO", "json_logs": True, "service_name": "discord"},
             "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
             "audio": {
@@ -171,6 +182,17 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "wake_phrases": ["hey atlas", "ok atlas"],
                 "model_paths": [],
                 "activation_threshold": 0.5,
+                "target_sample_rate_hz": 16000,
+            },
+            "stt": {
+                "base_url": "http://stt:9000",
+                "model": "medium.en",
+                "device": "cpu",
+                "model_path": "/app/models",
+                "forced_language": None,
+                "beam_size": 5,
+                "request_timeout_seconds": 30,
+                "max_retries": 3,
             },
         },
         "stt": {

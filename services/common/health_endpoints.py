@@ -79,6 +79,57 @@ class HealthEndpoints:
             "/health/dependencies", self.health_dependencies, methods=["GET"]
         )
 
+    def _make_serializable(self, obj: Any) -> Any:
+        """
+        Recursively make an object JSON-serializable by filtering out non-serializable types.
+
+        Args:
+            obj: Object to make serializable
+
+        Returns:
+            Serializable version of the object (None if object can't be serialized)
+        """
+        if obj is None:
+            return None
+        elif callable(obj) or isinstance(obj, type):
+            # Filter out functions, methods, and types
+            return None
+        elif isinstance(obj, dict):
+            result = {}
+            for k, v in obj.items():
+                if not callable(k) and not isinstance(k, type):
+                    serialized = self._make_serializable(v)
+                    # Only include if serialization produced a valid value
+                    # Use 'is not None' check but allow False/0/"" values
+                    if serialized is not None or v is None:
+                        result[k] = serialized
+            return result
+        elif isinstance(obj, (list, tuple)):
+            serialized_items = []
+            for item in obj:
+                if not callable(item) and not isinstance(item, type):
+                    serialized = self._make_serializable(item)
+                    if serialized is not None or item is None:
+                        serialized_items.append(serialized)
+            return serialized_items
+        elif isinstance(obj, (str, int, float, bool)):
+            # Primitive types are always serializable
+            return obj
+        else:
+            # Try to convert to string for unknown types
+            try:
+                import json
+
+                # Test if it's JSON serializable
+                json.dumps(obj)
+                return obj
+            except (TypeError, ValueError):
+                # Convert to string as fallback
+                try:
+                    return str(obj)
+                except Exception:
+                    return None
+
     async def health_live(self) -> dict[str, str]:
         """
         Liveness check - always returns 200 if process is alive.
@@ -115,31 +166,42 @@ class HealthEndpoints:
         else:
             status_str = "ready"
 
-        # Build components dict
-        components = {
+        # Build components dict - evaluate callables first to avoid serialization issues
+        components: dict[str, Any] = {
             "startup_complete": self.health_manager._startup_complete,
-            **self.custom_components,
         }
 
-        # Check custom components
+        # Process custom components - evaluate callables before adding to dict
         for component_name, component_value in self.custom_components.items():
             if callable(component_value):
                 try:
                     if asyncio.iscoroutinefunction(component_value):
-                        components[component_name] = await component_value()
+                        evaluated_value = await component_value()
                     else:
-                        components[component_name] = component_value()
+                        evaluated_value = component_value()
+                    # Ensure the evaluated value is serializable
+                    components[component_name] = self._make_serializable(
+                        evaluated_value
+                    )
                 except Exception:
                     components[component_name] = False
+            elif isinstance(component_value, (dict, list)):
+                components[component_name] = self._make_serializable(component_value)
             else:
                 components[component_name] = bool(component_value)
+
+        # Make all response values serializable - recursively filter everything
+        health_details = self._make_serializable(health_status.details) or {}
+        dependencies = (
+            self._make_serializable(health_status.details.get("dependencies", {})) or {}
+        )
 
         return {
             "status": status_str,
             "service": self.service_name,
             "components": components,
-            "dependencies": health_status.details.get("dependencies", {}),
-            "health_details": health_status.details,
+            "dependencies": dependencies,
+            "health_details": health_details,
         }
 
     async def health_dependencies(self) -> dict[str, Any]:
@@ -277,7 +339,9 @@ class HealthEndpoints:
 
         # Get health manager dependencies
         health_status = await self.health_manager.get_health_status()
-        health_deps = health_status.details.get("dependencies", {})
+        health_deps = (
+            self._make_serializable(health_status.details.get("dependencies", {})) or {}
+        )
 
         # Merge health manager dependencies
         for dep_name, dep_status in health_deps.items():
@@ -286,6 +350,9 @@ class HealthEndpoints:
                     "status": "healthy" if dep_status else "unhealthy",
                     "available": bool(dep_status),
                 }
+
+        # Ensure all dependency data is serializable
+        dependencies = self._make_serializable(dependencies) or {}
 
         return {
             "service": self.service_name,

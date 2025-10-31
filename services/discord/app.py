@@ -2,6 +2,8 @@
 Discord service HTTP API for tool integration.
 """
 
+import asyncio
+from contextlib import suppress
 import os
 from typing import Any
 
@@ -20,15 +22,18 @@ from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import get_logger
 from services.common.tracing import setup_service_observability
 
+from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import load_config
+from .discord_voice import TranscriptPublisher, VoiceBot
 from .models import (
+    CapabilitiesResponse,
+    CapabilityInfo,
     MessageSendRequest,
     MessageSendResponse,
     TranscriptNotificationRequest,
     TranscriptNotificationResponse,
-    CapabilitiesResponse,
-    CapabilityInfo,
 )
+from .wake import WakeDetector
 
 
 logger = get_logger(__name__, service_name="discord")
@@ -37,20 +42,86 @@ app = FastAPI(title="Discord Voice Service", version="1.0.0")
 
 # Global instances
 _bot: Any | None = None
+_bot_task: asyncio.Task[None] | None = None
 _health_manager = HealthManager("discord")
-_observability_manager = None
-_stt_metrics = {}
-_audio_metrics = {}
-_http_metrics = {}
+_observability_manager: Any = None
+_stt_metrics: dict[str, Any] = {}
+_audio_metrics: dict[str, Any] = {}
+_http_metrics: dict[str, Any] = {}
 
 
 # Remove old tool models - now using models.py
 
 
+def _create_transcript_publisher() -> TranscriptPublisher:
+    """Create a transcript publisher for the VoiceBot."""
+
+    async def transcript_publisher(transcript_data: dict[str, Any]) -> None:
+        """Publish transcript data - currently just logs it."""
+        logger.info("discord.transcript_received", **transcript_data)
+
+    return transcript_publisher
+
+
+async def _start_discord_bot(config: Any, observability_manager: Any) -> None:
+    """Start the Discord bot as a background task."""
+    global _bot, _bot_task
+
+    try:
+        logger.info("discord.bot_starting")
+
+        # Create bot components
+        audio_processor_wrapper = AudioProcessorWrapper(config.audio, config.telemetry)
+        wake_detector = WakeDetector(config.wake)
+        transcript_publisher = _create_transcript_publisher()
+
+        # Create VoiceBot instance
+        bot = VoiceBot(
+            config,
+            audio_processor_wrapper,
+            wake_detector,
+            transcript_publisher,
+            metrics=_audio_metrics,
+        )
+
+        # Share the observability manager with the bot's health manager
+        # The bot has its own health manager for internal tracking, but we can
+        # share observability for consistent metrics
+        if observability_manager:
+            bot._health_manager.set_observability_manager(observability_manager)
+
+        # Store bot reference
+        _bot = bot
+
+        # Start bot connection (non-blocking)
+        bot_task = asyncio.create_task(bot.start(config.discord.token))
+        _bot_task = bot_task
+
+        logger.info("discord.bot_start_task_created")
+
+        # Bot task runs forever, so we don't await it here
+        # The on_ready event will fire when the bot connects
+
+    except Exception as exc:
+        logger.error(
+            "discord.bot_initialization_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        import traceback
+
+        logger.error("discord.bot_init_traceback", traceback=traceback.format_exc())
+        # Set bot to error state but don't crash the HTTP API
+        _bot = {"status": "error", "mode": "bot", "error": str(exc)}
+        if _bot_task:
+            _bot_task.cancel()
+            _bot_task = None
+
+
 @app.on_event("startup")  # type: ignore[misc]
 async def startup_event() -> None:
     """Initialize Discord bot and HTTP API on startup."""
-    global _bot, _observability_manager, _stt_metrics, _audio_metrics, _http_metrics
+    global _observability_manager, _stt_metrics, _audio_metrics, _http_metrics
 
     logger.info("discord.startup_event_called")
 
@@ -67,15 +138,17 @@ async def startup_event() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Load configuration (not used in HTTP-only mode)
-        _ = load_config()
+        # Load configuration
+        config = load_config()
 
         # Register dependencies
         _health_manager.register_dependency("stt", _check_stt_health)
         _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
 
-        # HTTP-only mode - no full Discord bot
-        _bot = {"status": "ready", "mode": "http"}
+        # Start Discord bot as background task
+        asyncio.create_task(_start_discord_bot(config, _observability_manager))
+
+        # Mark HTTP API as ready (bot will mark itself ready when connected)
         _health_manager.mark_startup_complete()
         logger.info("discord.http_api_started")
 
@@ -113,12 +186,69 @@ async def _check_orchestrator_health() -> bool:
 
 @app.on_event("shutdown")  # type: ignore[misc]
 async def shutdown_event() -> None:
-    """Shutdown HTTP API."""
-    global _bot
+    """Shutdown HTTP API and Discord bot."""
+    global _bot, _bot_task
 
-    if _bot:
-        _bot = None
-        logger.info("discord.http_api_shutdown")
+    logger.info("discord.shutdown_event_called")
+
+    # Close Discord bot if it's running
+    if _bot and isinstance(_bot, VoiceBot):
+        try:
+            logger.info("discord.bot_shutting_down")
+            await _bot.close()
+            logger.info("discord.bot_closed")
+        except Exception as exc:
+            logger.error(
+                "discord.bot_shutdown_error",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+
+    # Cancel bot task if it exists
+    if _bot_task:
+        try:
+            if not _bot_task.done():
+                _bot_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await _bot_task
+            logger.info("discord.bot_task_cancelled")
+        except Exception as exc:
+            logger.error(
+                "discord.bot_task_cancel_error",
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+        finally:
+            _bot_task = None
+
+    _bot = None
+    logger.info("discord.http_api_shutdown")
+
+
+def _get_bot_status() -> dict[str, Any]:
+    """Get bot connection status."""
+    try:
+        if _bot is None:
+            return {"connected": False, "mode": "initializing"}
+        elif isinstance(_bot, VoiceBot):
+            # VoiceBot inherits from discord.Client which has is_ready property
+            return {
+                "connected": _bot.is_ready,
+                "mode": "bot",
+                "user": str(_bot.user) if _bot.user else None,
+            }
+        elif isinstance(_bot, dict):
+            return {
+                "connected": False,
+                "mode": _bot.get("mode", "unknown"),
+                "status": _bot.get("status", "unknown"),
+                "error": _bot.get("error"),
+            }
+        else:
+            return {"connected": False, "mode": "unknown"}
+    except Exception:
+        # Return safe default if anything fails
+        return {"connected": False, "mode": "error"}
 
 
 # Initialize health endpoints
@@ -126,8 +256,8 @@ health_endpoints = HealthEndpoints(
     service_name="discord",
     health_manager=_health_manager,
     custom_components={
-        "bot_connected": lambda: _bot is not None,
-        "mode": "http",
+        "bot_connected": lambda: isinstance(_bot, VoiceBot) and _bot.is_ready,
+        "bot_status": lambda: _get_bot_status(),
     },
     custom_dependencies={
         "stt": _check_stt_health,
@@ -142,8 +272,11 @@ app.include_router(health_endpoints.get_router())
 @app.post("/api/v1/messages", response_model=MessageSendResponse)  # type: ignore[misc]
 async def send_message(request: MessageSendRequest) -> MessageSendResponse:
     """Send text message to Discord channel."""
-    if not _bot:
-        raise HTTPException(status_code=503, detail="Discord service not ready")
+    if not _bot or not isinstance(_bot, VoiceBot):
+        raise HTTPException(
+            status_code=503,
+            detail="Discord bot not ready or not connected",
+        )
 
     try:
         # For HTTP mode, we'll simulate the message sending
@@ -178,8 +311,10 @@ async def handle_transcript(
     notification: TranscriptNotificationRequest,
 ) -> TranscriptNotificationResponse:
     """Handle transcript notification from orchestrator."""
-    if not _bot:
-        raise HTTPException(status_code=503, detail="Discord service not ready")
+    # This endpoint can work even if bot isn't ready (it's a notification endpoint)
+    # But we check if the service is at least initialized
+    if _bot is None:
+        raise HTTPException(status_code=503, detail="Discord service not initialized")
 
     try:
         # Process transcript (this would trigger the voice assistant flow)
