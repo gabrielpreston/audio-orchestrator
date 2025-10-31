@@ -211,6 +211,13 @@ class VoiceBot(discord.Client):
         if not isinstance(channel, discord.VoiceChannel):
             raise ValueError(f"Channel {channel_id} is not a voice channel")
 
+        self._logger.info(
+            "discord.voice_join_attempt",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            channel_name=getattr(channel, "name", None),
+        )
+
         lock = self._voice_join_locks.setdefault(guild_id, asyncio.Lock())
         async with lock:
             self._cancel_pending_reconnect(guild_id)
@@ -255,6 +262,16 @@ class VoiceBot(discord.Client):
                 self.config.discord.voice_reconnect_max_backoff_seconds,
             )
 
+            self._logger.info(
+                "discord.voice_connect_starting",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                timeout=timeout,
+                max_attempts=max_attempts,
+                base_backoff=base_backoff,
+                max_backoff=max_backoff,
+            )
+
             attempt = 0
             delay = 0.0
             last_exc: Exception | None = None
@@ -262,6 +279,14 @@ class VoiceBot(discord.Client):
                 if delay > 0:
                     await asyncio.sleep(delay)
                 attempt += 1
+                self._logger.debug(
+                    "discord.voice_connect_attempt",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    attempt=attempt,
+                    max_attempts=max_attempts,
+                    delay=delay,
+                )
                 connect_kwargs = {
                     "cls": desired_cls,
                     "timeout": timeout,
@@ -270,8 +295,20 @@ class VoiceBot(discord.Client):
                 try:
                     voice_client = self._voice_client_for_guild(guild_id)
                     if voice_client and voice_client.channel:
+                        self._logger.debug(
+                            "discord.voice_move_attempt",
+                            guild_id=guild_id,
+                            channel_id=channel_id,
+                            from_channel_id=voice_client.channel.id,
+                        )
                         await voice_client.move_to(channel)
                     else:
+                        self._logger.debug(
+                            "discord.voice_new_connect_attempt",
+                            guild_id=guild_id,
+                            channel_id=channel_id,
+                            timeout=timeout,
+                        )
                         voice_client = await channel.connect(**connect_kwargs)
                     if voice_client is None:
                         raise RuntimeError(
