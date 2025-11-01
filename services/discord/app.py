@@ -8,7 +8,6 @@ import os
 from typing import Any
 
 from fastapi import HTTPException
-import httpx
 
 from services.common.audio_metrics import (
     create_audio_metrics,
@@ -17,6 +16,7 @@ from services.common.audio_metrics import (
 )
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.resilient_http import ResilientHTTPClient
 
 # Configure logging
 from services.common.structured_logging import get_logger
@@ -47,6 +47,9 @@ _observability_manager: Any = None
 _stt_metrics: dict[str, Any] = {}
 _audio_metrics: dict[str, Any] = {}
 _http_metrics: dict[str, Any] = {}
+
+_stt_health_client: ResilientHTTPClient | None = None
+_orchestrator_health_client: ResilientHTTPClient | None = None
 
 
 # Remove old tool models - now using models.py
@@ -138,6 +141,37 @@ async def _startup() -> None:
         # Load configuration
         config = load_config()
 
+        # Initialize resilient HTTP clients for health checks
+        # For dependency health checks, disable grace period to get accurate readiness
+        global _stt_health_client, _orchestrator_health_client
+        try:
+            from services.common.circuit_breaker import CircuitBreakerConfig
+
+            stt_url = os.getenv("STT_BASE_URL", "http://stt:9000")
+            _stt_health_client = ResilientHTTPClient(
+                service_name="stt",
+                base_url=stt_url,
+                circuit_config=CircuitBreakerConfig(),
+                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+            )
+        except Exception as exc:
+            logger.warning("discord.stt_health_client_init_failed", error=str(exc))
+            _stt_health_client = None
+
+        try:
+            orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8200")
+            _orchestrator_health_client = ResilientHTTPClient(
+                service_name="orchestrator",
+                base_url=orch_url,
+                circuit_config=CircuitBreakerConfig(),
+                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+            )
+        except Exception as exc:
+            logger.warning(
+                "discord.orchestrator_health_client_init_failed", error=str(exc)
+            )
+            _orchestrator_health_client = None
+
         # Register dependencies
         _health_manager.register_dependency("stt", _check_stt_health)
         _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
@@ -160,24 +194,24 @@ async def _startup() -> None:
 
 
 async def _check_stt_health() -> bool:
-    """Check STT service health."""
-    stt_url = os.getenv("STT_BASE_URL", "http://stt:9000")
+    """Check STT service health via resilient HTTP client."""
+    if _stt_health_client is None:
+        return False
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{stt_url}/health/ready", timeout=5.0)
-            return bool(response.status_code == 200)
-    except Exception:
+        return await _stt_health_client.check_health()
+    except Exception as exc:
+        logger.debug("health.stt_check_failed", error=str(exc))
         return False
 
 
 async def _check_orchestrator_health() -> bool:
-    """Check Orchestrator service health."""
-    orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8200")
+    """Check Orchestrator service health via resilient HTTP client."""
+    if _orchestrator_health_client is None:
+        return False
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(f"{orch_url}/health/ready", timeout=5.0)
-            return bool(response.status_code == 200)
-    except Exception:
+        return await _orchestrator_health_client.check_health()
+    except Exception as exc:
+        logger.debug("health.orchestrator_check_failed", error=str(exc))
         return False
 
 

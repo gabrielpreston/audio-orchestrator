@@ -91,6 +91,11 @@ def create_resilient_client(
             30.0,
             float,
         ),
+        health_check_timeout=get_env_with_default(
+            f"{prefix}_HEALTH_CHECK_TIMEOUT_SECONDS",
+            10.0,
+            float,
+        ),
         max_connections=get_env_with_default(
             f"{prefix}_MAX_CONNECTIONS",
             10,

@@ -251,7 +251,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G # Increased for Bark model loading (was 4G, OOM during preload_models)
+          # Increased for Bark model loading (was 4G, OOM during preload_models)
+          memory: 6G
           cpus: "2"
     restart: "unless-stopped"
     logging:
@@ -314,6 +315,7 @@ services:
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - PROMETHEUS_URL=http://prometheus:9090
     volumes:
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"

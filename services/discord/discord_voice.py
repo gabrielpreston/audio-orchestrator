@@ -790,10 +790,67 @@ class VoiceBot(discord.Client):
 
             # Save debug data for orchestrator communication
 
-            # NOTE: Orchestrator response handling is intentionally deferred.
-            # Current implementation focuses on transcript forwarding to orchestrator.
-            # Future work: Handle TTS audio playback, tool execution responses, and
-            # bidirectional communication flows. Track in roadmap or create issue if needed.
+            # Handle orchestrator response (audio playback, text fallback, etc.)
+            if orchestrator_result and orchestrator_result.get("success"):
+                # Extract audio data if available
+                audio_data_b64 = orchestrator_result.get("audio_data")
+                audio_format = orchestrator_result.get("audio_format", "wav")
+                response_text = orchestrator_result.get("response_text")
+
+                if audio_data_b64:
+                    # Decode base64 audio data
+                    import base64
+
+                    try:
+                        audio_bytes = base64.b64decode(audio_data_b64)
+                        transcript_logger.info(
+                            "voice.audio_received_from_orchestrator",
+                            audio_size=len(audio_bytes),
+                            audio_format=audio_format,
+                            correlation_id=transcript.correlation_id,
+                        )
+
+                        # Play audio to Discord voice channel
+                        voice_client = self._voice_client_for_guild(context.guild_id)
+                        if voice_client and voice_client.is_connected():
+                            await self._play_audio_to_voice(
+                                voice_client,
+                                audio_bytes,
+                                correlation_id=transcript.correlation_id,
+                            )
+                        else:
+                            transcript_logger.warning(
+                                "voice.audio_playback_skipped",
+                                reason="voice_client_not_connected",
+                                correlation_id=transcript.correlation_id,
+                            )
+                            # Fallback to text message if voice not connected
+                            if response_text:
+                                await self._send_fallback_text_response(
+                                    context, response_text, transcript.correlation_id
+                                )
+
+                    except Exception as audio_exc:
+                        transcript_logger.error(
+                            "voice.audio_playback_failed",
+                            error=str(audio_exc),
+                            correlation_id=transcript.correlation_id,
+                        )
+                        # Fallback to text message on audio playback failure
+                        if response_text:
+                            await self._send_fallback_text_response(
+                                context, response_text, transcript.correlation_id
+                            )
+                elif response_text:
+                    # No audio, but we have text - send as text message
+                    transcript_logger.info(
+                        "voice.text_response_received",
+                        text_length=len(response_text),
+                        correlation_id=transcript.correlation_id,
+                    )
+                    await self._send_fallback_text_response(
+                        context, response_text, transcript.correlation_id
+                    )
 
         except Exception as exc:
             transcript_logger.error(
@@ -816,6 +873,110 @@ class VoiceBot(discord.Client):
             if voice_client.guild and voice_client.guild.id == guild_id:
                 return voice_client
         return None
+
+    async def _play_audio_to_voice(
+        self,
+        voice_client: discord.VoiceClient,
+        audio_bytes: bytes,
+        *,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Play audio bytes to Discord voice channel.
+
+        Args:
+            voice_client: Discord voice client to play audio on
+            audio_bytes: Audio data as bytes (WAV format expected)
+            correlation_id: Correlation ID for logging
+        """
+        if not voice_client or not voice_client.is_connected():
+            self._logger.warning(
+                "voice.audio_playback_skipped",
+                reason="voice_client_not_connected",
+                correlation_id=correlation_id,
+            )
+            return
+
+        try:
+            import io
+
+            # Create an in-memory file-like object from the audio bytes
+            audio_source = discord.FFmpegPCMAudio(
+                source=io.BytesIO(audio_bytes),
+                pipe=True,
+            )
+
+            # Play the audio
+            voice_client.play(
+                audio_source,
+                after=lambda error: self._playback_finished(error, correlation_id),
+            )
+
+            self._logger.info(
+                "voice.audio_playback_started",
+                audio_size=len(audio_bytes),
+                correlation_id=correlation_id,
+            )
+
+        except Exception as exc:
+            self._logger.error(
+                "voice.audio_playback_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def _playback_finished(
+        self, error: Exception | None, correlation_id: str | None
+    ) -> None:
+        """Callback when audio playback finishes.
+
+        Args:
+            error: Error if playback failed, None if successful
+            correlation_id: Correlation ID for logging
+        """
+        if error:
+            self._logger.error(
+                "voice.audio_playback_error",
+                error=str(error),
+                error_type=type(error).__name__,
+                correlation_id=correlation_id,
+            )
+        else:
+            self._logger.debug(
+                "voice.audio_playback_completed",
+                correlation_id=correlation_id,
+            )
+
+    async def _send_fallback_text_response(
+        self,
+        context: SegmentContext,
+        text: str,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Send text response as fallback when audio playback is not available.
+
+        Args:
+            context: Segment context with guild and channel IDs
+            text: Text to send
+            correlation_id: Correlation ID for logging
+        """
+        try:
+            # Try to send text message to the channel
+            await self.send_text_message(context.channel_id, text)
+            self._logger.info(
+                "voice.fallback_text_sent",
+                channel_id=context.channel_id,
+                text_length=len(text),
+                correlation_id=correlation_id,
+            )
+        except Exception as exc:
+            self._logger.error(
+                "voice.fallback_text_failed",
+                error=str(exc),
+                channel_id=context.channel_id,
+                correlation_id=correlation_id,
+            )
 
     def _cancel_pending_reconnect(self, guild_id: int) -> None:
         task = self._voice_reconnect_tasks.get(guild_id)

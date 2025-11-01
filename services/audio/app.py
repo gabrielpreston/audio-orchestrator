@@ -253,11 +253,15 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
             if "audio_processing_duration" in _audio_metrics:
                 _audio_metrics["audio_processing_duration"].record(
                     processing_time / 1000,
-                    attributes={"stage": "frame_processing", "status": "success"},
+                    attributes={
+                        "stage": "frame_processing",
+                        "status": "success",
+                        "service": "audio",
+                    },
                 )
             if "audio_chunks_processed" in _audio_metrics:
                 _audio_metrics["audio_chunks_processed"].add(
-                    1, attributes={"type": "frame"}
+                    1, attributes={"type": "frame", "service": "audio"}
                 )
 
         # Encode processed PCM data
@@ -284,7 +288,11 @@ async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
         if _audio_metrics and "audio_processing_duration" in _audio_metrics:
             _audio_metrics["audio_processing_duration"].record(
                 processing_time / 1000,
-                attributes={"stage": "frame_processing", "status": "error"},
+                attributes={
+                    "stage": "frame_processing",
+                    "status": "error",
+                    "service": "audio",
+                },
             )
 
         _logger.error(
@@ -347,11 +355,15 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
             if "audio_processing_duration" in _audio_metrics:
                 _audio_metrics["audio_processing_duration"].record(
                     processing_time / 1000,
-                    attributes={"stage": "segment_processing", "status": "success"},
+                    attributes={
+                        "stage": "segment_processing",
+                        "status": "success",
+                        "service": "audio",
+                    },
                 )
             if "audio_chunks_processed" in _audio_metrics:
                 _audio_metrics["audio_chunks_processed"].add(
-                    1, attributes={"type": "segment"}
+                    1, attributes={"type": "segment", "service": "audio"}
                 )
             if "audio_quality_score" in _audio_metrics and quality_metrics:
                 quality_score = quality_metrics.get("overall_score", 0.0)
@@ -382,7 +394,11 @@ async def process_segment(request: AudioSegmentRequest) -> ProcessingResponse:
         if _audio_metrics and "audio_processing_duration" in _audio_metrics:
             _audio_metrics["audio_processing_duration"].record(
                 processing_time / 1000,
-                attributes={"stage": "segment_processing", "status": "error"},
+                attributes={
+                    "stage": "segment_processing",
+                    "status": "error",
+                    "service": "audio",
+                },
             )
 
         _logger.error(
@@ -565,8 +581,10 @@ async def _check_audio_health() -> bool:
 
 
 async def _check_audio_enhancer_health() -> bool:
-    """Check audio enhancer health."""
-    return _audio_enhancer is not None and _audio_enhancer.is_enhancement_enabled
+    """Check audio enhancer health - enhancement is optional, so don't block if disabled."""
+    # Audio enhancer is optional - service is ready if it exists
+    # Model loading happens lazily, so don't require is_enhancement_enabled
+    return _audio_enhancer is not None
 
 
 if __name__ == "__main__":

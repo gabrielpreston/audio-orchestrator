@@ -24,6 +24,12 @@ class TranscriptProcessResponse(BaseModel):
 
     success: bool = Field(..., description="Whether processing was successful")
     response_text: str | None = Field(None, description="Generated response text")
+    audio_data: str | None = Field(
+        None, description="Base64-encoded audio data for voice playback"
+    )
+    audio_format: str | None = Field(
+        None, description="Audio format (e.g., 'wav', 'pcm')"
+    )
     tool_calls: list[dict[str, Any]] | None = Field(
         None, description="Tool calls made during processing"
     )

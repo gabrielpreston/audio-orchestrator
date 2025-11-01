@@ -156,15 +156,32 @@ class HealthEndpoints:
         # Get health status from health manager
         health_status = await self.health_manager.get_health_status()
 
-        # Determine status string
+        # If service is not ready, return 503 Service Unavailable
+        # This allows circuit breakers and health checkers to properly detect unavailable services
         if not health_status.ready:
             status_str = (
                 "degraded"
                 if health_status.status == HealthStatus.DEGRADED
                 else "not_ready"
             )
-        else:
-            status_str = "ready"
+            # Extract failing dependencies for detailed error message
+            failing_deps = [
+                name
+                for name, status in health_status.details.get(
+                    "dependencies", {}
+                ).items()
+                if not status
+            ]
+            detail = f"Service {self.service_name} not ready - {status_str}"
+            if failing_deps:
+                detail += f" (unavailable dependencies: {', '.join(failing_deps)})"
+
+            raise HTTPException(
+                status_code=503,
+                detail=detail,
+            )
+
+        status_str = "ready"
 
         # Build components dict - evaluate callables first to avoid serialization issues
         components: dict[str, Any] = {

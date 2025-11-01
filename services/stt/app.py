@@ -391,6 +391,17 @@ async def _startup() -> None:
         await _model_loader.initialize()
         logger.info("stt.model_loader_initialized", model_name=MODEL_NAME)
 
+        # Register model loader as dependency for health checks
+        # Models must be loaded AND not currently loading for service to be ready
+        _health_manager.register_dependency(
+            "whisper_model",
+            lambda: (
+                _model_loader.is_loaded() and not _model_loader.is_loading()
+                if _model_loader
+                else False
+            ),
+        )
+
         # Initialize audio processor client with fallback
         try:
             _audio_processor_client = STTAudioProcessorClient(

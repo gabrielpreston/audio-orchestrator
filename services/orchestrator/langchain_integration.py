@@ -49,12 +49,14 @@ def create_langchain_executor() -> AgentExecutor | None:
         llm_primary_url = os.getenv("LLM_PRIMARY_URL", "http://flan:8100")
 
         # Create LLM client (using primary FLAN-T5 service)
+        # Note: FLAN-T5 doesn't support streaming, so disable it explicitly
         llm = ChatOpenAI(
             base_url=f"{llm_primary_url}/v1",
             api_key="dummy",  # FLAN-T5 doesn't require auth
             model="flan-t5-large",
             temperature=0.7,
             max_tokens=512,
+            streaming=False,  # Explicitly disable streaming for FLAN-T5
         )
 
         # Create versioned prompt template
@@ -141,9 +143,54 @@ async def process_with_langchain(
 
     try:
         result = await executor.ainvoke({"input": transcript, "session_id": session_id})
-        return str(result.get("output", "I'm processing your request..."))
+
+        # Handle different response formats from LangChain
+        output = result.get("output")
+        if output:
+            return str(output)
+
+        # Check intermediate steps for tool usage results
+        intermediate_steps = result.get("intermediate_steps", [])
+        if intermediate_steps:
+            # Extract final action result if available
+            last_step = intermediate_steps[-1]
+            if isinstance(last_step, tuple) and len(last_step) >= 2:
+                tool_result = last_step[1]
+                if tool_result:
+                    return str(tool_result)
+
+        # Fallback response if no output found
+        logger.warning(
+            "langchain.no_output_in_result",
+            result_keys=list(result.keys()),
+            transcript=transcript[:100],
+            session_id=session_id,
+        )
+        return f"I understand you asked about: {transcript[:100]}. Let me help you with that."
+
+    except ValueError as e:
+        error_msg = str(e)
+        if (
+            "No generation chunks" in error_msg
+            or "generation chunks" in error_msg.lower()
+        ):
+            logger.warning(
+                "langchain.no_streaming_chunks",
+                error=error_msg,
+                transcript=transcript[:100],
+                session_id=session_id,
+                note="FLAN-T5 doesn't support streaming, returning fallback response",
+            )
+            # Return helpful fallback response
+            return f"I received your message: {transcript[:100]}. Let me help you with that."
+        # Re-raise if it's a different ValueError
+        raise
     except Exception as e:
         logger.error(
-            "langchain.processing_failed", error=str(e), transcript=transcript[:100]
+            "langchain.processing_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            transcript=transcript[:100],
+            session_id=session_id,
         )
         return f"I encountered an issue processing your request: {str(e)}"

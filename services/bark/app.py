@@ -10,6 +10,7 @@ This service provides HTTP API endpoints for text-to-speech synthesis including:
 from __future__ import annotations
 
 import time
+from typing import Any
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -132,10 +133,9 @@ async def _startup() -> None:
         _bark_synthesizer = BarkSynthesizer(_audio_config)
         await _bark_synthesizer.initialize()
 
-        # Register dependencies
-        _health_manager.register_dependency(
-            "bark_synthesizer", _check_synthesizer_health
-        )
+        # Register dependencies - models check already ensures synthesizer exists
+        # Only need bark_models dependency (redundant to check synthesizer separately)
+        _health_manager.register_dependency("bark_models", _check_models_loaded)
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
@@ -287,9 +287,71 @@ async def list_voices() -> dict[str, list[str]]:
     return {"bark": VOICE_PRESETS, "piper": ["default"]}
 
 
-async def _check_synthesizer_health() -> bool:
-    """Check if Bark synthesizer is healthy."""
-    return _bark_synthesizer is not None and await _bark_synthesizer.is_healthy()
+# Track last known state to only log on changes
+_last_model_check_state: dict[str, Any] | None = None
+
+
+async def _check_models_loaded() -> bool:
+    """Check if Bark models are loaded and ready."""
+    global _last_model_check_state
+
+    if _bark_synthesizer is None:
+        # Only log if state changed
+        if (
+            _last_model_check_state is None
+            or _last_model_check_state.get("ready") is not False
+        ):
+            _logger.warning(
+                "health.bark_models_check",
+                synthesizer=None,
+                ready=False,
+                service="bark",
+            )
+        _last_model_check_state = {"ready": False, "reason": "synthesizer_none"}
+        return False
+
+    model_loader = _bark_synthesizer._model_loader
+    # _model_loader is always initialized in BarkSynthesizer.__init__, so it's never None
+
+    # Models must be loaded AND not currently loading
+    is_loaded = model_loader.is_loaded()
+    is_loading = model_loader.is_loading()
+    loader_status = model_loader.get_status()
+    phase = loader_status.get("phase", "unknown")
+
+    # Service is ready only if models are loaded and not still loading
+    ready = is_loaded and not is_loading
+
+    # Only log if state changed (reduce log noise from frequent health checks)
+    current_state = {
+        "ready": ready,
+        "is_loaded": is_loaded,
+        "is_loading": is_loading,
+        "phase": phase,
+    }
+
+    if _last_model_check_state != current_state:
+        if ready:
+            _logger.info(
+                "health.bark_models_check",
+                is_loaded=is_loaded,
+                is_loading=is_loading,
+                phase=phase,
+                ready=ready,
+                service="bark",
+            )
+        else:
+            _logger.debug(
+                "health.bark_models_check",
+                is_loaded=is_loaded,
+                is_loading=is_loading,
+                phase=phase,
+                ready=ready,
+                service="bark",
+            )
+        _last_model_check_state = current_state
+
+    return ready
 
 
 if __name__ == "__main__":

@@ -7,10 +7,12 @@ providing a standardized way to play audio to Discord voice channels.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import Callable
+import io
 import time
 from typing import Any
+
+import discord
 
 from services.common.structured_logging import get_logger
 from services.common.surfaces.media_gateway import MediaGateway
@@ -26,10 +28,12 @@ class DiscordAudioSink(AudioPlaybackProtocol):
         guild_id: int,
         channel_id: int,
         media_gateway: MediaGateway | None = None,
+        voice_client: discord.VoiceClient | None = None,
     ) -> None:
         self.guild_id = guild_id
         self.channel_id = channel_id
         self.media_gateway = media_gateway or MediaGateway()
+        self.voice_client = voice_client
 
         # Playback state
         self._is_playing = False
@@ -143,12 +147,31 @@ class DiscordAudioSink(AudioPlaybackProtocol):
 
                 frame.pcm = result.audio_data
 
-            # This is a stub implementation
-            # In a real implementation, this would send audio to Discord's voice channel
-            # For now, we'll simulate audio playback
-
-            # Simulate audio processing time
-            await asyncio.sleep(0.01)  # 10ms processing time
+            # Send audio to Discord's voice channel using FFmpeg
+            if self.voice_client and self.voice_client.is_connected():
+                try:
+                    # Create audio source from PCM frame bytes
+                    # Note: For frame-by-frame playback, we'd need to buffer frames
+                    # For now, this is primarily used for full audio playback via play_audio_bytes
+                    audio_source = discord.FFmpegPCMAudio(
+                        source=io.BytesIO(frame.pcm),
+                        pipe=True,
+                    )
+                    if not self.voice_client.is_playing():
+                        self.voice_client.play(audio_source)
+                except Exception as playback_exc:
+                    self._logger.warning(
+                        "discord_sink.frame_playback_failed",
+                        error=str(playback_exc),
+                    )
+            else:
+                self._logger.debug(
+                    "discord_sink.voice_client_unavailable",
+                    has_voice_client=self.voice_client is not None,
+                    is_connected=(
+                        self.voice_client.is_connected() if self.voice_client else False
+                    ),
+                )
 
             # Update metadata
             self._metadata = AudioMetadata(
@@ -177,6 +200,10 @@ class DiscordAudioSink(AudioPlaybackProtocol):
             self._logger.debug(
                 "discord_sink.frame_played",
                 frame_size=len(frame.pcm),
+                voice_client_available=self.voice_client is not None,
+                is_playing=(
+                    self.voice_client.is_playing() if self.voice_client else False
+                ),
                 sample_rate=frame.sample_rate,
                 channels=frame.channels,
             )
@@ -184,6 +211,86 @@ class DiscordAudioSink(AudioPlaybackProtocol):
         except (ValueError, TypeError, KeyError) as e:
             self._logger.error("discord_sink.audio_chunk_play_failed", error=str(e))
             raise
+
+    async def play_audio_bytes(
+        self,
+        audio_bytes: bytes,
+        *,
+        sample_rate: int = 22050,
+        channels: int = 1,
+        correlation_id: str | None = None,
+    ) -> None:
+        """Play full audio bytes (e.g., from TTS) to Discord voice channel.
+
+        Args:
+            audio_bytes: Audio data as bytes (WAV format expected)
+            sample_rate: Sample rate of the audio (default: 22050 for Bark TTS)
+            channels: Number of audio channels (default: 1 for mono)
+            correlation_id: Correlation ID for logging
+        """
+        if not self.voice_client or not self.voice_client.is_connected():
+            self._logger.warning(
+                "discord_sink.audio_playback_skipped",
+                reason="voice_client_not_connected",
+                correlation_id=correlation_id,
+            )
+            return
+
+        try:
+            # Ensure playback state is active
+            if not self._is_playing:
+                await self.start_playback()
+
+            # Create an in-memory file-like object from the audio bytes
+            audio_source = discord.FFmpegPCMAudio(
+                source=io.BytesIO(audio_bytes),
+                pipe=True,
+            )
+
+            # Play the audio
+            self.voice_client.play(
+                audio_source,
+                after=lambda error: self._playback_finished(error, correlation_id),
+            )
+
+            self._logger.info(
+                "discord_sink.audio_playback_started",
+                audio_size=len(audio_bytes),
+                sample_rate=sample_rate,
+                channels=channels,
+                correlation_id=correlation_id,
+            )
+
+        except Exception as exc:
+            self._logger.error(
+                "discord_sink.audio_playback_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                correlation_id=correlation_id,
+            )
+            raise
+
+    def _playback_finished(
+        self, error: Exception | None, correlation_id: str | None
+    ) -> None:
+        """Callback when audio playback finishes.
+
+        Args:
+            error: Error if playback failed, None if successful
+            correlation_id: Correlation ID for logging
+        """
+        if error:
+            self._logger.error(
+                "discord_sink.audio_playback_error",
+                error=str(error),
+                error_type=type(error).__name__,
+                correlation_id=correlation_id,
+            )
+        else:
+            self._logger.debug(
+                "discord_sink.audio_playback_completed",
+                correlation_id=correlation_id,
+            )
 
     def register_playback_handler(self, handler: Callable[[str, Any], None]) -> None:
         """Register a callback for playback events."""

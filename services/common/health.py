@@ -44,6 +44,7 @@ class HealthManager:
         self._health_check_duration: Any | None = None
         self._health_status_gauge: Any | None = None
         self._dependency_status_gauge: Any | None = None
+        self._last_dependency_states: dict[str, bool] = {}
 
     def set_observability_manager(self, observability_manager: Any) -> None:
         """Set the observability manager for metrics."""
@@ -125,6 +126,7 @@ class HealthManager:
 
             ready = True
             dependency_status = {}
+            failing_dependencies = []
 
             for name, check in self._dependencies.items():
                 try:
@@ -146,9 +148,11 @@ class HealthManager:
                         )
 
                     if not is_healthy:
+                        failing_dependencies.append(name)
                         ready = False
                 except Exception as exc:
                     dependency_status[name] = False
+                    failing_dependencies.append(name)
                     ready = False
                     if self._dependency_status_gauge:
                         self._dependency_status_gauge.add(
@@ -161,6 +165,31 @@ class HealthManager:
                     self._logger.warning(
                         "health.dependency_error", dependency=name, error=str(exc)
                     )
+
+            # Only log dependency warnings when status changes
+            current_failing = set(failing_dependencies)
+            previous_failing = {
+                name
+                for name, status in self._last_dependency_states.items()
+                if not status
+            }
+
+            if current_failing != previous_failing:
+                if failing_dependencies:
+                    self._logger.warning(
+                        "health.dependency_unhealthy",
+                        service=self._service_name,
+                        failing_dependencies=failing_dependencies,
+                    )
+                elif previous_failing:
+                    # All dependencies became healthy
+                    self._logger.info(
+                        "health.all_dependencies_healthy",
+                        service=self._service_name,
+                    )
+
+            # Update last known states
+            self._last_dependency_states = dependency_status.copy()
 
             status = HealthStatus.HEALTHY if ready else HealthStatus.DEGRADED
 

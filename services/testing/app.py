@@ -112,11 +112,11 @@ class TranscriptResponse(BaseModel):
     metadata: dict[str, Any] | None = None
 
 
-async def test_pipeline(
+async def run_pipeline(
     audio: str | None, text_input: str, voice_preset: str
 ) -> tuple[str, str, str | None]:
     """
-    Test the complete audio pipeline.
+    Run the complete audio pipeline.
 
     Args:
         audio: Audio file path (if provided)
@@ -206,51 +206,162 @@ async def test_pipeline(
             )
             orchestrator_response.raise_for_status()
             orchestrator_data = orchestrator_response.json()
-            response = orchestrator_data.get("response_text", "")
-            logger.info(
-                "Orchestration completed", extra={"response_length": len(response)}
-            )
-        except Exception as e:
-            logger.error("Orchestration failed", extra={"error": str(e)})
-            response = f"Orchestration failed: {str(e)}"
 
-        # 4. Synthesize with Bark TTS
-        if response and response != "No response generated":
-            try:
-                tts_response = await client.post(
-                    f"{BARK_URL}/synthesize",
-                    json={"text": response, "voice": voice_preset},
+            # Check for actual error in response (success field)
+            if orchestrator_data.get("success") is False:
+                error_msg = orchestrator_data.get("error", "Unknown error")
+                correlation_id = orchestrator_data.get("correlation_id", "unknown")
+                logger.error(
+                    "Orchestration failed",
+                    extra={
+                        "error": error_msg,
+                        "correlation_id": correlation_id,
+                    },
                 )
-                tts_response.raise_for_status()
+                response = f"Orchestration failed: {error_msg}"
+                audio_data_b64 = None
+                audio_format = None
+            else:
+                # Success - extract response text and audio
+                response = orchestrator_data.get("response_text", "")
 
-                # Save audio output
-                # Generate safe filename (sha256 produces hex string, no negative values)
-                filename_hash = hashlib.sha256(response.encode()).hexdigest()
-                temp_dir = Path(tempfile.gettempdir())
-
-                # Ensure temp directory exists and is writable
-                temp_dir.mkdir(parents=True, exist_ok=True)
-
-                audio_file_path = temp_dir / f"output_{filename_hash}.wav"
-
-                # Write file
-                with audio_file_path.open("wb") as f:
-                    f.write(tts_response.content)
-
-                # Verify it's a file (not directory) before returning to Gradio
-                audio_file_path = audio_file_path.resolve()
-                if not audio_file_path.is_file():
-                    raise ValueError(f"Output path is not a file: {audio_file_path}")
-
-                # Convert to string for Gradio
-                audio_output_path = str(audio_file_path)
+                # Check if orchestrator provided audio data (from TTS integration)
+                audio_data_b64 = orchestrator_data.get("audio_data")
+                audio_format = orchestrator_data.get("audio_format", "wav")
 
                 logger.info(
-                    "TTS synthesis completed", extra={"output_path": audio_output_path}
+                    "Orchestration completed",
+                    extra={
+                        "response_length": len(response),
+                        "has_audio": audio_data_b64 is not None,
+                        "correlation_id": orchestrator_data.get("correlation_id"),
+                    },
                 )
-            except Exception as e:
-                logger.error("TTS synthesis failed", extra={"error": str(e)})
-                audio_output_path = None
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "Orchestration HTTP error",
+                extra={
+                    "status": e.response.status_code,
+                    "error": str(e),
+                },
+            )
+            response = f"Orchestration HTTP error: {e.response.status_code}"
+            audio_data_b64 = None
+            audio_format = None
+        except Exception as e:
+            logger.error(
+                "Orchestration request failed",
+                extra={"error": str(e), "error_type": type(e).__name__},
+            )
+            response = f"Orchestration request failed: {str(e)}"
+            audio_data_b64 = None
+            audio_format = None
+
+        # 4. Handle audio output (use orchestrator's audio or fallback to direct TTS)
+        # audio_output_path already declared above
+
+        if response and response != "No response generated":
+            # Prefer audio from orchestrator response (already synthesized)
+            if audio_data_b64:
+                try:
+                    import base64
+
+                    # Decode base64 audio data
+                    audio_bytes = base64.b64decode(audio_data_b64)
+
+                    # Save audio output
+                    # Generate safe filename (sha256 produces hex string, no negative values)
+                    filename_hash = hashlib.sha256(response.encode()).hexdigest()
+                    temp_dir = Path(tempfile.gettempdir())
+
+                    # Ensure temp directory exists and is writable
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+
+                    audio_file_path = (
+                        temp_dir / f"output_{filename_hash}.{audio_format}"
+                    )
+
+                    # Write file
+                    with audio_file_path.open("wb") as f:
+                        f.write(audio_bytes)
+
+                    # Verify it's a file (not directory) before returning to Gradio
+                    audio_file_path = audio_file_path.resolve()
+                    if not audio_file_path.is_file():
+                        raise ValueError(
+                            f"Output path is not a file: {audio_file_path}"
+                        )
+
+                    # Convert to string for Gradio
+                    audio_output_path = str(audio_file_path)
+
+                    logger.info(
+                        "Audio from orchestrator saved",
+                        extra={
+                            "output_path": audio_output_path,
+                            "format": audio_format,
+                        },
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Failed to save orchestrator audio",
+                        extra={"error": str(e)},
+                    )
+                    # Fall through to TTS fallback
+                    audio_output_path = None
+
+            # Fallback: Call TTS directly if orchestrator didn't provide audio
+            if not audio_output_path:
+                try:
+                    tts_response = await client.post(
+                        f"{BARK_URL}/synthesize",
+                        json={"text": response, "voice": voice_preset},
+                    )
+                    tts_response.raise_for_status()
+
+                    # Parse Bark response (it returns JSON with audio as base64)
+                    tts_data = tts_response.json()
+                    tts_audio = tts_data.get("audio")
+
+                    if isinstance(tts_audio, str):
+                        # Decode base64 string
+                        import base64
+
+                        audio_bytes = base64.b64decode(tts_audio)
+                    elif isinstance(tts_audio, bytes):
+                        audio_bytes = tts_audio
+                    else:
+                        # Try to read as raw bytes if not JSON
+                        audio_bytes = tts_response.content
+
+                    # Save audio output
+                    filename_hash = hashlib.sha256(response.encode()).hexdigest()
+                    temp_dir = Path(tempfile.gettempdir())
+                    temp_dir.mkdir(parents=True, exist_ok=True)
+
+                    audio_file_path = temp_dir / f"output_{filename_hash}.wav"
+
+                    # Write file
+                    with audio_file_path.open("wb") as f:
+                        f.write(audio_bytes)
+
+                    # Verify it's a file (not directory) before returning to Gradio
+                    audio_file_path = audio_file_path.resolve()
+                    if not audio_file_path.is_file():
+                        raise ValueError(
+                            f"Output path is not a file: {audio_file_path}"
+                        )
+
+                    # Convert to string for Gradio
+                    audio_output_path = str(audio_file_path)
+
+                    logger.info(
+                        "TTS synthesis completed (fallback)",
+                        extra={"output_path": audio_output_path},
+                    )
+                except Exception as e:
+                    logger.error("TTS synthesis failed", extra={"error": str(e)})
+                    audio_output_path = None
 
         return transcript, response, audio_output_path
 
@@ -267,7 +378,7 @@ def create_gradio_interface() -> Any:
 
     # Create interface
     demo = gr.Interface(
-        fn=test_pipeline,
+        fn=run_pipeline,
         inputs=[
             gr.Audio(
                 type="filepath",

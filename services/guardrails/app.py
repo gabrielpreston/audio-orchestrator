@@ -316,13 +316,20 @@ async def _startup() -> None:
             _toxicity_detector = _model_loader.get_model()
 
         # Register dependencies
+        # Models must be loaded AND not currently loading for service to be ready
         _health_manager.register_dependency(
             "toxicity_model",
-            lambda: _model_loader.is_loaded() if _model_loader else False,
+            lambda: (
+                _model_loader.is_loaded() and not _model_loader.is_loading()
+                if _model_loader
+                else False
+            ),
         )
-        _health_manager.register_dependency(
-            "rate_limiter", lambda: _limiter is not None
-        )
+        # Rate limiter is optional - service can function without it (just won't rate limit)
+        # Don't block readiness if rate limiter fails to initialize
+        # _health_manager.register_dependency(
+        #     "rate_limiter", lambda: _limiter is not None
+        # )
         _health_manager.register_dependency(
             "transformers", lambda: TRANSFORMERS_AVAILABLE
         )

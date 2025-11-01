@@ -153,6 +153,105 @@ async def test_audio_processor_hot_swap():
 -  **Mocking**: External HTTP clients, Discord API, external services
 -  **Examples**: Interface compliance tests, service adapters, internal components
 
+#### Audio Pipeline Component Tests
+
+**Location**: `services/tests/component/discord/`
+
+**Purpose**: Test critical integration points in the Discord audio pipeline without full service startup.
+
+**Test Files**:
+
+-  `test_audio_processor_client.py` - HTTP client for audio processor service
+-  `test_audio_processor_wrapper.py` - Frame processing and segment creation
+-  `test_transcription_client.py` - PCM→WAV conversion and STT client behavior
+-  `test_audio_pipeline_stages.py` - Stage-to-stage data flow integration
+
+**What They Test**:
+
+-  **AudioProcessorClient**: HTTP communication, base64 encoding/decoding, circuit breaker behavior, error handling
+-  **AudioProcessorWrapper**: Frame registration, segment creation, correlation ID generation, dependency injection
+-  **TranscriptionClient**: PCM→WAV conversion (using real AudioProcessor), circuit breaker integration, correlation ID propagation, timeout handling
+-  **Pipeline Stages**: Voice capture → processor, processor → segment, segment → STT, format conversion chain
+
+**Mocking Strategy**:
+
+-  **AudioProcessorClient**: Mock `create_resilient_client` factory with `AsyncMock` for async methods
+-  **AudioProcessorWrapper**: Inject mocked `AudioProcessorClient` via constructor (dependency injection)
+-  **TranscriptionClient**: Patch `ResilientHTTPClient` class constructor or inject mock after `__init__` (client creates ResilientHTTPClient directly)
+-  **AudioProcessor for PCM→WAV**: Always use real AudioProcessor - format conversion is core behavior being tested
+
+**Fixtures**: `services/tests/fixtures/discord/audio_pipeline_fixtures.py`
+
+**Running Tests**:
+
+```bash
+# All Discord component tests
+make test-component SERVICE=discord
+
+# Specific test file
+pytest services/tests/component/discord/test_audio_processor_client.py -v
+
+# Specific test class
+pytest services/tests/component/discord/test_audio_processor_client.py::TestAudioProcessorClient -v
+```
+
+#### Testing Service Tests
+
+**Location**: `services/testing/tests/` (unit tests), `services/tests/component/testing/` (component tests)
+
+**Purpose**: Test the Gradio testing UI service pipeline including preprocessing, transcription, orchestration, and synthesis.
+
+**Test Files**:
+
+-  `services/testing/tests/test_app.py` - Unit tests for core functions (`test_pipeline`, `create_gradio_interface`, health checks)
+-  `services/tests/component/testing/test_testing_service.py` - Component tests for pipeline orchestration
+
+**What They Test**:
+
+**Unit Tests** (`test_app.py`):
+
+-  **test_pipeline**: Audio input with preprocessing success/failure, text input bypassing STT, orchestrator audio response handling, TTS fallback, base64 decoding, empty input, error handling for each service failure
+-  **create_gradio_interface**: Successful interface creation, error when Gradio unavailable
+-  **Health checks**: `_check_service_health` and wrapper functions for all services (success, failure, exceptions)
+
+**Component Tests** (`test_testing_service.py`):
+
+-  **Complete pipeline flows**: Audio → Preprocess → STT → Orchestrator → Audio output, preprocessing failure fallback, text input bypass, orchestrator audio response file saving, TTS fallback when orchestrator has no audio, voice preset selection
+-  **Error handling**: STT failure, orchestrator failure, TTS fallback failure, base64 decoding errors
+-  **Data transformation**: Base64 audio decoding correctness, file I/O operations, file path validation, temporary file cleanup
+
+**Mocking Strategy**:
+
+-  **Unit tests**: Mock `httpx.AsyncClient` at module level via `patch("services.testing.app.client")`. Use `AsyncMock` for async methods like `post()`, `get()`, and `aclose()`.
+-  **Component tests**: Use `AsyncMock` for `httpx.AsyncClient`, configure response side_effects for multi-step flows. Mock `httpx.Response` objects with `status_code`, `json()`, `content`, and `raise_for_status()`.
+
+**Mock Response Structure**:
+
+-  **Preprocessor**: `Response(content=bytes, status_code=200)`
+-  **STT**: `Response.json() = {"text": "...", ...}, status_code=200`
+-  **Orchestrator**: `Response.json() = {"response_text": "...", "audio_data": "...", "success": True}, status_code=200`
+-  **TTS**: `Response.json() = {"audio": "base64..."}, status_code=200`
+
+**Fixtures**: `services/tests/fixtures/testing/testing_fixtures.py`
+
+-  Reuses: `sample_audio_bytes` (from `integration_fixtures.py`), `realistic_voice_audio` (from `voice_pipeline_fixtures.py`), `temp_dir` (from global `conftest.py`)
+-  Testing-specific: `sample_wav_file`, `mock_orchestrator_response`, `mock_tts_response`, `mock_audio_preprocessor_response`
+
+**Running Tests**:
+
+```bash
+# Unit tests
+make test-unit SERVICE=testing
+pytest services/testing/tests/ -v
+
+# Component tests
+make test-component SERVICE=testing
+pytest services/tests/component/testing/ -v
+
+# Specific test class
+pytest services/tests/component/testing/test_testing_service.py::TestTestingServicePipeline -v
+```
+
 ### Integration Tests (8% of tests)
 
 -  **Location**: `services/tests/integration/`

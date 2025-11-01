@@ -28,6 +28,7 @@ class ResilientHTTPClient:
         timeout: float = 30.0,
         health_check_interval: float = 10.0,
         health_check_startup_grace_seconds: float = 30.0,
+        health_check_timeout: float = 10.0,
         max_connections: int = 10,
         max_keepalive_connections: int = 5,
     ):
@@ -42,10 +43,12 @@ class ResilientHTTPClient:
         self._last_health_check: float = 0
         self._health_check_interval = health_check_interval
         self._health_check_startup_grace_seconds = health_check_startup_grace_seconds
+        self._health_check_timeout = health_check_timeout
         self._service_start_time: float = time.time()
         self._is_healthy: bool = False
         self._max_connections = max_connections
         self._max_keepalive_connections = max_keepalive_connections
+        self._last_timeout_log: float = 0.0  # Track last timeout log to reduce noise
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client."""
@@ -84,16 +87,22 @@ class ResilientHTTPClient:
 
         try:
             client = await self._get_client()
-            response = await client.get(f"{self._base_url}/health/ready", timeout=5.0)
+            response = await client.get(
+                f"{self._base_url}/health/ready", timeout=self._health_check_timeout
+            )
 
             self._is_healthy = response.status_code == 200
             self._last_health_check = now
+            # Reset timeout log timer on success
+            if self._is_healthy:
+                self._last_timeout_log = 0.0
 
             if not self._is_healthy:
-                self._logger.debug(
+                self._logger.warning(
                     "resilient_http.health_check_failed",
                     service=self._service_name,
                     status_code=response.status_code,
+                    url=f"{self._base_url}/health/ready",
                 )
 
             return self._is_healthy
@@ -101,11 +110,29 @@ class ResilientHTTPClient:
         except Exception as exc:
             self._is_healthy = False
             self._last_health_check = now
-            self._logger.debug(
-                "resilient_http.health_check_error",
-                service=self._service_name,
-                error=str(exc),
+
+            # Log timeout errors only on state change or every 30 seconds to reduce noise
+            error_type = type(exc).__name__
+            is_timeout = error_type in ("ReadTimeout", "ConnectTimeout", "Timeout")
+            should_log = (
+                not is_timeout  # Always log non-timeout errors
+                or (now - self._last_timeout_log)
+                >= 30.0  # Log timeout max once per 30s
             )
+
+            if should_log:
+                log_level = "debug" if is_timeout else "warning"
+                getattr(self._logger, log_level)(
+                    "resilient_http.health_check_error",
+                    service=self._service_name,
+                    url=f"{self._base_url}/health/ready",
+                    error=str(exc),
+                    error_type=error_type,
+                    is_timeout=is_timeout,
+                )
+                if is_timeout:
+                    self._last_timeout_log = now
+
             return False
 
     async def post_with_retry(

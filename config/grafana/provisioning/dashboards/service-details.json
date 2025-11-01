@@ -103,7 +103,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"discord\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/discord.*\"}[5m]), \"service\", \"discord\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Discord - {{method}} {{route}}",
           "refId": "A"
@@ -193,7 +193,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"stt\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/stt.*\"}[5m]), \"service\", \"stt\", \"\", \"\")",
           "interval": "",
           "legendFormat": "STT - {{method}} {{route}}",
           "refId": "A"
@@ -283,7 +283,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"flan\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/flan.*\"}[5m]), \"service\", \"flan\", \"\", \"\")",
           "interval": "",
           "legendFormat": "LLM-FLAN - {{method}} {{route}}",
           "refId": "A"
@@ -373,7 +373,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"orchestrator\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/orchestrator.*\"}[5m]), \"service\", \"orchestrator\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Orchestrator - {{method}} {{route}}",
           "refId": "A"
@@ -463,7 +463,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"bark\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/bark.*\"}[5m]), \"service\", \"bark\", \"\", \"\")",
           "interval": "",
           "legendFormat": "TTS-Bark - {{method}} {{route}}",
           "refId": "A"
@@ -553,7 +553,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"audio\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/audio.*\"}[5m]), \"service\", \"audio\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Audio-Processor - {{method}} {{route}}",
           "refId": "A"
@@ -643,7 +643,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"guardrails\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/guardrails.*\"}[5m]), \"service\", \"guardrails\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Guardrails - {{method}} {{route}}",
           "refId": "A"
@@ -733,7 +733,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"testing\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/testing.*\"}[5m]), \"service\", \"testing\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Testing-UI - {{method}} {{route}}",
           "refId": "A"
@@ -823,7 +823,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"monitoring\"}[5m])",
+          "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/monitoring.*\"}[5m]), \"service\", \"monitoring\", \"\", \"\")",
           "interval": "",
           "legendFormat": "Monitoring-Dashboard - {{method}} {{route}}",
           "refId": "A"

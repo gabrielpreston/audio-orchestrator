@@ -274,7 +274,13 @@ class BackgroundModelLoader:
                 with contextlib.suppress(asyncio.CancelledError):
                     await self._heartbeat_task
 
-            self._model = download_result
+            # For side-effect functions, use a sentinel value to indicate success
+            # Even if function returns None, models are loaded in memory
+            if self._is_side_effect and download_result is None:
+                # Use True as sentinel value for successful side-effect loading
+                self._model = True
+            else:
+                self._model = download_result
             self._load_method = "download"
             self._load_duration = time.time() - self._load_start_time
             self._is_loading = False
@@ -285,6 +291,7 @@ class BackgroundModelLoader:
                 download_duration_ms=round(download_duration * 1000, 2),
                 total_duration_ms=round(self._load_duration * 1000, 2),
                 phase="download_complete",
+                is_side_effect=self._is_side_effect,
             )
 
         except Exception as exc:
@@ -349,8 +356,14 @@ class BackgroundModelLoader:
     def is_loaded(self) -> bool:
         """Check if models are currently loaded."""
         if self._is_side_effect:
-            # For side-effect functions, check if model was set (success indicator)
-            return self._model is not None
+            # For side-effect functions, check if loading completed without error
+            # Models are loaded in memory, _model serves as success marker
+            # _model will be True (sentinel) or None (failed/not started)
+            return (
+                self._model is not None
+                and not self._is_loading
+                and self._load_error is None
+            )
         return self._model is not None
 
     def is_loading(self) -> bool:
@@ -363,12 +376,25 @@ class BackgroundModelLoader:
     def get_status(self) -> dict[str, Any]:
         """Get detailed loading status for API responses.
 
-        Returns dict with: loaded, loading, error, method, duration_ms fields.
+        Returns dict with: loaded, loading, error, method, duration_ms, phase fields.
         """
         status: dict[str, Any] = {
             "loaded": self.is_loaded(),
             "loading": self.is_loading(),
         }
+
+        # Add phase information for better debugging
+        if self._is_loading:
+            status["phase"] = "loading"
+        elif self._load_error:
+            status["phase"] = "error"
+        elif self.is_loaded():
+            status["phase"] = "loaded"
+        elif self._load_method:
+            status["phase"] = "completed"  # Completed but check failed
+        else:
+            status["phase"] = "not_started"
+
         if self._load_error:
             status["error"] = str(self._load_error)
             status["error_type"] = type(self._load_error).__name__
@@ -379,6 +405,11 @@ class BackgroundModelLoader:
         if self._load_start_time and self._is_loading:
             elapsed = time.time() - self._load_start_time
             status["elapsed_ms"] = round(elapsed * 1000, 2)
+            elapsed_seconds = int(elapsed)
+            elapsed_minutes = int(elapsed // 60)
+            elapsed_secs = int(elapsed % 60)
+            status["elapsed_seconds"] = elapsed_seconds
+            status["elapsed_display"] = f"{elapsed_minutes}m {elapsed_secs}s"
         return status
 
     def get_model(self) -> Any | None:
@@ -519,7 +550,12 @@ class BackgroundModelLoader:
                     with contextlib.suppress(asyncio.CancelledError):
                         await self._heartbeat_task
 
-                self._model = download_result
+                # For side-effect functions, use a sentinel value to indicate success
+                if self._is_side_effect and download_result is None:
+                    # Use True as sentinel value for successful side-effect loading
+                    self._model = True
+                else:
+                    self._model = download_result
                 self._load_method = "download"
                 self._load_duration = time.time() - self._load_start_time
                 self._is_loading = False
@@ -530,6 +566,7 @@ class BackgroundModelLoader:
                     download_duration_ms=round(download_duration * 1000, 2),
                     total_duration_ms=round(self._load_duration * 1000, 2),
                     phase="lazy_download_complete",
+                    is_side_effect=self._is_side_effect,
                 )
                 return True
 
