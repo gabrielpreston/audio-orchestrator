@@ -409,7 +409,7 @@ assert len(result['issues']) == 0
 
 **Old approach** (DEPRECATED):
 
--  Integration tests used `test_services_context()` with subprocess
+-  Integration tests used legacy subprocess-based test helpers
 -  Integration tests mocked internal classes
 -  Tests ran from host connecting to localhost ports
 
@@ -430,17 +430,50 @@ assert len(result['issues']) == 0
 
 ## Integration Test Patterns
 
+### Environment-Based Service URLs
+
+All integration tests use the standardized `{SERVICE}_BASE_URL` environment variable pattern with agnostic service names. Service URLs are loaded from environment variables with sensible defaults:
+
+```python
+from services.tests.integration.conftest import get_service_url
+
+# Get service URL using agnostic service name
+stt_url = get_service_url("STT")  # Loads STT_BASE_URL or defaults to http://stt:9000
+llm_url = get_service_url("LLM")  # Loads LLM_BASE_URL or defaults to http://flan:8100
+tts_url = get_service_url("TTS")  # Loads TTS_BASE_URL or defaults to http://bark:7100
+```
+
+**Standardized Environment Variables** (agnostic service names):
+
+-  `AUDIO_BASE_URL` → defaults to `http://audio:9100`
+-  `STT_BASE_URL` → defaults to `http://stt:9000`
+-  `ORCHESTRATOR_BASE_URL` → defaults to `http://orchestrator:8200`
+-  `LLM_BASE_URL` → defaults to `http://flan:8100` (service: LLM, implementation: FLAN-T5)
+-  `TTS_BASE_URL` → defaults to `http://bark:7100` (service: TTS, implementation: Bark)
+-  `GUARDRAILS_BASE_URL` → defaults to `http://guardrails:9300`
+-  `DISCORD_BASE_URL` → defaults to `http://discord:8001`
+-  `TESTING_BASE_URL` → defaults to `http://testing:8080`
+
+**Overriding URLs for Different Test Environments**:
+
+```bash
+# Override URLs for local testing
+export LLM_BASE_URL=http://localhost:8110
+export TTS_BASE_URL=http://localhost:7120
+pytest services/tests/integration/
+```
+
 ### HTTP Client Fixtures
 
 Use the shared `http_client` fixture for all integration tests:
 
 ```python
 @pytest.mark.integration
-async def test_my_integration(http_client, services):
+async def test_my_integration(http_client, service_url):
     """Test description."""
-    for service_name, base_url in services:
-        response = await http_client.get(f"{base_url}/health/live")
-        assert response.status_code == 200
+    stt_url = service_url("STT")
+    response = await http_client.get(f"{stt_url}/health/live")
+    assert response.status_code == 200
 ```
 
 ### Utility Functions
@@ -451,6 +484,8 @@ Use shared utility functions from `services.tests.fixtures.integration_fixtures`
 -  `check_service_ready()` - Check if service is ready
 -  `get_service_metrics()` - Get Prometheus metrics
 -  `retry_request()` - Retry requests with backoff
+
+All utility functions accept base URLs that should be obtained via `get_service_url()` helper.
 
 ### Timeout Constants
 
@@ -742,11 +777,6 @@ markers = [
    -  `DockerComposeManager`: Manages Docker Compose test services
    -  `get_service_health()`: Get service health status
    -  `is_service_running()`: Check if a service is running
-   -  **Legacy functions** (DEPRECATED):
-      -  `test_services_context()`: Legacy context manager (use `docker_compose_test_context()` instead)
-      -  `start_test_services()`: Legacy function (use `docker_compose_test_context()` instead)
-      -  `wait_for_service_ready()`: Legacy function (use `docker_compose_test_context()` instead)
-      -  `stop_test_services()`: Legacy function (use `docker_compose_test_context()` instead)
 
 ### TTS Test Helpers
 

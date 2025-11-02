@@ -5,19 +5,17 @@ This service replaces the existing orchestrator with LangChain-based orchestrati
 providing more sophisticated agent management and tool integration.
 """
 
-import os
 import time
 from typing import Any
 
 from fastapi import HTTPException
 
 from services.common.app_factory import create_service_app
-from services.common.audio_metrics import create_http_metrics, create_llm_metrics
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
 )
-from services.common.config.loader import load_config_from_env
+from services.common.config.loader import get_env_with_default, load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
@@ -100,8 +98,15 @@ async def _startup() -> None:
         _observability_manager = get_observability_manager("orchestrator")
 
         # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_llm_metrics,
+            create_http_metrics,
+            create_system_metrics,
+        )
+
         _llm_metrics = create_llm_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
@@ -122,7 +127,7 @@ async def _startup() -> None:
 
         # Initialize TTS client
         try:
-            tts_url = os.getenv("TTS_URL", "http://bark:7100")
+            tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
             _tts_client = TTSClient(base_url=tts_url)
             logger.info("orchestrator.tts_client_initialized", tts_url=tts_url)
         except Exception as exc:
@@ -133,7 +138,7 @@ async def _startup() -> None:
         # For dependency health checks, disable grace period to get accurate readiness
         global _llm_health_client, _tts_health_client, _guardrails_health_client
         try:
-            llm_url = os.getenv("LLM_PRIMARY_URL", "http://flan:8100")
+            llm_url = get_env_with_default("LLM_BASE_URL", "http://flan:8100", str)
             # Create client with grace period disabled for accurate dependency checking
             from services.common.circuit_breaker import CircuitBreakerConfig
 
@@ -148,7 +153,7 @@ async def _startup() -> None:
             _llm_health_client = None
 
         try:
-            tts_url = os.getenv("TTS_URL", "http://bark:7100")
+            tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
             _tts_health_client = ResilientHTTPClient(
                 service_name="tts",
                 base_url=tts_url,
@@ -160,7 +165,9 @@ async def _startup() -> None:
             _tts_health_client = None
 
         try:
-            guardrails_url = os.getenv("GUARDRAILS_URL", "http://guardrails:9300")
+            guardrails_url = get_env_with_default(
+                "GUARDRAILS_BASE_URL", "http://guardrails:9300", str
+            )
             _guardrails_health_client = ResilientHTTPClient(
                 service_name="guardrails",
                 base_url=guardrails_url,
@@ -241,7 +248,9 @@ async def process_transcript(
 
     try:
         # Input validation with guardrails
-        guardrails_url = os.getenv("GUARDRAILS_URL", "http://guardrails:9300")
+        guardrails_url = get_env_with_default(
+            "GUARDRAILS_BASE_URL", "http://guardrails:9300", str
+        )
         try:
             guardrails_client = create_resilient_client(
                 service_name="guardrails",
@@ -330,11 +339,11 @@ async def process_transcript(
             )
 
             try:
-                # Validate output
+                # Validate output (increased timeout for toxicity detection on longer responses)
                 output_validation = await guardrails_client.post_with_retry(
                     "/validate/output",
                     json={"text": response, "validation_type": "output"},
-                    timeout=5.0,
+                    timeout=30.0,  # Increased from 5.0 to handle longer validation times
                 )
                 output_data = output_validation.json()
 

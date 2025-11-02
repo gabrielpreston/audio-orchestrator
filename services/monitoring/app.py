@@ -654,4 +654,11 @@ if __name__ == "__main__":
     streamlit_thread.start()
 
     # Start FastAPI server for health checks (bind to all interfaces for reliability)
-    uvicorn.run(app, host="0.0.0.0", port=8502)
+    # Prevent uvicorn from resetting our logging configuration
+    # We've already configured structured JSON logging in configure_logging()
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8502,
+        log_config=None,  # Don't let uvicorn configure logging - we handle it ourselves
+    )

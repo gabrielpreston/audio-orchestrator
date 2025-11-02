@@ -4,7 +4,6 @@ This module provides a unified configuration system with:
 - Hybrid approach (environment variables + config files)
 - Type-safe configuration classes
 - Validation framework
-- Migration utilities
 """
 
 from .base import (
@@ -28,7 +27,6 @@ from .loader import (
     load_environment_variables,
     validate_required_env_vars,
 )
-from .migration import ConfigMigrationValidator, migrate_config_file
 from .presets import (
     DiscordConfig,
     OrchestratorConfig,
@@ -51,6 +49,7 @@ from .validator import (
     validate_timeout_value,
     validate_url,
 )
+
 
 __all__ = [
     # Base classes
@@ -79,25 +78,19 @@ __all__ = [
     "validate_required_env_vars",
     "get_env_with_default",
     "get_service_preset",
-    # Migration
-    "ConfigMigrationValidator",
-    "migrate_config_file",
     # Validators
     "validate_url",
     "validate_port",
     "validate_audio_sample_rate",
     "validate_audio_channels_validator",
-    "validate_timeout",
-    "validate_positive_int",
-    "validate_positive_float",
+    "validate_timeout_value",
+    "validate_positive_integer",
+    "validate_positive_float_value",
     "validate_range",
     "validate_choice",
     "validate_pattern",
     "create_validator",
     "validate_http_url",
-    "validate_timeout_value",
-    "validate_positive_integer",
-    "validate_positive_float_value",
     # Field definition utilities
     "create_field_definition",
 ]

@@ -463,13 +463,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"tts-bark\"}[5m])",
+          "expr": "rate(audio_orchestrator_http_requests_total{service=\"tts\"}[5m])",
           "interval": "",
-          "legendFormat": "TTS-Bark - {{method}} {{route}}",
+          "legendFormat": "TTS - {{method}} {{route}}",
           "refId": "A"
         }
       ],
-      "title": "TTS-Bark Service Requests",
+      "title": "TTS Service Requests",
       "type": "timeseries"
     },
     {

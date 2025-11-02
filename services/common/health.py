@@ -113,7 +113,21 @@ class HealthManager:
             )
 
     async def get_health_status(self) -> HealthCheck:
-        """Get current health status with metrics."""
+        """Get current health status with metrics.
+
+        Returns:
+            HealthCheck with status, ready flag, and details dict.
+
+        Dependency status format:
+            dependencies: {
+                "dependency_name": {
+                    "available": bool,
+                    "checked_at": float,  # Unix timestamp
+                    "error": str,  # Optional, present if available=False
+                    "error_type": str  # Optional, present if error exists
+                }
+            }
+        """
         start_time = time.time()
 
         try:
@@ -135,7 +149,10 @@ class HealthManager:
                     else:
                         is_healthy = check()
 
-                    dependency_status[name] = is_healthy
+                    dependency_status[name] = {
+                        "available": is_healthy,
+                        "checked_at": time.time(),
+                    }
 
                     # Update dependency metric using OpenTelemetry
                     if self._dependency_status_gauge:
@@ -151,7 +168,12 @@ class HealthManager:
                         failing_dependencies.append(name)
                         ready = False
                 except Exception as exc:
-                    dependency_status[name] = False
+                    dependency_status[name] = {
+                        "available": False,
+                        "error": f"{type(exc).__name__}: {str(exc)}",
+                        "error_type": type(exc).__name__,
+                        "checked_at": time.time(),
+                    }
                     failing_dependencies.append(name)
                     ready = False
                     if self._dependency_status_gauge:
@@ -188,8 +210,12 @@ class HealthManager:
                         service=self._service_name,
                     )
 
-            # Update last known states
-            self._last_dependency_states = dependency_status.copy()
+            # Update last known states - extract available bool for state tracking
+            current_states = {
+                name: status.get("available", False)
+                for name, status in dependency_status.items()
+            }
+            self._last_dependency_states = current_states
 
             status = HealthStatus.HEALTHY if ready else HealthStatus.DEGRADED
 

@@ -7,17 +7,18 @@ from typing import Any
 import httpx
 import pytest
 
+from services.tests.integration.conftest import get_service_url
 from services.tests.utils.audio_quality_helpers import (
     create_wav_file,
     generate_test_audio,
 )
 
-# Service configuration constants
+# Service configuration - using environment-based URLs with agnostic service names
 SERVICES = [
-    ("stt", "http://stt:9000"),
-    ("bark", "http://bark:7100"),
-    ("flan", "http://flan:8100"),
-    ("orchestrator", "http://orchestrator:8200"),
+    ("stt", get_service_url("STT")),
+    ("tts", get_service_url("TTS")),  # Agnostic service name
+    ("llm", get_service_url("LLM")),  # Agnostic service name
+    ("orchestrator", get_service_url("ORCHESTRATOR")),
 ]
 
 

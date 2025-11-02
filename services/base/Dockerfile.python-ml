@@ -21,10 +21,11 @@ RUN --mount=type=cache,target=/var/cache/apt \
     libavutil-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PyTorch and related ML dependencies
+# Install PyTorch and related ML dependencies with CUDA support
+# Use CUDA 12.1 (compatible with CUDA 13.0 runtime)
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
-    --index-url https://download.pytorch.org/whl/cpu \
+    --index-url https://download.pytorch.org/whl/cu121 \
     "torch>=2.0,<3.0" \
     "torchvision>=0.15,<1.0" \
     "torchaudio>=2.0,<3.0" && \

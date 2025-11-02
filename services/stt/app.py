@@ -366,10 +366,12 @@ async def _startup() -> None:
         from services.common.audio_metrics import (
             create_stt_metrics,
             create_http_metrics,
+            create_system_metrics,
         )
 
         _stt_metrics = create_stt_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Ensure model directory is writable
         if not ensure_model_directory(MODEL_PATH):
@@ -438,7 +440,10 @@ async def _startup() -> None:
                     tmp_path = tmp.name
                 try:
                     model = _lazy_load_model()
-                    _ = model.transcribe(tmp_path, beam_size=6)
+                    default_beam_size = (
+                        getattr(_cfg.faster_whisper, "beam_size", 5) or 5
+                    )
+                    _ = model.transcribe(tmp_path, beam_size=default_beam_size)
                 except Exception as _exc:  # best-effort
                     logger.debug("stt.warmup_skipped", reason=str(_exc))
                 finally:
@@ -526,8 +531,14 @@ def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
 
         return metadata.channels, metadata.sample_width, metadata.sample_rate
 
-    except Exception:
-        # Fallback to original implementation
+    except Exception as exc:
+        # Fallback to original implementation - log the failure for debugging
+        logger.debug(
+            "stt.metadata_extraction_fallback",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            fallback="wave_module",
+        )
         try:
             with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
                 channels = wf.getnchannels()
@@ -553,6 +564,27 @@ async def _transcribe_request(
 ) -> JSONResponse:
     from services.common.structured_logging import correlation_context
 
+    # Extract and resolve correlation_id first
+    headers_correlation = request.headers.get("X-Correlation-ID")
+    query_correlation = request.query_params.get("correlation_id")
+    correlation_id = correlation_id or headers_correlation or query_correlation
+
+    # Validate correlation ID if provided
+    if correlation_id:
+        from services.common.correlation import validate_correlation_id
+
+        is_valid, error_msg = validate_correlation_id(correlation_id)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid correlation ID: {error_msg}"
+            )
+
+    # Generate STT correlation ID if none provided
+    if not correlation_id:
+        from services.common.correlation import generate_stt_correlation_id
+
+        correlation_id = generate_stt_correlation_id()
+
     with correlation_context(correlation_id) as request_logger:
         # Top-level timing for the request (includes validation, file I/O, model work)
         req_start = time.time()
@@ -560,10 +592,7 @@ async def _transcribe_request(
         if not wav_bytes:
             raise HTTPException(status_code=400, detail="empty request body")
 
-        # Apply audio enhancement if enabled
-        correlation_id = request.headers.get(
-            "X-Correlation-ID"
-        ) or request.query_params.get("correlation_id")
+        # Apply audio enhancement if enabled (correlation_id now properly resolved)
         wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
 
         channels, _sampwidth, framerate = _extract_audio_metadata(wav_bytes)
@@ -612,49 +641,27 @@ async def _transcribe_request(
     initial_prompt = request.query_params.get("initial_prompt")
     language = lang_q
     include_word_ts = _parse_bool(word_ts_q)
-    # default beam size (if not provided) — keep it modest to balance quality/latency
-    beam_size = 6
+    # Use configured beam_size as default (optimized to 5 for quality/latency balance)
+    beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
     if beam_size_q:
         try:
             beam_size = int(beam_size_q)
             if beam_size < 1:
-                beam_size = 6
-        except Exception:
-            raise HTTPException(status_code=400, detail="invalid beam_size query param")
+                beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                "stt.invalid_beam_size",
+                beam_size=beam_size_q,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            raise HTTPException(
+                status_code=400, detail="invalid beam_size query param"
+            ) from exc
 
     tmp_path = None
     # metadata for response payload
     input_bytes = len(wav_bytes)
-    from services.common.correlation import generate_stt_correlation_id
-
-    request_id = request.headers.get("X-Correlation-ID") or request.query_params.get(
-        "correlation_id"
-    )
-    headers_correlation = request.headers.get("X-Correlation-ID")
-    correlation_id = (
-        correlation_id
-        or headers_correlation
-        or request.query_params.get("correlation_id")
-    )
-
-    # Validate correlation ID if provided
-    if correlation_id:
-        from services.common.correlation import validate_correlation_id
-
-        is_valid, error_msg = validate_correlation_id(correlation_id)
-        if not is_valid:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid correlation ID: {error_msg}"
-            )
-
-    # Generate STT correlation ID if none provided
-    if not correlation_id:
-        correlation_id = generate_stt_correlation_id()
-
-    # Bind correlation ID to logger for this request
-    from services.common.structured_logging import bind_correlation_id
-
-    request_logger = bind_correlation_id(logger, correlation_id)
 
     processing_ms: int | None = None
     info: Any = None
@@ -666,7 +673,7 @@ async def _transcribe_request(
     # audio_duration = len(wav_bytes) / (channels * sampwidth * framerate) if channels and sampwidth and framerate else 0
 
     try:
-        request_logger.debug(
+        request_logger.info(
             "stt.request_received",
             correlation_id=correlation_id,
             input_bytes=input_bytes,
@@ -676,6 +683,7 @@ async def _transcribe_request(
             filename=filename,
             channels=channels,
             sample_rate=framerate,
+            decision="processing_transcription_request",
         )
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
             tmp.write(wav_bytes)
@@ -698,6 +706,9 @@ async def _transcribe_request(
             input_bytes=input_bytes,
             beam_size=beam_size,
             language=language,
+            task=task,
+            include_word_timestamps=include_word_ts,
+            decision="starting_transcription_inference",
         )
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
@@ -819,8 +830,6 @@ async def _transcribe_request(
         resp["input_bytes"] = input_bytes
         resp["model"] = MODEL_NAME
         resp["device"] = device
-        if request_id:
-            resp["request_id"] = request_id
     except NameError:
         # if for some reason processing_ms isn't set, ignore
         pass
@@ -880,30 +889,74 @@ async def _enhance_audio_if_enabled(
     Returns:
         Enhanced WAV audio or original if enhancement disabled
     """
+    # Use context-aware logger that will auto-bind correlation_id from context if available
+    from services.common.structured_logging import get_logger
+
+    enhance_logger = get_logger(
+        __name__, correlation_id=correlation_id, service_name="stt"
+    )
+
     # Try remote audio processor first
     if _audio_processor_client is not None:
+        enhance_logger.info(
+            "stt.enhancement_decision",
+            correlation_id=correlation_id,
+            decision="attempt_remote_enhancement",
+            input_size=len(wav_bytes),
+            enhancement_method="remote_audio_processor",
+        )
         try:
             enhanced_wav: bytes = await _audio_processor_client.enhance_audio(
                 wav_bytes, correlation_id
             )
             if enhanced_wav != wav_bytes:  # Enhancement was applied
-                logger.debug(
+                enhance_logger.info(
                     "stt.audio_enhanced_remote",
                     correlation_id=correlation_id,
                     input_size=len(wav_bytes),
                     output_size=len(enhanced_wav),
+                    decision="remote_enhancement_applied",
                 )
                 return enhanced_wav
+            else:
+                enhance_logger.info(
+                    "stt.enhancement_decision",
+                    correlation_id=correlation_id,
+                    decision="remote_returned_original",
+                    reason="no_enhancement_applied_by_service",
+                    input_size=len(wav_bytes),
+                )
         except Exception as exc:
-            logger.warning(
+            enhance_logger.warning(
                 "stt.remote_enhancement_failed",
                 correlation_id=correlation_id,
                 error=str(exc),
+                decision="remote_enhancement_failed_fallback_to_local",
             )
 
     # Fallback to local enhancement
     if _audio_enhancer is None or not _audio_enhancer.is_enhancement_enabled:
+        enhance_logger.info(
+            "stt.enhancement_decision",
+            correlation_id=correlation_id,
+            decision="skip_enhancement",
+            reason="local_enhancer_not_available"
+            if _audio_enhancer is None
+            else "enhancement_disabled",
+            enhancement_enabled=_audio_enhancer.is_enhancement_enabled
+            if _audio_enhancer
+            else False,
+        )
         return wav_bytes
+
+    # Attempt local enhancement
+    enhance_logger.info(
+        "stt.enhancement_decision",
+        correlation_id=correlation_id,
+        decision="attempt_local_enhancement",
+        input_size=len(wav_bytes),
+        enhancement_method="local_metricgan",
+    )
 
     start_time = time.time()
 
@@ -948,7 +1001,7 @@ async def _enhance_audio_if_enabled(
         enhancement_duration = (time.time() - start_time) * 1000
 
         # Log successful enhancement with metrics
-        logger.debug(
+        enhance_logger.info(
             "stt.audio_enhanced_local",
             correlation_id=correlation_id,
             input_size=len(wav_bytes),
@@ -956,6 +1009,7 @@ async def _enhance_audio_if_enabled(
             enhancement_duration_ms=enhancement_duration,
             sample_rate=metadata.sample_rate,
             channels=metadata.channels,
+            decision="local_enhancement_applied",
         )
 
         # Update enhancement statistics
@@ -968,7 +1022,7 @@ async def _enhance_audio_if_enabled(
         error_duration = (time.time() - start_time) * 1000
 
         # Log error with enhanced context
-        logger.error(
+        enhance_logger.error(
             "stt.enhancement_error",
             correlation_id=correlation_id,
             error=str(exc),
@@ -1029,7 +1083,14 @@ async def transcribe(request: Request) -> JSONResponse:
     # Sample noisy request logs to reduce verbosity in production
     try:
         sample_n = _cfg.telemetry.log_sample_stt_request_n or 25
-    except Exception:
+    except (AttributeError, KeyError) as exc:
+        # Fallback if telemetry config not available
+        logger.debug(
+            "stt.config_fallback",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            fallback_value=25,
+        )
         sample_n = 25
     from services.common.structured_logging import should_sample
 

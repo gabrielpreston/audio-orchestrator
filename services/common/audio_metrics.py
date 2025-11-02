@@ -1,6 +1,10 @@
 """Standardized audio pipeline metrics using OpenTelemetry."""
 
+from pathlib import Path
 from typing import Any
+
+from opentelemetry.metrics import Observation
+
 from services.common.tracing import ObservabilityManager
 
 
@@ -196,3 +200,163 @@ def create_guardrails_metrics(
             description="Total escalations to human review",
         ),
     }
+
+
+def _read_cgroup_memory_limit() -> int | None:
+    """Read Docker memory limit from cgroup files.
+
+    Supports both cgroup v1 and v2.
+
+    Returns:
+        Memory limit in bytes, or None if not available or unlimited
+    """
+    try:
+        # Try cgroup v2 first (modern Docker)
+        cgroup_v2_path = Path("/sys/fs/cgroup/memory.max")
+        if cgroup_v2_path.exists():
+            with cgroup_v2_path.open(encoding="utf-8") as f:
+                value = f.read().strip()
+                if value == "max":
+                    return None  # Unlimited
+                try:
+                    return int(value)
+                except ValueError:
+                    return None
+
+        # Try cgroup v1 (older Docker)
+        cgroup_v1_path = Path("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+        if cgroup_v1_path.exists():
+            with cgroup_v1_path.open(encoding="utf-8") as f:
+                value = f.read().strip()
+                try:
+                    limit = int(value)
+                    # cgroup v1 returns a very large number (9223372036854771712) for unlimited
+                    if limit > 9223372036854770000:
+                        return None  # Unlimited
+                    return limit
+                except ValueError:
+                    return None
+    except OSError:
+        # File doesn't exist or can't be read (not in Docker, no limits)
+        return None
+
+    return None
+
+
+def create_system_metrics(
+    observability_manager: ObservabilityManager,
+) -> dict[str, Any]:
+    """Create system-level metrics (memory usage, limits).
+
+    Uses ObservableGauge for callback-based metric collection.
+    Metrics are automatically collected every 15 seconds via PeriodicExportingMetricReader.
+
+    Args:
+        observability_manager: ObservabilityManager instance for the service
+
+    Returns:
+        Dictionary (may be empty - callbacks are registered at creation time)
+    """
+    meter = observability_manager.get_meter()
+    if not meter:
+        return {}
+
+    try:
+        import psutil
+    except ImportError:
+        from .structured_logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.warning(
+            "system_metrics.psutil_not_available",
+            service=observability_manager.service_name,
+            message="psutil not available - memory metrics will not be exported",
+        )
+        return {}
+
+    process = psutil.Process()
+    service_name = observability_manager.service_name
+
+    # Read memory limit once (may not be available in all environments)
+    memory_limit_bytes = _read_cgroup_memory_limit()
+
+    def memory_usage_callback(_callback_options: Any) -> list[Observation]:
+        """Callback to observe memory usage in bytes."""
+        try:
+            memory_info = process.memory_info()
+            memory_bytes = memory_info.rss  # Resident Set Size
+            return [Observation(memory_bytes, {"service": service_name})]
+        except Exception:
+            # Silently fail - return empty list to prevent iteration errors
+            return []
+
+    def memory_limit_callback(_callback_options: Any) -> list[Observation]:
+        """Callback to observe memory limit in bytes (if available)."""
+        if memory_limit_bytes is not None:
+            try:
+                return [Observation(memory_limit_bytes, {"service": service_name})]
+            except Exception:
+                return []
+        return []
+
+    def memory_percent_callback(_callback_options: Any) -> list[Observation]:
+        """Callback to observe memory usage as percentage of limit (if limit available)."""
+        try:
+            memory_info = process.memory_info()
+            memory_bytes = memory_info.rss
+
+            if memory_limit_bytes is not None and memory_limit_bytes > 0:
+                memory_percent = (memory_bytes / memory_limit_bytes) * 100.0
+                return [Observation(memory_percent, {"service": service_name})]
+        except Exception as exc:
+            # Log exception but return empty list to prevent iteration errors
+            from .structured_logging import get_logger
+
+            logger = get_logger(__name__)
+            logger.debug(
+                "system_metrics.memory_percent_callback_error",
+                service=service_name,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+        return []
+
+    # Create ObservableGauge instruments with callbacks
+    try:
+        meter.create_observable_gauge(
+            "process_memory_usage_bytes",
+            unit="By",
+            description="Process memory usage in bytes (RSS)",
+            callbacks=[memory_usage_callback],
+        )
+
+        # Only create limit gauge if limit is available
+        if memory_limit_bytes is not None:
+            meter.create_observable_gauge(
+                "process_memory_limit_bytes",
+                unit="By",
+                description="Process memory limit in bytes (from cgroup)",
+                callbacks=[memory_limit_callback],
+            )
+
+            meter.create_observable_gauge(
+                "process_memory_usage_percent",
+                unit="1",
+                description="Process memory usage as percentage of limit",
+                callbacks=[memory_percent_callback],
+            )
+    except Exception as exc:
+        from .structured_logging import get_logger
+
+        logger = get_logger(__name__)
+        logger.exception(
+            "system_metrics.creation_failed",
+            service=observability_manager.service_name,
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return {}
+
+    # ObservableGauge callbacks are registered at creation time
+    # Return empty dict or metadata (callbacks persist independently)
+    return {}

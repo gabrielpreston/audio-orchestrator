@@ -187,7 +187,7 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             "stt": {
                 "base_url": "http://stt:9000",
                 "model": "medium.en",
-                "device": "cpu",
+                "device": "cuda",
                 "model_path": "/app/models",
                 "forced_language": None,
                 "beam_size": 5,
@@ -217,8 +217,9 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             "faster_whisper": {
                 "model": "medium.en",
                 "model_path": "/app/models",
-                "device": "cpu",
-                "compute_type": "int8",
+                "device": "cuda",
+                "compute_type": "float16",
+                "beam_size": 5,
                 "audio_service_url": "http://audio:9100",
                 "audio_service_timeout": 50.0,
                 "enable_enhancement": True,

@@ -203,7 +203,6 @@ python -m pytest test_config.py -v
 ## Documentation
 
 -  [Configuration Library Reference](../docs/reference/configuration-library.md)
--  [Migration Guide](../docs/reference/config-migration-guide.md)
 
 ## BackgroundModelLoader
 
@@ -384,7 +383,7 @@ _health_manager.register_dependency(
 
 ## Migration from Current Approach
 
-The new configuration library replaces the current manual environment variable parsing approach used across services. See the migration guide for detailed instructions on how to migrate each service.
+The new configuration library replaces the current manual environment variable parsing approach used across services. See the [Configuration Library Reference](../docs/reference/configuration-library.md) for detailed migration instructions.
 
 ### Benefits of Migration
 

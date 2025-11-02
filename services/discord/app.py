@@ -9,11 +9,6 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from services.common.audio_metrics import (
-    create_audio_metrics,
-    create_http_metrics,
-    create_stt_metrics,
-)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.resilient_http import ResilientHTTPClient
@@ -131,9 +126,17 @@ async def _startup() -> None:
         _observability_manager = get_observability_manager("discord")
 
         # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_stt_metrics,
+            create_audio_metrics,
+            create_http_metrics,
+            create_system_metrics,
+        )
+
         _stt_metrics = create_stt_metrics(_observability_manager)
         _audio_metrics = create_audio_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

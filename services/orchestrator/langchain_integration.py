@@ -4,8 +4,7 @@ LangChain Integration Module
 This module provides LangChain-based orchestration capabilities for the enhanced orchestrator.
 """
 
-import os
-
+from services.common.config.loader import get_env_with_default
 from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
@@ -45,8 +44,8 @@ def create_langchain_executor() -> AgentExecutor | None:
         return None
 
     try:
-        # Get LLM URLs from environment
-        llm_primary_url = os.getenv("LLM_PRIMARY_URL", "http://flan:8100")
+        # Get LLM URLs from environment (agnostic service name)
+        llm_primary_url = get_env_with_default("LLM_BASE_URL", "http://flan:8100", str)
 
         # Create LLM client (using primary FLAN-T5 service)
         # Note: FLAN-T5 doesn't support streaming, so disable it explicitly

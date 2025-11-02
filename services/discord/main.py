@@ -21,7 +21,15 @@ def main() -> None:
 
     from .app import app
 
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    # Prevent uvicorn from resetting our logging configuration
+    # We've already configured structured JSON logging in configure_logging()
+    # Setting log_config=None tells uvicorn not to configure logging itself
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=8001,
+        log_config=None,  # Don't let uvicorn configure logging - we handle it ourselves
+    )
 
 
 if __name__ == "__main__":

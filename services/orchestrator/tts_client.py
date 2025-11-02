@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import time
 
+from services.common.config.loader import get_env_with_default
 from services.common.http_client_factory import create_resilient_client
 from services.common.resilient_http import ServiceUnavailableError
 from services.common.structured_logging import get_logger
@@ -29,11 +30,9 @@ class TTSClient:
                      environment variable or default to http://bark:7100
             timeout: Request timeout in seconds
         """
-        # Default to bark service URL if not provided
+        # Default to TTS service URL if not provided (agnostic service name)
         if base_url is None:
-            import os
-
-            base_url = os.getenv("TTS_URL", "http://bark:7100")
+            base_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
 
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout

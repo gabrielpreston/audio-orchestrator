@@ -35,7 +35,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 ENV PORT=8200
-ENV LLM_PRIMARY_URL=http://flan:8100
-ENV GUARDRAILS_URL=http://guardrails:9300
+ENV LLM_BASE_URL=http://flan:8100
+ENV GUARDRAILS_BASE_URL=http://guardrails:9300
 
 CMD ["uvicorn", "services.orchestrator.app:app", "--host", "0.0.0.0", "--port", "8200"]

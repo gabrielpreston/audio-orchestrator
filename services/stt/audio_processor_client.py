@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import time
 
-from services.common.http_client_factory import create_resilient_client
 from services.common.resilient_http import ServiceUnavailableError
 from services.common.structured_logging import get_logger
 
@@ -40,10 +39,19 @@ class STTAudioProcessorClient:
         self._logger = get_logger(__name__)
 
         # Create resilient HTTP client with circuit breaker and connection pooling
-        self._client = create_resilient_client(
+        # Pass timeout explicitly to ensure the client uses the correct timeout
+        from services.common.circuit_breaker import CircuitBreakerConfig
+        from services.common.resilient_http import ResilientHTTPClient
+
+        self._client = ResilientHTTPClient(
             service_name="audio",
             base_url=base_url,
-            env_prefix="STT_AUDIO_PROCESSOR",
+            circuit_config=CircuitBreakerConfig(
+                failure_threshold=5,
+                success_threshold=2,
+                timeout_seconds=timeout,
+            ),
+            timeout=timeout,  # Pass the timeout to the client
         )
 
         self._logger.info(
@@ -75,6 +83,17 @@ class STTAudioProcessorClient:
             if correlation_id:
                 headers["X-Correlation-ID"] = correlation_id
 
+            # Log request initiation with decision context
+            self._logger.info(
+                "stt_audio_processor_client.request_initiated",
+                correlation_id=correlation_id,
+                url=f"{self.base_url}/enhance/audio",
+                input_size=len(audio_data),
+                timeout_seconds=self.timeout,
+                max_retries=self.max_retries,
+                decision="attempting_enhancement",
+            )
+
             try:
                 response = await self._client.post_with_retry(
                     "/enhance/audio",
@@ -90,18 +109,20 @@ class STTAudioProcessorClient:
                     correlation_id=correlation_id,
                     error=str(exc),
                     enhancement_duration_ms=enhancement_duration,
+                    decision="service_unavailable_returning_original",
                 )
                 return audio_data  # Return original data on failure
 
             if response.status_code == 200:
                 enhancement_duration = (time.time() - start_time) * 1000
 
-                self._logger.debug(
+                self._logger.info(
                     "stt_audio_processor_client.audio_enhanced",
                     correlation_id=correlation_id,
                     input_size=len(audio_data),
                     output_size=len(response.content),
                     enhancement_duration_ms=enhancement_duration,
+                    decision="enhancement_successful",
                 )
                 return bytes(response.content)
             else:
@@ -109,6 +130,7 @@ class STTAudioProcessorClient:
                     "stt_audio_processor_client.enhancement_failed",
                     correlation_id=correlation_id,
                     status_code=response.status_code,
+                    decision="enhancement_failed_returning_original",
                 )
                 return audio_data  # Return original data on failure
 
@@ -118,7 +140,9 @@ class STTAudioProcessorClient:
                 "stt_audio_processor_client.enhancement_error",
                 correlation_id=correlation_id,
                 error=str(exc),
+                error_type=type(exc).__name__,
                 enhancement_duration_ms=enhancement_duration,
+                decision="enhancement_error_returning_original",
             )
             return audio_data  # Return original data on failure
 

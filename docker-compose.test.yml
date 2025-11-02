@@ -1,5 +1,6 @@
 # Test-specific Docker Compose configuration
 # Optimized for integration testing with fast startup and isolated network
+# Includes full stack for comprehensive integration testing
 
 networks:
   test-network:
@@ -7,6 +8,7 @@ networks:
     name: audio-orchestrator-test
 
 services:
+  # Core Services
   audio:
     extends:
       file: docker-compose.yml
@@ -50,6 +52,15 @@ services:
       - LOG_LEVEL=INFO
       - LLM_AUTH_TOKEN=test-token
 
+  guardrails:
+    extends:
+      file: docker-compose.yml
+      service: guardrails
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+
   orchestrator:
     extends:
       file: docker-compose.yml
@@ -58,14 +69,17 @@ services:
       - test-network
     environment:
       - LOG_LEVEL=INFO
+      - LLM_BASE_URL=http://flan:8100
+      - TTS_BASE_URL=http://bark:7100  # Explicit service URL (agnostic name)
+      - GUARDRAILS_BASE_URL=http://guardrails:9300
       - LLM_AUTH_TOKEN=test-token
       - TTS_AUTH_TOKEN=test-token
 
   # Discord service for E2E tests (optional, requires token)
   discord:
-    build:
-      context: .
-      dockerfile: services/discord/Dockerfile
+    extends:
+      file: docker-compose.yml
+      service: discord
     networks:
       - test-network
     ports:
@@ -78,3 +92,65 @@ services:
       - STT_BASE_URL=http://stt:9000
       - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
       - LOG_LEVEL=INFO
+
+  # Testing service (Gradio UI)
+  testing:
+    extends:
+      file: docker-compose.yml
+      service: testing
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+      - AUDIO_BASE_URL=http://audio:9100
+      - STT_BASE_URL=http://stt:9000
+      - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
+      - TTS_BASE_URL=http://bark:7100
+
+  # Monitoring service
+  monitoring:
+    extends:
+      file: docker-compose.yml
+      service: monitoring
+    networks:
+      - test-network
+    environment:
+      - LOG_LEVEL=INFO
+      - PROMETHEUS_URL=http://prometheus:9090
+
+  # Observability Stack
+  otel-collector:
+    extends:
+      file: docker-compose.yml
+      service: otel-collector
+    networks:
+      - test-network
+
+  prometheus:
+    extends:
+      file: docker-compose.yml
+      service: prometheus
+    networks:
+      - test-network
+    volumes:
+      - prometheus-test-data:/prometheus
+
+  jaeger:
+    extends:
+      file: docker-compose.yml
+      service: jaeger
+    networks:
+      - test-network
+
+  grafana:
+    extends:
+      file: docker-compose.yml
+      service: grafana
+    networks:
+      - test-network
+    volumes:
+      - grafana-test-data:/var/lib/grafana
+
+volumes:
+  prometheus-test-data: {}
+  grafana-test-data: {}

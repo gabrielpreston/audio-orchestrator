@@ -12,7 +12,6 @@ from typing import Any
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
-from services.common.audio_metrics import create_guardrails_metrics, create_http_metrics
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
@@ -292,8 +291,15 @@ async def _startup() -> None:
         _observability_manager = get_observability_manager("guardrails")
 
         # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_guardrails_metrics,
+            create_http_metrics,
+            create_system_metrics,
+        )
+
         _guardrails_metrics = create_guardrails_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

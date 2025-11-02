@@ -189,7 +189,7 @@ class BarkSynthesizer:
                     "text_use_small": use_small_models,
                     "coarse_use_small": use_small_models,
                     "fine_use_small": use_small_models,
-                    "codec_use_gpu": False,
+                    "codec_use_gpu": torch.cuda.is_available(),
                 }
 
                 self._logger.info(
@@ -216,7 +216,7 @@ class BarkSynthesizer:
                     text_use_small=use_small_models,
                     coarse_use_small=use_small_models,
                     fine_use_small=use_small_models,
-                    codec_use_gpu=False,  # We're on CPU
+                    codec_use_gpu=torch.cuda.is_available(),  # Use GPU if available
                 )
                 preload_duration = time.time() - preload_start
                 total_duration = time.time() - load_start

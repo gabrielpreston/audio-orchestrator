@@ -465,11 +465,11 @@
           },
           "expr": "label_replace(rate(audio_orchestrator_http_server_duration_milliseconds_count{exported_job=~\"audio-orchestrator/bark.*\"}[5m]), \"service\", \"bark\", \"\", \"\")",
           "interval": "",
-          "legendFormat": "TTS-Bark - {{method}} {{route}}",
+          "legendFormat": "TTS - {{method}} {{route}}",
           "refId": "A"
         }
       ],
-      "title": "TTS-Bark Service Requests",
+      "title": "TTS Service Requests",
       "type": "timeseries"
     },
     {

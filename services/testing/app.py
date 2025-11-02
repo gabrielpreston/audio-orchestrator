@@ -19,6 +19,7 @@ from services.common.config import (
     LoggingConfig,
     get_service_preset,
 )
+from services.common.config.loader import get_env_with_default
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.structured_logging import configure_logging, get_logger
@@ -92,11 +93,13 @@ app = create_service_app(
 # HTTP client for service communication
 client = httpx.AsyncClient(timeout=30.0)
 
-# Service URLs
-AUDIO_PREPROCESSOR_URL = "http://audio:9100"
-STT_URL = "http://stt:9000"
-ORCHESTRATOR_URL = "http://orchestrator:8200"
-BARK_URL = "http://bark:7100"
+# Service URLs (loaded from environment with defaults)
+AUDIO_BASE_URL = get_env_with_default("AUDIO_BASE_URL", "http://audio:9100", str)
+STT_BASE_URL = get_env_with_default("STT_BASE_URL", "http://stt:9000", str)
+ORCHESTRATOR_BASE_URL = get_env_with_default(
+    "ORCHESTRATOR_BASE_URL", "http://orchestrator:8200", str
+)
+TTS_BASE_URL = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
 
 
 class TranscriptRequest(BaseModel):
@@ -142,7 +145,7 @@ async def run_pipeline(
                     audio_bytes = f.read()
 
                 enhanced_response = await client.post(
-                    f"{AUDIO_PREPROCESSOR_URL}/denoise",
+                    f"{AUDIO_BASE_URL}/denoise",
                     content=audio_bytes,
                     headers={"Content-Type": "audio/wav"},
                 )
@@ -159,7 +162,7 @@ async def run_pipeline(
             try:
                 if enhanced_response:
                     transcript_response = await client.post(
-                        f"{STT_URL}/transcribe",
+                        f"{STT_BASE_URL}/transcribe",
                         files={
                             "file": (
                                 "audio.wav",
@@ -172,7 +175,7 @@ async def run_pipeline(
                     with Path(audio).open("rb") as f:
                         audio_bytes = f.read()
                     transcript_response = await client.post(
-                        f"{STT_URL}/transcribe",
+                        f"{STT_BASE_URL}/transcribe",
                         files={"file": ("audio.wav", audio_bytes, "audio/wav")},
                     )
                 transcript_response.raise_for_status()
@@ -196,7 +199,7 @@ async def run_pipeline(
         # 3. Process with orchestrator
         try:
             orchestrator_response = await client.post(
-                f"{ORCHESTRATOR_URL}/api/v1/transcripts",
+                f"{ORCHESTRATOR_BASE_URL}/api/v1/transcripts",
                 json={
                     "transcript": transcript,
                     "user_id": "test_user",
@@ -314,7 +317,7 @@ async def run_pipeline(
             if not audio_output_path:
                 try:
                     tts_response = await client.post(
-                        f"{BARK_URL}/synthesize",
+                        f"{TTS_BASE_URL}/synthesize",
                         json={"text": response, "voice": voice_preset},
                     )
                     tts_response.raise_for_status()
@@ -426,22 +429,22 @@ async def _check_service_health(url: str) -> bool:
 # Create async wrapper functions for dependency checks
 async def _check_audio_preprocessor_health() -> bool:
     """Check audio preprocessor service health."""
-    return await _check_service_health(AUDIO_PREPROCESSOR_URL)
+    return await _check_service_health(AUDIO_BASE_URL)
 
 
 async def _check_stt_health() -> bool:
     """Check STT service health."""
-    return await _check_service_health(STT_URL)
+    return await _check_service_health(STT_BASE_URL)
 
 
 async def _check_orchestrator_health() -> bool:
     """Check orchestrator service health."""
-    return await _check_service_health(ORCHESTRATOR_URL)
+    return await _check_service_health(ORCHESTRATOR_BASE_URL)
 
 
 async def _check_tts_health() -> bool:
     """Check TTS service health."""
-    return await _check_service_health(BARK_URL)
+    return await _check_service_health(TTS_BASE_URL)
 
 
 # Initialize health endpoints

@@ -15,8 +15,7 @@ Update this file whenever you add, rename, or remove configuration keys.
 
 > **Note**: The project now uses a type-safe configuration library (`services.common.config`) for
 > configuration management. See the [Configuration Library Reference](configuration-library.md) for
-> details on the new `ConfigBuilder` approach and [Migration Guide](config-migration-guide.md) for
-> transitioning from manual environment variable parsing.
+> details on the new `ConfigBuilder` approach.
 
 ## Shared Defaults (`.env.common`)
 
@@ -122,9 +121,9 @@ Update this file whenever you add, rename, or remove configuration keys.
 | Variable | Description | Default |
 | --- | --- | --- |
 | `PORT` | HTTP listen port. | `8200` |
-| `LLM_PRIMARY_URL` | Primary LLM service URL (FLAN-T5). | `http://flan:8100` |
-| `GUARDRAILS_URL` | Guardrails service URL. | `http://guardrails:9300` |
-| `TTS_BASE_URL` | TTS service URL. | `http://bark:7100` |
+| `LLM_BASE_URL` | LLM service URL (agnostic service name, implementation: FLAN-T5). | `http://flan:8100` |
+| `GUARDRAILS_BASE_URL` | Guardrails service URL. | `http://guardrails:9300` |
+| `TTS_BASE_URL` | TTS service URL (agnostic service name, implementation: Bark). | `http://bark:7100` |
 | `TTS_AUTH_TOKEN` | Bearer token for TTS service authentication. | `changeme` |
 | `ORCHESTRATOR_DEBUG_SAVE` | Enable debug data collection. | `false` |
 

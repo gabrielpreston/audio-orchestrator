@@ -31,7 +31,7 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
 ENV PORT=7100
-ENV BARK_USE_SMALL_MODELS=true
+ENV BARK_USE_SMALL_MODELS=false
 
 # Copy application code LAST (changes most frequently)
 COPY services/common /app/services/common

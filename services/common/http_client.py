@@ -38,8 +38,35 @@ async def post_with_retries(
     extra = dict(log_fields or {})
     # Auto-inject correlation ID from context using shared utility
     request_headers = inject_correlation_id(headers)
+
+    # Calculate payload size for logging
+    payload_size = 0
+    if files:
+        payload_size = sum(
+            len(f[1]) if isinstance(f[1], bytes) else 0 for f in files.values()
+        )
+    elif content:
+        payload_size = len(content)
+    elif json:
+        import json as json_module
+
+        payload_size = len(json_module.dumps(json).encode())
+
     while True:
         attempt += 1
+        # Log first attempt with decision context
+        if attempt == 1:
+            log.info(
+                "http.post_attempt",
+                url=url,
+                attempt=attempt,
+                max_retries=max_retries,
+                payload_size=payload_size,
+                timeout=timeout,
+                decision="making_http_request",
+                **extra,
+            )
+
         try:
             response = await client.post(
                 url,
@@ -52,11 +79,12 @@ async def post_with_retries(
                 timeout=timeout,
             )
             response.raise_for_status()
-            log.debug(
+            log.info(
                 "http.post_success",
                 url=url,
                 attempt=attempt,
                 status_code=response.status_code,
+                decision="request_succeeded",
                 **extra,
             )
             return response
@@ -66,7 +94,10 @@ async def post_with_retries(
                     "http.post_failed",
                     url=url,
                     attempt=attempt,
+                    max_retries=max_retries,
                     error=str(exc),
+                    error_type=type(exc).__name__,
+                    decision="max_retries_exceeded",
                     **extra,
                 )
                 raise
@@ -75,8 +106,11 @@ async def post_with_retries(
                 "http.post_retry",
                 url=url,
                 attempt=attempt,
+                max_retries=max_retries,
                 backoff=backoff,
                 error=str(exc),
+                error_type=type(exc).__name__,
+                decision="retrying_after_error",
                 **extra,
             )
             await asyncio.sleep(backoff)

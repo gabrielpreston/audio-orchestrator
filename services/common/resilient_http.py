@@ -151,12 +151,43 @@ class ResilientHTTPClient:
         timeout: float | httpx.Timeout | None = None,
     ) -> httpx.Response:
         """POST with circuit breaker protection."""
-        if not self._circuit.is_available():
+        request_logger = logger or self._logger
+
+        # Check circuit breaker availability
+        circuit_available = self._circuit.is_available()
+        circuit_state = self._circuit.get_state().value
+        if not circuit_available:
+            request_logger.warning(
+                "resilient_http.decision",
+                service=self._service_name,
+                endpoint=endpoint,
+                circuit_state=circuit_state,
+                decision="request_blocked",
+                reason="circuit_breaker_open",
+            )
             raise ServiceUnavailableError(f"{self._service_name} circuit is open")
 
         # Check health before attempting request
-        if not await self.check_health():
+        health_status = await self.check_health()
+        if not health_status:
+            request_logger.warning(
+                "resilient_http.decision",
+                service=self._service_name,
+                endpoint=endpoint,
+                circuit_state=circuit_state,
+                decision="request_blocked",
+                reason="service_not_healthy",
+            )
             raise ServiceUnavailableError(f"{self._service_name} is not healthy")
+
+        request_logger.debug(
+            "resilient_http.decision",
+            service=self._service_name,
+            endpoint=endpoint,
+            circuit_state=circuit_state,
+            health_status=health_status,
+            decision="proceeding_with_request",
+        )
 
         client = await self._get_client()
         url = f"{self._base_url}{endpoint}"

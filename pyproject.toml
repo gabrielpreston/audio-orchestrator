@@ -286,6 +286,7 @@ markers = [
     "llm: Tests involving language model",
     "orchestrator: Tests involving orchestration logic",
     "quality: Audio quality validation tests",
+    "timeout: Test execution timeout in seconds (requires pytest-timeout plugin)",
 ]
 
 # Warnings configuration

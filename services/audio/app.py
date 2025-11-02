@@ -17,7 +17,6 @@ from fastapi import HTTPException, Request, Response
 from pydantic import BaseModel
 import uvicorn
 
-from services.common.audio_metrics import create_audio_metrics, create_http_metrics
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -114,8 +113,15 @@ async def _startup() -> None:
         _observability_manager = get_observability_manager("audio")
 
         # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_audio_metrics,
+            create_http_metrics,
+            create_system_metrics,
+        )
+
         _audio_metrics = create_audio_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
@@ -429,14 +435,40 @@ async def enhance_audio(request: Request) -> Response:
     """
     start_time = time.perf_counter()
 
+    # Extract correlation ID from headers
+    correlation_id = request.headers.get("X-Correlation-ID")
+
+    # Log request received with decision context
+    _logger.info(
+        "audio.enhancement_request_received",
+        correlation_id=correlation_id,
+        content_length=request.headers.get("content-length", "unknown"),
+        decision="processing_enhancement_request",
+    )
+
     try:
         if not _audio_enhancer:
+            _logger.error(
+                "audio.decision",
+                correlation_id=correlation_id,
+                decision="enhancement_rejected",
+                reason="enhancer_not_initialized",
+            )
             raise HTTPException(
                 status_code=503, detail="Audio enhancer not initialized"
             )
 
         # Get audio data from request
         audio_data = await request.body()
+
+        # Log enhancement decision
+        _logger.info(
+            "audio.decision",
+            correlation_id=correlation_id,
+            input_size=len(audio_data),
+            decision="applying_enhancement",
+            enhancement_method="metricgan_plus",
+        )
 
         # Apply enhancement
         enhanced_data = _audio_enhancer.enhance_audio(audio_data)
@@ -445,9 +477,11 @@ async def enhance_audio(request: Request) -> Response:
 
         _logger.info(
             "audio.audio_enhanced",
+            correlation_id=correlation_id,
             input_size=len(audio_data),
             output_size=len(enhanced_data),
             processing_time_ms=processing_time,
+            decision="enhancement_completed",
         )
 
         return Response(
@@ -460,8 +494,11 @@ async def enhance_audio(request: Request) -> Response:
         processing_time = (time.perf_counter() - start_time) * 1000
         _logger.error(
             "audio.enhancement_failed",
+            correlation_id=correlation_id,
             error=str(exc),
+            error_type=type(exc).__name__,
             processing_time_ms=processing_time,
+            decision="enhancement_failed_returning_original",
         )
 
         # Return original data on failure

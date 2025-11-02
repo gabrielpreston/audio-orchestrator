@@ -306,21 +306,78 @@ services:
 
 ## Local Development Workflows
 
-### Build Targets
+### Build Targets (Local-Only by Default)
+
+All build operations default to **local-only** (no authentication required):
 
 ```bash
-# Smart incremental builds (recommended for development)
+# Smart incremental builds (recommended for development - local-only)
 make docker-build  # Detects changes, rebuilds only affected services
 
-# Enhanced caching builds (maximum cache utilization)
+# Enhanced caching builds (maximum cache utilization - local-only)
 make docker-build-enhanced     # Multi-source caching (GitHub Actions + registry)
 
-# Single service builds
+# Base image builds (local-only)
+make docker-build-base  # Build base images locally
+
+# Single service builds (local-only)
 make docker-build-service SERVICE=stt  # Build specific service only
 
-# Full parallel builds
-make docker-build  # Rebuilds all services in parallel
+# Toolchain image builds (local-only)
+make test-image        # Build test image (only if missing)
+make test-image-force  # Force rebuild test image
+make lint-image        # Build lint image (only if missing)
+make lint-image-force  # Force rebuild lint image
+make security-image    # Build security image (only if missing)
+make security-image-force  # Force rebuild security image
 ```
+
+### Push Targets (Explicit, Requires Authentication)
+
+Push operations are **explicit and separate** (require authentication):
+
+```bash
+# Push base images (assumes images built with 'make docker-build-base')
+make docker-push-base-images
+
+# Push service images (assumes images built with 'make docker-build-enhanced')
+make docker-push-services
+
+# Push toolchain images (assumes images built first)
+make test-image-push
+make lint-image-push
+make security-image-push
+
+# Combined push targets
+make test-image-force-push    # Force rebuild then push test image
+make lint-image-force-push    # Force rebuild then push lint image
+make security-image-force-push # Force rebuild then push security image
+
+# Push all images
+make docker-push-all  # Push base, services, and toolchain images
+```
+
+### Build vs Push Separation Benefits
+
+**Local Development:**
+
+  -  Fast iteration without authentication
+  -  No network overhead for push operations
+  -  Local cache-only operations for maximum speed
+
+**CI/CD Workflows:**
+
+  -  Use `DOCKER_PUSH=1` variable for push-enabled builds: `make DOCKER_PUSH=1 test-image`
+  -  Or use explicit push targets after builds: `make test-image && make test-image-push`
+  -  Or set `PUSH=true` in build-base-images.sh for base image builds
+
+**Pattern Consistency:**
+
+  -  All builds default to local-only (`DOCKER_PUSH=0`)
+  -  All pushes are explicit separate targets
+  -  Consistent naming: `*-push` suffix for all push targets
+  -  Registry `cache-from` still works for local builds (read-only, speeds up builds)
+  -  Registry `cache-to` only when pushing (avoids unnecessary network traffic)
 
 ### Performance Expectations
 

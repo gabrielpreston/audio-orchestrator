@@ -4,7 +4,7 @@
 audio_processing:
   enhancement:
     model_path: "/app/models/metricgan-plus"
-    device: "cpu"
+    device: "cuda"
     enable_high_pass: true
     cutoff_frequency: 80.0
     enable_metricgan: true

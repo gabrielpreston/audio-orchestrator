@@ -162,6 +162,10 @@ def configure_logging(
     # Suppress OTEL exporter connection errors (they retry automatically)
     logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.WARNING)
 
+    # Suppress pkg_resources deprecation warnings (setuptools 81+ migration)
+    # These warnings appear frequently during import and don't require action
+    logging.getLogger("pkg_resources").setLevel(logging.ERROR)
+
     structlog.configure(
         processors=[
             *shared_processors,
@@ -171,6 +175,10 @@ def configure_logging(
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+    # Configure uvicorn access logger for structured JSON logging
+    # This sets up structured JSON format matching other service logs
+    _configure_uvicorn_access_logger(output_stream, json_logs, service_name)
 
 
 def get_logger(
@@ -293,6 +301,127 @@ __all__ = [
     "should_rate_limit",
     "should_sample",
 ]
+
+
+def _parse_uvicorn_access_log(message: str) -> dict[str, Any]:
+    """Parse uvicorn access log message into structured fields.
+
+    Uvicorn access logs follow format: "IP:PORT - \"METHOD PATH HTTP_VERSION\" STATUS_CODE"
+    Example: '172.18.0.15:46132 - "GET /health/ready HTTP/1.1" 503'
+
+    Args:
+        message: Raw uvicorn access log message
+
+    Returns:
+        Dictionary with parsed fields: client_ip, client_port, method, path,
+        http_version, status_code, and raw message
+    """
+    import re
+
+    # Pattern: IP:PORT - "METHOD PATH HTTP/VERSION" STATUS_CODE
+    # Example: 172.18.0.15:46132 - "GET /health/ready HTTP/1.1" 503
+    pattern = r'^(.+?):(\d+) - "(\w+) ([^"]+) (HTTP/\d\.\d)" (\d+)$'
+    match = re.match(pattern, message.strip())
+
+    if match:
+        client_ip, client_port, method, path, http_version, status_code = match.groups()
+        return {
+            "event": "uvicorn.access",
+            "client_ip": client_ip,
+            "client_port": int(client_port),
+            "method": method,
+            "path": path,
+            "http_version": http_version,
+            "status_code": int(status_code),
+        }
+
+    # Fallback: return message as-is if parsing fails
+    return {
+        "event": "uvicorn.access",
+        "message": message,
+    }
+
+
+def _uvicorn_access_processor(
+    _logger: Any, _method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Processor to convert uvicorn access log messages to structured format.
+
+    This processor extracts the message from event_dict (which comes from stdlib logging),
+    parses it, and replaces it with structured fields.
+
+    For stdlib logging, the message is typically in the 'event' key.
+
+    Args:
+        _logger: Logger instance (required by structlog processor signature, unused)
+        _method_name: Method name (required by structlog processor signature, unused)
+        event_dict: Event dictionary containing log data
+    """
+    # Get message from event_dict (stdlib logging puts it in 'event')
+    message = event_dict.get("event", "")
+    if not message:
+        # Fallback: check 'message' key
+        message = event_dict.get("message", "")
+
+    # Only parse if it looks like a uvicorn access log and we haven't already parsed it
+    if isinstance(message, str) and message.strip() and "status_code" not in event_dict:
+        parsed = _parse_uvicorn_access_log(message)
+        # Replace message/event with structured fields
+        event_dict.pop("event", None)
+        event_dict.pop("message", None)
+        event_dict.update(parsed)
+
+    return event_dict
+
+
+def _configure_uvicorn_access_logger(
+    stream: IO[str], json_logs: bool, service_name: str | None
+) -> None:
+    """Configure uvicorn access logger for structured JSON logging.
+
+    This function configures the uvicorn.access logger to emit structured JSON
+    logs matching the format used by other service logs. It wraps stdlib logging
+    messages to go through structlog processors.
+
+    Args:
+        stream: Output stream for log handlers
+        json_logs: Whether to use JSON format (True) or console format (False)
+        service_name: Optional service name to include in logs
+    """
+    access_logger = logging.getLogger("uvicorn.access")
+    access_logger.setLevel(logging.INFO)
+    access_logger.propagate = False  # Prevent double logging through root logger
+
+    # Shared processors for access logs (process stdlib logs into structured format)
+    shared_processors = [
+        structlog.stdlib.add_log_level,  # Add log level from stdlib
+        structlog.stdlib.add_logger_name,  # Add logger name
+        structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
+        _add_service(service_name),
+        _uvicorn_access_processor,  # Parse access log messages into structured fields
+    ]
+
+    if json_logs:
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ]
+    else:
+        formatter_processors = [
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.dev.ConsoleRenderer(),
+        ]
+
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(
+        structlog.stdlib.ProcessorFormatter(
+            foreign_pre_chain=shared_processors,
+            processors=formatter_processors,
+        )
+    )
+
+    # Clear existing handlers and add our structured handler
+    access_logger.handlers = [handler]
 
 
 # Lightweight, thread-safe sampling and rate limiting helpers

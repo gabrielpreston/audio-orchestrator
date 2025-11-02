@@ -61,7 +61,7 @@ COPY services/common /app/services/common
 COPY services/stt /app/services/stt
 COPY scripts/health_check.py /app/scripts/health_check.py
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=6 \
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=6 \
     CMD python /app/scripts/health_check.py http://localhost:9000/health/ready --ci
 
 EXPOSE 9000

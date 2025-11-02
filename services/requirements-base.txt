@@ -10,6 +10,9 @@ structlog==24.1.0
 # HTTP client
 httpx==0.26.0
 
+# System metrics
+psutil==6.1.0
+
 # NOTE: The following dependencies are now included in the python-ml base image:
 # - PyTorch (torch, torchvision, torchaudio)
 # - OpenTelemetry (opentelemetry-api, opentelemetry-sdk, instrumentation packages, exporters)

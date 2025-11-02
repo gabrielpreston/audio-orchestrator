@@ -145,6 +145,10 @@ class HealthEndpoints:
 
         Returns:
             Dict with detailed readiness information
+
+        Raises:
+            HTTPException: 503 with error detail in JSON response body ({"detail": "message"})
+                if service is not ready. Error detail includes dependency names and error messages.
         """
         # Check if startup is complete first
         if not self.health_manager._startup_complete:
@@ -164,16 +168,31 @@ class HealthEndpoints:
                 if health_status.status == HealthStatus.DEGRADED
                 else "not_ready"
             )
-            # Extract failing dependencies for detailed error message
-            failing_deps = [
-                name
-                for name, status in health_status.details.get(
-                    "dependencies", {}
-                ).items()
-                if not status
-            ]
+            # Extract failing dependencies with error details
+            failing_deps = []
+            failing_deps_with_errors = []
+            for name, status in health_status.details.get("dependencies", {}).items():
+                # Status is now always a dict with "available" and optional "error" fields
+                is_available = (
+                    status.get("available", False)
+                    if isinstance(status, dict)
+                    else bool(status)
+                )
+                if not is_available:
+                    failing_deps.append(name)
+                    if isinstance(status, dict):
+                        error_info = status.get("error")
+                        if error_info:
+                            # Truncate long error messages to prevent excessive response size
+                            max_error_len = 200
+                            if len(error_info) > max_error_len:
+                                error_info = error_info[:max_error_len] + "..."
+                            failing_deps_with_errors.append(f"{name}: {error_info}")
+
             detail = f"Service {self.service_name} not ready - {status_str}"
-            if failing_deps:
+            if failing_deps_with_errors:
+                detail += f" (dependency errors: {'; '.join(failing_deps_with_errors)})"
+            elif failing_deps:
                 detail += f" (unavailable dependencies: {', '.join(failing_deps)})"
 
             raise HTTPException(
@@ -226,7 +245,20 @@ class HealthEndpoints:
         Dependency health check endpoint.
 
         Returns:
-            Dict with dependency status information
+            Dict with dependency status information including error details for failed dependencies.
+            Format: {
+                "service": str,
+                "dependencies": {
+                    "dep_name": {
+                        "status": "healthy" | "unhealthy",
+                        "available": bool,
+                        "error": str,  # Optional, present if available=False
+                        "error_type": str,  # Optional, present if error exists
+                        "checked_at": float  # Optional, Unix timestamp
+                    }
+                },
+                "startup_complete": bool
+            }
         """
         dependencies: dict[str, dict[str, Any]] = {}
 
@@ -363,10 +395,28 @@ class HealthEndpoints:
         # Merge health manager dependencies
         for dep_name, dep_status in health_deps.items():
             if dep_name not in dependencies:
+                # dep_status is now always a dict with "available" and optional "error" fields
+                is_available = (
+                    dep_status.get("available", False)
+                    if isinstance(dep_status, dict)
+                    else bool(dep_status)
+                )
                 dependencies[dep_name] = {
-                    "status": "healthy" if dep_status else "unhealthy",
-                    "available": bool(dep_status),
+                    "status": "healthy" if is_available else "unhealthy",
+                    "available": is_available,
                 }
+                # Include error information if present
+                if (
+                    isinstance(dep_status, dict)
+                    and not is_available
+                    and "error" in dep_status
+                ):
+                    dependencies[dep_name]["error"] = dep_status["error"]
+                    dependencies[dep_name]["error_type"] = dep_status.get(
+                        "error_type", "unknown"
+                    )
+                    if "checked_at" in dep_status:
+                        dependencies[dep_name]["checked_at"] = dep_status["checked_at"]
 
         # Ensure all dependency data is serializable
         dependencies = self._make_serializable(dependencies) or {}

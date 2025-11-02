@@ -9,8 +9,8 @@ import httpx
 import pytest
 
 from services.testing.app import (
-    BARK_URL,
-    ORCHESTRATOR_URL,
+    ORCHESTRATOR_BASE_URL,
+    TTS_BASE_URL,
     run_pipeline,
 )
 
@@ -138,7 +138,7 @@ class TestTestingServicePipeline:
 
         # Verify orchestrator was called with correct data
         call_args = mock_client_module.post.call_args
-        assert ORCHESTRATOR_URL in str(call_args[0][0])
+        assert ORCHESTRATOR_BASE_URL in str(call_args[0][0])
         assert call_args[1]["json"]["transcript"] == "test text input"
 
         # Cleanup
@@ -219,7 +219,7 @@ class TestTestingServicePipeline:
 
         # Verify TTS was called with correct voice preset
         tts_call = mock_client_module.post.call_args_list[1]
-        assert BARK_URL in str(tts_call[0][0])
+        assert TTS_BASE_URL in str(tts_call[0][0])
         assert tts_call[1]["json"]["voice"] == "v2/en_speaker_1"
 
         # Cleanup

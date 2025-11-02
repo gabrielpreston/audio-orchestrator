@@ -192,6 +192,19 @@ class TranscriptionClient:
             # Pass correlation ID in headers
             headers = {"X-Correlation-ID": segment.correlation_id}
 
+            # Log request initiation with decision context
+            logger.info(
+                "stt.request_sending",
+                correlation_id=segment.correlation_id,
+                url=f"{self._config.base_url}/transcribe",
+                audio_bytes=len(wav_bytes),
+                timeout_seconds=processing_timeout,
+                max_retries=self._config.max_retries,
+                language=self._config.forced_language,
+                has_beam_size=bool(getattr(self._config, "beam_size", None)),
+                decision="sending_transcription_request",
+            )
+
             response = await self._http_client.post_with_retry(
                 "/transcribe",
                 files=files,

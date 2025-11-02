@@ -50,6 +50,13 @@ class CircuitBreaker:
         if self._state == CircuitState.OPEN:
             # Check if timeout has passed
             if self._last_failure_time is None:
+                self._logger.debug(
+                    "circuit.decision",
+                    circuit=self._name,
+                    state=self._state.value,
+                    decision="blocked",
+                    reason="no_failure_time_recorded",
+                )
                 return False
 
             elapsed = time.time() - self._last_failure_time
@@ -60,16 +67,53 @@ class CircuitBreaker:
 
             if elapsed >= timeout:
                 self._transition_to_half_open()
+                self._logger.info(
+                    "circuit.decision",
+                    circuit=self._name,
+                    state=self._state.value,
+                    decision="timeout_expired_allowing_request",
+                    elapsed_seconds=elapsed,
+                    timeout_seconds=timeout,
+                )
                 return True
 
+            self._logger.debug(
+                "circuit.decision",
+                circuit=self._name,
+                state=self._state.value,
+                decision="blocked",
+                reason="timeout_not_expired",
+                elapsed_seconds=elapsed,
+                timeout_seconds=timeout,
+                failure_count=self._failure_count,
+            )
             return False
 
+        # HALF_OPEN state
         return self._state == CircuitState.HALF_OPEN
 
     async def call(self, func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
         """Execute function with circuit breaker protection."""
         if not self.is_available():
+            self._logger.warning(
+                "circuit.decision",
+                circuit=self._name,
+                state=self._state.value,
+                decision="request_rejected",
+                reason="circuit_not_available",
+                failure_count=self._failure_count,
+            )
             raise CircuitOpenError(f"Circuit {self._name} is open")
+
+        # Log that circuit is allowing the request
+        self._logger.debug(
+            "circuit.decision",
+            circuit=self._name,
+            state=self._state.value,
+            decision="request_allowed",
+            failure_count=self._failure_count,
+            success_count=self._success_count,
+        )
 
         try:
             if asyncio.iscoroutinefunction(func):

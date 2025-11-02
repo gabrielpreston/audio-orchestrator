@@ -9,7 +9,11 @@ import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from services.common.app_factory import create_service_app
-from services.common.audio_metrics import create_http_metrics, create_llm_metrics
+from services.common.audio_metrics import (
+    create_http_metrics,
+    create_llm_metrics,
+    create_system_metrics,
+)
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
@@ -103,10 +107,18 @@ def _load_from_cache() -> tuple[Any, Any] | None:
         tokenizer_duration = time.time() - tokenizer_start
         total_duration = time.time() - cache_start
 
+        # Move model to GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cuda":
+            logger.info("flan.moving_model_to_gpu", phase="gpu_migration")
+            cached_model = cached_model.to(device)
+            cached_model = cached_model.half()  # Use float16 on GPU
+
         logger.info(
             "flan.model_loaded_from_cache",
             model_name=MODEL_NAME,
             cache_dir=CACHE_DIR,
+            device=device,
             model_duration_ms=round(model_duration * 1000, 2),
             tokenizer_duration_ms=round(tokenizer_duration * 1000, 2),
             total_duration_ms=round(total_duration * 1000, 2),
@@ -149,6 +161,16 @@ def _load_with_download() -> tuple[Any, Any]:
         "model_name": MODEL_NAME,
         "cache_dir": CACHE_DIR,
     }
+
+    # Detect device (GPU if available, else CPU)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(
+        "flan.device_detected",
+        device=device,
+        cuda_available=torch.cuda.is_available(),
+        phase="device_detection",
+    )
+
     if force_download:
         model_params["force_download"] = True
 
@@ -184,6 +206,13 @@ def _load_with_download() -> tuple[Any, Any]:
             model_class=AutoTokenizer,
         )
         tokenizer_duration = time.time() - tokenizer_start
+
+        # Move model to GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cuda":
+            logger.info("flan.moving_model_to_gpu", phase="gpu_migration")
+            downloaded_model = downloaded_model.to(device)
+            downloaded_model = downloaded_model.half()  # Use float16 on GPU
     else:
         model_start = time.time()
         logger.debug("flan.downloading_model", phase="model_download")
@@ -198,6 +227,13 @@ def _load_with_download() -> tuple[Any, Any]:
             MODEL_NAME, cache_dir=CACHE_DIR
         )
         tokenizer_duration = time.time() - tokenizer_start
+
+        # Move model to GPU if available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device == "cuda":
+            logger.info("flan.moving_model_to_gpu", phase="gpu_migration")
+            downloaded_model = downloaded_model.to(device)
+            downloaded_model = downloaded_model.half()  # Use float16 on GPU
 
     total_duration = time.time() - download_start
 
@@ -225,6 +261,7 @@ async def _startup() -> None:
         # Create service-specific metrics
         _llm_metrics = create_llm_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
@@ -363,14 +400,19 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         if not prompt:
             raise HTTPException(status_code=400, detail="No valid user message found")
 
+        # Move to device if GPU available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
         # Generate response
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
+        inputs = tokenizer(
+            prompt, return_tensors="pt", truncation=True, max_length=512
+        ).to(device)
 
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
-                max_length=256,  # Reduced for faster responses
-                num_beams=4,
+                max_length=512,  # Increased from 256 for better response quality
+                num_beams=5,  # Increased from 4 for better quality
                 early_stopping=False,  # Allow full generation
                 do_sample=True,  # Enable sampling for more natural responses
                 temperature=0.7,  # Add creativity

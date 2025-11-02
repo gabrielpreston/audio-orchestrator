@@ -25,6 +25,61 @@ This guide documents simplified logging and health check expectations for solo d
 -  No complex Prometheus metrics required
 -  Focus on "does it work" over comprehensive monitoring
 
+## Memory Metrics
+
+All production services automatically export memory usage metrics using OpenTelemetry ObservableGauge pattern:
+
+-  **Process Memory Usage**: Real-time memory usage in bytes (RSS - Resident Set Size)
+-  **Memory Limits**: Docker container memory limits (when available, from cgroup)
+-  **Memory Percentage**: Memory usage as percentage of limit (when limit available)
+
+### Metrics Exported
+
+-  `audio_orchestrator_process_memory_usage_bytes` - Current memory usage in bytes
+-  `audio_orchestrator_process_memory_limit_bytes` - Memory limit in bytes (only if limit detected)
+-  `audio_orchestrator_process_memory_usage_percent` - Memory usage as percentage (only if limit available)
+
+### Implementation Details
+
+-  **Pattern**: Uses ObservableGauge callbacks (pull-based, no background tasks)
+-  **Collection Interval**: Metrics collected every 15 seconds via PeriodicExportingMetricReader
+-  **Cgroup Detection**: Automatically detects Docker memory limits from cgroup v1/v2 files
+-  **Graceful Fallback**: Metrics continue to work even if cgroup files unavailable (non-Docker environments)
+-  **Service Labels**: All metrics include `service` label matching service name
+
+### Grafana Dashboard
+
+Memory metrics are visualized in the **"Service Memory Usage"** dashboard:
+
+-  **Time Series**: Memory usage over time for all services
+-  **Table**: Current memory usage with bytes, MB, limits, and percentage
+-  **Bar Gauge**: Visual representation of current memory usage per service
+-  **Comparison**: Memory usage vs limits (when limits available)
+-  **Service Filter**: Dropdown to filter by specific service
+
+Access via: Grafana → Dashboards → "Service Memory Usage"
+
+### Service Integration
+
+Memory metrics are automatically available for all production services:
+
+-  orchestrator
+-  stt
+-  bark
+-  flan
+-  audio
+-  discord
+-  guardrails
+
+No additional configuration required - metrics are initialized during service startup alongside other metrics.
+
+### Technical Notes
+
+-  Uses `psutil` library for process memory information
+-  Memory limits read from cgroup files (`/sys/fs/cgroup/memory.max` or `/sys/fs/cgroup/memory/memory.limit_in_bytes`)
+-  ObservableGauge callbacks are registered at creation time and persist independently
+-  Metrics flow: Service → OpenTelemetry → Collector → Prometheus → Grafana
+
 ## Standardized Health Checks
 
 All services now use the common health endpoints module for consistent health check implementation:

@@ -125,7 +125,18 @@ For service-to-service communication within the Docker network, use the internal
 | Guardrails | `http://guardrails:9300` |
 | Discord Bot | `http://discord:8001` |
 
-These URLs are configured via environment variables (see [Configuration Catalog](configuration-catalog.md)) and are used by services to communicate with each other.
+These URLs are configured via environment variables using the standardized `{SERVICE}_BASE_URL` pattern with agnostic service names (see [Configuration Catalog](configuration-catalog.md)). All services use this pattern for consistency:
+
+-  `AUDIO_BASE_URL` → `http://audio:9100`
+-  `STT_BASE_URL` → `http://stt:9000`
+-  `ORCHESTRATOR_BASE_URL` → `http://orchestrator:8200`
+-  `LLM_BASE_URL` → `http://flan:8100` (service: LLM, implementation: FLAN-T5)
+-  `TTS_BASE_URL` → `http://bark:7100` (service: TTS, implementation: Bark)
+-  `GUARDRAILS_BASE_URL` → `http://guardrails:9300`
+-  `DISCORD_BASE_URL` → `http://discord:8001`
+-  `TESTING_BASE_URL` → `http://testing:8080`
+
+Using agnostic service names (LLM, TTS) instead of implementation-specific names (FLAN, Bark) makes the configuration future-proof and easier to maintain.
 
 ## Related Documentation
 

@@ -319,7 +319,7 @@ class AudioConfig(BaseConfig):
                 field_type=str,
                 default="http://audio:9100",
                 description="Audio processor service URL",
-                env_var="AUDIO_SERVICE_URL",
+                env_var="AUDIO_BASE_URL",
             ),
             FieldDefinition(
                 name="service_timeout",

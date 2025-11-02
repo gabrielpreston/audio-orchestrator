@@ -16,7 +16,6 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 import uvicorn
 
-from services.common.audio_metrics import create_http_metrics, create_tts_metrics
 from services.common.config import (
     AudioConfig,
     HttpConfig,
@@ -79,7 +78,7 @@ class SynthesisRequest(BaseModel):
 class SynthesisResponse(BaseModel):
     """Response model for text synthesis."""
 
-    audio: bytes
+    audio: str  # Base64-encoded audio data (WAV format)
     engine: str
     processing_time_ms: float
     voice_used: str
@@ -94,8 +93,15 @@ async def _startup() -> None:
         _observability_manager = get_observability_manager("bark")
 
         # Create service-specific metrics
+        from services.common.audio_metrics import (
+            create_tts_metrics,
+            create_http_metrics,
+            create_system_metrics,
+        )
+
         _tts_metrics = create_tts_metrics(_observability_manager)
         _http_metrics = create_http_metrics(_observability_manager)
+        _system_metrics = create_system_metrics(_observability_manager)
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
@@ -254,8 +260,13 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
             voice=request.voice,
         )
 
+        # Encode audio bytes as base64 for JSON serialization
+        import base64
+
+        audio_base64 = base64.b64encode(audio_data).decode("utf-8")
+
         return SynthesisResponse(
-            audio=audio_data,
+            audio=audio_base64,
             engine=engine,
             processing_time_ms=processing_time,
             voice_used=request.voice,
