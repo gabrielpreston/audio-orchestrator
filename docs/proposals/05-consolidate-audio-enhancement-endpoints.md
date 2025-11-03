@@ -42,7 +42,7 @@
 
 ## Dependencies
 - Consolidated helper requires `AudioEnhancer` interface stability.
-- Coordination with the ?Cache Audio Request Body Once? proposal, which complements this change.
+- Coordination with the “Cache Audio Request Body Once” proposal, which complements this change.
 
 ## Risks & Mitigations
 - **Risk:** Helper may inadvertently alter response headers. *Mitigation:* Write assertions validating headers in unit/integration tests.
