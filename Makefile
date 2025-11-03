@@ -85,8 +85,14 @@ PYTEST_ARGS ?=
 # Dynamic service discovery
 SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
 
-# Runtime services (excludes tooling services like linter, tester, security)
-RUNTIME_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails
+# Development services (includes testing and monitoring, excludes observability stack)
+DEV_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails
+
+# Production services only (excludes testing, monitoring, and observability stack)
+PROD_SERVICES := discord stt flan orchestrator bark audio guardrails
+
+# All services including observability stack
+ALL_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails otel-collector prometheus jaeger grafana
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -192,6 +198,23 @@ define run_docker_container
 	$(3)
 endef
 
+# Helper function to select services based on ENV
+define select_services_by_env
+@ENV=$${ENV:-dev}; \
+	if [ "$$ENV" = "prod" ]; then \
+		SERVICES="$(PROD_SERVICES)"; \
+		ENV_NAME="production"; \
+	elif [ "$$ENV" = "dev" ]; then \
+		SERVICES="$(DEV_SERVICES)"; \
+		ENV_NAME="development"; \
+	else \
+		printf "$(COLOR_RED)→ Error: ENV must be 'dev' or 'prod', got: $$ENV$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi; \
+	printf "$(COLOR_GREEN)→ Starting $$ENV_NAME services: $$SERVICES$(COLOR_OFF)\n"; \
+	DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans $$SERVICES
+endef
+
 # =============================================================================
 # DEFAULT TARGETS
 # =============================================================================
@@ -245,20 +268,12 @@ models-fix-permissions: ## Fix host model directory permissions (creates directo
 		chmod -R 755 "$$bark_cache" 2>/dev/null || true; \
 	fi
 
-run: stop models-fix-permissions ## Start docker-compose stack (fixes model permissions first)
-	@printf "$(COLOR_GREEN)→ Starting containers with cached images$(COLOR_OFF)\n"
-	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) up -d --remove-orphans
+run: stop models-fix-permissions ## Start services (use ENV=dev or ENV=prod, default is dev)
+	$(call select_services_by_env)
 
 run-with-build: docker-build-enhanced run ## Build with enhanced caching then start containers (base images must exist)
 
-run-test: stop-test ## Start test services for integration testing (uses docker-compose.test.yml)
-	@printf "$(COLOR_GREEN)→ Starting test containers with docker-compose.test.yml$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) -f docker-compose.test.yml up -d --remove-orphans
-	@printf "$(COLOR_YELLOW)→ Test services starting...$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ Use 'make stop-test' to stop test services$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ Use 'make test-integration' to run tests$(COLOR_OFF)\n"
-
-stop-test: ## Stop and remove test containers
+stop-test: ## Stop and remove test containers (deprecated - use 'make stop' for full stack)
 	@printf "$(COLOR_BLUE)→ Bringing down test containers$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down --remove-orphans
 
@@ -283,11 +298,11 @@ docker-status: ## Show status of docker-compose services
 
 docker-shell: ## Open an interactive shell inside a running service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
+		echo "Set SERVICE=<service-name> ($(ALL_SERVICES))"; \
 		exit 1; \
 	fi
-	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
-		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
+	@if ! echo "$(ALL_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(ALL_SERVICES)"; \
 		exit 1; \
 	fi
 	@$(DOCKER_COMPOSE) exec $(SERVICE) /bin/bash
@@ -334,11 +349,11 @@ docker-build-enhanced: ## Build all services locally in parallel with registry c
 
 docker-build-service: ## Build a specific service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then \
-		echo "Set SERVICE=<service-name> ($(RUNTIME_SERVICES))"; \
+		echo "Set SERVICE=<service-name> ($(ALL_SERVICES))"; \
 		exit 1; \
 	fi
-	@if ! echo "$(RUNTIME_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
-		echo "Invalid service: $(SERVICE). Valid services: $(RUNTIME_SERVICES)"; \
+	@if ! echo "$(ALL_SERVICES)" | grep -q "\b$(SERVICE)\b"; then \
+		echo "Invalid service: $(SERVICE). Valid services: $(ALL_SERVICES)"; \
 		exit 1; \
 	fi
 	@printf "$(COLOR_GREEN)→ Building $(SERVICE) service$(COLOR_OFF)\n"
@@ -583,9 +598,9 @@ check-syntax: test-image ## Check Python syntax by compiling all Python files in
 		fi')
 
 check-syntax-service: test-image ## Check Python syntax for specific service (set SERVICE=name)
-	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(RUNTIME_SERVICES))$(COLOR_OFF)\n" && exit 1) || true
-	@if ! echo "$(RUNTIME_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
-		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(RUNTIME_SERVICES), common$(COLOR_OFF)\n"; \
+	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n" && exit 1) || true
+	@if ! echo "$(ALL_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
+		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(ALL_SERVICES), common$(COLOR_OFF)\n"; \
 		exit 1; \
 	fi
 	@printf "$(COLOR_CYAN)→ Checking Python syntax for $(SERVICE) service$(COLOR_OFF)\n"
