@@ -105,13 +105,30 @@ HTTP client management and utilities:
 **Factory Pattern**:
 
 ```python
-from services.common.http_client_factory import create_resilient_client
+from services.common.http_client_factory import (
+    create_resilient_client,
+    create_dependency_health_client,
+)
 
 # Create resilient client with environment-based configuration
 client = create_resilient_client(
     service_name="orchestrator",
     base_url="http://orchestrator:8200",
     env_prefix="ORCHESTRATOR",  # Optional: defaults to service_name.upper()
+)
+
+# Override parameters via kwargs (kwargs take precedence over env vars)
+custom_client = create_resilient_client(
+    service_name="orchestrator",
+    health_check_startup_grace_seconds=0.0,
+    timeout=15.0,
+)
+
+# Create dependency health check client (grace period=0.0 by default)
+health_client = create_dependency_health_client(
+    service_name="llm",
+    base_url="http://llm:8100",
+    env_prefix="LLM",
 )
 ```
 
@@ -124,8 +141,26 @@ client = create_resilient_client(
 -  `{PREFIX}_TIMEOUT_SECONDS`: Request timeout in seconds (default: 30.0)
 -  `{PREFIX}_HEALTH_CHECK_INTERVAL`: Seconds between health checks (default: 10.0)
 -  `{PREFIX}_HEALTH_CHECK_STARTUP_GRACE_SECONDS`: Grace period during startup (default: 30.0)
+-  `{PREFIX}_HEALTH_CHECK_TIMEOUT_SECONDS`: Health check request timeout (default: 10.0)
 -  `{PREFIX}_MAX_CONNECTIONS`: Max concurrent connections (default: 10)
 -  `{PREFIX}_MAX_KEEPALIVE_CONNECTIONS`: Max persistent connections (default: 5)
+
+**Parameter Overrides**:
+
+All factory functions support `**kwargs` to override any `ResilientHTTPClient` parameter. These overrides take precedence over environment variables:
+
+```python
+# Override grace period for dependency health checks
+client = create_resilient_client(
+    "llm",
+    health_check_startup_grace_seconds=0.0,  # No grace period
+)
+
+# Or use the convenience helper
+health_client = create_dependency_health_client(
+    "llm",  # Grace period already 0.0 by default
+)
+```
 
 **Service-Specific Error Handling**:
 

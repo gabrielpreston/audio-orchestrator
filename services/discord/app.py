@@ -11,6 +11,7 @@ from fastapi import HTTPException
 
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.http_client_factory import create_dependency_health_client
 from services.common.resilient_http import ResilientHTTPClient
 
 # Configure logging
@@ -198,18 +199,15 @@ async def _startup() -> None:
         # Load configuration
         config = load_config()
 
-        # Initialize resilient HTTP clients for health checks
-        # For dependency health checks, disable grace period to get accurate readiness
+        # Initialize resilient HTTP clients for health checks using factory
+        # For dependency health checks, grace period is 0.0 by default for accurate readiness
         global _stt_health_client, _orchestrator_health_client
         try:
-            from services.common.circuit_breaker import CircuitBreakerConfig
-
             stt_url = os.getenv("STT_BASE_URL", "http://stt:9000")
-            _stt_health_client = ResilientHTTPClient(
+            _stt_health_client = create_dependency_health_client(
                 service_name="stt",
                 base_url=stt_url,
-                circuit_config=CircuitBreakerConfig(),
-                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+                env_prefix="STT",
             )
         except Exception as exc:
             logger.warning("discord.stt_health_client_init_failed", error=str(exc))
@@ -217,11 +215,10 @@ async def _startup() -> None:
 
         try:
             orch_url = os.getenv("ORCHESTRATOR_BASE_URL", "http://orchestrator:8200")
-            _orchestrator_health_client = ResilientHTTPClient(
+            _orchestrator_health_client = create_dependency_health_client(
                 service_name="orchestrator",
                 base_url=orch_url,
-                circuit_config=CircuitBreakerConfig(),
-                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+                env_prefix="ORCHESTRATOR",
             )
         except Exception as exc:
             logger.warning(

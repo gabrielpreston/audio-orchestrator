@@ -15,7 +15,10 @@ from services.common.config.loader import get_env_with_default, load_config_from
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
-from services.common.http_client_factory import create_resilient_client
+from services.common.http_client_factory import (
+    create_dependency_health_client,
+    create_resilient_client,
+)
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
 from services.common.structured_logging import get_logger
 from services.common.tracing import get_observability_manager
@@ -115,19 +118,15 @@ async def _startup() -> None:
             logger.warning("orchestrator.tts_client_init_failed", error=str(exc))
             _tts_client = None  # Continue without TTS (graceful degradation)
 
-        # Initialize resilient HTTP clients for health checks
-        # For dependency health checks, disable grace period to get accurate readiness
+        # Initialize resilient HTTP clients for health checks using factory
+        # For dependency health checks, grace period is 0.0 by default for accurate readiness
         global _llm_health_client, _tts_health_client, _guardrails_health_client
         try:
             llm_url = get_env_with_default("LLM_BASE_URL", "http://flan:8100", str)
-            # Create client with grace period disabled for accurate dependency checking
-            from services.common.circuit_breaker import CircuitBreakerConfig
-
-            _llm_health_client = ResilientHTTPClient(
+            _llm_health_client = create_dependency_health_client(
                 service_name="llm",
                 base_url=llm_url,
-                circuit_config=CircuitBreakerConfig(),
-                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+                env_prefix="LLM",
             )
         except Exception as exc:
             logger.warning("orchestrator.llm_health_client_init_failed", error=str(exc))
@@ -135,11 +134,10 @@ async def _startup() -> None:
 
         try:
             tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
-            _tts_health_client = ResilientHTTPClient(
+            _tts_health_client = create_dependency_health_client(
                 service_name="tts",
                 base_url=tts_url,
-                circuit_config=CircuitBreakerConfig(),
-                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+                env_prefix="TTS",
             )
         except Exception as exc:
             logger.warning("orchestrator.tts_health_client_init_failed", error=str(exc))
@@ -149,11 +147,10 @@ async def _startup() -> None:
             guardrails_url = get_env_with_default(
                 "GUARDRAILS_BASE_URL", "http://guardrails:9300", str
             )
-            _guardrails_health_client = ResilientHTTPClient(
+            _guardrails_health_client = create_dependency_health_client(
                 service_name="guardrails",
                 base_url=guardrails_url,
-                circuit_config=CircuitBreakerConfig(),
-                health_check_startup_grace_seconds=0.0,  # No grace period for dependency checks
+                env_prefix="GUARDRAILS",
             )
         except Exception as exc:
             logger.warning(
