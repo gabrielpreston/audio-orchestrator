@@ -98,11 +98,19 @@ class ResilientHTTPClient:
                 self._last_timeout_log = 0.0
 
             if not self._is_healthy:
-                self._logger.warning(
+                elapsed_since_startup = now - self._service_start_time
+                # 503 during startup is expected (service not ready yet)
+                is_expected_during_startup = (
+                    response.status_code == 503 and elapsed_since_startup < 120.0
+                )
+                log_level = "debug" if is_expected_during_startup else "warning"
+                getattr(self._logger, log_level)(
                     "resilient_http.health_check_failed",
                     service=self._service_name,
                     status_code=response.status_code,
                     url=f"{self._base_url}/health/ready",
+                    elapsed_since_startup_seconds=round(elapsed_since_startup, 1),
+                    is_expected_during_startup=is_expected_during_startup,
                 )
 
             return self._is_healthy
@@ -111,17 +119,41 @@ class ResilientHTTPClient:
             self._is_healthy = False
             self._last_health_check = now
 
-            # Log timeout errors only on state change or every 30 seconds to reduce noise
+            # Categorize errors and determine logging behavior
             error_type = type(exc).__name__
             is_timeout = error_type in ("ReadTimeout", "ConnectTimeout", "Timeout")
+            is_connection_error = error_type in ("ConnectError", "ConnectTimeout")
+
+            # Check if we're still in startup phase (extended grace for connection errors)
+            elapsed_since_startup = now - self._service_start_time
+            startup_grace_period = max(
+                self._health_check_startup_grace_seconds,
+                60.0,  # Extended grace period for connection errors (services may be starting)
+            )
+            is_startup_phase = (
+                elapsed_since_startup < startup_grace_period and is_connection_error
+            )
+
+            # Determine log level based on error type and startup phase
+            if is_startup_phase:
+                # Connection errors during startup are expected - use debug level
+                log_level = "debug"
+                log_interval = 60.0  # Log max once per minute during startup
+            elif is_timeout:
+                log_level = "debug"
+                log_interval = 30.0
+            else:
+                # Other errors are unexpected - always log at warning
+                log_level = "warning"
+                log_interval = 0.0  # Always log
+
+            # Rate limit expected errors (timeouts and connection errors during startup)
             should_log = (
-                not is_timeout  # Always log non-timeout errors
-                or (now - self._last_timeout_log)
-                >= 30.0  # Log timeout max once per 30s
+                log_interval == 0.0  # Always log unexpected errors
+                or (now - self._last_timeout_log) >= log_interval
             )
 
             if should_log:
-                log_level = "debug" if is_timeout else "warning"
                 getattr(self._logger, log_level)(
                     "resilient_http.health_check_error",
                     service=self._service_name,
@@ -129,8 +161,12 @@ class ResilientHTTPClient:
                     error=str(exc),
                     error_type=error_type,
                     is_timeout=is_timeout,
+                    is_connection_error=is_connection_error,
+                    is_startup_phase=is_startup_phase,
+                    elapsed_since_startup_seconds=round(elapsed_since_startup, 1),
+                    startup_grace_period_seconds=startup_grace_period,
                 )
-                if is_timeout:
+                if log_interval > 0.0:
                     self._last_timeout_log = now
 
             return False

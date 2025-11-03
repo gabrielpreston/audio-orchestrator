@@ -90,14 +90,66 @@ async def _start_discord_bot(config: Any, observability_manager: Any) -> None:
         # Store bot reference
         _bot = bot
 
+        # Validate token before attempting connection
+        token = config.discord.token
+        # Check for placeholder/missing token values
+        placeholder_values = {"changeme", ""}
+        is_invalid_token = (
+            not token or token.strip() in placeholder_values or len(token.strip()) < 10
+        )
+        if is_invalid_token:
+            logger.error(
+                "discord.bot_token_invalid",
+                token_set=bool(token),
+                token_length=len(token) if token else 0,
+                message="Discord bot token is missing or set to placeholder value. "
+                "Set DISCORD_BOT_TOKEN in services/discord/.env.secrets",
+            )
+            # Set bot to error state but don't raise - HTTP API can still work
+            _bot = {"status": "error", "mode": "bot", "error": "Invalid bot token"}
+            return
+
         # Start bot connection (non-blocking)
-        bot_task = asyncio.create_task(bot.start(config.discord.token))
+        # Wrap in error handler to catch connection failures
+        async def _bot_start_with_error_handling() -> None:
+            """Start bot with error handling and logging."""
+            try:
+                await bot.start(token)
+            except Exception as exc:
+                error_type = type(exc).__name__
+                is_auth_error = "LoginFailure" in error_type or "401" in str(exc)
+
+                logger.error(
+                    "discord.bot_connection_failed",
+                    error=str(exc),
+                    error_type=error_type,
+                    is_authentication_error=is_auth_error,
+                    message="Discord bot failed to connect or crashed"
+                    + (
+                        ". Check DISCORD_BOT_TOKEN in services/discord/.env.secrets"
+                        if is_auth_error
+                        else ""
+                    ),
+                )
+                import traceback
+
+                logger.error(
+                    "discord.bot_connection_traceback",
+                    traceback=traceback.format_exc(),
+                )
+                # Set bot to error state
+                global _bot
+                _bot = {"status": "error", "mode": "bot", "error": str(exc)}
+                raise
+
+        bot_task = asyncio.create_task(_bot_start_with_error_handling())
         _bot_task = bot_task
 
         logger.info("discord.bot_start_task_created")
 
         # Bot task runs forever, so we don't await it here
         # The on_ready event will fire when the bot connects
+        # Errors from the task will be logged via _bot_start_with_error_handling
 
     except Exception as exc:
         logger.error(

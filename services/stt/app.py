@@ -1,8 +1,7 @@
-from collections.abc import Iterable
 import io
 import os
 import time
-from typing import Any, cast
+from typing import Any
 import wave
 
 from fastapi import HTTPException, Request
@@ -1164,418 +1163,158 @@ async def _transcribe_request(
     filename: str | None,
 ) -> JSONResponse:
     from services.common.structured_logging import correlation_context
+    from services.stt.transcription import (
+        build_transcription_response,
+        cache_transcription_result,
+        check_cache,
+        ensure_model_ready,
+        execute_inference,
+        parse_transcription_params,
+        prepare_audio_for_transcription,
+        record_transcription_metrics,
+        resolve_correlation_id,
+        validate_request,
+    )
 
-    # Extract and resolve correlation_id first
-    headers_correlation = request.headers.get("X-Correlation-ID")
-    query_correlation = request.query_params.get("correlation_id")
-    correlation_id = correlation_id or headers_correlation or query_correlation
+    # Resolve correlation ID
+    correlation_id = resolve_correlation_id(request, correlation_id)
 
-    # Validate correlation ID if provided
-    if correlation_id:
-        from services.common.correlation import validate_correlation_id
-
-        is_valid, error_msg = validate_correlation_id(correlation_id)
-        if not is_valid:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid correlation ID: {error_msg}"
-            )
-
-    # Generate STT correlation ID if none provided
-    if not correlation_id:
-        from services.common.correlation import generate_stt_correlation_id
-
-        correlation_id = generate_stt_correlation_id()
-
-    # Generate cache key before correlation_context (needed for cache.put at end)
-    # Apply audio enhancement if enabled (before cache check)
-    wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
-    # Generate cache key from audio bytes (convert to hex string for hashing)
-    import hashlib
-
-    cache_key = hashlib.sha256(wav_bytes).hexdigest()
+    # Prepare audio (enhancement + cache key generation)
+    wav_bytes, cache_key = await prepare_audio_for_transcription(
+        wav_bytes,
+        correlation_id,
+        _audio_processor_client,
+        _enhance_audio_if_enabled,
+    )
 
     # Check cache before transcription
-    if _transcript_cache:
-        cached_result = _transcript_cache.get(cache_key)
-        if cached_result:
-            # Add correlation_id to cached response if not present
-            if correlation_id and "correlation_id" not in cached_result:
-                cached_result["correlation_id"] = correlation_id
-            cache_stats = _transcript_cache.get_stats()
-            # Log cache hit with correlation context
-            with correlation_context(correlation_id) as request_logger:
-                request_logger.info(
-                    "stt.cache_hit",
-                    cache_key=cache_key[:16],
-                    correlation_id=correlation_id,
-                    cache_hit_rate=round(cache_stats["hit_rate"], 3),
-                )
-            return JSONResponse(cached_result)
+    cached_result = check_cache(_transcript_cache, cache_key, correlation_id)
+    if cached_result:
+        return JSONResponse(cached_result)
+
+    # Top-level timing for the request (includes validation, file I/O, model work)
+    req_start = time.time()
 
     with correlation_context(correlation_id) as request_logger:
-        # Top-level timing for the request (includes validation, file I/O, model work)
-        req_start = time.time()
-
-        if not wav_bytes:
-            raise HTTPException(status_code=400, detail="empty request body")
-
-        channels, _sampwidth, framerate = _extract_audio_metadata(wav_bytes)
-
-    # Check model status before processing (non-blocking)
-    if _model_loader is None:
-        raise HTTPException(status_code=503, detail="Model loader not initialized")
-
-    if _model_loader.is_loading():
-        raise HTTPException(
-            status_code=503,
-            detail="Model is currently loading. Please try again shortly.",
+        # Validate request and extract audio metadata
+        channels, _sampwidth, framerate = validate_request(
+            wav_bytes, _extract_audio_metadata
         )
 
-    if not _model_loader.is_loaded():
-        status = _model_loader.get_status()
-        error_msg = status.get("error", "Model not available")
-        raise HTTPException(status_code=503, detail=f"Model not available: {error_msg}")
+        # Ensure model is ready
+        model = await ensure_model_ready(_model_loader)
 
-    # Ensure model is loaded (may trigger lazy load if background failed)
-    if not await _model_loader.ensure_loaded():
-        status = _model_loader.get_status()
-        error_msg = status.get("error", "Model not available")
-        raise HTTPException(status_code=503, detail=f"Model not available: {error_msg}")
+        # Cache in global for backward compatibility
+        global _model
+        _model = model
 
-    model = _model_loader.get_model()
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not available")
+        device = _cfg.faster_whisper.device
 
-    # Cache in global for backward compatibility
-    global _model
-    _model = model
+        # Parse transcription parameters
+        params = parse_transcription_params(request, _cfg, _parse_bool)
 
-    device = _cfg.faster_whisper.device
-    # Write incoming WAV bytes to a temp file and let the model handle I/O
-    import tempfile
+        # Write incoming WAV bytes to a temp file and let the model handle I/O
+        import tempfile
+        from contextlib import suppress
 
-    # Allow clients to optionally request a translation task by passing
-    # the `task=translate` query parameter. We also accept `beam_size` and
-    # `language` query params to tune faster-whisper behavior at runtime.
-    task = request.query_params.get("task")
-    beam_size_q = request.query_params.get("beam_size")
-    lang_q = request.query_params.get("language")
-    word_ts_q = request.query_params.get("word_timestamps")
-    vad_filter_q = request.query_params.get("vad_filter")
-    initial_prompt = request.query_params.get("initial_prompt")
-    language = lang_q
-    include_word_ts = _parse_bool(word_ts_q)
-    # Use configured beam_size as default (optimized to 5 for quality/latency balance)
-    beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
-    if beam_size_q:
+        tmp_path: str | None = None
+        input_bytes = len(wav_bytes)
+
+        processing_ms: int | None = None
+        info: Any = None
+        segments_list: list[Any] = []
+
         try:
-            beam_size = int(beam_size_q)
-            if beam_size < 1:
-                beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
-        except (ValueError, TypeError) as exc:
-            logger.warning(
-                "stt.invalid_beam_size",
-                beam_size=beam_size_q,
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
-            raise HTTPException(
-                status_code=400, detail="invalid beam_size query param"
-            ) from exc
-
-    tmp_path = None
-    # metadata for response payload
-    input_bytes = len(wav_bytes)
-
-    processing_ms: int | None = None
-    info: Any = None
-    segments_list: list[Any] = []
-    text = ""
-    segments_out: list[dict[str, Any]] = []
-
-    # Calculate audio duration for metrics (disabled for now)
-    # audio_duration = len(wav_bytes) / (channels * sampwidth * framerate) if channels and sampwidth and framerate else 0
-
-    try:
-        request_logger.info(
-            "stt.request_received",
-            correlation_id=correlation_id,
-            input_bytes=input_bytes,
-            task=task,
-            beam_size=beam_size,
-            language=language,
-            filename=filename,
-            channels=channels,
-            sample_rate=framerate,
-            decision="processing_transcription_request",
-        )
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-            tmp.write(wav_bytes)
-            tmp_path = tmp.name
-        # faster-whisper's transcribe signature accepts beam_size and optional
-        # task/language parameters. If language is not provided we pass None
-        # to allow automatic language detection.
-        # Some faster-whisper variants support word-level timestamps; request it
-        # only when asked via the query param.
-        # Determine whether caller requested word-level timestamps and pass
-        # that flag into the model.transcribe call (some faster-whisper
-        # implementations accept a word_timestamps=True parameter).
-        # measure server-side processing time (model inference portion)
-        proc_start = time.time()
-
-        # Get device info for logging (STT-specific for CTranslate2)
-        device_info = {}
-        if model:
-            try:
-                model_device_info = _get_model_device_info(model)
-                device_info = {
-                    "intended_device": device,
-                    **model_device_info,
-                }
-            except Exception:
-                device_info = {
-                    "intended_device": device,
-                    "actual_device": "unknown",
-                }
-
-        request_logger.info(
-            "stt.processing_started",
-            correlation_id=correlation_id,
-            model=MODEL_NAME,
-            input_bytes=input_bytes,
-            beam_size=beam_size,
-            language=language,
-            task=task,
-            include_word_timestamps=include_word_ts,
-            decision="starting_transcription_inference",
-        )
-
-        # Log device info
-        request_logger.info(
-            "stt.processing_started.device_info",
-            correlation_id=correlation_id,
-            intended_device=device_info.get("intended_device"),
-            actual_device=device_info.get("actual_device", "unknown"),
-            device_verified=device_info.get("device_verified", False),
-            model_on_device=device_info.get("model_on_device"),
-            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
-            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
-            phase="inference_start",
-        )
-        transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
-        if task == "translate":
-            transcribe_kwargs.update({"task": "translate", "language": language})
-        elif language is not None:
-            transcribe_kwargs["language"] = language
-        if include_word_ts:
-            transcribe_kwargs["word_timestamps"] = True
-        if vad_filter_q and _parse_bool(vad_filter_q):
-            transcribe_kwargs["vad_filter"] = True
-        if initial_prompt:
-            transcribe_kwargs["initial_prompt"] = initial_prompt
-
-        # Validate CUDA runtime before inference if using CUDA
-        if device == "cuda" and not _validate_cuda_runtime():
-            request_logger.error(
-                "stt.cuda_runtime_unavailable_at_inference",
-                correlation_id=correlation_id,
-                actual_device=device_info.get("actual_device", "unknown"),
-                decision="cuda_validation_failed",
-            )
-            raise HTTPException(
-                status_code=503,
-                detail="CUDA runtime unavailable. Model may need to be reloaded with CPU device.",
-            )
-
-        inference_start = time.time()
-        try:
-            raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
-            inference_duration = time.time() - inference_start
-
-            # Log successful inference with device confirmation
             request_logger.info(
-                "stt.inference_completed",
+                "stt.request_received",
                 correlation_id=correlation_id,
-                inference_duration_ms=round(inference_duration * 1000, 2),
-                decision="inference_success",
+                input_bytes=input_bytes,
+                task=params["task"],
+                beam_size=params["beam_size"],
+                language=params["language"],
+                filename=filename,
+                channels=channels,
+                sample_rate=framerate,
+                decision="processing_transcription_request",
             )
 
-            # Log device info
-            request_logger.info(
-                "stt.inference_completed.device_info",
-                correlation_id=correlation_id,
-                intended_device=device_info.get("intended_device"),
-                actual_device=device_info.get("actual_device", "unknown"),
-                model_on_device=device_info.get("model_on_device"),
-                phase="inference_complete",
+            # Create temporary file for faster-whisper
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(wav_bytes)
+                tmp_path = tmp.name
+
+            # Measure server-side processing time (model inference portion)
+            proc_start = time.time()
+
+            # Execute inference
+            (
+                segments_list,
+                info,
+                device_info,
+                inference_duration,
+            ) = await execute_inference(
+                model,
+                tmp_path,
+                params,
+                device,
+                correlation_id,
+                MODEL_NAME,
+                _validate_cuda_runtime,
+                _get_model_device_info,
+                request_logger,
             )
-        except (RuntimeError, OSError) as e:
-            inference_duration = time.time() - inference_start
-            error_str = str(e).lower()
-            # Check if this is a CUDA-related error
-            if any(
-                keyword in error_str
-                for keyword in ["cuda", "cudnn", "gpu", "cuda error", "invalid handle"]
-            ):
-                request_logger.error(
-                    "stt.cuda_inference_error",
-                    correlation_id=correlation_id,
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    intended_device=device_info.get("intended_device"),
-                    actual_device=device_info.get("actual_device", "unknown"),
-                    model_on_device=device_info.get("model_on_device"),
-                    inference_duration_ms=round(inference_duration * 1000, 2),
-                    decision="cuda_inference_failed",
-                )
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"CUDA inference failed: {str(e)}. Service may need CPU device configuration.",
-                ) from e
-            # Re-raise non-CUDA errors
-            raise
+
+            proc_end = time.time()
+            processing_ms = int((proc_end - proc_start) * 1000)
+            processing_seconds = processing_ms / 1000.0
+
+            # Record STT metrics for success
+            record_transcription_metrics(_stt_metrics, "success", processing_seconds)
+
+            request_logger.info(
+                "stt.request_processed",
+                correlation_id=correlation_id,
+                processing_ms=processing_ms,
+                segments=len(segments_list),
+            )
         except Exception as e:
-            inference_duration = time.time() - inference_start
-            # Log other errors but don't assume they're CUDA-related
-            request_logger.error(
-                "stt.inference_error",
+            # Record error metrics
+            elapsed = time.time() - req_start
+            record_transcription_metrics(_stt_metrics, "error", elapsed)
+
+            logger.exception(
+                "stt.transcription_error",
                 correlation_id=correlation_id,
                 error=str(e),
-                error_type=type(e).__name__,
-                intended_device=device_info.get("intended_device"),
-                actual_device=device_info.get("actual_device", "unknown"),
-                model_on_device=device_info.get("model_on_device"),
-                inference_duration_ms=round(inference_duration * 1000, 2),
             )
-            raise
-        # faster-whisper may return a generator/iterator for segments; convert
-        # to a list so we can iterate it multiple times (build text and
-        # optionally include word-level timestamps).
-        if isinstance(raw_segments, list):
-            segments_list = raw_segments
-        else:
-            try:
-                segments_list = list(cast("Iterable[Any]", raw_segments))
-            except TypeError:
-                segments_list = [raw_segments]
-        proc_end = time.time()
-        processing_ms = int((proc_end - proc_start) * 1000)
-        processing_seconds = processing_ms / 1000.0
+            raise HTTPException(
+                status_code=500, detail=f"transcription error: {e}"
+            ) from e
+        finally:
+            if tmp_path:
+                with suppress(Exception):
+                    os.unlink(tmp_path)
 
-        # Record STT metrics
-        if _stt_metrics:
-            if "stt_requests" in _stt_metrics:
-                _stt_metrics["stt_requests"].add(1, attributes={"status": "success"})
-            if "stt_latency" in _stt_metrics:
-                _stt_metrics["stt_latency"].record(
-                    processing_seconds, attributes={"status": "success"}
-                )
+        # Build response (only if no exception was raised)
+        req_end = time.time()
+        total_ms = int((req_end - req_start) * 1000)
 
-        request_logger.info(
-            "stt.request_processed",
-            correlation_id=correlation_id,
-            processing_ms=processing_ms,
-            segments=len(segments_list),
+        resp = build_transcription_response(
+            segments_list,
+            info,
+            params,
+            processing_ms or 0,
+            total_ms,
+            input_bytes,
+            correlation_id,
+            MODEL_NAME,
+            device,
         )
-        # Build a combined text and (optionally) include timestamped segments/words
-        text = " ".join(getattr(seg, "text", "") for seg in segments_list).strip()
-        if include_word_ts:
-            for seg in segments_list:
-                segment_entry: dict[str, Any] = {
-                    "start": getattr(seg, "start", None),
-                    "end": getattr(seg, "end", None),
-                    "text": getattr(seg, "text", ""),
-                }
-                # some faster-whisper variants expose `words` on segments when
-                # word timestamps are requested; include them if present.
-                words = getattr(seg, "words", None)
-                word_entries: list[dict[str, Any]] = []
-                if isinstance(words, list):
-                    for w in words:
-                        word_entries.append(
-                            {
-                                "word": getattr(w, "word", None)
-                                or getattr(w, "text", None),
-                                "start": getattr(w, "start", None),
-                                "end": getattr(w, "end", None),
-                            }
-                        )
-                elif words is not None:
-                    word_entries.append(
-                        {
-                            "word": getattr(words, "word", None)
-                            or getattr(words, "text", None),
-                            "start": getattr(words, "start", None),
-                            "end": getattr(words, "end", None),
-                        }
-                    )
-                if word_entries:
-                    segment_entry["words"] = word_entries
-                segments_out.append(segment_entry)
-    except Exception as e:
-        # Record error metrics
-        if _stt_metrics:
-            if "stt_requests" in _stt_metrics:
-                _stt_metrics["stt_requests"].add(1, attributes={"status": "error"})
-            if "stt_latency" in _stt_metrics:
-                # Record latency even for errors (if we have timing info)
-                elapsed = time.time() - req_start if "req_start" in locals() else 0
-                _stt_metrics["stt_latency"].record(
-                    elapsed, attributes={"status": "error"}
-                )
 
-        logger.exception(
-            "stt.transcription_error", correlation_id=correlation_id, error=str(e)
-        )
-        raise HTTPException(status_code=500, detail=f"transcription error: {e}") from e
-    finally:
-        if tmp_path:
-            from contextlib import suppress
+        # Cache result after successful transcription
+        cache_transcription_result(_transcript_cache, cache_key, resp)
 
-            with suppress(Exception):
-                os.unlink(tmp_path)
-
-    req_end = time.time()
-    total_ms = int((req_end - req_start) * 1000)
-
-    resp: dict[str, Any] = {
-        "text": text,
-        "duration": getattr(info, "duration", None),
-        "language": getattr(info, "language", None),
-        "confidence": getattr(info, "language_probability", None),
-    }
-    if task:
-        resp["task"] = task
-    # include correlation id if provided by client
-    if correlation_id:
-        resp["correlation_id"] = correlation_id
-    # include server-side processing time (ms)
-    try:
-        resp["processing_ms"] = processing_ms
-        resp["total_ms"] = total_ms
-        resp["input_bytes"] = input_bytes
-        resp["model"] = MODEL_NAME
-        resp["device"] = device
-    except NameError:
-        # if for some reason processing_ms isn't set, ignore
-        pass
-    if include_word_ts and segments_out:
-        resp["segments"] = segments_out
-    # include header with processing time for callers that prefer headers
-    headers = {}
-    if "processing_ms" in resp:
-        headers["X-Processing-Time-ms"] = str(resp["processing_ms"])
-    if "total_ms" in resp:
-        headers["X-Total-Time-ms"] = str(resp["total_ms"])
-    if "input_bytes" in resp:
-        headers["X-Input-Bytes"] = str(resp["input_bytes"])
-
-    # Cache result after successful transcription
-    if _transcript_cache:
-        _transcript_cache.put(cache_key, resp)
-
-    # Log response ready with correlation context
-    with correlation_context(correlation_id) as request_logger:
+        # Log response ready with correlation context
         request_logger.info(
             "stt.response_ready",
             correlation_id=correlation_id,
@@ -1589,7 +1328,17 @@ async def _transcribe_request(
                 correlation_id=correlation_id,
                 text=resp["text"],
             )
-    return JSONResponse(resp, headers=headers)
+
+        # Build response headers
+        headers = {}
+        if "processing_ms" in resp:
+            headers["X-Processing-Time-ms"] = str(resp["processing_ms"])
+        if "total_ms" in resp:
+            headers["X-Total-Time-ms"] = str(resp["total_ms"])
+        if "input_bytes" in resp:
+            headers["X-Input-Bytes"] = str(resp["input_bytes"])
+
+        return JSONResponse(resp, headers=headers)
 
 
 @app.post("/asr")  # type: ignore[misc]

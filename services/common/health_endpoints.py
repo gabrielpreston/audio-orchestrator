@@ -143,6 +143,16 @@ class HealthEndpoints:
         """
         Readiness check with component and dependency status.
 
+        IMPORTANT: This endpoint is accessible immediately when uvicorn starts, even during
+        service startup. It returns 503 Service Unavailable if:
+        - Startup is not complete yet (startup_complete=False)
+        - Critical dependencies are not ready (models downloading, caches warming, etc.)
+
+        This allows orchestrators and load balancers to detect when services are still
+        initializing and route traffic appropriately. Services should mark startup_complete
+        early (after initiating background model loading) and register dependencies that
+        check model loading status.
+
         Returns:
             Dict with detailed readiness information
 
@@ -151,6 +161,7 @@ class HealthEndpoints:
                 if service is not ready. Error detail includes dependency names and error messages.
         """
         # Check if startup is complete first
+        # This ensures 503 is returned during startup before models finish downloading
         if not self.health_manager._startup_complete:
             raise HTTPException(
                 status_code=503,

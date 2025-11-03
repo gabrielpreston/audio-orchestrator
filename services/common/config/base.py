@@ -425,6 +425,13 @@ class TelemetryConfig(BaseConfig):
                 description="Jaeger endpoint URL",
                 env_var="JAEGER_ENDPOINT",
             ),
+            FieldDefinition(
+                name="discord_warmup_audio",
+                field_type=bool,
+                default=True,
+                description="Enable Discord audio warm-up to avoid first-interaction latency spikes",
+                env_var="DISCORD_WARMUP_AUDIO",
+            ),
         ]
 
 

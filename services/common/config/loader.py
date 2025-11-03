@@ -37,6 +37,26 @@ def get_environment_type() -> str:
     return os.getenv("ENVIRONMENT", "docker").lower()
 
 
+def _deep_merge_dict(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Deep merge two dictionaries, preserving nested structures.
+
+    Args:
+        base: Base dictionary (will be modified in-place)
+        override: Override dictionary (values take precedence)
+
+    Returns:
+        Merged dictionary (same reference as base)
+    """
+    for key, value in override.items():
+        if key in base and isinstance(base[key], dict) and isinstance(value, dict):
+            # Recursively merge nested dictionaries
+            _deep_merge_dict(base[key], value)
+        else:
+            # Override or add new key
+            base[key] = value
+    return base
+
+
 def load_config_from_env(config_class: type[T], **overrides: Any) -> T:
     """Load configuration from environment variables.
 
@@ -52,9 +72,9 @@ def load_config_from_env(config_class: type[T], **overrides: Any) -> T:
         if config_class.__name__ == "ServiceConfig":
             from .base import NestedConfig
 
-            # Apply environment variable overrides
+            # Apply environment variable overrides with deep merge
             env_overrides = _get_env_overrides()
-            overrides.update(env_overrides)
+            _deep_merge_dict(overrides, env_overrides)
 
             return NestedConfig(**overrides)  # type: ignore[return-value]
         return config_class(**overrides)
@@ -80,6 +100,109 @@ def _get_env_overrides() -> dict[str, Any]:
         else:
             # Empty string or invalid values are treated as false
             overrides.setdefault("wake", {})["enabled"] = False
+
+    # Discord configuration
+    discord_token = os.getenv("DISCORD_BOT_TOKEN")
+    if discord_token is not None:
+        overrides.setdefault("discord", {})["token"] = discord_token
+
+    discord_guild_id = os.getenv("DISCORD_GUILD_ID")
+    if discord_guild_id is not None:
+        try:
+            overrides.setdefault("discord", {})["guild_id"] = int(discord_guild_id)
+        except ValueError:
+            logger.warning(
+                "config.discord_guild_id_invalid",
+                value=discord_guild_id,
+                message="DISCORD_GUILD_ID must be a valid integer",
+            )
+
+    discord_channel_id = os.getenv("DISCORD_VOICE_CHANNEL_ID")
+    if discord_channel_id is not None:
+        try:
+            overrides.setdefault("discord", {})["voice_channel_id"] = int(
+                discord_channel_id
+            )
+        except ValueError:
+            logger.warning(
+                "config.discord_channel_id_invalid",
+                value=discord_channel_id,
+                message="DISCORD_VOICE_CHANNEL_ID must be a valid integer",
+            )
+
+    discord_auto_join = os.getenv("DISCORD_AUTO_JOIN")
+    if discord_auto_join is not None:
+        overrides.setdefault("discord", {})["auto_join"] = (
+            discord_auto_join.lower()
+            in (
+                "true",
+                "1",
+                "yes",
+                "on",
+            )
+        )
+
+    discord_intents = os.getenv("DISCORD_INTENTS")
+    if discord_intents is not None:
+        overrides.setdefault("discord", {})["intents"] = [
+            intent.strip() for intent in discord_intents.split(",")
+        ]
+
+    # Voice connection configuration
+    discord_connect_timeout = os.getenv("DISCORD_VOICE_CONNECT_TIMEOUT")
+    if discord_connect_timeout is not None:
+        try:
+            overrides.setdefault("discord", {})["voice_connect_timeout_seconds"] = (
+                float(discord_connect_timeout)
+            )
+        except ValueError:
+            logger.warning(
+                "config.discord_connect_timeout_invalid",
+                value=discord_connect_timeout,
+            )
+
+    discord_connect_attempts = os.getenv("DISCORD_VOICE_CONNECT_ATTEMPTS")
+    if discord_connect_attempts is not None:
+        try:
+            overrides.setdefault("discord", {})["voice_connect_max_attempts"] = int(
+                discord_connect_attempts
+            )
+        except ValueError:
+            logger.warning(
+                "config.discord_connect_attempts_invalid",
+                value=discord_connect_attempts,
+            )
+
+    discord_reconnect_base = os.getenv("DISCORD_VOICE_RECONNECT_BASE_DELAY")
+    if discord_reconnect_base is not None:
+        try:
+            overrides.setdefault("discord", {})[
+                "voice_reconnect_initial_backoff_seconds"
+            ] = float(discord_reconnect_base)
+        except ValueError:
+            logger.warning(
+                "config.discord_reconnect_base_invalid",
+                value=discord_reconnect_base,
+            )
+
+    discord_reconnect_max = os.getenv("DISCORD_VOICE_RECONNECT_MAX_DELAY")
+    if discord_reconnect_max is not None:
+        try:
+            overrides.setdefault("discord", {})[
+                "voice_reconnect_max_backoff_seconds"
+            ] = float(discord_reconnect_max)
+        except ValueError:
+            logger.warning(
+                "config.discord_reconnect_max_invalid",
+                value=discord_reconnect_max,
+            )
+
+    # Discord warm-up configuration
+    discord_warmup_audio = os.getenv("DISCORD_WARMUP_AUDIO")
+    if discord_warmup_audio is not None:
+        overrides.setdefault("telemetry", {})["discord_warmup_audio"] = (
+            discord_warmup_audio.lower() in ("true", "1", "yes", "on")
+        )
 
     return overrides
 

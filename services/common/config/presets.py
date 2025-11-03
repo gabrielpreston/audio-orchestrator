@@ -176,7 +176,12 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "service_timeout": 20,
             },
             "service": {"port": 8001, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9091, "jaeger_endpoint": ""},
+            "telemetry": {
+                "enabled": True,
+                "metrics_port": 9091,
+                "jaeger_endpoint": "",
+                "discord_warmup_audio": True,
+            },
             "wake": {
                 "enabled": True,
                 "wake_phrases": ["hey atlas", "ok atlas"],

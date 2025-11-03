@@ -76,7 +76,14 @@ class HealthManager:
         self._logger.debug("health.dependency_registered", dependency=name)
 
     async def check_ready(self) -> bool:
-        """Check if service is ready (all critical deps available)."""
+        """Check if service is ready (all critical deps available).
+
+        Returns False if:
+        - Startup is not complete (startup_complete=False)
+        - Any registered dependency check returns False (e.g., models still loading)
+
+        This allows services to return 503 during model downloads and cache warmup.
+        """
         if not self._startup_complete:
             return False
 
@@ -103,7 +110,17 @@ class HealthManager:
         return True  # If we can execute this, process is alive
 
     def mark_startup_complete(self) -> None:
-        """Mark that startup initialization is complete."""
+        """Mark that startup initialization is complete.
+
+        IMPORTANT: Services should call this AFTER initiating background model loading,
+        NOT after models finish loading. This allows the service to:
+        1. Start accepting HTTP requests immediately (uvicorn can respond)
+        2. Return 503 from /health/ready until dependencies (models) are ready
+        3. Allow orchestrators to detect initialization status
+
+        Dependencies should be registered before calling this method so health checks
+        can properly detect when models are still downloading or caches are warming up.
+        """
         self._startup_complete = True
         self._logger.info("health.startup_complete", service=self._service_name)
         # Update startup metric using OpenTelemetry
@@ -168,6 +185,7 @@ class HealthManager:
                         failing_dependencies.append(name)
                         ready = False
                 except Exception as exc:
+                    elapsed_since_startup = time.time() - self._startup_time
                     dependency_status[name] = {
                         "available": False,
                         "error": f"{type(exc).__name__}: {str(exc)}",
@@ -184,8 +202,17 @@ class HealthManager:
                                 "dependency": name,
                             },
                         )
-                    self._logger.warning(
-                        "health.dependency_error", dependency=name, error=str(exc)
+                    # Determine log level based on startup phase
+                    # Errors during first 60 seconds might be expected (services starting)
+                    is_startup_phase = elapsed_since_startup < 60.0
+                    log_level = "debug" if is_startup_phase else "warning"
+                    getattr(self._logger, log_level)(
+                        "health.dependency_error",
+                        dependency=name,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                        elapsed_since_startup_seconds=round(elapsed_since_startup, 1),
+                        is_startup_phase=is_startup_phase,
                     )
 
             # Only log dependency warnings when status changes

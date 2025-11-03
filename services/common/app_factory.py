@@ -104,11 +104,21 @@ def create_service_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> Any:  # noqa: ARG001
-        """Standardized lifespan handler with service-specific startup/shutdown."""
+        """Standardized lifespan handler with service-specific startup/shutdown.
+
+        IMPORTANT: FastAPI routes (including health endpoints) are registered immediately
+        when the app is created, before this lifespan startup runs. This means:
+        1. Uvicorn can accept HTTP requests as soon as it starts
+        2. Health endpoints are accessible during startup
+        3. Services should return 503 from /health/ready during startup and model loading
+        4. Services should use BackgroundModelLoader for non-blocking model loading
+        5. Services should mark_startup_complete() early (after initiating background loading)
+        """
         # Startup
         try:
             # Call service-specific startup (services can access observability_manager
             # via get_observability_manager(service_name) if needed)
+            # NOTE: This runs asynchronously, so uvicorn can still accept requests during startup
             if startup_callback:
                 if asyncio.iscoroutinefunction(startup_callback):
                     await startup_callback()
