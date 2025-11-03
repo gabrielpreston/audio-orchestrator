@@ -1,0 +1,9 @@
+# Markdownlint ignore patterns
+# See: https://github.com/igorshubovych/markdownlint-cli
+
+# Ignore proposal documents
+docs/proposals/
+
+# Ignore plan files
+**/*.plan.md
+
