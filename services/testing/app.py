@@ -5,7 +5,6 @@ Provides a Gradio interface for testing the complete audio pipeline
 including preprocessing, transcription, orchestration, and synthesis.
 """
 
-import hashlib
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -126,6 +125,16 @@ async def run_pipeline(
 
     Returns:
         Tuple of (transcript, response, audio_output_path)
+            audio_output_path: Temporary file path for Gradio Audio component.
+            Uses tempfile.NamedTemporaryFile(delete=False) because Gradio reads
+            files asynchronously after function returns. OS will clean up temp files
+            automatically (standard behavior).
+
+    Note:
+        Audio output is saved to temporary files using Python's tempfile API.
+        Files use delete=False because Gradio requires async file access, so
+        cleanup relies on OS-level temporary file management rather than immediate
+        deletion.
     """
     try:
         transcript = ""
@@ -270,34 +279,20 @@ async def run_pipeline(
                     # Decode base64 audio data
                     audio_bytes = base64.b64decode(audio_data_b64)
 
-                    # Save audio output
-                    # Generate safe filename (sha256 produces hex string, no negative values)
-                    filename_hash = hashlib.sha256(response.encode()).hexdigest()
-                    temp_dir = Path(tempfile.gettempdir())
-
-                    # Ensure temp directory exists and is writable
-                    temp_dir.mkdir(parents=True, exist_ok=True)
-
-                    audio_file_path = (
-                        temp_dir / f"output_{filename_hash}.{audio_format}"
-                    )
-
-                    # Write file
-                    with audio_file_path.open("wb") as f:
-                        f.write(audio_bytes)
-
-                    # Verify it's a file (not directory) before returning to Gradio
-                    audio_file_path = audio_file_path.resolve()
-                    if not audio_file_path.is_file():
-                        raise ValueError(
-                            f"Output path is not a file: {audio_file_path}"
-                        )
+                    # Save audio output using tempfile API
+                    # Use delete=False because Gradio reads files asynchronously after function returns
+                    # OS will clean up temp files automatically (standard behavior)
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=f".{audio_format}"
+                    ) as tmp:
+                        tmp.write(audio_bytes)
+                        audio_file_path = tmp.name
 
                     # Convert to string for Gradio
                     audio_output_path = str(audio_file_path)
 
                     logger.info(
-                        "Audio from orchestrator saved",
+                        "Audio from orchestrator saved to temporary file",
                         extra={
                             "output_path": audio_output_path,
                             "format": audio_format,
@@ -335,29 +330,20 @@ async def run_pipeline(
                         # Try to read as raw bytes if not JSON
                         audio_bytes = tts_response.content
 
-                    # Save audio output
-                    filename_hash = hashlib.sha256(response.encode()).hexdigest()
-                    temp_dir = Path(tempfile.gettempdir())
-                    temp_dir.mkdir(parents=True, exist_ok=True)
-
-                    audio_file_path = temp_dir / f"output_{filename_hash}.wav"
-
-                    # Write file
-                    with audio_file_path.open("wb") as f:
-                        f.write(audio_bytes)
-
-                    # Verify it's a file (not directory) before returning to Gradio
-                    audio_file_path = audio_file_path.resolve()
-                    if not audio_file_path.is_file():
-                        raise ValueError(
-                            f"Output path is not a file: {audio_file_path}"
-                        )
+                    # Save audio output using tempfile API
+                    # Use delete=False because Gradio reads files asynchronously after function returns
+                    # OS will clean up temp files automatically (standard behavior)
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".wav"
+                    ) as tmp:
+                        tmp.write(audio_bytes)
+                        audio_file_path = tmp.name
 
                     # Convert to string for Gradio
                     audio_output_path = str(audio_file_path)
 
                     logger.info(
-                        "TTS synthesis completed (fallback)",
+                        "TTS synthesis completed (fallback) - saved to temporary file",
                         extra={"output_path": audio_output_path},
                     )
                 except Exception as e:

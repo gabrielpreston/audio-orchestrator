@@ -62,9 +62,7 @@ class TestTestingServicePipeline:
         # Verify all services were called
         assert mock_client_module.post.call_count == 3
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def run_pipeline_preprocessing_failure_fallback(
@@ -108,9 +106,7 @@ class TestTestingServicePipeline:
         # STT should have been called with raw audio (call_count == 2 for STT)
         assert mock_client_module.post.call_count >= 2
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def run_pipeline_text_input_bypass_stt(
@@ -141,9 +137,7 @@ class TestTestingServicePipeline:
         assert ORCHESTRATOR_BASE_URL in str(call_args[0][0])
         assert call_args[1]["json"]["transcript"] == "test text input"
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def run_pipeline_orchestrator_audio_response_file_saving(
@@ -175,9 +169,7 @@ class TestTestingServicePipeline:
         expected_audio = base64.b64decode(orchestrator_data["audio_data"])
         assert saved_audio == expected_audio
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def run_pipeline_tts_fallback_when_orchestrator_no_audio(
@@ -222,9 +214,7 @@ class TestTestingServicePipeline:
         assert TTS_BASE_URL in str(tts_call[0][0])
         assert tts_call[1]["json"]["voice"] == "v2/en_speaker_1"
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def run_pipeline_voice_preset_selection_for_tts(
@@ -262,9 +252,7 @@ class TestTestingServicePipeline:
             tts_call = mock_client_module.post.call_args_list[-1]
             assert tts_call[1]["json"]["voice"] == voice_preset
 
-            # Cleanup
-            if audio_path and Path(audio_path).exists():
-                Path(audio_path).unlink()
+            # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
 
 @pytest.mark.component
@@ -465,9 +453,7 @@ class TestTestingServiceDataTransformation:
         saved_audio = Path(audio_path).read_bytes()
         assert saved_audio == expected_audio
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def test_file_io_operations(
@@ -490,18 +476,14 @@ class TestTestingServiceDataTransformation:
                 voice_preset="v2/en_speaker_0",
             )
 
-        # Verify file was created in temp_dir
+        # Verify file was created and is readable
+        # Note: tempfile.NamedTemporaryFile uses system temp dir, not temp_dir fixture
         assert audio_path is not None
-        assert Path(audio_path).parent == temp_dir
         assert Path(audio_path).exists()
-
-        # Verify file is readable
         saved_audio = Path(audio_path).read_bytes()
         assert len(saved_audio) > 0
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def test_file_path_validation(
@@ -529,9 +511,7 @@ class TestTestingServiceDataTransformation:
         assert path_obj.exists()
         assert path_obj.suffix == ".wav"
 
-        # Cleanup
-        if audio_path and Path(audio_path).exists():
-            Path(audio_path).unlink()
+        # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
     @patch("services.testing.app.client")
     async def test_temporary_file_cleanup(
