@@ -12,6 +12,8 @@ from __future__ import annotations
 import io
 import os
 import time
+from collections.abc import Generator
+from contextlib import contextmanager
 from typing import Any
 
 import numpy as np
@@ -36,6 +38,464 @@ from services.common.gpu_utils import get_full_device_info, log_device_info
 logger = get_logger(__name__)
 
 
+@contextmanager
+def _bark_environment_context() -> Generator[None, None, None]:
+    """Context manager for Bark environment variable patching.
+
+    Sets HOME and XDG_CACHE_HOME to /app and /app/models respectively,
+    then restores original values on exit (even on exceptions).
+
+    Yields:
+        None - context manager for environment variable patching
+    """
+    original_home = os.environ.get("HOME")
+    original_xdg_cache = os.environ.get("XDG_CACHE_HOME")
+
+    # Set HOME to /app so bark can write to /app/.cache (within mounted volume)
+    # Bark uses ~/.cache/suno/bark_v0 which requires HOME to be writable
+    os.environ["HOME"] = "/app"
+
+    # Also set XDG_CACHE_HOME as fallback (XDG spec)
+    os.environ["XDG_CACHE_HOME"] = "/app/models"
+
+    try:
+        yield
+    finally:
+        # Restore original environment variables
+        if original_home:
+            os.environ["HOME"] = original_home
+        elif "HOME" in os.environ:
+            del os.environ["HOME"]
+
+        if original_xdg_cache:
+            os.environ["XDG_CACHE_HOME"] = original_xdg_cache
+        elif "XDG_CACHE_HOME" in os.environ:
+            del os.environ["XDG_CACHE_HOME"]
+
+
+def _check_force_download(logger: Any) -> bool:
+    """Check if force download is enabled for Bark models.
+
+    Args:
+        logger: Structured logger instance
+
+    Returns:
+        True if force download is enabled, False otherwise
+    """
+    force_val = os.getenv("FORCE_MODEL_DOWNLOAD_BARK_MODELS", "").lower()
+    global_val = os.getenv("FORCE_MODEL_DOWNLOAD", "false").lower()
+    force_download = force_val in ("true", "1", "yes") or global_val in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    logger.info(
+        "bark.force_download_check",
+        force_download=force_download,
+        phase="force_download_check",
+    )
+
+    return force_download
+
+
+def _patch_pytorch_safe_globals(logger: Any) -> None:
+    """Patch PyTorch 2.6+ compatibility: Allow numpy objects in torch.load.
+
+    PyTorch 2.6+ defaults to weights_only=True, which restricts unpickling to safe types.
+    Bark's checkpoints contain numpy objects that need explicit allowlisting.
+    This patch adds numpy types to PyTorch's safe globals before model loading.
+
+    Args:
+        logger: Structured logger instance
+    """
+    import inspect
+
+    try:
+        safe_globals: list[Any] = []
+        dtype_type_names: list[str] = []
+
+        # Add base numpy types (compatible with all numpy versions)
+        from numpy.core.multiarray import scalar as numpy_scalar
+
+        safe_globals.append(numpy_scalar)
+        safe_globals.append(np.dtype)
+        base_types = ["numpy.core.multiarray.scalar", "numpy.dtype"]
+
+        # Discover and add all concrete dtype classes from numpy.dtypes
+        # NumPy 1.24+ provides numpy.dtypes with concrete DType classes
+        if hasattr(np, "dtypes"):
+            try:
+                import numpy.dtypes as numpy_dtypes
+
+                for attr_name in dir(numpy_dtypes):
+                    # Only consider DType classes (exclude private attributes)
+                    if attr_name.endswith("DType") and not attr_name.startswith("_"):
+                        try:
+                            dtype_class = getattr(numpy_dtypes, attr_name)
+                            # Only add actual classes, not instances or other types
+                            if inspect.isclass(dtype_class):
+                                safe_globals.append(dtype_class)
+                                dtype_type_names.append(attr_name)
+                        except (AttributeError, TypeError):
+                            # Skip attributes that can't be accessed or aren't classes
+                            continue
+
+                # Sort for consistent logging
+                dtype_type_names.sort()
+            except (ImportError, AttributeError):
+                # numpy.dtypes module not available or not accessible
+                pass
+
+        # Register all discovered numpy types with PyTorch
+        if safe_globals:
+            import torch.serialization
+
+            torch.serialization.add_safe_globals(safe_globals)
+            logger.info(
+                "bark.pytorch_safe_globals_patched",
+                phase="pytorch_compatibility_patch",
+                base_types=base_types,
+                dtype_classes=dtype_type_names[:10],  # Log first 10 for brevity
+                total_dtype_classes=len(dtype_type_names),
+                total_types=len(safe_globals),
+                message="PyTorch safe globals configured for numpy compatibility",
+            )
+        else:
+            logger.warning(
+                "bark.pytorch_safe_globals_empty",
+                phase="pytorch_compatibility_patch",
+                message="No numpy types discovered for safe globals",
+            )
+
+    except (ImportError, AttributeError) as patch_exc:
+        logger.warning(
+            "bark.pytorch_safe_globals_patch_failed",
+            error=str(patch_exc),
+            error_type=type(patch_exc).__name__,
+            phase="pytorch_compatibility_patch_failed",
+            exc_info=True,
+        )
+        # Continue anyway - might work with older PyTorch or different error handling
+
+
+def _preload_bark_models(logger: Any) -> float:
+    """Preload Bark models with configuration options.
+
+    Args:
+        logger: Structured logger instance
+
+    Returns:
+        Duration of preload operation in seconds
+    """
+    if preload_models is None:
+        return 0.0
+
+    # Check if small models should be used (for memory-constrained environments)
+    use_small_models = os.getenv("BARK_USE_SMALL_MODELS", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+
+    preload_start = time.time()
+
+    # Log the exact parameters that will be passed to preload_models
+    preload_params = {
+        "text_use_small": use_small_models,
+        "coarse_use_small": use_small_models,
+        "fine_use_small": use_small_models,
+        "codec_use_gpu": torch.cuda.is_available(),
+    }
+
+    logger.info(
+        "bark.preload_models_starting",
+        phase="preload_start",
+        use_small_models=use_small_models,
+        preload_parameters=preload_params,
+        message="Loading Bark models (text, coarse, fine, codec)",
+    )
+
+    logger.debug(
+        "bark.preload_models_parameters",
+        phase="preload_params",
+        text_use_small=use_small_models,
+        coarse_use_small=use_small_models,
+        fine_use_small=use_small_models,
+        codec_use_gpu=torch.cuda.is_available(),
+        message="Calling preload_models with these exact parameters",
+    )
+
+    # Use small models if configured to reduce memory footprint
+    # Small models use ~50% less memory but with reduced quality
+    preload_models(
+        text_use_small=use_small_models,
+        coarse_use_small=use_small_models,
+        fine_use_small=use_small_models,
+        codec_use_gpu=torch.cuda.is_available(),  # Use GPU if available
+    )
+    preload_duration = time.time() - preload_start
+
+    return preload_duration
+
+
+def _migrate_models_to_gpu(logger: Any) -> list[str]:
+    """Migrate Bark models to GPU with FP16 quantization.
+
+    Args:
+        logger: Structured logger instance
+
+    Returns:
+        List of model names that were successfully moved to GPU
+    """
+    if not torch.cuda.is_available():
+        return []
+
+    try:
+        # Access Bark's module-level model storage
+        # NOTE: Bark stores models in bark.generation.models dictionary
+        # Keys: "text", "coarse", "fine", "codec"
+        # Text model is nested: models["text"]["model"], others are direct
+        from bark.generation import models as bark_models
+
+        device = torch.device("cuda")
+
+        # Move models to GPU with FP16 quantization (matches FLAN pattern)
+        models_moved = []
+
+        # Text model is nested in a container
+        if (
+            "text" in bark_models
+            and bark_models["text"] is not None
+            and "model" in bark_models["text"]
+            and bark_models["text"]["model"] is not None
+        ):
+            bark_models["text"]["model"] = (
+                bark_models["text"]["model"].to(device).half()
+            )
+            models_moved.append("text")
+
+        # Coarse and fine models are direct
+        if "coarse" in bark_models and bark_models["coarse"] is not None:
+            bark_models["coarse"] = bark_models["coarse"].to(device).half()
+            models_moved.append("coarse")
+
+        if "fine" in bark_models and bark_models["fine"] is not None:
+            bark_models["fine"] = bark_models["fine"].to(device).half()
+            models_moved.append("fine")
+
+        if models_moved:
+            logger.info(
+                "bark.models_moved_to_gpu",
+                models_moved=models_moved,
+                device=str(device),
+                phase="gpu_migration",
+                message="Bark models successfully migrated to GPU with FP16 quantization",
+            )
+
+            # Log device info using common utilities
+            try:
+                # Get device info for one model (they should all be on same device)
+                model_for_info = None
+                if (
+                    "text" in bark_models
+                    and bark_models["text"] is not None
+                    and "model" in bark_models["text"]
+                    and bark_models["text"]["model"] is not None
+                ):
+                    model_for_info = bark_models["text"]["model"]
+                elif "coarse" in bark_models and bark_models["coarse"] is not None:
+                    model_for_info = bark_models["coarse"]
+                elif "fine" in bark_models and bark_models["fine"] is not None:
+                    model_for_info = bark_models["fine"]
+
+                if model_for_info is not None:
+                    device_info = get_full_device_info(
+                        model=model_for_info, intended_device="cuda"
+                    )
+                    log_device_info(
+                        logger,
+                        "bark.models_loaded",
+                        device_info,
+                        phase="gpu_migration_complete",
+                    )
+            except Exception as device_info_exc:
+                # Non-critical - device info logging failed, continue
+                logger.debug(
+                    "bark.device_info_logging_failed",
+                    error=str(device_info_exc),
+                    error_type=type(device_info_exc).__name__,
+                    phase="gpu_migration_complete",
+                    message="Failed to log device info, continuing",
+                )
+        else:
+            logger.warning(
+                "bark.no_models_found_for_gpu_migration",
+                phase="gpu_migration",
+                message="GPU available but no Bark models found to migrate",
+            )
+
+        return models_moved
+
+    except (ImportError, AttributeError, KeyError) as e:
+        # Graceful fallback - log warning, continue with CPU
+        logger.warning(
+            "bark.gpu_migration_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="gpu_migration",
+            message="Failed to migrate Bark models to GPU, continuing with CPU",
+        )
+        return []
+    except Exception as e:
+        # Catch-all for other GPU migration errors
+        logger.exception(
+            "bark.gpu_migration_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="gpu_migration_error",
+            message="Unexpected error during GPU migration, continuing with CPU",
+        )
+        return []
+
+
+def _compile_bark_models(logger: Any) -> tuple[list[str], str]:
+    """Apply torch.compile() optimization to Bark models if enabled.
+
+    Args:
+        logger: Structured logger instance
+
+    Returns:
+        Tuple of (list of compiled model names, compile mode used)
+    """
+    # torch is imported at module level
+    if not torch.cuda.is_available():  # noqa: F823
+        return [], ""
+
+    enable_compile = os.getenv("BARK_ENABLE_TORCH_COMPILE", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    # Use "max-autotune-no-cudagraphs" mode for optimal performance without CUDA graphs
+    # This mode performs extensive autotuning while explicitly avoiding CUDA graphs,
+    # which are incompatible with Bark's in-place operations that overwrite tensors
+    compile_mode = os.getenv("BARK_COMPILE_MODE", "max-autotune-no-cudagraphs")
+
+    if not enable_compile or not hasattr(torch, "compile"):
+        return [], compile_mode
+
+    try:
+        from bark.generation import models as bark_models
+
+        # Configure torch._dynamo FIRST, before any compilation or model operations
+        # This fixes getpwuid() errors in Docker containers without /etc/passwd entries
+        # Must be set early to affect all subsequent torch.compile() calls
+        try:
+            import torch._dynamo
+
+            torch._dynamo.config.suppress_errors = True
+            logger.info(
+                "bark.torch_dynamo_configured",
+                suppress_errors=True,
+                phase="optimization_setup",
+                message="torch._dynamo configured to suppress errors and fallback gracefully",
+            )
+        except (ImportError, AttributeError):
+            # torch._dynamo not available, continue anyway
+            logger.debug(
+                "bark.torch_dynamo_unavailable",
+                phase="optimization_setup",
+                message="torch._dynamo not available, compilation may fail",
+            )
+
+        compile_start = time.time()
+        compiled_models = []
+
+        # Compile text model
+        if (
+            "text" in bark_models
+            and bark_models["text"] is not None
+            and "model" in bark_models["text"]
+            and bark_models["text"]["model"] is not None
+        ):
+            try:
+                bark_models["text"]["model"] = torch.compile(
+                    bark_models["text"]["model"],
+                    mode=compile_mode,
+                )
+                compiled_models.append("text")
+            except Exception as e:
+                logger.warning(
+                    "bark.compile_failed",
+                    model="text",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
+        # Compile coarse model
+        if "coarse" in bark_models and bark_models["coarse"] is not None:
+            try:
+                bark_models["coarse"] = torch.compile(
+                    bark_models["coarse"],
+                    mode=compile_mode,
+                )
+                compiled_models.append("coarse")
+            except Exception as e:
+                logger.warning(
+                    "bark.compile_failed",
+                    model="coarse",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
+        # Compile fine model
+        if "fine" in bark_models and bark_models["fine"] is not None:
+            try:
+                bark_models["fine"] = torch.compile(
+                    bark_models["fine"],
+                    mode=compile_mode,
+                )
+                compiled_models.append("fine")
+            except Exception as e:
+                logger.warning(
+                    "bark.compile_failed",
+                    model="fine",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                )
+
+        compile_duration = (time.time() - compile_start) * 1000
+        if compiled_models:
+            logger.info(
+                "bark.models_compiled",
+                models=compiled_models,
+                mode=compile_mode,
+                duration_ms=round(compile_duration, 2),
+                phase="optimization",
+                message="torch.compile() optimization applied successfully",
+            )
+        else:
+            logger.warning(
+                "bark.compile_all_failed",
+                mode=compile_mode,
+                phase="optimization",
+                message="torch.compile() failed for all models, continuing without compilation",
+            )
+
+        return compiled_models, compile_mode
+
+    except (ImportError, AttributeError) as e:
+        logger.warning(
+            "bark.compile_setup_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="optimization",
+            message="Failed to setup compilation, continuing without compilation",
+        )
+        return [], compile_mode
+
+
 class BarkSynthesizer:
     """Bark TTS synthesizer with Piper fallback."""
 
@@ -50,482 +510,91 @@ class BarkSynthesizer:
 
         # Create wrapper function for preload_models that checks force download
         def _preload_models_with_force() -> None:
-            """Wrapper for preload_models that checks force download."""
-            import time
-
+            """Wrapper for preload_models that orchestrates startup pipeline stages."""
             if preload_models is None:
                 return
 
             load_start = time.time()
 
-            # Check environment variable directly (loader not yet created)
-            import os
-
-            force_val = os.getenv("FORCE_MODEL_DOWNLOAD_BARK_MODELS", "").lower()
-            global_val = os.getenv("FORCE_MODEL_DOWNLOAD", "false").lower()
-            force_download = force_val in ("true", "1", "yes") or global_val in (
-                "true",
-                "1",
-                "yes",
-            )
-
             self._logger.info(
                 "bark.model_load_start",
-                force_download=force_download,
                 phase="load_start",
             )
 
-            # Set HOME to /app so bark can write to /app/.cache (within mounted volume)
-            # Bark uses ~/.cache/suno/bark_v0 which requires HOME to be writable
-            original_home = os.environ.get("HOME")
-            os.environ["HOME"] = "/app"
-
-            # Also set XDG_CACHE_HOME as fallback (XDG spec)
-            original_xdg_cache = os.environ.get("XDG_CACHE_HOME")
-            os.environ["XDG_CACHE_HOME"] = "/app/models"
-
-            try:
-                if force_download:
-                    force_download_start = time.time()
-                    force_download_bark(force=True)
-                    force_download_duration = time.time() - force_download_start
-                    self._logger.info(
-                        "bark.force_download_enabled",
-                        force_download_duration_ms=round(
-                            force_download_duration * 1000, 2
-                        ),
-                        phase="force_download_prep",
-                    )
-
-                # Patch PyTorch 2.6+ compatibility: Allow numpy objects in torch.load
-                # PyTorch 2.6+ defaults to weights_only=True, which restricts unpickling to safe types.
-                # Bark's checkpoints contain numpy objects that need explicit allowlisting.
-                # This patch adds numpy types to PyTorch's safe globals before model loading.
-                import inspect
-                import torch.serialization
-
+            # Use context manager for environment variable patching (automatic cleanup)
+            with _bark_environment_context():
                 try:
-                    safe_globals: list[Any] = []
-                    dtype_type_names: list[str] = []
+                    # Stage 1: Check force download flag
+                    force_download = _check_force_download(self._logger)
 
-                    # Add base numpy types (compatible with all numpy versions)
-                    from numpy.core.multiarray import scalar as numpy_scalar
-
-                    safe_globals.append(numpy_scalar)
-                    safe_globals.append(np.dtype)
-                    base_types = ["numpy.core.multiarray.scalar", "numpy.dtype"]
-
-                    # Discover and add all concrete dtype classes from numpy.dtypes
-                    # NumPy 1.24+ provides numpy.dtypes with concrete DType classes
-                    if hasattr(np, "dtypes"):
-                        try:
-                            import numpy.dtypes as numpy_dtypes
-
-                            for attr_name in dir(numpy_dtypes):
-                                # Only consider DType classes (exclude private attributes)
-                                if attr_name.endswith(
-                                    "DType"
-                                ) and not attr_name.startswith("_"):
-                                    try:
-                                        dtype_class = getattr(numpy_dtypes, attr_name)
-                                        # Only add actual classes, not instances or other types
-                                        if inspect.isclass(dtype_class):
-                                            safe_globals.append(dtype_class)
-                                            dtype_type_names.append(attr_name)
-                                    except (AttributeError, TypeError):
-                                        # Skip attributes that can't be accessed or aren't classes
-                                        continue
-
-                            # Sort for consistent logging
-                            dtype_type_names.sort()
-                        except (ImportError, AttributeError):
-                            # numpy.dtypes module not available or not accessible
-                            pass
-
-                    # Register all discovered numpy types with PyTorch
-                    if safe_globals:
-                        torch.serialization.add_safe_globals(safe_globals)
+                    # Stage 2: Handle force download if enabled
+                    if force_download:
+                        force_download_start = time.time()
+                        force_download_bark(force=True)
+                        force_download_duration = time.time() - force_download_start
                         self._logger.info(
-                            "bark.pytorch_safe_globals_patched",
-                            phase="pytorch_compatibility_patch",
-                            base_types=base_types,
-                            dtype_classes=dtype_type_names[
-                                :10
-                            ],  # Log first 10 for brevity
-                            total_dtype_classes=len(dtype_type_names),
-                            total_types=len(safe_globals),
-                            message="PyTorch safe globals configured for numpy compatibility",
-                        )
-                    else:
-                        self._logger.warning(
-                            "bark.pytorch_safe_globals_empty",
-                            phase="pytorch_compatibility_patch",
-                            message="No numpy types discovered for safe globals",
+                            "bark.force_download_enabled",
+                            force_download_duration_ms=round(
+                                force_download_duration * 1000, 2
+                            ),
+                            phase="force_download_prep",
                         )
 
-                except (ImportError, AttributeError) as patch_exc:
-                    self._logger.warning(
-                        "bark.pytorch_safe_globals_patch_failed",
-                        error=str(patch_exc),
-                        error_type=type(patch_exc).__name__,
-                        phase="pytorch_compatibility_patch_failed",
-                        exc_info=True,
+                    # Stage 3: Patch PyTorch safe globals for numpy compatibility
+                    _patch_pytorch_safe_globals(self._logger)
+
+                    # Stage 4: Preload Bark models
+                    preload_duration = _preload_bark_models(self._logger)
+
+                    # Stage 5: Migrate models to GPU (if available)
+                    _migrate_models_to_gpu(self._logger)
+
+                    # Stage 6: Compile models with torch.compile() if enabled
+                    _compile_bark_models(self._logger)
+
+                    total_duration = time.time() - load_start
+
+                    self._logger.info(
+                        "bark.models_preloaded",
+                        preload_duration_ms=round(preload_duration * 1000, 2),
+                        total_duration_ms=round(total_duration * 1000, 2),
+                        phase="preload_complete",
                     )
-                    # Continue anyway - might work with older PyTorch or different error handling
 
-                # Call preload_models (side-effect function)
-                # Check if small models should be used (for memory-constrained environments)
-                import os
+                    # Reset force download env var if it was set
+                    if force_download:
+                        force_download_bark(force=False)
 
-                use_small_models = os.getenv(
-                    "BARK_USE_SMALL_MODELS", "false"
-                ).lower() in (
-                    "true",
-                    "1",
-                    "yes",
-                )
-
-                preload_start = time.time()
-
-                # Log the exact parameters that will be passed to preload_models
-                preload_params = {
-                    "text_use_small": use_small_models,
-                    "coarse_use_small": use_small_models,
-                    "fine_use_small": use_small_models,
-                    "codec_use_gpu": torch.cuda.is_available(),
-                }
-
-                self._logger.info(
-                    "bark.preload_models_starting",
-                    phase="preload_start",
-                    use_small_models=use_small_models,
-                    preload_parameters=preload_params,
-                    message="Loading Bark models (text, coarse, fine, codec)",
-                )
-
-                self._logger.debug(
-                    "bark.preload_models_parameters",
-                    phase="preload_params",
-                    text_use_small=use_small_models,
-                    coarse_use_small=use_small_models,
-                    fine_use_small=use_small_models,
-                    codec_use_gpu=torch.cuda.is_available(),
-                    message="Calling preload_models with these exact parameters",
-                )
-
-                # Use small models if configured to reduce memory footprint
-                # Small models use ~50% less memory but with reduced quality
-                preload_models(
-                    text_use_small=use_small_models,
-                    coarse_use_small=use_small_models,
-                    fine_use_small=use_small_models,
-                    codec_use_gpu=torch.cuda.is_available(),  # Use GPU if available
-                )
-                preload_duration = time.time() - preload_start
-
-                # After preload_models() completes, migrate models to GPU
-                if torch.cuda.is_available():
-                    try:
-                        # Access Bark's module-level model storage
-                        # NOTE: Bark stores models in bark.generation.models dictionary
-                        # Keys: "text", "coarse", "fine", "codec"
-                        # Text model is nested: models["text"]["model"], others are direct
-                        from bark.generation import models as bark_models
-
-                        device = torch.device("cuda")
-
-                        # Move models to GPU with FP16 quantization (matches FLAN pattern)
-                        models_moved = []
-
-                        # Text model is nested in a container
-                        if (
-                            "text" in bark_models
-                            and bark_models["text"] is not None
-                            and "model" in bark_models["text"]
-                            and bark_models["text"]["model"] is not None
-                        ):
-                            bark_models["text"]["model"] = (
-                                bark_models["text"]["model"].to(device).half()
-                            )
-                            models_moved.append("text")
-
-                        # Coarse and fine models are direct
-                        if (
-                            "coarse" in bark_models
-                            and bark_models["coarse"] is not None
-                        ):
-                            bark_models["coarse"] = (
-                                bark_models["coarse"].to(device).half()
-                            )
-                            models_moved.append("coarse")
-
-                        if "fine" in bark_models and bark_models["fine"] is not None:
-                            bark_models["fine"] = bark_models["fine"].to(device).half()
-                            models_moved.append("fine")
-
-                        # Apply torch.compile() optimization if enabled (replaces deprecated Better Transformer)
-                        # torch.compile() provides 20-40% speedup on PyTorch 2.0+
-                        enable_compile = os.getenv(
-                            "BARK_ENABLE_TORCH_COMPILE", "true"
-                        ).lower() in (
-                            "true",
-                            "1",
-                            "yes",
-                        )
-                        # Use "max-autotune-no-cudagraphs" mode for optimal performance without CUDA graphs
-                        # This mode performs extensive autotuning while explicitly avoiding CUDA graphs,
-                        # which are incompatible with Bark's in-place operations that overwrite tensors
-                        compile_mode = os.getenv(
-                            "BARK_COMPILE_MODE", "max-autotune-no-cudagraphs"
-                        )
-
-                        # Configure torch._dynamo FIRST, before any compilation or model operations
-                        # This fixes getpwuid() errors in Docker containers without /etc/passwd entries
-                        # Must be set early to affect all subsequent torch.compile() calls
-                        if enable_compile and hasattr(torch, "compile"):
-                            try:
-                                import torch._dynamo
-
-                                torch._dynamo.config.suppress_errors = True
-                                self._logger.info(
-                                    "bark.torch_dynamo_configured",
-                                    suppress_errors=True,
-                                    phase="optimization_setup",
-                                    message="torch._dynamo configured to suppress errors and fallback gracefully",
-                                )
-                            except (ImportError, AttributeError):
-                                # torch._dynamo not available, continue anyway
-                                self._logger.debug(
-                                    "bark.torch_dynamo_unavailable",
-                                    phase="optimization_setup",
-                                    message="torch._dynamo not available, compilation may fail",
-                                )
-
-                        if enable_compile and hasattr(torch, "compile"):
-                            # Base image guarantees PyTorch >= 2.0, so hasattr check is sufficient
-                            compile_start = time.time()
-                            compiled_models = []
-
-                            # Compile text model
-                            if (
-                                "text" in bark_models
-                                and bark_models["text"] is not None
-                                and "model" in bark_models["text"]
-                                and bark_models["text"]["model"] is not None
-                            ):
-                                try:
-                                    bark_models["text"]["model"] = torch.compile(
-                                        bark_models["text"]["model"],
-                                        mode=compile_mode,
-                                    )
-                                    compiled_models.append("text")
-                                except Exception as e:
-                                    self._logger.warning(
-                                        "bark.compile_failed",
-                                        model="text",
-                                        error=str(e),
-                                        error_type=type(e).__name__,
-                                    )
-
-                            # Compile coarse model
-                            if (
-                                "coarse" in bark_models
-                                and bark_models["coarse"] is not None
-                            ):
-                                try:
-                                    bark_models["coarse"] = torch.compile(
-                                        bark_models["coarse"],
-                                        mode=compile_mode,
-                                    )
-                                    compiled_models.append("coarse")
-                                except Exception as e:
-                                    self._logger.warning(
-                                        "bark.compile_failed",
-                                        model="coarse",
-                                        error=str(e),
-                                        error_type=type(e).__name__,
-                                    )
-
-                            # Compile fine model
-                            if (
-                                "fine" in bark_models
-                                and bark_models["fine"] is not None
-                            ):
-                                try:
-                                    bark_models["fine"] = torch.compile(
-                                        bark_models["fine"],
-                                        mode=compile_mode,
-                                    )
-                                    compiled_models.append("fine")
-                                except Exception as e:
-                                    self._logger.warning(
-                                        "bark.compile_failed",
-                                        model="fine",
-                                        error=str(e),
-                                        error_type=type(e).__name__,
-                                    )
-
-                            compile_duration = (time.time() - compile_start) * 1000
-                            if compiled_models:
-                                self._logger.info(
-                                    "bark.models_compiled",
-                                    models=compiled_models,
-                                    mode=compile_mode,
-                                    duration_ms=round(compile_duration, 2),
-                                    phase="optimization",
-                                    message="torch.compile() optimization applied successfully",
-                                )
-                            else:
-                                self._logger.warning(
-                                    "bark.compile_all_failed",
-                                    mode=compile_mode,
-                                    phase="optimization",
-                                    message="torch.compile() failed for all models, continuing without compilation",
-                                )
-
-                        if models_moved:
-                            self._logger.info(
-                                "bark.models_moved_to_gpu",
-                                models_moved=models_moved,
-                                device=str(device),
-                                phase="gpu_migration",
-                                message="Bark models successfully migrated to GPU with FP16 quantization",
-                            )
-
-                            # Log device info using common utilities
-                            try:
-                                # Get device info for one model (they should all be on same device)
-                                model_for_info = None
-                                if (
-                                    "text" in bark_models
-                                    and bark_models["text"] is not None
-                                    and "model" in bark_models["text"]
-                                    and bark_models["text"]["model"] is not None
-                                ):
-                                    model_for_info = bark_models["text"]["model"]
-                                elif (
-                                    "coarse" in bark_models
-                                    and bark_models["coarse"] is not None
-                                ):
-                                    model_for_info = bark_models["coarse"]
-                                elif (
-                                    "fine" in bark_models
-                                    and bark_models["fine"] is not None
-                                ):
-                                    model_for_info = bark_models["fine"]
-
-                                if model_for_info is not None:
-                                    device_info = get_full_device_info(
-                                        model=model_for_info, intended_device="cuda"
-                                    )
-                                    log_device_info(
-                                        self._logger,
-                                        "bark.models_loaded",
-                                        device_info,
-                                        phase="gpu_migration_complete",
-                                    )
-                            except Exception as device_info_exc:
-                                # Non-critical - device info logging failed, continue
-                                self._logger.debug(
-                                    "bark.device_info_logging_failed",
-                                    error=str(device_info_exc),
-                                    error_type=type(device_info_exc).__name__,
-                                    phase="gpu_migration_complete",
-                                    message="Failed to log device info, continuing",
-                                )
-                        else:
-                            self._logger.warning(
-                                "bark.no_models_found_for_gpu_migration",
-                                phase="gpu_migration",
-                                message="GPU available but no Bark models found to migrate",
-                            )
-                    except (ImportError, AttributeError, KeyError) as e:
-                        # Graceful fallback - log warning, continue with CPU
-                        self._logger.warning(
-                            "bark.gpu_migration_failed",
-                            error=str(e),
-                            error_type=type(e).__name__,
-                            phase="gpu_migration",
-                            message="Failed to migrate Bark models to GPU, continuing with CPU",
-                        )
-                    except Exception as e:
-                        # Catch-all for other GPU migration errors
-                        self._logger.exception(
-                            "bark.gpu_migration_error",
-                            error=str(e),
-                            error_type=type(e).__name__,
-                            phase="gpu_migration_error",
-                            message="Unexpected error during GPU migration, continuing with CPU",
-                        )
-
-                total_duration = time.time() - load_start
-
-                self._logger.info(
-                    "bark.models_preloaded",
-                    preload_duration_ms=round(preload_duration * 1000, 2),
-                    total_duration_ms=round(total_duration * 1000, 2),
-                    phase="preload_complete",
-                )
-
-                # Reset force download env var if it was set
-                if force_download:
-                    force_download_bark(force=False)
-            except PermissionError as e:
-                import os
-                import time
-
-                # Calculate duration if load_start exists, otherwise use None
-                if "load_start" in locals():
-                    total_duration = time.time() - load_start
-                else:
-                    total_duration = None
-                home_diagnostics = check_directory_permissions("/app")
-                cache_diagnostics = check_directory_permissions("/app/models")
-                self._logger.exception(
-                    "bark.model_loading_permission_error",
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    home_dir="/app",
-                    home_diagnostics=home_diagnostics,
-                    cache_dir="/app/models",
-                    cache_diagnostics=cache_diagnostics,
-                    user_id=os.getuid(),
-                    group_id=os.getgid(),
-                    duration_ms=round(total_duration * 1000, 2)
-                    if total_duration
-                    else None,
-                    phase="preload_failed_permission",
-                )
-                raise
-            except Exception as e:
-                import time
-
-                # Calculate duration if load_start exists, otherwise use None
-                if "load_start" in locals():
-                    total_duration = time.time() - load_start
-                else:
-                    total_duration = None
-                self._logger.exception(
-                    "bark.model_loading_failed",
-                    error=str(e),
-                    error_type=type(e).__name__,
-                    duration_ms=round(total_duration * 1000, 2)
-                    if total_duration
-                    else None,
-                    phase="preload_failed",
-                )
-                raise
-            finally:
-                # Restore original environment variables
-                if original_home:
-                    os.environ["HOME"] = original_home
-                elif "HOME" in os.environ:
-                    del os.environ["HOME"]
-
-                if original_xdg_cache:
-                    os.environ["XDG_CACHE_HOME"] = original_xdg_cache
-                elif "XDG_CACHE_HOME" in os.environ:
-                    del os.environ["XDG_CACHE_HOME"]
+                except PermissionError as e:
+                    # Calculate duration (load_start is guaranteed to exist)
+                    duration: float = time.time() - load_start
+                    home_diagnostics = check_directory_permissions("/app")
+                    cache_diagnostics = check_directory_permissions("/app/models")
+                    self._logger.exception(
+                        "bark.model_loading_permission_error",
+                        error=str(e),
+                        error_type=type(e).__name__,
+                        home_dir="/app",
+                        home_diagnostics=home_diagnostics,
+                        cache_dir="/app/models",
+                        cache_diagnostics=cache_diagnostics,
+                        user_id=os.getuid(),
+                        group_id=os.getgid(),
+                        duration_ms=round(duration * 1000, 2),
+                        phase="preload_failed_permission",
+                    )
+                    raise
+                except Exception as e:
+                    # Calculate duration (load_start is guaranteed to exist)
+                    error_duration: float = time.time() - load_start
+                    self._logger.exception(
+                        "bark.model_loading_failed",
+                        error=str(e),
+                        error_type=type(e).__name__,
+                        duration_ms=round(error_duration * 1000, 2),
+                        phase="preload_failed",
+                    )
+                    raise
 
         # Initialize model loader (side-effect function, no cache)
         # preload_models() doesn't return a model, it loads into memory via side effect
