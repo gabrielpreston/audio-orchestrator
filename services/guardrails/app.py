@@ -58,19 +58,12 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="guardrails")
 
-# Health manager and observability
+# Health manager for service resilience (must remain module-level for app creation)
 _health_manager = HealthManager("guardrails")
-_observability_manager = None
-_guardrails_metrics = {}
+# Note: Other stateful components (_toxicity_detector, _limiter, _model_loader, etc.)
+# are now stored in app.state during startup and accessed via app.state or request.app.state
 
-# Configuration
-_toxicity_detector = None
-_limiter = None
-# Model loader for background loading
-_model_loader: BackgroundModelLoader | None = None
-
-# Toxicity result cache (simple in-memory cache for repeated inputs)
-_toxicity_cache: dict[str, dict[str, Any]] = {}
+# Toxicity cache size constant
 _TOXICITY_CACHE_MAX_SIZE = 100  # Limit cache size to prevent memory issues
 
 # PII patterns
@@ -122,7 +115,9 @@ class EscalationResponse(BaseModel):
     escalated: bool = Field(..., description="Whether escalation was successful")
 
 
-def _load_toxicity_model() -> Any | None:
+def _load_toxicity_model(
+    model_loader: BackgroundModelLoader | None = None,
+) -> Any | None:
     """Load toxicity detection model (used by BackgroundModelLoader)."""
     if not TRANSFORMERS_AVAILABLE:
         logger.warning(
@@ -133,8 +128,8 @@ def _load_toxicity_model() -> Any | None:
     try:
         # Check if force download is enabled
         force_download = False
-        if _model_loader is not None:
-            force_download = _model_loader.is_force_download()
+        if model_loader is not None:
+            force_download = model_loader.is_force_download()
 
         # Load toxicity detection model
         # HuggingFace pipeline has built-in caching
@@ -263,94 +258,100 @@ def _load_toxicity_model() -> Any | None:
 
 def initialize_rate_limiter(app_instance: Any) -> None:
     """Initialize rate limiter."""
-    global _limiter
-
     if not SLOWAPI_AVAILABLE:
         logger.warning(
             "guardrails.slowapi_unavailable", message="SlowAPI not available"
         )
+        app_instance.state.limiter = None
         return
 
     try:
-        _limiter = Limiter(key_func=get_remote_address)
-        app_instance.state.limiter = _limiter
+        limiter = Limiter(key_func=get_remote_address)
+        app_instance.state.limiter = limiter
         app_instance.add_exception_handler(429, _rate_limit_exceeded_handler)
         logger.info("guardrails.rate_limiter_initialized")
     except Exception as e:
         logger.error("guardrails.rate_limiter_failed", error=str(e))
-        _limiter = None
+        app_instance.state.limiter = None
 
 
 async def _startup() -> None:
     """Initialize the guardrails service."""
-    global \
-        _toxicity_detector, \
-        _model_loader, \
-        _observability_manager, \
-        _guardrails_metrics
-
     try:
         # Get observability manager (factory already setup observability)
-        _observability_manager = get_observability_manager("guardrails")
+        observability_manager = get_observability_manager("guardrails")
 
         # Register service-specific metrics using centralized helper
         from services.common.audio_metrics import MetricKind, register_service_metrics
 
         metrics = register_service_metrics(
-            _observability_manager, kinds=[MetricKind.GUARDRAILS, MetricKind.SYSTEM]
+            observability_manager, kinds=[MetricKind.GUARDRAILS, MetricKind.SYSTEM]
         )
-        _guardrails_metrics = metrics["guardrails"]
-        _system_metrics = metrics["system"]
+        guardrails_metrics = metrics["guardrails"]
+        system_metrics = metrics["system"]
 
         # HTTP metrics already available from app_factory via app.state.http_metrics
 
+        # Store metrics and observability in app.state
+        app.state.guardrails_metrics = guardrails_metrics
+        app.state.system_metrics = system_metrics
+        app.state.observability_manager = observability_manager
+
+        # Initialize toxicity cache in app.state
+        app.state.toxicity_cache = {}
+
         # Set observability manager in health manager
-        _health_manager.set_observability_manager(_observability_manager)
+        _health_manager.set_observability_manager(observability_manager)
 
         # Initialize model loader (HuggingFace pipeline has built-in caching)
         # Use cache_loader_func=None since pipeline handles caching internally
-        _model_loader = BackgroundModelLoader(
+        model_loader: BackgroundModelLoader = BackgroundModelLoader(
             cache_loader_func=None,  # Pipeline has built-in caching
-            download_loader_func=_load_toxicity_model,
+            download_loader_func=lambda: _load_toxicity_model(model_loader),
             logger=logger,
             loader_name="toxicity_model",
         )
+        app.state.model_loader = model_loader
 
         # Start background loading (non-blocking)
-        await _model_loader.initialize()
+        await model_loader.initialize()
         logger.info("guardrails.model_loader_initialized")
 
-        # Get model from loader and set global for backward compatibility
-        if _model_loader.is_loaded():
-            _toxicity_detector = _model_loader.get_model()
+        # Get model from loader and store in app.state
+        if model_loader.is_loaded():
+            app.state.toxicity_detector = model_loader.get_model()
+        else:
+            app.state.toxicity_detector = None
 
         # Register dependencies
         # Models must be loaded AND not currently loading for service to be ready
         _health_manager.register_dependency(
             "toxicity_model",
             lambda: (
-                _model_loader.is_loaded() and not _model_loader.is_loading()
-                if _model_loader
+                app.state.model_loader.is_loaded()
+                and not app.state.model_loader.is_loading()
+                if hasattr(app.state, "model_loader") and app.state.model_loader
                 else False
             ),
         )
         # Rate limiter is optional - service can function without it (just won't rate limit)
         # Don't block readiness if rate limiter fails to initialize
-        # _health_manager.register_dependency(
-        #     "rate_limiter", lambda: _limiter is not None
-        # )
         _health_manager.register_dependency(
             "transformers", lambda: TRANSFORMERS_AVAILABLE
         )
         _health_manager.register_dependency("slowapi", lambda: SLOWAPI_AVAILABLE)
+
+        # Initialize rate limiter (optional)
+        initialize_rate_limiter(app)
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
 
         logger.info(
             "guardrails.startup_complete",
-            toxicity_available=_toxicity_detector is not None,
-            rate_limiting_available=_limiter is not None,
+            toxicity_available=app.state.toxicity_detector is not None,
+            rate_limiting_available=hasattr(app.state, "limiter")
+            and app.state.limiter is not None,
         )
 
     except Exception as exc:
@@ -378,10 +379,14 @@ health_endpoints = HealthEndpoints(
     service_name="guardrails",
     health_manager=_health_manager,
     custom_components={
-        "toxicity_model_loaded": lambda: _model_loader.is_loaded()
-        if _model_loader
-        else False,
-        "rate_limiter_available": lambda: _limiter is not None,
+        "toxicity_model_loaded": lambda: (
+            app.state.model_loader.is_loaded()
+            if hasattr(app.state, "model_loader") and app.state.model_loader
+            else False
+        ),
+        "rate_limiter_available": lambda: (
+            hasattr(app.state, "limiter") and app.state.limiter is not None
+        ),
         "transformers_available": lambda: TRANSFORMERS_AVAILABLE,
         "slowapi_available": lambda: SLOWAPI_AVAILABLE,
     },
@@ -418,9 +423,10 @@ async def validate_input(
         if len(text) > 1000:
             # Record metrics
             processing_time = time.time() - start_time
-            if _guardrails_metrics:
-                if "validation_requests" in _guardrails_metrics:
-                    _guardrails_metrics["validation_requests"].add(
+            guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+            if guardrails_metrics:
+                if "validation_requests" in guardrails_metrics:
+                    guardrails_metrics["validation_requests"].add(
                         1,
                         attributes={
                             "type": "input",
@@ -428,8 +434,8 @@ async def validate_input(
                             "reason": "too_long",
                         },
                     )
-                if "validation_duration" in _guardrails_metrics:
-                    _guardrails_metrics["validation_duration"].record(
+                if "validation_duration" in guardrails_metrics:
+                    guardrails_metrics["validation_duration"].record(
                         processing_time,
                         attributes={"type": "input", "status": "blocked"},
                     )
@@ -444,9 +450,10 @@ async def validate_input(
             if pattern in text_lower:
                 # Record metrics
                 processing_time = time.time() - start_time
-                if _guardrails_metrics:
-                    if "validation_requests" in _guardrails_metrics:
-                        _guardrails_metrics["validation_requests"].add(
+                guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+                if guardrails_metrics:
+                    if "validation_requests" in guardrails_metrics:
+                        guardrails_metrics["validation_requests"].add(
                             1,
                             attributes={
                                 "type": "input",
@@ -454,8 +461,8 @@ async def validate_input(
                                 "reason": "prompt_injection",
                             },
                         )
-                    if "validation_duration" in _guardrails_metrics:
-                        _guardrails_metrics["validation_duration"].record(
+                    if "validation_duration" in guardrails_metrics:
+                        guardrails_metrics["validation_duration"].record(
                             processing_time,
                             attributes={"type": "input", "status": "blocked"},
                         )
@@ -469,13 +476,14 @@ async def validate_input(
 
         # Record success metrics
         processing_time = time.time() - start_time
-        if _guardrails_metrics:
-            if "validation_requests" in _guardrails_metrics:
-                _guardrails_metrics["validation_requests"].add(
+        guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+        if guardrails_metrics:
+            if "validation_requests" in guardrails_metrics:
+                guardrails_metrics["validation_requests"].add(
                     1, attributes={"type": "input", "status": "success"}
                 )
-            if "validation_duration" in _guardrails_metrics:
-                _guardrails_metrics["validation_duration"].record(
+            if "validation_duration" in guardrails_metrics:
+                guardrails_metrics["validation_duration"].record(
                     processing_time, attributes={"type": "input", "status": "success"}
                 )
 
@@ -486,13 +494,14 @@ async def validate_input(
     except Exception as e:
         # Record error metrics
         processing_time = time.time() - start_time
-        if _guardrails_metrics:
-            if "validation_requests" in _guardrails_metrics:
-                _guardrails_metrics["validation_requests"].add(
+        guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+        if guardrails_metrics:
+            if "validation_requests" in guardrails_metrics:
+                guardrails_metrics["validation_requests"].add(
                     1, attributes={"type": "input", "status": "error"}
                 )
-            if "validation_duration" in _guardrails_metrics:
-                _guardrails_metrics["validation_duration"].record(
+            if "validation_duration" in guardrails_metrics:
+                guardrails_metrics["validation_duration"].record(
                     processing_time, attributes={"type": "input", "status": "error"}
                 )
 
@@ -532,15 +541,15 @@ async def validate_output(
 
         # Check model status and get detector (non-blocking)
         model_check_start = time.time()
-        global _toxicity_detector
-        if _model_loader is None:
+        model_loader = getattr(app.state, "model_loader", None)
+        if model_loader is None:
             logger.debug(
                 "guardrails.model_loader_not_initialized",
                 correlation_id=correlation_id,
             )
             # Continue without toxicity check
             detector = None
-        elif _model_loader.is_loading():
+        elif model_loader.is_loading():
             logger.debug(
                 "guardrails.model_loading",
                 skipping_check=True,
@@ -548,16 +557,16 @@ async def validate_output(
             )
             # Continue without toxicity check
             detector = None
-        elif not _model_loader.is_loaded():
+        elif not model_loader.is_loaded():
             # Ensure model is loaded (may trigger lazy load)
-            if await _model_loader.ensure_loaded():
-                detector = _model_loader.get_model()
-                _toxicity_detector = detector
+            if await model_loader.ensure_loaded():
+                detector = model_loader.get_model()
+                app.state.toxicity_detector = detector
             else:
                 detector = None
         else:
-            detector = _model_loader.get_model()
-            _toxicity_detector = detector
+            detector = model_loader.get_model()
+            app.state.toxicity_detector = detector
         model_check_time = (time.time() - model_check_start) * 1000
         logger.info(
             "guardrails.model_check_completed",
@@ -573,8 +582,11 @@ async def validate_output(
                 text_hash = hashlib.sha256(text.encode()).hexdigest()
                 cache_key = f"toxicity:{text_hash}"
 
+                # Get toxicity cache from app.state
+                toxicity_cache = getattr(app.state, "toxicity_cache", {})
+
                 # Check cache first
-                cached_result = _toxicity_cache.get(cache_key)
+                cached_result = toxicity_cache.get(cache_key)
                 if cached_result is not None:
                     logger.info(
                         "guardrails.toxicity_cache_hit",
@@ -582,7 +594,7 @@ async def validate_output(
                         label=cached_result["label"],
                         score=cached_result["score"],
                         correlation_id=correlation_id,
-                        cache_size=len(_toxicity_cache),
+                        cache_size=len(toxicity_cache),
                     )
                     result = cached_result
                 else:
@@ -592,16 +604,17 @@ async def validate_output(
                     toxicity_check_time = (time.time() - toxicity_check_start) * 1000
 
                     # Cache result (with size limit)
-                    if len(_toxicity_cache) >= _TOXICITY_CACHE_MAX_SIZE:
+                    if len(toxicity_cache) >= _TOXICITY_CACHE_MAX_SIZE:
                         # Remove oldest entry (simple FIFO eviction)
-                        oldest_key = next(iter(_toxicity_cache))
-                        del _toxicity_cache[oldest_key]
+                        oldest_key = next(iter(toxicity_cache))
+                        del toxicity_cache[oldest_key]
                         logger.debug(
                             "guardrails.toxicity_cache_evicted",
                             evicted_key=oldest_key,
-                            cache_size=len(_toxicity_cache),
+                            cache_size=len(toxicity_cache),
                         )
-                    _toxicity_cache[cache_key] = result
+                    toxicity_cache[cache_key] = result
+                    app.state.toxicity_cache = toxicity_cache
 
                     logger.info(
                         "guardrails.toxicity_inference_completed",
@@ -610,21 +623,23 @@ async def validate_output(
                         score=result["score"],
                         correlation_id=correlation_id,
                         cache_hit=False,
-                        cache_size=len(_toxicity_cache),
+                        cache_size=len(toxicity_cache),
                     )
 
                 # Record toxicity check metric
-                if _guardrails_metrics and "toxicity_checks" in _guardrails_metrics:
-                    _guardrails_metrics["toxicity_checks"].add(
+                guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+                if guardrails_metrics and "toxicity_checks" in guardrails_metrics:
+                    guardrails_metrics["toxicity_checks"].add(
                         1, attributes={"result": result["label"]}
                     )
 
                 if result["label"] == "toxic" and result["score"] > 0.7:
                     # Record blocked metrics
                     processing_time = time.time() - start_time
-                    if _guardrails_metrics:
-                        if "validation_requests" in _guardrails_metrics:
-                            _guardrails_metrics["validation_requests"].add(
+                    guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+                    if guardrails_metrics:
+                        if "validation_requests" in guardrails_metrics:
+                            guardrails_metrics["validation_requests"].add(
                                 1,
                                 attributes={
                                     "type": "output",
@@ -632,8 +647,8 @@ async def validate_output(
                                     "reason": "toxic_content",
                                 },
                             )
-                        if "validation_duration" in _guardrails_metrics:
-                            _guardrails_metrics["validation_duration"].record(
+                        if "validation_duration" in guardrails_metrics:
+                            guardrails_metrics["validation_duration"].record(
                                 processing_time,
                                 attributes={"type": "output", "status": "blocked"},
                             )
@@ -672,22 +687,22 @@ async def validate_output(
             for pii_type in PII_PATTERNS:
                 if (
                     f"[{pii_type.upper()}_REDACTED]" in filtered_text
-                    and _guardrails_metrics
-                    and "pii_detections" in _guardrails_metrics
+                    and guardrails_metrics
+                    and "pii_detections" in guardrails_metrics
                 ):
-                    _guardrails_metrics["pii_detections"].add(
+                    guardrails_metrics["pii_detections"].add(
                         1, attributes={"type": pii_type}
                     )
 
         # Record success metrics
         processing_time = time.time() - start_time
-        if _guardrails_metrics:
-            if "validation_requests" in _guardrails_metrics:
-                _guardrails_metrics["validation_requests"].add(
+        if guardrails_metrics:
+            if "validation_requests" in guardrails_metrics:
+                guardrails_metrics["validation_requests"].add(
                     1, attributes={"type": "output", "status": "success"}
                 )
-            if "validation_duration" in _guardrails_metrics:
-                _guardrails_metrics["validation_duration"].record(
+            if "validation_duration" in guardrails_metrics:
+                guardrails_metrics["validation_duration"].record(
                     processing_time, attributes={"type": "output", "status": "success"}
                 )
 
@@ -698,13 +713,13 @@ async def validate_output(
     except Exception as e:
         # Record error metrics
         processing_time = time.time() - start_time
-        if _guardrails_metrics:
-            if "validation_requests" in _guardrails_metrics:
-                _guardrails_metrics["validation_requests"].add(
+        if guardrails_metrics:
+            if "validation_requests" in guardrails_metrics:
+                guardrails_metrics["validation_requests"].add(
                     1, attributes={"type": "output", "status": "error"}
                 )
-            if "validation_duration" in _guardrails_metrics:
-                _guardrails_metrics["validation_duration"].record(
+            if "validation_duration" in guardrails_metrics:
+                guardrails_metrics["validation_duration"].record(
                     processing_time, attributes={"type": "output", "status": "error"}
                 )
 
@@ -724,8 +739,9 @@ async def escalate_to_human(request: EscalationRequest) -> EscalationResponse:
     """Escalate request to human review."""
     try:
         # Record escalation metric
-        if _guardrails_metrics and "escalations" in _guardrails_metrics:
-            _guardrails_metrics["escalations"].add(
+        guardrails_metrics = getattr(app.state, "guardrails_metrics", None)
+        if guardrails_metrics and "escalations" in guardrails_metrics:
+            guardrails_metrics["escalations"].add(
                 1, attributes={"reason": request.reason}
             )
 

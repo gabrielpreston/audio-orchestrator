@@ -39,19 +39,10 @@ _cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("
 
 MODEL_NAME = _cfg.faster_whisper.model
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
-# Module-level cached model to avoid repeated loads
-_model: Any = None
-# Model loader for background loading
-_model_loader: BackgroundModelLoader | None = None
-# Transcript result cache for caching identical audio requests
-_transcript_cache: Any | None = None  # ResultCache[dict[str, Any]] | None
-# Audio processor client for remote enhancement
-_audio_processor_client: STTAudioProcessorClient | None = None
-# Health manager for service resilience
+# Health manager for service resilience (must remain module-level for app creation)
 _health_manager = HealthManager("stt")
-# Observability manager for metrics and tracing
-_observability_manager = None
-_stt_metrics: dict[str, Any] = {}
+# Note: Other stateful components (_model_loader, _audio_processor_client, etc.)
+# are now stored in app.state during startup and accessed via request.app.state
 
 
 configure_logging(
@@ -579,20 +570,23 @@ def _initialize_whisper_model(
     return model
 
 
-def _resolve_model_path(model_name: str) -> tuple[str, bool]:
+def _resolve_model_path(
+    model_name: str, model_loader: BackgroundModelLoader | None = None
+) -> tuple[str, bool]:
     """Resolve model path considering force download and local cache.
 
     Consolidates force download logic that was duplicated in download loader.
 
     Args:
         model_name: Model name to load
+        model_loader: Optional model loader to check force download status
 
     Returns:
         Tuple of (model_path_or_name, force_download_used)
     """
     force_download = False
-    if _model_loader is not None:
-        force_download = _model_loader.is_force_download()
+    if model_loader is not None:
+        force_download = model_loader.is_force_download()
     else:
         # Fallback: check environment variable directly
         force_val = os.getenv("FORCE_MODEL_DOWNLOAD_WHISPER_MODEL", "").lower()
@@ -853,28 +847,26 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
 
 async def _startup() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
-    global \
-        _model_loader, \
-        _transcript_cache, \
-        _audio_processor_client, \
-        _observability_manager, \
-        _stt_metrics
-
     try:
         # Get observability manager (factory already setup observability)
-        _observability_manager = get_observability_manager("stt")
-        _health_manager.set_observability_manager(_observability_manager)
+        observability_manager = get_observability_manager("stt")
+        _health_manager.set_observability_manager(observability_manager)
 
         # Register service-specific metrics using centralized helper
         from services.common.audio_metrics import MetricKind, register_service_metrics
 
         metrics = register_service_metrics(
-            _observability_manager, kinds=[MetricKind.STT, MetricKind.SYSTEM]
+            observability_manager, kinds=[MetricKind.STT, MetricKind.SYSTEM]
         )
-        _stt_metrics = metrics["stt"]
-        _system_metrics = metrics["system"]
+        stt_metrics = metrics["stt"]
+        system_metrics = metrics["system"]
 
         # HTTP metrics already available from app_factory via app.state.http_metrics
+
+        # Store metrics and observability in app.state
+        app.state.stt_metrics = stt_metrics
+        app.state.system_metrics = system_metrics
+        app.state.observability_manager = observability_manager
 
         # Ensure model directory is writable
         if not ensure_model_directory(MODEL_PATH):
@@ -886,7 +878,7 @@ async def _startup() -> None:
 
         # Initialize model loader with cache-first + download fallback (critical component)
         try:
-            _model_loader = BackgroundModelLoader(
+            model_loader = BackgroundModelLoader(
                 cache_loader_func=_load_from_cache,
                 download_loader_func=lambda: _load_with_fallback(MODEL_NAME),
                 logger=logger,
@@ -894,8 +886,11 @@ async def _startup() -> None:
             )
 
             # Start background loading (non-blocking)
-            await _model_loader.initialize()
+            await model_loader.initialize()
             logger.info("stt.model_loader_initialized", model_name=MODEL_NAME)
+
+            # Store in app.state
+            app.state.model_loader = model_loader
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="model_loader", is_critical=True
@@ -907,32 +902,35 @@ async def _startup() -> None:
         _health_manager.register_dependency(
             "whisper_model",
             lambda: (
-                _model_loader.is_loaded() and not _model_loader.is_loading()
-                if _model_loader
+                app.state.model_loader.is_loaded()
+                and not app.state.model_loader.is_loading()
+                if hasattr(app.state, "model_loader") and app.state.model_loader
                 else False
             ),
         )
 
         # Initialize audio processor client with fallback (optional component)
         try:
-            _audio_processor_client = STTAudioProcessorClient(
+            audio_processor_client = STTAudioProcessorClient(
                 base_url=_cfg.faster_whisper.audio_service_url or "http://audio:9100",
                 timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
             )
             logger.info("stt.audio_processor_client_initialized")
+
+            # Store in app.state
+            app.state.audio_processor_client = audio_processor_client
         except Exception as exc:
             # Audio processor client is optional - record as non-critical
             _health_manager.record_startup_failure(
                 error=exc, component="audio_processor_client", is_critical=False
             )
             logger.warning("stt.audio_processor_client_init_failed", error=str(exc))
-            _audio_processor_client = None
+            app.state.audio_processor_client = None
 
         # Initialize result cache if enabled
-        global _transcript_cache
         from services.common.result_cache import ResultCache
 
-        _transcript_cache = None
+        transcript_cache = None
         enable_cache = os.getenv("STT_ENABLE_CACHE", "true").lower() in (
             "true",
             "1",
@@ -941,7 +939,7 @@ async def _startup() -> None:
         if enable_cache:
             max_entries = int(os.getenv("STT_CACHE_MAX_ENTRIES", "200"))
             max_size_mb = int(os.getenv("STT_CACHE_MAX_SIZE_MB", "1000"))
-            _transcript_cache = ResultCache(
+            transcript_cache = ResultCache(
                 max_entries=max_entries,
                 max_size_mb=max_size_mb,
                 service_name="stt",
@@ -951,6 +949,9 @@ async def _startup() -> None:
                 max_entries=max_entries,
                 max_size_mb=max_size_mb,
             )
+
+        # Store in app.state
+        app.state.transcript_cache = transcript_cache
 
         # Only mark startup complete if no critical failures occurred
         if not _health_manager.has_startup_failure():
@@ -970,10 +971,11 @@ async def _startup() -> None:
 
         async def _prewarm_stt() -> None:
             """Pre-warm STT model by performing a transcription."""
-            if not _model_loader.is_loaded():
+            model_loader = app.state.model_loader
+            if not model_loader or not model_loader.is_loaded():
                 return
 
-            model = _model_loader.get_model()
+            model = model_loader.get_model()
             if model is None:
                 return
 
@@ -998,7 +1000,7 @@ async def _startup() -> None:
             _prewarm_stt,
             "stt",
             logger,
-            model_loader=_model_loader,
+            model_loader=app.state.model_loader,
             health_manager=_health_manager,
         )
 
@@ -1027,9 +1029,12 @@ def _get_stt_device_info() -> dict[str, Any]:
     import contextlib
 
     model_device_info = {}
-    if _model is not None:
-        with contextlib.suppress(Exception):
-            model_device_info = _get_model_device_info(_model)
+    # Access model from app.state if available
+    if hasattr(app.state, "model_loader") and app.state.model_loader:
+        model = app.state.model_loader.get_model()
+        if model is not None:
+            with contextlib.suppress(Exception):
+                model_device_info = _get_model_device_info(model)
 
     # Merge to match common format
     return {
@@ -1043,13 +1048,23 @@ health_endpoints = HealthEndpoints(
     service_name="stt",
     health_manager=_health_manager,
     custom_components={
-        "model_loaded": lambda: _model_loader.is_loaded() if _model_loader else False,
+        "model_loaded": lambda: (
+            app.state.model_loader.is_loaded()
+            if hasattr(app.state, "model_loader") and app.state.model_loader
+            else False
+        ),
         "model_name": lambda: MODEL_NAME,
-        "audio_processor_client_loaded": lambda: _audio_processor_client is not None,
+        "audio_processor_client_loaded": lambda: (
+            hasattr(app.state, "audio_processor_client")
+            and app.state.audio_processor_client is not None
+        ),
         "device_info": _get_stt_device_info,  # Add device info component
     },
     custom_dependencies={
-        "audio_processor": lambda: _audio_processor_client is not None,
+        "audio_processor": lambda: (
+            hasattr(app.state, "audio_processor_client")
+            and app.state.audio_processor_client is not None
+        ),
     },
 )
 
@@ -1063,18 +1078,18 @@ def _parse_bool(value: str | None) -> bool:
     return str(value).lower() in {"1", "true", "yes", "on"}
 
 
-def _lazy_load_model() -> Any:
+def _lazy_load_model(request: Request) -> Any:
     """Get model from loader (maintains backward compatibility)."""
-    global _model
-    if _model_loader is None:
+    if (
+        not hasattr(request.app.state, "model_loader")
+        or request.app.state.model_loader is None
+    ):
         raise HTTPException(status_code=503, detail="Model loader not initialized")
     # Get model from loader (may trigger lazy load)
-    model = _model_loader.get_model()
+    model = request.app.state.model_loader.get_model()
     if model is None:
         raise HTTPException(status_code=503, detail="Model not available")
-    # Cache in global for backward compatibility
-    _model = model
-    return _model
+    return model
 
 
 def _extract_audio_metadata(wav_bytes: bytes) -> tuple[int, int, int]:
@@ -1142,16 +1157,27 @@ async def _transcribe_request(
     # Resolve correlation ID
     correlation_id = resolve_correlation_id(request, correlation_id)
 
+    # Get state from app.state
+    audio_processor_client = getattr(request.app.state, "audio_processor_client", None)
+    transcript_cache = getattr(request.app.state, "transcript_cache", None)
+    model_loader = getattr(request.app.state, "model_loader", None)
+    stt_metrics = getattr(request.app.state, "stt_metrics", {})
+
     # Prepare audio (enhancement + cache key generation)
+    async def enhance_audio_func(wav_bytes: bytes, corr_id: str | None = None) -> bytes:
+        return await _enhance_audio_if_enabled(
+            request, wav_bytes, correlation_id=corr_id
+        )
+
     wav_bytes, cache_key = await prepare_audio_for_transcription(
         wav_bytes,
         correlation_id,
-        _audio_processor_client,
-        _enhance_audio_if_enabled,
+        audio_processor_client,
+        enhance_audio_func,
     )
 
     # Check cache before transcription
-    cached_result = check_cache(_transcript_cache, cache_key, correlation_id)
+    cached_result = check_cache(transcript_cache, cache_key, correlation_id)
     if cached_result:
         return JSONResponse(cached_result)
 
@@ -1165,11 +1191,9 @@ async def _transcribe_request(
         )
 
         # Ensure model is ready
-        model = await ensure_model_ready(_model_loader)
-
-        # Cache in global for backward compatibility
-        global _model
-        _model = model
+        if model_loader is None:
+            raise HTTPException(status_code=503, detail="Model loader not initialized")
+        model = await ensure_model_ready(model_loader)
 
         device = _cfg.faster_whisper.device
 
@@ -1233,7 +1257,7 @@ async def _transcribe_request(
             processing_seconds = processing_ms / 1000.0
 
             # Record STT metrics for success
-            record_transcription_metrics(_stt_metrics, "success", processing_seconds)
+            record_transcription_metrics(stt_metrics, "success", processing_seconds)
 
             request_logger.info(
                 "stt.request_processed",
@@ -1244,7 +1268,7 @@ async def _transcribe_request(
         except Exception as e:
             # Record error metrics
             elapsed = time.time() - req_start
-            record_transcription_metrics(_stt_metrics, "error", elapsed)
+            record_transcription_metrics(stt_metrics, "error", elapsed)
 
             logger.exception(
                 "stt.transcription_error",
@@ -1272,7 +1296,7 @@ async def _transcribe_request(
         )
 
         # Cache result after successful transcription
-        cache_transcription_result(_transcript_cache, cache_key, resp)
+        cache_transcription_result(transcript_cache, cache_key, resp)
 
         # Log response ready with correlation context
         request_logger.info(
@@ -1320,7 +1344,7 @@ async def asr(request: Request) -> JSONResponse:
 
 
 async def _enhance_audio_if_enabled(
-    wav_bytes: bytes, correlation_id: str | None = None
+    request: Request, wav_bytes: bytes, correlation_id: str | None = None
 ) -> bytes:
     """Apply audio enhancement via remote audio processor service if available.
 
@@ -1339,6 +1363,7 @@ async def _enhance_audio_if_enabled(
     - GPU isolation: Audio processor has separate GPU for MetricGAN+
 
     Args:
+        request: FastAPI Request object to access app.state
         wav_bytes: WAV format audio (16kHz, mono, 16-bit PCM expected)
         correlation_id: Optional correlation ID for request tracking
 
@@ -1351,8 +1376,11 @@ async def _enhance_audio_if_enabled(
         __name__, correlation_id=correlation_id, service_name="stt"
     )
 
+    # Get audio processor client from app.state
+    audio_processor_client = getattr(request.app.state, "audio_processor_client", None)
+
     # Only attempt enhancement if audio processor client is available
-    if _audio_processor_client is None:
+    if audio_processor_client is None:
         enhance_logger.debug(
             "stt.enhancement_skipped",
             correlation_id=correlation_id,
@@ -1371,7 +1399,7 @@ async def _enhance_audio_if_enabled(
     )
 
     try:
-        enhanced_wav: bytes = await _audio_processor_client.enhance_audio(
+        enhanced_wav: bytes = await audio_processor_client.enhance_audio(
             wav_bytes, correlation_id
         )
 

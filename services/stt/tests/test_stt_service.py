@@ -94,14 +94,21 @@ class TestSTTServiceHealth:
 
     def test_health_ready_endpoint_ready(self, client):
         """Test /health/ready endpoint when service is ready."""
+        from services.common.model_loader import BackgroundModelLoader
+
         mock_health_status = HealthCheck(
             status=HealthStatus.HEALTHY,
             ready=True,
             details={"startup_complete": True, "dependencies": {}},
         )
 
+        # Create mock model loader with loaded state
+        mock_model_loader = Mock(spec=BackgroundModelLoader)
+        mock_model_loader.is_loaded.return_value = True
+        mock_model_loader.is_loading.return_value = False
+
         with (
-            patch("services.stt.app._model", Mock()),
+            patch.object(app.state, "model_loader", mock_model_loader),
             patch(
                 "services.stt.app._health_manager.get_health_status",
                 new_callable=AsyncMock,
@@ -120,12 +127,15 @@ class TestSTTServiceHealth:
 
     def test_health_ready_endpoint_not_ready(self, client):
         """Test /health/ready endpoint when service is not ready."""
-        # Test when model is not loaded (should return 503)
-        with patch("services.stt.app._model", None):
+        # Test when model loader is not available (should return 503)
+        with patch.object(app.state, "model_loader", None, create=True):
             response = client.get("/health/ready")
             assert response.status_code == 503
             data = response.json()
-            assert "Model not loaded" in data["detail"]
+            assert (
+                "not ready" in data["detail"].lower()
+                or "not available" in data["detail"].lower()
+            )
 
 
 class TestSTTServiceModelLoading:

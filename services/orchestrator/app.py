@@ -19,7 +19,7 @@ from services.common.http_client_factory import (
     create_dependency_health_client,
     create_resilient_client,
 )
-from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
+from services.common.resilient_http import ServiceUnavailableError
 from services.common.structured_logging import get_logger
 from services.common.tracing import get_observability_manager
 
@@ -54,20 +54,10 @@ except ImportError:
 # This ensures structured JSON logging is set up before uvicorn initializes
 logger = get_logger(__name__, service_name="orchestrator")
 
-# Health manager and observability
+# Health manager for service resilience (must remain module-level for app creation)
 _health_manager = HealthManager("orchestrator")
-_observability_manager = None
-_llm_metrics = {}
-
-# Configuration
-_cfg: OrchestratorConfig | None = None
-_langchain_executor: AgentExecutor | None = None
-_tts_client: TTSClient | None = None
-
-# Resilient HTTP clients for health checks
-_llm_health_client: ResilientHTTPClient | None = None
-_tts_health_client: ResilientHTTPClient | None = None
-_guardrails_health_client: ResilientHTTPClient | None = None
+# Note: Other stateful components (_cfg, _langchain_executor, _tts_client, etc.)
+# are now stored in app.state during startup and accessed via app.state or request.app.state
 
 # Prompt versioning
 PROMPT_VERSION = "v1.0"
@@ -75,98 +65,106 @@ PROMPT_VERSION = "v1.0"
 
 async def _startup() -> None:
     """Service-specific startup logic."""
-    global _cfg, _langchain_executor, _tts_client, _observability_manager, _llm_metrics
-
     try:
         # Get observability manager (factory already setup observability)
-        _observability_manager = get_observability_manager("orchestrator")
+        observability_manager = get_observability_manager("orchestrator")
 
         # Register service-specific metrics using centralized helper
         from services.common.audio_metrics import MetricKind, register_service_metrics
 
         metrics = register_service_metrics(
-            _observability_manager, kinds=[MetricKind.LLM, MetricKind.SYSTEM]
+            observability_manager, kinds=[MetricKind.LLM, MetricKind.SYSTEM]
         )
-        _llm_metrics = metrics["llm"]
-        _system_metrics = metrics["system"]
+        llm_metrics = metrics["llm"]
+        system_metrics = metrics["system"]
 
         # HTTP metrics already available from app_factory via app.state.http_metrics
 
+        # Store metrics and observability in app.state
+        app.state.llm_metrics = llm_metrics
+        app.state.system_metrics = system_metrics
+        app.state.observability_manager = observability_manager
+
         # Set observability manager in health manager
-        _health_manager.set_observability_manager(_observability_manager)
+        _health_manager.set_observability_manager(observability_manager)
 
         # Load configuration with fallback (optional - graceful degradation)
         try:
-            _cfg = load_config_from_env(OrchestratorConfig)
+            cfg = load_config_from_env(OrchestratorConfig)
+            app.state.cfg = cfg
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="config", is_critical=False
             )
             logger.warning("orchestrator.config_load_failed", error=str(exc))
-            _cfg = None  # Continue without config
+            app.state.cfg = None  # Continue without config
 
         # Initialize LangChain executor with fallback (optional - graceful degradation)
         try:
-            _langchain_executor = create_langchain_executor()
+            langchain_executor = create_langchain_executor()
+            app.state.langchain_executor = langchain_executor
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="langchain", is_critical=False
             )
             logger.warning("orchestrator.langchain_init_failed", error=str(exc))
-            _langchain_executor = None  # Continue without LangChain
+            app.state.langchain_executor = None  # Continue without LangChain
 
         # Initialize TTS client (optional - graceful degradation)
         try:
             tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
-            _tts_client = TTSClient(base_url=tts_url)
+            tts_client = TTSClient(base_url=tts_url)
+            app.state.tts_client = tts_client
             logger.info("orchestrator.tts_client_initialized", tts_url=tts_url)
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="tts_client", is_critical=False
             )
             logger.warning("orchestrator.tts_client_init_failed", error=str(exc))
-            _tts_client = None  # Continue without TTS (graceful degradation)
+            app.state.tts_client = None  # Continue without TTS (graceful degradation)
 
         # Initialize resilient HTTP clients for health checks (optional - graceful degradation)
         # For dependency health checks, grace period is 0.0 by default for accurate readiness
-        global _llm_health_client, _tts_health_client, _guardrails_health_client
         try:
             llm_url = get_env_with_default("LLM_BASE_URL", "http://flan:8100", str)
-            _llm_health_client = create_dependency_health_client(
+            llm_health_client = create_dependency_health_client(
                 service_name="llm",
                 base_url=llm_url,
                 env_prefix="LLM",
             )
+            app.state.llm_health_client = llm_health_client
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="llm_health_client", is_critical=False
             )
             logger.warning("orchestrator.llm_health_client_init_failed", error=str(exc))
-            _llm_health_client = None
+            app.state.llm_health_client = None
 
         try:
             tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
-            _tts_health_client = create_dependency_health_client(
+            tts_health_client = create_dependency_health_client(
                 service_name="tts",
                 base_url=tts_url,
                 env_prefix="TTS",
             )
+            app.state.tts_health_client = tts_health_client
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="tts_health_client", is_critical=False
             )
             logger.warning("orchestrator.tts_health_client_init_failed", error=str(exc))
-            _tts_health_client = None
+            app.state.tts_health_client = None
 
         try:
             guardrails_url = get_env_with_default(
                 "GUARDRAILS_BASE_URL", "http://guardrails:9300", str
             )
-            _guardrails_health_client = create_dependency_health_client(
+            guardrails_health_client = create_dependency_health_client(
                 service_name="guardrails",
                 base_url=guardrails_url,
                 env_prefix="GUARDRAILS",
             )
+            app.state.guardrails_health_client = guardrails_health_client
         except Exception as exc:
             _health_manager.record_startup_failure(
                 error=exc, component="guardrails_health_client", is_critical=False
@@ -174,12 +172,18 @@ async def _startup() -> None:
             logger.warning(
                 "orchestrator.guardrails_health_client_init_failed", error=str(exc)
             )
-            _guardrails_health_client = None
+            app.state.guardrails_health_client = None
 
         # Register dependencies - check actual service readiness via HTTP
-        _health_manager.register_dependency("config", lambda: _cfg is not None)
         _health_manager.register_dependency(
-            "langchain", lambda: _langchain_executor is not None
+            "config", lambda: hasattr(app.state, "cfg") and app.state.cfg is not None
+        )
+        _health_manager.register_dependency(
+            "langchain",
+            lambda: (
+                hasattr(app.state, "langchain_executor")
+                and app.state.langchain_executor is not None
+            ),
         )
         _health_manager.register_dependency("llm", _check_llm_health)
         _health_manager.register_dependency("tts", _check_tts_health)
@@ -191,8 +195,8 @@ async def _startup() -> None:
         logger.info(
             "orchestrator.startup_complete",
             langchain_available=LANGCHAIN_AVAILABLE,
-            executor_ready=_langchain_executor is not None,
-            tts_client_ready=_tts_client is not None,
+            executor_ready=app.state.langchain_executor is not None,
+            tts_client_ready=app.state.tts_client is not None,
         )
 
     except Exception as exc:
@@ -206,10 +210,10 @@ async def _startup() -> None:
 
 async def _shutdown() -> None:
     """Service-specific shutdown logic."""
-    global _tts_client
-    if _tts_client:
-        await _tts_client.close()
-        _tts_client = None
+    tts_client = getattr(app.state, "tts_client", None)
+    if tts_client:
+        await tts_client.close()
+        app.state.tts_client = None
     logger.info("orchestrator.shutdown")
 
 
@@ -229,10 +233,17 @@ health_endpoints = HealthEndpoints(
     service_name="orchestrator",
     health_manager=_health_manager,
     custom_components={
-        "config_loaded": lambda: _cfg is not None,
+        "config_loaded": lambda: (
+            hasattr(app.state, "cfg") and app.state.cfg is not None
+        ),
         "langchain_available": lambda: LANGCHAIN_AVAILABLE,
-        "executor_ready": lambda: _langchain_executor is not None,
-        "tts_client_ready": lambda: _tts_client is not None,
+        "executor_ready": lambda: (
+            hasattr(app.state, "langchain_executor")
+            and app.state.langchain_executor is not None
+        ),
+        "tts_client_ready": lambda: (
+            hasattr(app.state, "tts_client") and app.state.tts_client is not None
+        ),
     },
 )
 
@@ -245,6 +256,7 @@ async def process_transcript(
     request: TranscriptProcessRequest,
 ) -> TranscriptProcessResponse:
     """Process transcript using LangChain orchestration with guardrails."""
+    # Access state from app.state (app is module-level)
     # Set correlation_id in async context if provided in request body
     # This ensures it propagates to downstream services via HTTP clients
     # Prefer request body correlation_id (explicit) over middleware-generated UUIDs
@@ -301,8 +313,9 @@ async def process_transcript(
                     )
 
                     # Record blocked request metrics
-                    if _llm_metrics and "llm_requests" in _llm_metrics:
-                        _llm_metrics["llm_requests"].add(
+                    llm_metrics = getattr(app.state, "llm_metrics", None)
+                    if llm_metrics and "llm_requests" in llm_metrics:
+                        llm_metrics["llm_requests"].add(
                             1, attributes={"model": "orchestrator", "status": "blocked"}
                         )
 
@@ -359,8 +372,9 @@ async def process_transcript(
                 transcript_length=len(sanitized_transcript),
                 correlation_id=request.correlation_id,
             )
+            langchain_executor = getattr(app.state, "langchain_executor", None)
             response = await process_with_langchain(
-                sanitized_transcript, request.user_id, _langchain_executor
+                sanitized_transcript, request.user_id, langchain_executor
             )
             langchain_time = (time.time() - langchain_start) * 1000
             stage_timings["langchain_processing_ms"] = langchain_time
@@ -454,7 +468,8 @@ async def process_transcript(
         audio_data: str | None = None
         audio_format: str | None = None
 
-        if _tts_client and response and len(response.strip()) > 0:
+        tts_client = getattr(app.state, "tts_client", None)
+        if tts_client and response and len(response.strip()) > 0:
             tts_start = time.time()
             try:
                 logger.info(
@@ -464,7 +479,7 @@ async def process_transcript(
                 )
 
                 # Call TTS service to synthesize audio
-                audio_bytes = await _tts_client.synthesize(
+                audio_bytes = await tts_client.synthesize(
                     text=response,
                     voice="v2/en_speaker_1",  # Default voice
                     speed=1.0,
@@ -519,13 +534,14 @@ async def process_transcript(
 
         # Record metrics
         processing_time = time.time() - start_time
-        if _llm_metrics:
-            if "llm_requests" in _llm_metrics:
-                _llm_metrics["llm_requests"].add(
+        llm_metrics = getattr(app.state, "llm_metrics", None)
+        if llm_metrics:
+            if "llm_requests" in llm_metrics:
+                llm_metrics["llm_requests"].add(
                     1, attributes={"model": "orchestrator", "status": "success"}
                 )
-            if "llm_latency" in _llm_metrics:
-                _llm_metrics["llm_latency"].record(
+            if "llm_latency" in llm_metrics:
+                llm_metrics["llm_latency"].record(
                     processing_time, attributes={"model": "orchestrator"}
                 )
 
@@ -551,12 +567,13 @@ async def process_transcript(
     except Exception as e:
         # Record error metrics
         processing_time = time.time() - start_time
-        if _llm_metrics and "llm_requests" in _llm_metrics:
-            _llm_metrics["llm_requests"].add(
+        llm_metrics = getattr(app.state, "llm_metrics", None)
+        if llm_metrics and "llm_requests" in llm_metrics:
+            llm_metrics["llm_requests"].add(
                 1, attributes={"model": "orchestrator", "status": "error"}
             )
-        if _llm_metrics and "llm_latency" in _llm_metrics:
-            _llm_metrics["llm_latency"].record(
+        if llm_metrics and "llm_latency" in llm_metrics:
+            llm_metrics["llm_latency"].record(
                 processing_time, attributes={"model": "orchestrator", "status": "error"}
             )
 
@@ -633,10 +650,12 @@ async def list_capabilities() -> CapabilitiesResponse:
 
 async def _check_llm_health() -> bool:
     """Check if LLM service (FLAN) is ready via resilient HTTP client."""
-    if _llm_health_client is None:
+    llm_health_client = getattr(app.state, "llm_health_client", None)
+    if llm_health_client is None:
         return False
     try:
-        return await _llm_health_client.check_health()
+        result = await llm_health_client.check_health()
+        return bool(result)
     except Exception as exc:
         logger.debug("health.llm_check_failed", error=str(exc))
         return False
@@ -644,10 +663,12 @@ async def _check_llm_health() -> bool:
 
 async def _check_tts_health() -> bool:
     """Check if TTS service (Bark) is ready via resilient HTTP client."""
-    if _tts_health_client is None:
+    tts_health_client = getattr(app.state, "tts_health_client", None)
+    if tts_health_client is None:
         return False
     try:
-        return await _tts_health_client.check_health()
+        result = await tts_health_client.check_health()
+        return bool(result)
     except Exception as exc:
         logger.debug("health.tts_check_failed", error=str(exc))
         return False
@@ -655,10 +676,12 @@ async def _check_tts_health() -> bool:
 
 async def _check_guardrails_health() -> bool:
     """Check if Guardrails service is ready via resilient HTTP client."""
-    if _guardrails_health_client is None:
+    guardrails_health_client = getattr(app.state, "guardrails_health_client", None)
+    if guardrails_health_client is None:
         return False
     try:
-        return await _guardrails_health_client.check_health()
+        result = await guardrails_health_client.check_health()
+        return bool(result)
     except Exception as exc:
         logger.debug("health.guardrails_check_failed", error=str(exc))
         return False
