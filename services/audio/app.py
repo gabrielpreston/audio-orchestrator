@@ -214,6 +214,171 @@ health_endpoints = HealthEndpoints(
 app.include_router(health_endpoints.get_router())
 
 
+async def process_enhancement_request(
+    request: Request,
+    *,
+    response_filename: str,
+    log_event_prefix: str,
+    correlation_id: str | None = None,
+) -> Response:
+    """Process audio enhancement request with consistent handling.
+
+    This helper function centralizes request parsing, enhancement invocation,
+    logging, metrics, and error handling for all audio enhancement endpoints.
+
+    Args:
+        request: HTTP request with audio file in body
+        response_filename: Filename for Content-Disposition header
+        log_event_prefix: Prefix for log event names (e.g., "enhancement", "denoising")
+        correlation_id: Optional correlation ID (overrides header extraction)
+
+    Returns:
+        Response with enhanced audio data or original audio on error
+    """
+    start_time = time.perf_counter()
+
+    # Extract correlation ID from headers if not provided
+    if correlation_id is None:
+        correlation_id = request.headers.get("X-Correlation-ID")
+
+    # Log request received
+    _logger.info(
+        f"audio.{log_event_prefix}_request_received",
+        correlation_id=correlation_id,
+        content_length=request.headers.get("content-length", "unknown"),
+        decision=f"processing_{log_event_prefix}_request",
+    )
+
+    # Read and cache request body once (fixes double body read bug)
+    audio_data = await request.body()
+    input_size = len(audio_data)
+
+    try:
+        # Validate enhancer is initialized
+        if not _audio_enhancer:
+            _logger.error(
+                "audio.decision",
+                correlation_id=correlation_id,
+                decision=f"{log_event_prefix}_rejected",
+                reason="enhancer_not_initialized",
+            )
+            raise HTTPException(
+                status_code=503, detail="Audio enhancer not initialized"
+            )
+
+        # Log enhancement decision
+        _logger.info(
+            "audio.decision",
+            correlation_id=correlation_id,
+            input_size=input_size,
+            decision=f"applying_{log_event_prefix}",
+            enhancement_method="metricgan_plus",
+        )
+
+        # Apply enhancement using correct async method (fixes incorrect method call bug)
+        enhanced_data = await _audio_enhancer.enhance_audio_bytes(audio_data)
+
+        processing_time = (time.perf_counter() - start_time) * 1000
+        output_size = len(enhanced_data)
+
+        # Record audio metrics
+        if _audio_metrics:
+            if "audio_processing_duration" in _audio_metrics:
+                _audio_metrics["audio_processing_duration"].record(
+                    processing_time / 1000,
+                    attributes={
+                        "stage": log_event_prefix,
+                        "status": "success",
+                        "service": "audio",
+                    },
+                )
+            if "audio_chunks_processed" in _audio_metrics:
+                _audio_metrics["audio_chunks_processed"].add(
+                    1, attributes={"type": "enhancement", "service": "audio"}
+                )
+
+        # Record HTTP metrics
+        if _http_metrics:
+            if "http_requests" in _http_metrics:
+                _http_metrics["http_requests"].add(
+                    1,
+                    attributes={"method": "POST", "status": "200", "service": "audio"},
+                )
+            if "http_request_duration" in _http_metrics:
+                _http_metrics["http_request_duration"].record(
+                    processing_time / 1000,
+                    attributes={"method": "POST", "service": "audio"},
+                )
+
+        # Log success
+        _logger.info(
+            f"audio.{log_event_prefix}_completed",
+            correlation_id=correlation_id,
+            input_size=input_size,
+            output_size=output_size,
+            processing_time_ms=processing_time,
+            decision=f"{log_event_prefix}_completed",
+        )
+
+        return Response(
+            content=enhanced_data,  # Already bytes, no need for bytes() conversion
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f"attachment; filename={response_filename}"
+            },
+        )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions (e.g., 503 for not initialized)
+        raise
+    except Exception as exc:
+        # Handle all other exceptions with fallback to original audio
+        processing_time = (time.perf_counter() - start_time) * 1000
+
+        # Record error metrics
+        if _audio_metrics and "audio_processing_duration" in _audio_metrics:
+            _audio_metrics["audio_processing_duration"].record(
+                processing_time / 1000,
+                attributes={
+                    "stage": log_event_prefix,
+                    "status": "error",
+                    "service": "audio",
+                },
+            )
+
+        if _http_metrics and "http_requests" in _http_metrics:
+            _http_metrics["http_requests"].add(
+                1, attributes={"method": "POST", "status": "500", "service": "audio"}
+            )
+
+        # Log error with full context
+        _logger.error(
+            f"audio.{log_event_prefix}_failed",
+            correlation_id=correlation_id,
+            error=str(exc),
+            error_type=type(exc).__name__,
+            processing_time_ms=processing_time,
+            decision=f"{log_event_prefix}_failed_returning_original",
+        )
+
+        # Return original data on failure using cached bytes (fixes double body read)
+        # Map response filenames to original filenames
+        filename_map = {
+            "enhanced.wav": "original.wav",
+            "denoised.wav": "original.wav",
+            "denoised_streaming.wav": "original_streaming.wav",
+        }
+        original_filename = filename_map.get(response_filename, "original.wav")
+
+        return Response(
+            content=audio_data,  # Use cached bytes, not re-read
+            media_type="audio/wav",
+            headers={
+                "Content-Disposition": f"attachment; filename={original_filename}"
+            },
+        )
+
+
 @app.post("/process/frame", response_model=ProcessingResponse)  # type: ignore[misc]
 async def process_frame(request: PCMFrameRequest) -> ProcessingResponse:
     """Process a single PCM frame with VAD and basic processing.
@@ -308,183 +473,31 @@ async def enhance_audio(request: Request) -> Response:
     Returns:
         Enhanced audio data as binary response
     """
-    start_time = time.perf_counter()
-
-    # Extract correlation ID from headers
-    correlation_id = request.headers.get("X-Correlation-ID")
-
-    # Log request received with decision context
-    _logger.info(
-        "audio.enhancement_request_received",
-        correlation_id=correlation_id,
-        content_length=request.headers.get("content-length", "unknown"),
-        decision="processing_enhancement_request",
+    return await process_enhancement_request(
+        request,
+        response_filename="enhanced.wav",
+        log_event_prefix="enhancement",
     )
-
-    try:
-        if not _audio_enhancer:
-            _logger.error(
-                "audio.decision",
-                correlation_id=correlation_id,
-                decision="enhancement_rejected",
-                reason="enhancer_not_initialized",
-            )
-            raise HTTPException(
-                status_code=503, detail="Audio enhancer not initialized"
-            )
-
-        # Get audio data from request
-        audio_data = await request.body()
-
-        # Log enhancement decision
-        _logger.info(
-            "audio.decision",
-            correlation_id=correlation_id,
-            input_size=len(audio_data),
-            decision="applying_enhancement",
-            enhancement_method="metricgan_plus",
-        )
-
-        # Apply enhancement
-        enhanced_data = _audio_enhancer.enhance_audio(audio_data)
-
-        processing_time = (time.perf_counter() - start_time) * 1000
-
-        _logger.info(
-            "audio.audio_enhanced",
-            correlation_id=correlation_id,
-            input_size=len(audio_data),
-            output_size=len(enhanced_data),
-            processing_time_ms=processing_time,
-            decision="enhancement_completed",
-        )
-
-        return Response(
-            content=bytes(enhanced_data),
-            media_type="audio/wav",
-            headers={"Content-Disposition": "attachment; filename=enhanced.wav"},
-        )
-
-    except Exception as exc:
-        processing_time = (time.perf_counter() - start_time) * 1000
-        _logger.error(
-            "audio.enhancement_failed",
-            correlation_id=correlation_id,
-            error=str(exc),
-            error_type=type(exc).__name__,
-            processing_time_ms=processing_time,
-            decision="enhancement_failed_returning_original",
-        )
-
-        # Return original data on failure
-        original_data = await request.body()
-        return Response(
-            content=bytes(original_data),
-            media_type="audio/wav",
-            headers={"Content-Disposition": "attachment; filename=original.wav"},
-        )
 
 
 @app.post("/denoise")  # type: ignore[misc]
 async def denoise_audio(request: Request) -> Response:
     """Denoise full audio file using MetricGAN+."""
-    start_time = time.perf_counter()
-
-    try:
-        if not _audio_enhancer:
-            raise HTTPException(
-                status_code=503, detail="Audio enhancer not initialized"
-            )
-
-        # Get audio data from request
-        audio_data = await request.body()
-
-        # Apply denoising enhancement
-        denoised_data = _audio_enhancer.enhance_audio(audio_data)
-
-        processing_time = (time.perf_counter() - start_time) * 1000
-
-        _logger.info(
-            "audio.audio_denoised",
-            input_size=len(audio_data),
-            output_size=len(denoised_data),
-            processing_time_ms=processing_time,
-        )
-
-        return Response(
-            content=bytes(denoised_data),
-            media_type="audio/wav",
-            headers={"Content-Disposition": "attachment; filename=denoised.wav"},
-        )
-
-    except Exception as exc:
-        processing_time = (time.perf_counter() - start_time) * 1000
-        _logger.error(
-            "audio.denoising_failed",
-            error=str(exc),
-            processing_time_ms=processing_time,
-        )
-
-        # Return original data on failure
-        original_data = await request.body()
-        return Response(
-            content=bytes(original_data),
-            media_type="audio/wav",
-            headers={"Content-Disposition": "attachment; filename=original.wav"},
-        )
+    return await process_enhancement_request(
+        request,
+        response_filename="denoised.wav",
+        log_event_prefix="denoising",
+    )
 
 
 @app.post("/denoise/streaming")  # type: ignore[misc]
 async def denoise_streaming(request: Request) -> Response:
     """Denoise streaming audio frames using MetricGAN+."""
-    start_time = time.perf_counter()
-
-    try:
-        if not _audio_enhancer:
-            raise HTTPException(
-                status_code=503, detail="Audio enhancer not initialized"
-            )
-
-        # Get audio data from request
-        audio_data = await request.body()
-
-        # Apply streaming denoising enhancement
-        denoised_data = _audio_enhancer.enhance_audio(audio_data)
-
-        processing_time = (time.perf_counter() - start_time) * 1000
-
-        _logger.info(
-            "audio.streaming_denoised",
-            input_size=len(audio_data),
-            output_size=len(denoised_data),
-            processing_time_ms=processing_time,
-        )
-
-        return Response(
-            content=bytes(denoised_data),
-            media_type="audio/wav",
-            headers={
-                "Content-Disposition": "attachment; filename=denoised_streaming.wav"
-            },
-        )
-
-    except Exception as exc:
-        processing_time = (time.perf_counter() - start_time) * 1000
-        _logger.error(
-            "audio.streaming_denoising_failed",
-            error=str(exc),
-            processing_time_ms=processing_time,
-        )
-
-        # Return original data on failure
-        original_data = await request.body()
-        return Response(
-            content=bytes(original_data),
-            media_type="audio/wav",
-            headers={
-                "Content-Disposition": "attachment; filename=original_streaming.wav"
-            },
-        )
+    return await process_enhancement_request(
+        request,
+        response_filename="denoised_streaming.wav",
+        log_event_prefix="streaming_denoising",
+    )
 
 
 async def _check_audio_health() -> bool:
