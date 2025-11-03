@@ -101,6 +101,11 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `FW_MODEL` | faster-whisper model name. | `medium.en` |
 | `FW_DEVICE` | Execution target (`cpu`, `cuda`). | `cpu` |
 | `FW_COMPUTE_TYPE` | Precision trade-off for inference. | `int8` |
+| `FORCE_MODEL_DOWNLOAD_WHISPER_MODEL` | Force download for Whisper model (overrides global). | `false` |
+| `STT_ENABLE_PREWARM` | Pre-warming to ensure models are ready before serving traffic. | `true` |
+| `STT_ENABLE_CACHE` | Result caching for identical audio requests (significant speedup for repeated audio). | `true` |
+| `STT_CACHE_MAX_ENTRIES` | Maximum number of cached transcripts. | `200` |
+| `STT_CACHE_MAX_SIZE_MB` | Maximum cache size in megabytes. | `1000` |
 
 ## FLAN Service (`services/flan/.env.service`)
 
@@ -115,6 +120,14 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TOP_P` | Top-p sampling parameter. | `0.9` |
 | `TOP_K` | Top-k sampling parameter. | `50` |
 | `REPETITION_PENALTY` | Repetition penalty. | `1.1` |
+| `HF_HOME` | Hugging Face home directory for model storage. | `/app/models` |
+| `FORCE_MODEL_DOWNLOAD_FLAN_T5` | Force download for FLAN-T5 model (overrides global). | `false` |
+| `FLAN_ENABLE_TORCH_COMPILE` | Enable torch.compile() optimization (20-40% speedup on PyTorch 2.0+). | `true` |
+| `FLAN_COMPILE_MODE` | torch.compile() mode (`default`, `reduce-overhead`, `max-autotune`, `max-autotune-no-cudagraphs`). | `default` |
+| `FLAN_ENABLE_PREWARM` | Pre-warming to trigger torch.compile() warmup during startup. | `true` |
+| `FLAN_ENABLE_CACHE` | Result caching for repeated prompts (optional, disabled by default). | `false` |
+| `FLAN_CACHE_MAX_ENTRIES` | Maximum number of cached generations. | `100` |
+| `FLAN_CACHE_MAX_SIZE_MB` | Maximum cache size in megabytes. | `500` |
 
 ## Orchestrator Service (`services/orchestrator/.env.service`)
 
@@ -142,6 +155,45 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TTS_LENGTH_SCALE` | Speech tempo modifier. | `1.0` |
 | `TTS_NOISE_SCALE` | Controls noise added during synthesis. | `0.667` |
 | `TTS_NOISE_W` | Controls breathiness of speech. | `0.8` |
+
+## Guardrails Service (`services/guardrails/.env.service`)
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | HTTP listen port. | `9300` |
+| `TOXICITY_MODEL` | Toxicity detection model identifier. | `unitary/toxic-bert` |
+| `ENABLE_PII_DETECTION` | Enable PII (Personally Identifiable Information) detection. | `true` |
+| `FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL` | Force download for toxicity model (overrides global). | `false` |
+| `HF_HOME` | Hugging Face home directory for model storage. | `/app/models` |
+
+## Audio Service (`services/audio/.env.service`)
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | HTTP listen port. | `9100` |
+| `METRICGAN_MODEL_SAVEDIR` | Directory path for MetricGAN+ model storage. | `/app/models/metricgan-plus` |
+| `FORCE_MODEL_DOWNLOAD_METRICGAN` | Force download for MetricGAN model (overrides global). | `false` |
+
+## Bark TTS Service (`services/bark/.env.service`)
+
+| Variable | Description | Default |
+| --- | --- | --- |
+| `PORT` | HTTP listen port. | `7100` |
+| `BARK_USE_SMALL_MODELS` | Enable small models for 30-50% speedup (slight quality trade-off). | `true` |
+| `BARK_ENABLE_TORCH_COMPILE` | Enable torch.compile() optimization (replaces deprecated Better Transformer). | `true` |
+| `BARK_COMPILE_MODE` | torch.compile() mode (`default`, `reduce-overhead`, `max-autotune`, `max-autotune-no-cudagraphs`). | `max-autotune-no-cudagraphs` |
+| `BARK_ENABLE_PREWARM` | Pre-warming to trigger torch.compile() warmup during startup. | `true` |
+| `BARK_ENABLE_CACHE` | Result caching for repeated synthesis requests. | `true` |
+| `BARK_CACHE_MAX_ENTRIES` | Maximum number of cached results. | `100` |
+| `BARK_CACHE_MAX_SIZE_MB` | Maximum cache size in megabytes. | `500` |
+| `BARK_ENABLE_INT8_QUANTIZATION` | Enable INT8 quantization (disabled by default, requires quality validation). | `false` |
+| `FORCE_MODEL_DOWNLOAD_BARK_MODELS` | Force download for Bark models (overrides global). | `false` |
+| `HF_HOME` | Hugging Face home directory for model storage. | `/app/models` |
+| `HOME` | Container home directory path. | `/app` |
+| `XDG_CACHE_HOME` | XDG cache directory path. | `/app/models` |
+| `OMP_NUM_THREADS` | Number of OpenMP threads (match CPU count). | `8` |
+| `MKL_NUM_THREADS` | Number of MKL threads (match CPU count). | `8` |
+| `PYTORCH_CUDA_ALLOC_CONF` | PyTorch CUDA memory allocation configuration. | `max_split_size_mb:128,expandable_segments:True` |
 
 ## Service URLs
 

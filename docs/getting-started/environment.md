@@ -37,6 +37,40 @@ supporting services, and Docker Compose stack.
 -  Verify configuration using the new configuration library (see [Configuration Library Reference](../reference/configuration-library.md)).
 -  Commit `.env.sample` changes when you introduce new keys so contributors can refresh their local files.
 
+## Configuration Pattern
+
+The project follows a unified configuration pattern aligned with 12-Factor App principles:
+
+### Configuration Variables → `.env.*` Files
+
+All configuration variables (model paths, optimization flags, cache settings, force download flags) are stored in `.env.*` files:
+
+-  **`.env.common`**: Shared defaults (logging, service URLs)
+-  **`.env.docker`**: Container-specific overrides (UID/GID, timezone)
+-  **`services/*/.env.service`**: Service-specific configuration (model settings, optimization flags)
+
+### Runtime-Only Variables → Inline in `docker-compose.yml`
+
+Only truly runtime-only container variables remain inline in `docker-compose.yml`:
+
+-  Service binding addresses (e.g., `GRADIO_SERVER_NAME=0.0.0.0`)
+-  Container-specific ports
+-  Variables only needed at container startup time
+
+### Precedence Hierarchy
+
+Environment variables are loaded in the following order (highest to lowest precedence):
+
+1.  **Shell environment variables** (set before `docker compose up`)
+2.  **`.env` file** (root directory, if present)
+3.  **`.env.common`** (shared defaults)
+4.  **`.env.docker`** (container-specific)
+5.  **`services/*/.env.service`** (service-specific)
+6.  **`docker-compose.yml` inline `environment:` blocks** (runtime-only)
+7.  **Dockerfile `ENV` directives** (image defaults)
+
+Higher precedence sources override lower precedence sources. This allows for flexible configuration across different environments (development, testing, production).
+
 ## Best Practices
 
 -  Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
@@ -44,6 +78,7 @@ supporting services, and Docker Compose stack.
 -  Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
 -  Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
 -  Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.
+-  **Add new configuration variables to `.env.sample`** - never add them directly to `docker-compose.yml` inline `environment:` blocks unless they are truly runtime-only container settings.
 
 ## Validation Checklist
 
