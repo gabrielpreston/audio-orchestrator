@@ -19,11 +19,8 @@ services:
         required: false
       - path: "./services/guardrails/.env.service"
         required: false
-    environment:
-      - TOXICITY_MODEL=unitary/toxic-bert
-      - ENABLE_PII_DETECTION=true
-      - FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL=${FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL:-false}
-      - HF_HOME=/app/models
+    # Configuration moved to services/guardrails/.env.service
+    # See: TOXICITY_MODEL, ENABLE_PII_DETECTION, FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL
     volumes:
       - ./services/models/guardrails:/app/models
       # Mount source code for development (overrides COPY in Dockerfile)
@@ -60,9 +57,6 @@ services:
         required: false
       - path: "./services/orchestrator/.env.service"
         required: false
-    environment:
-      - LLM_BASE_URL=http://flan:8100
-      - GUARDRAILS_BASE_URL=http://guardrails:9300
     volumes:
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
@@ -99,17 +93,9 @@ services:
         required: false
       - path: "./services/flan/.env.service"
         required: false
-    environment:
-      - MODEL_NAME=${FLAN_T5_MODEL_SIZE:-google/flan-t5-large}
-      - HF_HOME=/app/models
-      - FORCE_MODEL_DOWNLOAD_FLAN_T5=${FORCE_MODEL_DOWNLOAD_FLAN_T5:-false}
-      # FLAN optimizations
-      - FLAN_ENABLE_TORCH_COMPILE=${FLAN_ENABLE_TORCH_COMPILE:-true}
-      - FLAN_COMPILE_MODE=${FLAN_COMPILE_MODE:-default}
-      - FLAN_ENABLE_PREWARM=${FLAN_ENABLE_PREWARM:-true}
-      - FLAN_ENABLE_CACHE=${FLAN_ENABLE_CACHE:-false}
-      - FLAN_CACHE_MAX_ENTRIES=${FLAN_CACHE_MAX_ENTRIES:-100}
-      - FLAN_CACHE_MAX_SIZE_MB=${FLAN_CACHE_MAX_SIZE_MB:-500}
+    # Configuration moved to services/flan/.env.service
+    # See: HF_HOME, FORCE_MODEL_DOWNLOAD_FLAN_T5, FLAN_* optimization flags
+    # Note: MODEL_NAME removed - service derives it from FLAN_T5_MODEL_SIZE
     volumes:
       - ./services/models/flan-t5:/app/models
       # Mount source code for development (overrides COPY in Dockerfile)
@@ -151,9 +137,8 @@ services:
         required: false
       - path: "./services/audio/.env.service"
         required: false
-    environment:
-      - FORCE_MODEL_DOWNLOAD_METRICGAN=${FORCE_MODEL_DOWNLOAD_METRICGAN:-false}
-      - METRICGAN_MODEL_SAVEDIR=/app/models/metricgan-plus
+    # Configuration moved to services/audio/.env.service
+    # See: FORCE_MODEL_DOWNLOAD_METRICGAN, METRICGAN_MODEL_SAVEDIR
     volumes:
       - ./services/models/audio:/app/models
       - "./debug:/app/debug"
@@ -164,8 +149,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2.5G # Audio processing with MetricGAN+ on GPU (+1G for concurrent enhancement)
-          cpus: "5" # Increased from 3 for better parallel audio processing and throughput
+          memory: 2.5G  # Audio processing with MetricGAN+ on GPU
+          cpus: "5"  # Increased from 3 for better parallel audio processing
         reservations:
           devices:
             - driver: nvidia
@@ -235,13 +220,8 @@ services:
         required: false
       - path: "./services/stt/.env.service"
         required: false
-    environment:
-      - FORCE_MODEL_DOWNLOAD_WHISPER_MODEL=${FORCE_MODEL_DOWNLOAD_WHISPER_MODEL:-false}
-      # STT optimizations (torch.compile() not applicable - faster-whisper uses CTranslate2)
-      - STT_ENABLE_PREWARM=${STT_ENABLE_PREWARM:-true}
-      - STT_ENABLE_CACHE=${STT_ENABLE_CACHE:-true}
-      - STT_CACHE_MAX_ENTRIES=${STT_CACHE_MAX_ENTRIES:-200}
-      - STT_CACHE_MAX_SIZE_MB=${STT_CACHE_MAX_SIZE_MB:-1000}
+    # Configuration moved to services/stt/.env.service
+    # See: FORCE_MODEL_DOWNLOAD_WHISPER_MODEL, STT_* optimization flags
     volumes:
       - "./services/models/stt:/app/models"
       - "./debug:/app/debug"
@@ -251,8 +231,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 5G # STT with faster-whisper on GPU (+2G for transcript caching and buffers)
-          cpus: "8" # Increased from 6 for better GPU pipeline throughput and concurrent requests
+          memory: 5G  # STT with faster-whisper on GPU
+          cpus: "8"  # Increased from 6 for better GPU pipeline throughput
         reservations:
           devices:
             - driver: nvidia
@@ -285,27 +265,8 @@ services:
         required: false
       - path: "./services/bark/.env.service"
         required: false
-    environment:
-      - FORCE_MODEL_DOWNLOAD_BARK_MODELS=${FORCE_MODEL_DOWNLOAD_BARK_MODELS:-false}
-      - BARK_USE_SMALL_MODELS=true # Enable small models for 30-50% speedup
-      - BARK_ENABLE_TORCH_COMPILE=${BARK_ENABLE_TORCH_COMPILE:-true}
-      - BARK_COMPILE_MODE=${BARK_COMPILE_MODE:-max-autotune-no-cudagraphs}
-      - BARK_ENABLE_PREWARM=${BARK_ENABLE_PREWARM:-true}
-      - BARK_ENABLE_CACHE=${BARK_ENABLE_CACHE:-true}
-      - BARK_CACHE_MAX_ENTRIES=${BARK_CACHE_MAX_ENTRIES:-100}
-      - BARK_CACHE_MAX_SIZE_MB=${BARK_CACHE_MAX_SIZE_MB:-500}
-      - BARK_ENABLE_INT8_QUANTIZATION=${BARK_ENABLE_INT8_QUANTIZATION:-false}
-      - HF_HOME=/app/models
-      - HOME=/app
-      - XDG_CACHE_HOME=/app/models
-      # PyTorch threading optimization (match CPU count)
-      - OMP_NUM_THREADS=8
-      - MKL_NUM_THREADS=8
-      # CUDA memory optimization (enhances base image setting)
-      # Note: docker-compose environment variables override base image settings
-      # Base image sets: PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
-      # This adds expandable_segments if supported (verify PyTorch version compatibility)
-      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128,expandable_segments:True
+    # Configuration moved to services/bark/.env.service
+    # See: FORCE_MODEL_DOWNLOAD_BARK_MODELS, BARK_* flags, PyTorch optimizations
     volumes:
       - ./services/models/bark:/app/models
       # Mount /app/.cache so Bark can write to ~/.cache/suno/bark_v0
@@ -349,10 +310,6 @@ services:
     environment:
       - GRADIO_SERVER_NAME=0.0.0.0
       - GRADIO_SERVER_PORT=8080
-      - AUDIO_BASE_URL=http://audio:9100
-      - STT_BASE_URL=http://stt:9000
-      - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
-      - TTS_BASE_URL=http://bark:7100
     volumes:
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
@@ -488,14 +445,14 @@ services:
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       # Use project-standard logging configuration from .env.common
       # LOG_LEVEL defaults to "info", LOG_JSON defaults to "true" in .env.common
-      # Entrypoint script maps LOG_JSON to GF_LOG_FORMAT: true/True/1 → json, otherwise → console
+      # Entrypoint maps LOG_JSON to GF_LOG_FORMAT: true/True/1 → json, else → console
       - GF_LOG_LEVEL=${LOG_LEVEL:-info}
-      # LOG_JSON is read from .env.common by env_file, entrypoint script converts it to GF_LOG_FORMAT
-      # To override format: set GF_LOG_FORMAT_OVERRIDE=json or GF_LOG_FORMAT_OVERRIDE=console
+      # LOG_JSON from .env.common converted to GF_LOG_FORMAT by entrypoint script
+      # Override: set GF_LOG_FORMAT_OVERRIDE=json or GF_LOG_FORMAT_OVERRIDE=console
     volumes:
       - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./config/grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
-      - grafana-data:/var/lib/grafana
+      - grafana-data:/var/lib/grafana  # Grafana data persistence
     ports:
       - "3000:3000"
     deploy:
