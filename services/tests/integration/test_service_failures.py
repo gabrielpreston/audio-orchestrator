@@ -173,54 +173,42 @@ async def test_orchestrator_tts_failure():
 @pytest.mark.integration
 @pytest.mark.failure
 @pytest.mark.timeout(120)
-async def test_stt_audio_processor_failure():
-    """Test STT graceful degradation when Audio service unavailable."""
+async def test_stt_audio_enhancement_failure():
+    """Test STT graceful degradation when audio enhancement unavailable (library-based)."""
     stt_url = get_service_url("STT")
     required_services = ["stt"]
 
-    # Temporarily override AUDIO_BASE_URL with invalid URL
-    original_url = os.environ.get("AUDIO_BASE_URL")
-    os.environ["AUDIO_BASE_URL"] = "http://invalid-audio-service:9999"
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        # Import audio generation helpers
+        from services.tests.utils.audio_quality_helpers import (
+            create_wav_file,
+            generate_test_audio,
+        )
+        import io
 
-    try:
-        async with (
-            docker_compose_test_context(required_services, timeout=120.0),
-            httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
-        ):
-            # Import audio generation helpers
-            from services.tests.utils.audio_quality_helpers import (
-                create_wav_file,
-                generate_test_audio,
-            )
-            import io
+        test_audio = create_wav_file(
+            generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
+            sample_rate=16000,
+            channels=1,
+        )
 
-            test_audio = create_wav_file(
-                generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
-                sample_rate=16000,
-                channels=1,
-            )
+        # STT should still process requests (audio enhancement is optional and handled internally)
+        files = {"file": ("test.wav", io.BytesIO(test_audio), "audio/wav")}
+        response = await client.post(
+            f"{stt_url}/transcribe",
+            files=files,
+            timeout=Timeouts.STANDARD,
+        )
 
-            # STT should still process requests (audio preprocessing is optional)
-            files = {"file": ("test.wav", io.BytesIO(test_audio), "audio/wav")}
-            response = await client.post(
-                f"{stt_url}/transcribe",
-                files=files,
-                timeout=Timeouts.STANDARD,
-            )
+        # Should still succeed (audio enhancement failure should not block STT)
+        assert response.status_code == 200, (
+            f"STT should handle audio enhancement failure gracefully, "
+            f"got status {response.status_code}: {response.text}"
+        )
 
-            # Should still succeed (audio preprocessing failure should not block STT)
-            assert response.status_code == 200, (
-                f"STT should handle Audio service failure gracefully, "
-                f"got status {response.status_code}: {response.text}"
-            )
-
-            data = response.json()
-            assert "text" in data
-            # Transcript may be empty for synthetic audio, but structure should be valid
-
-    finally:
-        # Restore original URL
-        if original_url:
-            os.environ["AUDIO_BASE_URL"] = original_url
-        elif "AUDIO_BASE_URL" in os.environ:
-            del os.environ["AUDIO_BASE_URL"]
+        data = response.json()
+        assert "text" in data
+        # Transcript may be empty for synthetic audio, but structure should be valid

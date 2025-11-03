@@ -30,18 +30,17 @@ class TestTestingServicePipeline:
         mock_orchestrator_http_response,
     ):
         """Test complete pipeline: Audio → Preprocess → STT → Orchestrator → Audio output."""
-        # Configure mock to return responses in order
-        call_count = 0
 
-        async def mock_post(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            responses = {
-                1: mock_preprocessor_response,
-                2: mock_stt_http_response,
-                3: mock_orchestrator_http_response,
-            }
-            return responses.get(call_count)
+        # Configure mock to return responses based on URL
+        async def mock_post(url, **kwargs):
+            url_str = str(url)
+            if "enhance" in url_str or "preprocess" in url_str:
+                return mock_preprocessor_response
+            elif "transcribe" in url_str:
+                return mock_stt_http_response
+            elif "orchestrate" in url_str or "orchestrator" in url_str:
+                return mock_orchestrator_http_response
+            return mock_stt_http_response  # fallback
 
         mock_client_module.post = AsyncMock(side_effect=mock_post)
 
@@ -60,7 +59,9 @@ class TestTestingServicePipeline:
         assert Path(audio_path).exists()
 
         # Verify all services were called
-        assert mock_client_module.post.call_count == 3
+        # Note: preprocessing uses library directly (audio_enhancer), not HTTP
+        # So we only have 2 HTTP calls: transcribe and orchestrator
+        assert mock_client_module.post.call_count == 2
 
         # Note: Temporary files use OS cleanup (delete=False for Gradio async access)
 
@@ -73,22 +74,16 @@ class TestTestingServicePipeline:
         mock_orchestrator_http_response,
     ):
         """Test preprocessing failure → Raw audio → STT → Orchestrator."""
-        # Configure mock: preprocessing fails, then STT and orchestrator succeed
-        call_count = 0
 
-        async def mock_post(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # Preprocessing fails
-                raise httpx.HTTPStatusError(
-                    "Preprocessing failed", request=Mock(), response=Mock()
-                )
-            responses = {
-                2: mock_stt_http_response,
-                3: mock_orchestrator_http_response,
-            }
-            return responses.get(call_count)
+        # Configure mock based on URL: preprocessing uses library directly, not HTTP
+        # When audio_enhancer is None, it falls back to raw audio and calls transcribe
+        async def mock_post(url, **kwargs):
+            url_str = str(url)
+            if "transcribe" in url_str:
+                return mock_stt_http_response
+            elif "orchestrate" in url_str or "orchestrator" in url_str:
+                return mock_orchestrator_http_response
+            return mock_stt_http_response  # fallback
 
         mock_client_module.post = AsyncMock(side_effect=mock_post)
 

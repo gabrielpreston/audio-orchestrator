@@ -19,7 +19,6 @@ from services.common.structured_logging import get_logger
 from .audio import AudioSegment, rms_from_pcm
 from .audio_processor_wrapper import AudioProcessorWrapper
 from .config import BotConfig, DiscordConfig
-
 from .orchestrator_client import OrchestratorClient
 from .receiver import build_sink
 from .transcription import TranscriptionClient, TranscriptResult

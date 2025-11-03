@@ -49,14 +49,12 @@ build_base_image() {
 # Build all base images
 build_base_image "services/base/Dockerfile.python-web" "python-web"
 build_base_image "services/base/Dockerfile.python-ml" "python-ml"
-build_base_image "services/base/Dockerfile.python-audio" "python-audio"
 build_base_image "services/base/Dockerfile.tools" "tools"
 
 echo "Base images built successfully!"
 echo "Images:"
 echo "  - ${REGISTRY}/python-web:${TAG}"
 echo "  - ${REGISTRY}/python-ml:${TAG}"
-echo "  - ${REGISTRY}/python-audio:${TAG}"
 echo "  - ${REGISTRY}/tools:${TAG}"
 if [ "${PUSH}" = "false" ]; then
     echo "  (built locally - use PUSH=true to push to registry)"

@@ -29,22 +29,26 @@ from services.common.permissions import (
 )
 
 
-# ML imports for toxicity detection
+# ML imports for toxicity detection with strict fail-fast
 try:
     from transformers import pipeline
+except ImportError as exc:
+    raise ImportError(
+        f"Required ML library not available: {exc}. "
+        "Guardrails service requires transformers for toxicity detection. "
+        "Use python-ml base image or explicitly install transformers."
+    ) from exc
 
-    TRANSFORMERS_AVAILABLE = True
-except ImportError:
-    TRANSFORMERS_AVAILABLE = False
-
-# Rate limiting imports
+# Rate limiting imports with strict fail-fast
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
-
-    SLOWAPI_AVAILABLE = True
-except ImportError:
-    SLOWAPI_AVAILABLE = False
+except ImportError as exc:
+    raise ImportError(
+        f"Required rate limiting library not available: {exc}. "
+        "Guardrails service requires slowapi for rate limiting. "
+        "Install slowapi or use python-ml base image."
+    ) from exc
 
 # Load configuration using standard config classes
 _config_preset = get_service_preset("guardrails")
@@ -119,12 +123,6 @@ def _load_toxicity_model(
     model_loader: BackgroundModelLoader | None = None,
 ) -> Any | None:
     """Load toxicity detection model (used by BackgroundModelLoader)."""
-    if not TRANSFORMERS_AVAILABLE:
-        logger.warning(
-            "guardrails.transformers_unavailable", message="Transformers not available"
-        )
-        return None
-
     try:
         # Check if force download is enabled
         force_download = False
@@ -258,13 +256,6 @@ def _load_toxicity_model(
 
 def initialize_rate_limiter(app_instance: Any) -> None:
     """Initialize rate limiter."""
-    if not SLOWAPI_AVAILABLE:
-        logger.warning(
-            "guardrails.slowapi_unavailable", message="SlowAPI not available"
-        )
-        app_instance.state.limiter = None
-        return
-
     try:
         limiter = Limiter(key_func=get_remote_address)
         app_instance.state.limiter = limiter
@@ -334,12 +325,6 @@ async def _startup() -> None:
                 else False
             ),
         )
-        # Rate limiter is optional - service can function without it (just won't rate limit)
-        # Don't block readiness if rate limiter fails to initialize
-        _health_manager.register_dependency(
-            "transformers", lambda: TRANSFORMERS_AVAILABLE
-        )
-        _health_manager.register_dependency("slowapi", lambda: SLOWAPI_AVAILABLE)
 
         # Initialize rate limiter (optional)
         initialize_rate_limiter(app)
@@ -387,8 +372,6 @@ health_endpoints = HealthEndpoints(
         "rate_limiter_available": lambda: (
             hasattr(app.state, "limiter") and app.state.limiter is not None
         ),
-        "transformers_available": lambda: TRANSFORMERS_AVAILABLE,
-        "slowapi_available": lambda: SLOWAPI_AVAILABLE,
     },
 )
 

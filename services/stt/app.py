@@ -28,7 +28,7 @@ from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
 from services.common.permissions import ensure_model_directory
 
-from .audio_processor_client import STTAudioProcessorClient
+from services.common.audio_enhancement import AudioEnhancer
 
 
 # Configuration classes are now handled by the new config system
@@ -41,7 +41,7 @@ MODEL_NAME = _cfg.faster_whisper.model
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
 # Health manager for service resilience (must remain module-level for app creation)
 _health_manager = HealthManager("stt")
-# Note: Other stateful components (_model_loader, _audio_processor_client, etc.)
+# Note: Other stateful components (_model_loader, _audio_enhancer, etc.)
 # are now stored in app.state during startup and accessed via request.app.state
 
 
@@ -909,23 +909,35 @@ async def _startup() -> None:
             ),
         )
 
-        # Initialize audio processor client with fallback (optional component)
+        # Initialize audio enhancer with fallback (optional component)
         try:
-            audio_processor_client = STTAudioProcessorClient(
-                base_url=_cfg.faster_whisper.audio_service_url or "http://audio:9100",
-                timeout=_cfg.faster_whisper.audio_service_timeout or 50.0,
+            # Check if enhancement is enabled via environment variable
+            enable_enhancement = os.getenv(
+                "STT_ENABLE_AUDIO_ENHANCEMENT", "true"
+            ).lower() in (
+                "true",
+                "1",
+                "yes",
             )
-            logger.info("stt.audio_processor_client_initialized")
+
+            audio_enhancer = AudioEnhancer(
+                enable_metricgan=enable_enhancement,
+                device=os.getenv("STT_ENHANCEMENT_DEVICE", "cpu"),
+            )
+            logger.info(
+                "stt.audio_enhancer_initialized",
+                enable_metricgan=enable_enhancement,
+            )
 
             # Store in app.state
-            app.state.audio_processor_client = audio_processor_client
+            app.state.audio_enhancer = audio_enhancer
         except Exception as exc:
-            # Audio processor client is optional - record as non-critical
+            # Audio enhancer is optional - record as non-critical
             _health_manager.record_startup_failure(
-                error=exc, component="audio_processor_client", is_critical=False
+                error=exc, component="audio_enhancer", is_critical=False
             )
-            logger.warning("stt.audio_processor_client_init_failed", error=str(exc))
-            app.state.audio_processor_client = None
+            logger.warning("stt.audio_enhancer_init_failed", error=str(exc))
+            app.state.audio_enhancer = None
 
         # Initialize result cache if enabled
         from services.common.result_cache import ResultCache
@@ -1054,16 +1066,16 @@ health_endpoints = HealthEndpoints(
             else False
         ),
         "model_name": lambda: MODEL_NAME,
-        "audio_processor_client_loaded": lambda: (
-            hasattr(app.state, "audio_processor_client")
-            and app.state.audio_processor_client is not None
+        "audio_enhancer_loaded": lambda: (
+            hasattr(app.state, "audio_enhancer")
+            and app.state.audio_enhancer is not None
         ),
         "device_info": _get_stt_device_info,  # Add device info component
     },
     custom_dependencies={
         "audio_processor": lambda: (
-            hasattr(app.state, "audio_processor_client")
-            and app.state.audio_processor_client is not None
+            hasattr(app.state, "audio_enhancer")
+            and app.state.audio_enhancer is not None
         ),
     },
 )
@@ -1158,7 +1170,8 @@ async def _transcribe_request(
     correlation_id = resolve_correlation_id(request, correlation_id)
 
     # Get state from app.state
-    audio_processor_client = getattr(request.app.state, "audio_processor_client", None)
+    # audio_processor_client removed - using audio_enhancer directly now
+    audio_enhancer = getattr(request.app.state, "audio_enhancer", None)
     transcript_cache = getattr(request.app.state, "transcript_cache", None)
     model_loader = getattr(request.app.state, "model_loader", None)
     stt_metrics = getattr(request.app.state, "stt_metrics", {})
@@ -1172,7 +1185,7 @@ async def _transcribe_request(
     wav_bytes, cache_key = await prepare_audio_for_transcription(
         wav_bytes,
         correlation_id,
-        audio_processor_client,
+        audio_enhancer,  # Pass audio_enhancer instead of audio_processor_client
         enhance_audio_func,
     )
 
@@ -1346,11 +1359,11 @@ async def asr(request: Request) -> JSONResponse:
 async def _enhance_audio_if_enabled(
     request: Request, wav_bytes: bytes, correlation_id: str | None = None
 ) -> bytes:
-    """Apply audio enhancement via remote audio processor service if available.
+    """Apply audio enhancement via AudioEnhancer library if available.
 
     This function attempts to enhance audio using MetricGAN+ (GPU-accelerated ML model)
-    from the audio processor service. Enhancement is optional and gracefully degrades
-    if the service is unavailable.
+    from the audio enhancement library. Enhancement is optional and gracefully degrades
+    if not available or disabled.
 
     Enhancement improves transcription accuracy by:
     - Noise reduction (MetricGAN+ ML model)
@@ -1360,7 +1373,6 @@ async def _enhance_audio_if_enabled(
     Architecture Note:
     - Frame-level processing (Discord): Lightweight VAD + normalization only
     - Segment-level enhancement (STT): Heavy MetricGAN+ ML processing
-    - GPU isolation: Audio processor has separate GPU for MetricGAN+
 
     Args:
         request: FastAPI Request object to access app.state
@@ -1376,32 +1388,30 @@ async def _enhance_audio_if_enabled(
         __name__, correlation_id=correlation_id, service_name="stt"
     )
 
-    # Get audio processor client from app.state
-    audio_processor_client = getattr(request.app.state, "audio_processor_client", None)
+    # Get audio enhancer from app.state
+    audio_enhancer = getattr(request.app.state, "audio_enhancer", None)
 
-    # Only attempt enhancement if audio processor client is available
-    if audio_processor_client is None:
+    # Only attempt enhancement if audio enhancer is available
+    if audio_enhancer is None:
         enhance_logger.debug(
             "stt.enhancement_skipped",
             correlation_id=correlation_id,
-            reason="audio_processor_client_not_available",
+            reason="audio_enhancer_not_available",
             decision="skip_enhancement_use_original",
         )
         return wav_bytes
 
-    # Attempt remote enhancement via audio processor service
+    # Attempt enhancement via AudioEnhancer library
     enhance_logger.info(
         "stt.enhancement_attempting",
         correlation_id=correlation_id,
         input_size=len(wav_bytes),
-        enhancement_method="remote_metricgan_plus",
-        decision="attempting_remote_enhancement",
+        enhancement_method="metricgan_plus",
+        decision="attempting_enhancement",
     )
 
     try:
-        enhanced_wav: bytes = await audio_processor_client.enhance_audio(
-            wav_bytes, correlation_id
-        )
+        enhanced_wav: bytes = await audio_enhancer.enhance_audio_bytes(wav_bytes)
 
         # Check if enhancement was actually applied
         if enhanced_wav != wav_bytes:
@@ -1414,11 +1424,11 @@ async def _enhance_audio_if_enabled(
             )
             return enhanced_wav
         else:
-            # Audio processor returned original (enhancement not applied or disabled)
+            # Audio enhancer returned original (enhancement not applied or disabled)
             enhance_logger.info(
                 "stt.enhancement_not_applied",
                 correlation_id=correlation_id,
-                reason="audio_processor_returned_original",
+                reason="audio_enhancer_returned_original",
                 decision="using_original_audio",
             )
             return wav_bytes

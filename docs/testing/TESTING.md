@@ -161,22 +161,20 @@ async def test_audio_processor_hot_swap():
 
 **Test Files**:
 
--  `test_audio_processor_client.py` - HTTP client for audio processor service
--  `test_audio_processor_wrapper.py` - Frame processing and segment creation
+-  `test_audio_processor_wrapper.py` - Frame processing and segment creation using AudioProcessingCore library
 -  `test_transcription_client.py` - PCM→WAV conversion and STT client behavior
 -  `test_audio_pipeline_stages.py` - Stage-to-stage data flow integration
 
 **What They Test**:
 
--  **AudioProcessorClient**: HTTP communication, base64 encoding/decoding, circuit breaker behavior, error handling
--  **AudioProcessorWrapper**: Frame registration, segment creation, correlation ID generation, dependency injection
+-  **AudioProcessorWrapper**: Frame registration, segment creation, correlation ID generation, dependency injection with AudioProcessingCore library
 -  **TranscriptionClient**: PCM→WAV conversion (using real AudioProcessor), circuit breaker integration, correlation ID propagation, timeout handling
 -  **Pipeline Stages**: Voice capture → processor, processor → segment, segment → STT, format conversion chain
 
 **Mocking Strategy**:
 
--  **AudioProcessorClient**: Mock `create_resilient_client` factory with `AsyncMock` for async methods
--  **AudioProcessorWrapper**: Inject mocked `AudioProcessorClient` via constructor (dependency injection)
+-  **AudioProcessingCore**: Mock `AudioProcessingCore` class with `AsyncMock` for async methods like `process_frame`
+-  **AudioProcessorWrapper**: Inject mocked `AudioProcessingCore` via constructor (dependency injection)
 -  **TranscriptionClient**: Patch `ResilientHTTPClient` class constructor or inject mock after `__init__` (client creates ResilientHTTPClient directly)
 -  **AudioProcessor for PCM→WAV**: Always use real AudioProcessor - format conversion is core behavior being tested
 
@@ -189,10 +187,10 @@ async def test_audio_processor_hot_swap():
 make test-component SERVICE=discord
 
 # Specific test file
-pytest services/tests/component/discord/test_audio_processor_client.py -v
+pytest services/tests/component/discord/test_audio_processor_wrapper.py -v
 
 # Specific test class
-pytest services/tests/component/discord/test_audio_processor_client.py::TestAudioProcessorClient -v
+pytest services/tests/component/discord/test_audio_processor_wrapper.py::TestAudioProcessorWrapper -v
 ```
 
 #### Testing Service Tests
@@ -445,7 +443,7 @@ tts_url = get_service_url("TTS")  # Loads TTS_BASE_URL or defaults to http://bar
 
 **Standardized Environment Variables** (agnostic service names):
 
--  `AUDIO_BASE_URL` → defaults to `http://audio:9100`
+-  Audio enhancement now uses library-based `AudioEnhancer` in STT service (no HTTP endpoint)
 -  `STT_BASE_URL` → defaults to `http://stt:9000`
 -  `ORCHESTRATOR_BASE_URL` → defaults to `http://orchestrator:8200`
 -  `LLM_BASE_URL` → defaults to `http://flan:8100` (service: LLM, implementation: FLAN-T5)

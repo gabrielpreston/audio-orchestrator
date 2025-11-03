@@ -16,7 +16,6 @@ Complete list of all service URLs accessible from your browser when running the 
 
 | Service | URL | Description | Health Check |
 |---------|-----|-------------|--------------|
-| **Audio Processor** | [http://localhost:8010](http://localhost:8010) | Unified audio processing service (VAD, enhancement, quality metrics) | [http://localhost:8010/health/ready](http://localhost:8010/health/ready) |
 | **STT (Speech-to-Text)** | [http://localhost:8011](http://localhost:8011) | Speech transcription service using faster-whisper | [http://localhost:8011/health/ready](http://localhost:8011/health/ready) |
 | **Orchestrator** | [http://localhost:8220](http://localhost:8220) | Main orchestration service coordinating LangChain tool calls | [http://localhost:8220/health/ready](http://localhost:8220/health/ready) |
 | **FLAN-T5 (LLM)** | [http://localhost:8110](http://localhost:8110) | Language model service providing OpenAI-compatible API | [http://localhost:8110/health/ready](http://localhost:8110/health/ready) |
@@ -50,9 +49,6 @@ All services expose standardized health check endpoints:
 ### Example Health Checks
 
 ```bash
-# Check Audio Processor readiness
-curl http://localhost:8010/health/ready
-
 # Check Orchestrator readiness
 curl http://localhost:8220/health/ready
 
@@ -66,7 +62,6 @@ All FastAPI services expose interactive API documentation:
 
 ### Swagger UI (Interactive)
 
--  Audio Processor: [http://localhost:8010/docs](http://localhost:8010/docs)
 -  STT Service: [http://localhost:8011/docs](http://localhost:8011/docs)
 -  Orchestrator: [http://localhost:8220/docs](http://localhost:8220/docs)
 -  FLAN-T5: [http://localhost:8110/docs](http://localhost:8110/docs)
@@ -96,7 +91,6 @@ Replace `/docs` with `/openapi.json` to get the raw OpenAPI schema (e.g., [http:
 
 | External Port | Internal Port | Service |
 |---------------|---------------|---------|
-| 8010 | 9100 | Audio Processor |
 | 8011 | 9000 | STT |
 | 8220 | 8200 | Orchestrator |
 | 8110 | 8100 | FLAN-T5 LLM |
@@ -117,7 +111,6 @@ For service-to-service communication within the Docker network, use the internal
 
 | Service | Internal URL |
 |---------|--------------|
-| Audio Processor | `http://audio:9100` |
 | STT | `http://stt:9000` |
 | Orchestrator | `http://orchestrator:8200` |
 | FLAN-T5 | `http://flan:8100` |
@@ -127,7 +120,6 @@ For service-to-service communication within the Docker network, use the internal
 
 These URLs are configured via environment variables using the standardized `{SERVICE}_BASE_URL` pattern with agnostic service names (see [Configuration Catalog](configuration-catalog.md)). All services use this pattern for consistency:
 
--  `AUDIO_BASE_URL` → `http://audio:9100`
 -  `STT_BASE_URL` → `http://stt:9000`
 -  `ORCHESTRATOR_BASE_URL` → `http://orchestrator:8200`
 -  `LLM_BASE_URL` → `http://flan:8100` (service: LLM, implementation: FLAN-T5)

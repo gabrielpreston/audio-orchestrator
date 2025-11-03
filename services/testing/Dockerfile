@@ -1,6 +1,6 @@
-# Build stage using shared web base image
+# Build stage using ML base image (includes scipy for audio enhancement)
 # hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-web:latest AS builder
+FROM ghcr.io/gabrielpreston/python-ml:latest AS builder
 
 WORKDIR /app
 
@@ -11,9 +11,9 @@ COPY services/testing/requirements.txt /app/services/testing/requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir -r /app/services/testing/requirements.txt
 
-# Runtime stage using shared web base image
+# Runtime stage using ML base image (includes scipy for audio enhancement)
 # hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-web:latest
+FROM ghcr.io/gabrielpreston/python-ml:latest
 
 WORKDIR /app
 

@@ -25,7 +25,6 @@ from services.common.tracing import get_observability_manager
 
 # LangChain imports
 from .langchain_integration import (
-    LANGCHAIN_AVAILABLE,
     create_langchain_executor,
     process_with_langchain,
 )
@@ -99,16 +98,9 @@ async def _startup() -> None:
             logger.warning("orchestrator.config_load_failed", error=str(exc))
             app.state.cfg = None  # Continue without config
 
-        # Initialize LangChain executor with fallback (optional - graceful degradation)
-        try:
-            langchain_executor = create_langchain_executor()
-            app.state.langchain_executor = langchain_executor
-        except Exception as exc:
-            _health_manager.record_startup_failure(
-                error=exc, component="langchain", is_critical=False
-            )
-            logger.warning("orchestrator.langchain_init_failed", error=str(exc))
-            app.state.langchain_executor = None  # Continue without LangChain
+        # Initialize LangChain executor (strict requirement - fail fast if unavailable)
+        langchain_executor = create_langchain_executor()
+        app.state.langchain_executor = langchain_executor
 
         # Initialize TTS client (optional - graceful degradation)
         try:
@@ -194,7 +186,6 @@ async def _startup() -> None:
 
         logger.info(
             "orchestrator.startup_complete",
-            langchain_available=LANGCHAIN_AVAILABLE,
             executor_ready=app.state.langchain_executor is not None,
             tts_client_ready=app.state.tts_client is not None,
         )
@@ -236,7 +227,6 @@ health_endpoints = HealthEndpoints(
         "config_loaded": lambda: (
             hasattr(app.state, "cfg") and app.state.cfg is not None
         ),
-        "langchain_available": lambda: LANGCHAIN_AVAILABLE,
         "executor_ready": lambda: (
             hasattr(app.state, "langchain_executor")
             and app.state.langchain_executor is not None

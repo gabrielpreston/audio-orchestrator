@@ -61,11 +61,17 @@ class TestTestPipeline:
         preprocess_response.content = b"enhanced_audio_bytes"
         preprocess_response.raise_for_status = Mock()
 
-        # Mock STT response
+        # Mock STT response - ensure json() returns a real dict
         stt_response = Mock(spec=httpx.Response)
         stt_response.status_code = 200
-        stt_response.json = Mock(return_value={"text": "test transcript"})
-        stt_response.raise_for_status = Mock()
+        transcript_dict = {"text": "test transcript"}
+
+        # Create a callable that returns the actual dict
+        def json_impl():
+            return transcript_dict
+
+        stt_response.json = json_impl
+        stt_response.raise_for_status = Mock(return_value=None)
 
         # Mock orchestrator response with audio
         orchestrator_response = Mock(spec=httpx.Response)
@@ -83,9 +89,17 @@ class TestTestPipeline:
         orchestrator_response.raise_for_status = Mock()
 
         # Configure mock client responses
-        mock_client_module.post = AsyncMock(
-            side_effect=[preprocess_response, stt_response, orchestrator_response]
-        )
+        # Note: client.post is called multiple times with different URLs
+        async def mock_post(url, **kwargs):
+            if "enhance" in str(url) or "preprocess" in str(url):
+                return preprocess_response
+            elif "transcribe" in str(url):
+                return stt_response
+            elif "orchestrate" in str(url) or "orchestrator" in str(url):
+                return orchestrator_response
+            return stt_response  # fallback
+
+        mock_client_module.post = AsyncMock(side_effect=mock_post)
 
         # Execute
         transcript, response, audio_path = await run_pipeline(
@@ -108,11 +122,17 @@ class TestTestPipeline:
     ):
         """Test pipeline with audio input when preprocessing fails (fallback to raw)."""
 
-        # Mock STT response (with raw audio)
+        # Mock STT response (with raw audio) - ensure json() returns a real dict
         stt_response = Mock(spec=httpx.Response)
         stt_response.status_code = 200
-        stt_response.json = Mock(return_value={"text": "test transcript"})
-        stt_response.raise_for_status = Mock()
+        transcript_dict = {"text": "test transcript"}
+
+        # Create a callable that returns the actual dict
+        def json_impl():
+            return transcript_dict
+
+        stt_response.json = json_impl
+        stt_response.raise_for_status = Mock(return_value=None)
 
         # Mock orchestrator response
         orchestrator_response = Mock(spec=httpx.Response)
@@ -133,21 +153,18 @@ class TestTestPipeline:
         tts_response.json = Mock(return_value={"audio": audio_b64})
         tts_response.raise_for_status = Mock()
 
-        # Configure mock to handle multiple post calls
-        call_count = 0
-
-        async def mock_post_sequence(*args, **kwargs):
-            nonlocal call_count
-            call_count += 1
-            # Use dictionary lookup for call count mapping
-            responses: dict[int, Mock] = {
-                2: stt_response,  # STT succeeds
-                3: orchestrator_response,  # Orchestrator succeeds
-                4: tts_response,  # TTS fallback (no audio from orchestrator)
-            }
-            if call_count == 1:
-                raise httpx.HTTPStatusError("Error", request=Mock(), response=Mock())
-            return responses.get(call_count)
+        # Configure mock to handle multiple post calls based on URL
+        # Note: preprocessing uses library directly, not HTTP, so no HTTP call fails
+        # When audio_enhancer is None, it falls back to raw audio and calls transcribe
+        async def mock_post_sequence(url, **kwargs):
+            url_str = str(url)
+            if "transcribe" in url_str:
+                return stt_response
+            elif "orchestrate" in url_str or "orchestrator" in url_str:
+                return orchestrator_response
+            elif "synthesize" in url_str or "tts" in url_str:
+                return tts_response
+            return stt_response  # fallback
 
         mock_client_module.post = AsyncMock(side_effect=mock_post_sequence)
 
@@ -363,23 +380,15 @@ class TestTestPipeline:
 class TestCreateGradioInterface:
     """Unit tests for create_gradio_interface function."""
 
-    @patch("services.testing.app.GRADIO_AVAILABLE", True)
-    @patch("services.testing.app.gr")
-    def test_create_gradio_interface_success(self, mock_gr):
+    def test_create_gradio_interface_success(self):
         """Test successful Gradio interface creation."""
-        mock_interface = Mock()
-        mock_gr.Interface.return_value = mock_interface
-
         result = create_gradio_interface()
 
-        assert result == mock_interface
-        mock_gr.Interface.assert_called_once()
+        # Verify it returns a Gradio Interface object
+        import gradio as gr
 
-    @patch("services.testing.app.GRADIO_AVAILABLE", False)
-    def test_create_gradio_interface_unavailable(self):
-        """Test Gradio interface creation when Gradio is unavailable."""
-        with pytest.raises(ImportError, match="Gradio is not available"):
-            create_gradio_interface()
+        assert isinstance(result, gr.Interface)
+        assert result.title == "Audio Orchestrator Testing Interface"
 
 
 @pytest.mark.unit
@@ -423,17 +432,15 @@ class TestHealthChecks:
 
         assert result is False
 
-    @patch("services.testing.app.client")
-    async def test_check_audio_preprocessor_health(self, mock_client_module):
+    @patch("services.testing.app.app")
+    async def test_check_audio_preprocessor_health(self, mock_app):
         """Test audio preprocessor health check wrapper."""
-        response = Mock(spec=httpx.Response)
-        response.status_code = 200
-        mock_client_module.get = AsyncMock(return_value=response)
+        # Mock app.state.audio_enhancer to be available
+        mock_app.state.audio_enhancer = Mock()
 
         result = await _check_audio_preprocessor_health()
 
         assert result is True
-        mock_client_module.get.assert_called_once()
 
     @patch("services.testing.app.client")
     async def test_check_stt_health(self, mock_client_module):

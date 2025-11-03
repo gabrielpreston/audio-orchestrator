@@ -157,30 +157,31 @@ plus shared helpers:
 
 -  `services/discord` (Python; `discord.py`) — Captures voice from Discord,
   detects wake phrases, forwards audio to STT, exposes Discord control tools,
-  and plays orchestrator/TTS audio responses.
+  and plays orchestrator/TTS audio responses. Uses common audio processing libraries directly.
 -  `services/stt` (Python; FastAPI, faster-whisper) — Provides HTTP transcription
-  with streaming-friendly latencies for the Discord bot and other clients.
+  with streaming-friendly latencies for the Discord bot and other clients. Uses common audio enhancement libraries directly.
 -  `services/orchestrator` (Python; FastAPI, LangChain) — Coordinates transcript processing,
   LangChain tool calls, and response planning. Routes reasoning requests to LLM service.
 -  `services/flan` (Python; FastAPI) — Presents an OpenAI-compatible endpoint that
   can broker LangChain tool invocations and return reasoning output to the orchestrator.
 -  `services/bark` (Python; FastAPI, Bark) — Streams Bark-generated audio for
   orchestrator responses with authentication and rate limits.
--  `services/audio-processor` (Python; FastAPI) — Unified audio processing service
--  `services/common` (Python package) — Houses shared logging and HTTP utilities
-  to keep service behavior consistent.
+-  `services/common` (Python package) — Houses shared logging, HTTP utilities, and audio processing
+  libraries (VAD, quality metrics, core processing, ML enhancement) to keep service behavior consistent.
 
 ### Service Communication
 
 ```text
-Discord Voice → Audio Processor → STT → Orchestrator → LLM → TTS → Discord Voice
+Discord Voice → STT → Orchestrator → LLM → TTS → Discord Voice
 ```
+
+**Note**: Audio processing (VAD, enhancement, quality metrics) is now handled via direct library calls in Discord and STT services using `services/common` modules, eliminating the need for a separate audio service.
 
 ### Service Dependencies
 
--  **Discord** depends on: Audio Processor, STT, Orchestrator
+-  **Discord** depends on: STT, Orchestrator (uses audio processing libraries directly)
 -  **Orchestrator** depends on: LLM, TTS
--  **STT** depends on: Audio Processor
+-  **STT** depends on: (uses audio enhancement libraries directly)
 
 ## 4. Repository Layout Essentials
 

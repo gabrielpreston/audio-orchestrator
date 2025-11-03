@@ -46,7 +46,7 @@ Foundation image for all services
 
 Lightweight base for web services
 
-**Used by:** Discord, Testing, Monitoring, Security
+**Used by:** Monitoring, Security
 
 **Includes:**
 
@@ -124,8 +124,8 @@ Development and CI tools
 
 | Service | Base Image | Reason |
 |---------|------------|--------|
-| Discord | python-web | Web service with audio system libs |
-| Testing | python-web | Web UI (Gradio) with audio system libs |
+| Discord | python-ml | Requires librosa/soundfile for audio processing |
+| Testing | python-ml | Requires scipy for audio enhancement |
 | Monitoring | python-web | Web dashboard (Streamlit) |
 | Security | python-web | Security scanning tools |
 | STT | python-ml | ML inference (faster-whisper) |

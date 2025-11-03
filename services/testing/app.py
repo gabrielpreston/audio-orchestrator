@@ -19,17 +19,19 @@ from services.common.config import (
 from services.common.config.loader import get_env_with_default
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
+from services.common.audio_enhancement import AudioEnhancer
 from services.common.structured_logging import configure_logging, get_logger
 from services.common.tracing import get_observability_manager
 
-# Import gradio with error handling
+# Import gradio with strict fail-fast
 try:
     import gradio as gr
-
-    GRADIO_AVAILABLE = True
-except ImportError:
-    GRADIO_AVAILABLE = False
-    gr = None
+except ImportError as exc:
+    raise ImportError(
+        f"Required UI framework not available: {exc}. "
+        "Testing service requires Gradio. Use python-ml base image or "
+        "explicitly install gradio."
+    ) from exc
 
 # Load configuration using standard config classes
 _config_preset = get_service_preset("testing")
@@ -62,6 +64,30 @@ async def _startup() -> None:
         # Set observability manager in health manager
         health_manager.set_observability_manager(_observability_manager)
 
+        # Initialize audio enhancer for denoising (optional component)
+        try:
+            import os
+
+            enable_enhancement = os.getenv(
+                "TESTING_ENABLE_AUDIO_ENHANCEMENT", "true"
+            ).lower() in (
+                "true",
+                "1",
+                "yes",
+            )
+            audio_enhancer = AudioEnhancer(
+                enable_metricgan=enable_enhancement,
+                device=os.getenv("TESTING_ENHANCEMENT_DEVICE", "cpu"),
+            )
+            app.state.audio_enhancer = audio_enhancer
+            logger.info(
+                "testing.audio_enhancer_initialized",
+                enable_metricgan=enable_enhancement,
+            )
+        except Exception as exc:
+            logger.warning("testing.audio_enhancer_init_failed", error=str(exc))
+            app.state.audio_enhancer = None
+
         logger.info("Testing UI service starting up")
         health_manager.mark_startup_complete()
     except Exception as exc:
@@ -90,7 +116,6 @@ app = create_service_app(
 client = httpx.AsyncClient(timeout=30.0)
 
 # Service URLs (loaded from environment with defaults)
-AUDIO_BASE_URL = get_env_with_default("AUDIO_BASE_URL", "http://audio:9100", str)
 STT_BASE_URL = get_env_with_default("STT_BASE_URL", "http://stt:9000", str)
 ORCHESTRATOR_BASE_URL = get_env_with_default(
     "ORCHESTRATOR_BASE_URL", "http://orchestrator:8200", str
@@ -137,29 +162,33 @@ async def run_pipeline(
                 with Path(audio).open("rb") as f:
                     audio_bytes = f.read()
 
-                enhanced_response = await client.post(
-                    f"{AUDIO_BASE_URL}/denoise",
-                    content=audio_bytes,
-                    headers={"Content-Type": "audio/wav"},
-                )
-                enhanced_response.raise_for_status()
-                logger.info("Audio preprocessing completed")
+                # Use AudioEnhancer library directly
+                audio_enhancer = getattr(app.state, "audio_enhancer", None)
+                if audio_enhancer is not None:
+                    enhanced_audio_bytes = await audio_enhancer.enhance_audio_bytes(
+                        audio_bytes
+                    )
+                    logger.info("Audio preprocessing completed")
+                    enhanced_response_content = enhanced_audio_bytes
+                else:
+                    logger.warning("Audio enhancer not available, using raw audio")
+                    enhanced_response_content = None
             except Exception as e:
                 logger.warning(
                     "Audio preprocessing failed, using raw audio",
                     extra={"error": str(e)},
                 )
-                enhanced_response = None
+                enhanced_response_content = None
 
             # 2. Transcribe
             try:
-                if enhanced_response:
+                if enhanced_response_content:
                     transcript_response = await client.post(
                         f"{STT_BASE_URL}/transcribe",
                         files={
                             "file": (
                                 "audio.wav",
-                                enhanced_response.content,
+                                enhanced_response_content,
                                 "audio/wav",
                             )
                         },
@@ -346,9 +375,6 @@ async def run_pipeline(
 def create_gradio_interface() -> Any:
     """Create the Gradio interface for testing."""
 
-    if not GRADIO_AVAILABLE:
-        raise ImportError("Gradio is not available")
-
     # Create interface
     demo = gr.Interface(
         fn=run_pipeline,
@@ -398,8 +424,9 @@ async def _check_service_health(url: str) -> bool:
 
 # Create async wrapper functions for dependency checks
 async def _check_audio_preprocessor_health() -> bool:
-    """Check audio preprocessor service health."""
-    return await _check_service_health(AUDIO_BASE_URL)
+    """Check if the audio enhancer is available."""
+    audio_enhancer = getattr(app.state, "audio_enhancer", None)
+    return audio_enhancer is not None
 
 
 async def _check_stt_health() -> bool:
@@ -421,9 +448,7 @@ async def _check_tts_health() -> bool:
 health_endpoints = HealthEndpoints(
     service_name="testing",
     health_manager=health_manager,
-    custom_components={
-        "gradio_available": lambda: GRADIO_AVAILABLE,
-    },
+    custom_components={},
     custom_dependencies={
         "audio_preprocessor": _check_audio_preprocessor_health,
         "stt": _check_stt_health,

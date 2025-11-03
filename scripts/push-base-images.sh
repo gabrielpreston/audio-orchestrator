@@ -32,13 +32,11 @@ push_base_image() {
 # Push all base images
 push_base_image "python-web"
 push_base_image "python-ml"
-push_base_image "python-audio"
 push_base_image "tools"
 
 echo "Base images pushed successfully!"
 echo "Images:"
 echo "  - ${REGISTRY}/python-web:${TAG}"
 echo "  - ${REGISTRY}/python-ml:${TAG}"
-echo "  - ${REGISTRY}/python-audio:${TAG}"
 echo "  - ${REGISTRY}/tools:${TAG}"
 

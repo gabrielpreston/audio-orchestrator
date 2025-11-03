@@ -86,13 +86,13 @@ PYTEST_ARGS ?=
 SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
 
 # Development services (includes testing and monitoring, excludes observability stack)
-DEV_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails
+DEV_SERVICES := discord stt flan orchestrator bark monitoring testing guardrails
 
 # Production services only (excludes testing, monitoring, and observability stack)
-PROD_SERVICES := discord stt flan orchestrator bark audio guardrails
+PROD_SERVICES := discord stt flan orchestrator bark guardrails
 
 # All services including observability stack
-ALL_SERVICES := discord stt flan orchestrator bark audio monitoring testing guardrails otel-collector prometheus jaeger grafana
+ALL_SERVICES := discord stt flan orchestrator bark monitoring testing guardrails otel-collector prometheus jaeger grafana
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -238,7 +238,7 @@ models-fix-permissions: ## Fix host model directory permissions (creates directo
 	@printf "$(COLOR_CYAN)→ Ensuring model directories exist with correct permissions$(COLOR_OFF)\n"
 	@PUID=$${PUID:-$$(id -u)}; \
 	PGID=$${PGID:-$$(id -g)}; \
-	for dir in stt flan-t5 guardrails bark audio; do \
+	for dir in stt flan-t5 guardrails bark; do \
 		full_path="./services/models/$$dir"; \
 		if [ ! -d "$$full_path" ]; then \
 			printf "$(COLOR_YELLOW)  Creating $$full_path$(COLOR_OFF)\n"; \
@@ -272,6 +272,10 @@ run: stop models-fix-permissions ## Start services (use ENV=dev or ENV=prod, def
 	$(call select_services_by_env)
 
 run-with-build: docker-build-enhanced run ## Build with enhanced caching then start containers (base images must exist)
+
+run-test: stop-test models-fix-permissions ## Start all services for testing using docker-compose.test.yml
+	@printf "$(COLOR_GREEN)→ Starting test services with docker-compose.test.yml$(COLOR_OFF)\n"
+	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.test.yml up -d --remove-orphans
 
 stop-test: ## Stop and remove test containers (deprecated - use 'make stop' for full stack)
 	@printf "$(COLOR_BLUE)→ Bringing down test containers$(COLOR_OFF)\n"
@@ -360,7 +364,7 @@ docker-build-service: ## Build a specific service (set SERVICE=name)
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build $(SERVICE)
 
 # Base image builds
-docker-build-base: ## Build base images locally (python-web, python-ml, python-audio, tools)
+docker-build-base: ## Build base images locally (python-web, python-ml, tools)
 	@printf "$(COLOR_GREEN)→ Building base images locally$(COLOR_OFF)\n"
 	@PUSH=false bash $(SCRIPT_DIR)/build-base-images.sh
 
@@ -644,15 +648,14 @@ FORCE_DOWNLOAD_ENV_VARS := \
 	stt:FORCE_MODEL_DOWNLOAD_WHISPER_MODEL \
 	flan:FORCE_MODEL_DOWNLOAD_FLAN_T5 \
 	guardrails:FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL \
-	bark:FORCE_MODEL_DOWNLOAD_BARK_MODELS \
-	audio:FORCE_MODEL_DOWNLOAD_METRICGAN
+	bark:FORCE_MODEL_DOWNLOAD_BARK_MODELS
 
 models-force-download: ## Force download all models (sets FORCE_MODEL_DOWNLOAD=true)
 	@printf "$(COLOR_GREEN)→ Force downloading all models$(COLOR_OFF)\n"
-	@FORCE_MODEL_DOWNLOAD=true $(DOCKER_COMPOSE) restart stt flan guardrails bark audio
+	@FORCE_MODEL_DOWNLOAD=true $(DOCKER_COMPOSE) restart stt flan guardrails bark
 
-models-force-download-service: ## Force download for specific service (set SERVICE=stt|flan|guardrails|bark|audio)
-	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=stt|flan|guardrails|bark|audio$(COLOR_OFF)\n" && exit 1) || true
+models-force-download-service: ## Force download for specific service (set SERVICE=stt|flan|guardrails|bark)
+	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=stt|flan|guardrails|bark$(COLOR_OFF)\n" && exit 1) || true
 	@found=0; \
 	for mapping in $(FORCE_DOWNLOAD_ENV_VARS); do \
 		svc=$$(echo $$mapping | cut -d: -f1); \
@@ -665,7 +668,7 @@ models-force-download-service: ## Force download for specific service (set SERVI
 		fi; \
 	done; \
 	if [ $$found -eq 0 ]; then \
-		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: stt, flan, guardrails, bark, audio$(COLOR_OFF)\n"; \
+		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: stt, flan, guardrails, bark$(COLOR_OFF)\n"; \
 		exit 1; \
 	fi
 
@@ -673,12 +676,9 @@ models-force-download-service: ## Force download for specific service (set SERVI
 # CLEANUP & MAINTENANCE
 # =============================================================================
 
-clean: ## Remove logs, cached audio artifacts, and debug files
-	@printf "$(COLOR_BLUE)→ Cleaning...$(COLOR_OFF)\n"; \
-	if [ -d "logs" ]; then echo "Removing logs in ./logs"; rm -rf logs/* || true; fi; \
-	if [ -d ".wavs" ]; then echo "Removing saved wavs/sidecars in ./.wavs"; rm -rf .wavs/* || true; fi; \
-	if [ -d "debug" ]; then echo "Removing debug files in ./debug"; rm -rf debug/* || true; fi; \
-	if [ -d "services" ]; then echo "Removing __pycache__ directories under ./services"; find services -type d -name "__pycache__" -prune -print -exec rm -rf {} + || true; fi
+clean: ## Remove logs, cached audio artifacts, debug files, and Python cache directories
+	@printf "$(COLOR_BLUE)→ Cleaning caches and artifacts...$(COLOR_OFF)\n"
+	@bash $(SCRIPT_DIR)/clean-caches.sh
 
 docker-clean: ## Clean unused Docker resources (safe - preserves images/volumes in use)
 	@printf "$(COLOR_BLUE)→ Cleaning unused Docker resources (safe mode)...$(COLOR_OFF)\n"

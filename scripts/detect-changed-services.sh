@@ -5,7 +5,7 @@
 set -euo pipefail
 
 # Configuration
-SERVICES="${RUNTIME_SERVICES:-discord stt flan orchestrator bark audio monitoring testing guardrails}"
+SERVICES="${RUNTIME_SERVICES:-discord stt flan orchestrator bark monitoring testing guardrails}"
 
 # Default: compare working directory + staged changes against HEAD
 # Can override with argument: ./detect-changed-services.sh origin/main

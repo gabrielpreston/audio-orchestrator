@@ -92,7 +92,7 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `FORCE_MODEL_DOWNLOAD_FLAN_T5` | Force download for FLAN service FLAN-T5 model (overrides global). | `false` |
 | `FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL` | Force download for Guardrails service toxicity model (overrides global). | `false` |
 | `FORCE_MODEL_DOWNLOAD_BARK_MODELS` | Force download for Bark service models (overrides global). | `false` |
-| `FORCE_MODEL_DOWNLOAD_METRICGAN` | Force download for Audio service MetricGAN model (overrides global). | `false` |
+| `FORCE_MODEL_DOWNLOAD_METRICGAN` | Force download for STT service MetricGAN model (overrides global). | `false` |
 
 ## STT Service (`services/stt/.env.service`)
 
@@ -165,14 +165,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `ENABLE_PII_DETECTION` | Enable PII (Personally Identifiable Information) detection. | `true` |
 | `FORCE_MODEL_DOWNLOAD_TOXICITY_MODEL` | Force download for toxicity model (overrides global). | `false` |
 | `HF_HOME` | Hugging Face home directory for model storage. | `/app/models` |
-
-## Audio Service (`services/audio/.env.service`)
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `PORT` | HTTP listen port. | `9100` |
-| `METRICGAN_MODEL_SAVEDIR` | Directory path for MetricGAN+ model storage. | `/app/models/metricgan-plus` |
-| `FORCE_MODEL_DOWNLOAD_METRICGAN` | Force download for MetricGAN model (overrides global). | `false` |
 
 ## Bark TTS Service (`services/bark/.env.service`)
 

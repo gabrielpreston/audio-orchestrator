@@ -1,7 +1,7 @@
-"""Wrapper for the audio processor service that replaces AudioPipeline functionality.
+"""Wrapper for the audio processor that uses direct library calls.
 
 This module provides a drop-in replacement for AudioPipeline that uses the
-unified audio processor service via HTTP API.
+audio processing library directly (no HTTP calls).
 """
 
 from __future__ import annotations
@@ -9,42 +9,40 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from services.common.audio_processing_core import AudioProcessingCore
 from services.common.structured_logging import get_logger
-from services.discord.audio import AudioSegment, PCMFrame
-from services.discord.audio_processor_client import AudioProcessorClient
+from services.common.surfaces.types import PCMFrame
+
+from .audio import AudioSegment
 
 logger = get_logger(__name__)
 
 
 class AudioProcessorWrapper:
-    """Wrapper for audio processor service that replaces AudioPipeline functionality."""
+    """Wrapper for audio processor that uses direct library calls."""
 
     def __init__(
         self,
         audio_config: Any,
         telemetry_config: Any,
-        audio_processor_client: AudioProcessorClient | None = None,
+        audio_processor_core: AudioProcessingCore | None = None,
     ) -> None:
         """Initialize audio processor wrapper.
 
         Args:
             audio_config: Audio configuration
             telemetry_config: Telemetry configuration
-            audio_processor_client: Optional audio processor client (for testing)
+            audio_processor_core: Optional audio processor core (for testing)
         """
         self._config = audio_config
         self._telemetry_config = telemetry_config
         self._logger = get_logger(__name__)
 
-        # Initialize audio processor client
-        if audio_processor_client is None:
-            self._audio_processor_client = AudioProcessorClient(
-                base_url=getattr(audio_config, "service_url", "http://audio:9100"),
-                timeout=getattr(audio_config, "service_timeout", 20.0)
-                / 1000.0,  # Convert ms to seconds
-            )
+        # Initialize audio processor core
+        if audio_processor_core is None:
+            self._audio_processor_core = AudioProcessingCore(audio_config)
         else:
-            self._audio_processor_client = audio_processor_client
+            self._audio_processor_core = audio_processor_core
 
         # Track user accumulators (simplified version of AudioPipeline logic)
         self._accumulators: dict[int, dict[str, Any]] = {}
@@ -52,8 +50,7 @@ class AudioProcessorWrapper:
         self._logger.info("audio_processor_wrapper.initialized")
 
     async def close(self) -> None:
-        """Close the audio processor client."""
-        await self._audio_processor_client.close()
+        """Close the audio processor (no-op for library-based implementation)."""
         self._logger.info("audio_processor_wrapper.closed")
 
     def register_frame(
@@ -105,7 +102,7 @@ class AudioProcessorWrapper:
             AudioSegment if ready, None otherwise
         """
         try:
-            # Create PCMFrame for audio processor
+            # Create PCMFrame for audio processor (using common types)
             frame = PCMFrame(
                 pcm=pcm,
                 timestamp=time.time(),
@@ -113,17 +110,12 @@ class AudioProcessorWrapper:
                 duration=duration,
                 sequence=0,  # Will be updated by audio processor
                 sample_rate=sample_rate,
+                channels=1,  # Default for Discord mono audio
+                sample_width=2,  # 16-bit
             )
 
-            # Process frame with audio processor
-            processed_frame = await self._audio_processor_client.process_frame(frame)
-            if processed_frame is None:
-                self._logger.warning(
-                    "audio_processor_wrapper.frame_processing_failed",
-                    user_id=user_id,
-                    sequence=frame.sequence,
-                )
-                return None
+            # Process frame with audio processor core
+            processed_frame = await self._audio_processor_core.process_frame(frame)
 
             # For now, we don't implement the full accumulator logic
             # This is a simplified version that processes frames individually
@@ -133,7 +125,7 @@ class AudioProcessorWrapper:
             # 3. Handle silence detection
             # 4. Manage segment boundaries
 
-            # Create a simple segment for testing
+            # Create a simple segment for testing (discord AudioSegment uses int user_id)
             segment = AudioSegment(
                 user_id=user_id,
                 pcm=processed_frame.pcm,
@@ -182,9 +174,9 @@ class AudioProcessorWrapper:
         return []
 
     async def health_check(self) -> bool:
-        """Check if the audio processor service is healthy.
+        """Check if the audio processor is healthy.
 
         Returns:
-            True if service is healthy, False otherwise
+            True (library-based implementation is always available)
         """
-        return await self._audio_processor_client.health_check()
+        return True

@@ -118,51 +118,6 @@ services:
       options:
         max-size: "10m"
         max-file: "5"
-  audio:
-    build:
-      context: "."
-      dockerfile: "services/audio/Dockerfile"
-      cache_from:
-        - ghcr.io/gabrielpreston/audio:latest
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/audio:latest"
-    user: "${PUID:-1000}:${PGID:-1000}"
-    ports:
-      - "8010:9100"
-    env_file:
-      - path: "./.env.common"
-        required: false
-      - path: "./.env.docker"
-        required: false
-      - path: "./services/audio/.env.service"
-        required: false
-    # Configuration moved to services/audio/.env.service
-    # See: FORCE_MODEL_DOWNLOAD_METRICGAN, METRICGAN_MODEL_SAVEDIR
-    volumes:
-      - ./services/models/audio:/app/models
-      - "./debug:/app/debug"
-      - "./services/audio/config:/app/config"
-      # Mount source code for development (overrides COPY in Dockerfile)
-      - "./services/common:/app/services/common"
-      - "./services/audio:/app/services/audio"
-    deploy:
-      resources:
-        limits:
-          memory: 2.5G  # Audio processing with MetricGAN+ on GPU
-          cpus: "5"  # Increased from 3 for better parallel audio processing
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
   discord:
     build:
       context: "."

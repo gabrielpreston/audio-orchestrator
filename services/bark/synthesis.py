@@ -19,14 +19,15 @@ from typing import Any
 import numpy as np
 import torch
 
-# Import Bark with error handling
+# Import Bark with strict fail-fast
 try:
     from bark import SAMPLE_RATE, generate_audio, preload_models
-except ImportError:
-    # These will be available at runtime in the container
-    SAMPLE_RATE = 22050
-    generate_audio = None
-    preload_models = None
+except ImportError as exc:
+    raise ImportError(
+        f"Required TTS library not available: {exc}. "
+        "Bark service requires bark library. Use python-ml base image or "
+        "explicitly install bark."
+    ) from exc
 from scipy.io.wavfile import write as write_wav
 
 from services.common.model_loader import BackgroundModelLoader
@@ -188,9 +189,6 @@ def _preload_bark_models(logger: Any) -> float:
     Returns:
         Duration of preload operation in seconds
     """
-    if preload_models is None:
-        return 0.0
-
     # Check if small models should be used (for memory-constrained environments)
     use_small_models = os.getenv("BARK_USE_SMALL_MODELS", "false").lower() in (
         "true",
@@ -391,10 +389,11 @@ def _compile_bark_models(logger: Any) -> tuple[list[str], str]:
         # Configure torch._dynamo FIRST, before any compilation or model operations
         # This fixes getpwuid() errors in Docker containers without /etc/passwd entries
         # Must be set early to affect all subsequent torch.compile() calls
+        # Use renamed import to avoid shadowing module-level torch variable
         try:
-            import torch._dynamo
+            from torch import _dynamo as torch_dynamo
 
-            torch._dynamo.config.suppress_errors = True
+            torch_dynamo.config.suppress_errors = True
             logger.info(
                 "bark.torch_dynamo_configured",
                 suppress_errors=True,
@@ -511,9 +510,6 @@ class BarkSynthesizer:
         # Create wrapper function for preload_models that checks force download
         def _preload_models_with_force() -> None:
             """Wrapper for preload_models that orchestrates startup pipeline stages."""
-            if preload_models is None:
-                return
-
             load_start = time.time()
 
             self._logger.info(

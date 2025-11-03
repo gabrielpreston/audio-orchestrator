@@ -140,36 +140,10 @@ health_endpoints = HealthEndpoints(
         "model_name": lambda: MODEL_NAME,
         "enhancer_loaded": lambda: _audio_enhancer is not None,
         "enhancer_enabled": lambda: (
-            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
+            _audio_enhancer.is_enhancement_enabled() if _audio_enhancer else False
         ),
-        "audio_processor_client_loaded": lambda: _audio_processor_client is not None,
     },
-    custom_dependencies={
-        "audio_processor": lambda: _audio_processor_client is not None,
-    }
-)
-
-# Include the health endpoints router
-app.include_router(health_endpoints.get_router())
-```
-
-### Audio Service Health
-
-```python
-# services/audio/app.py
-from services.common.health_endpoints import HealthEndpoints
-
-# Initialize health endpoints
-health_endpoints = HealthEndpoints(
-    service_name="audio",
-    health_manager=_health_manager,
-    custom_components={
-        "processor_loaded": lambda: _audio is not None,
-        "enhancer_loaded": lambda: _audio_enhancer is not None,
-        "enhancer_enabled": lambda: (
-            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
-        ),
-    }
+    custom_dependencies={}
 )
 
 # Include the health endpoints router

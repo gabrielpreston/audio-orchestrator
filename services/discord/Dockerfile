@@ -1,6 +1,6 @@
-# Use shared web base image (includes audio system libs)
+# Use ML base image (includes librosa, soundfile, scipy, numpy for audio processing)
 # hadolint ignore=DL3007
-FROM ghcr.io/gabrielpreston/python-web:latest AS base
+FROM ghcr.io/gabrielpreston/python-ml:latest AS base
 
 WORKDIR /app
 

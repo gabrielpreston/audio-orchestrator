@@ -9,17 +9,19 @@ from services.common.structured_logging import get_logger
 
 logger = get_logger(__name__)
 
-# LangChain imports
+# LangChain imports with strict fail-fast
 try:
     from langchain.agents import AgentExecutor, create_openai_functions_agent
     from langchain.memory import ConversationBufferMemory
     from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain.tools import Tool
     from langchain_openai import ChatOpenAI
-
-    LANGCHAIN_AVAILABLE = True
-except ImportError:
-    LANGCHAIN_AVAILABLE = False
+except ImportError as exc:
+    raise ImportError(
+        f"Required orchestration library not available: {exc}. "
+        "Orchestrator service requires LangChain. Use python-ml base image or "
+        "explicitly install langchain, langchain-community, and langchain-openai."
+    ) from exc
 
 # Prompt versioning
 PROMPT_VERSION = "v1.0"
@@ -35,14 +37,8 @@ When responding:
 - Provide helpful context when appropriate"""
 
 
-def create_langchain_executor() -> AgentExecutor | None:
+def create_langchain_executor() -> AgentExecutor:
     """Create the LangChain agent executor."""
-    if not LANGCHAIN_AVAILABLE:
-        logger.warning(
-            "langchain.not_available", message="LangChain not available, using fallback"
-        )
-        return None
-
     try:
         # Get LLM URLs from environment (agnostic service name)
         llm_primary_url = get_env_with_default("LLM_BASE_URL", "http://flan:8100", str)
@@ -107,7 +103,7 @@ def create_langchain_executor() -> AgentExecutor | None:
 
     except Exception as e:
         logger.error("langchain.executor_creation_failed", error=str(e))
-        return None
+        raise
 
 
 def send_discord_message(message: str) -> str:
@@ -133,13 +129,9 @@ def get_current_time() -> str:
 
 
 async def process_with_langchain(
-    transcript: str, session_id: str, executor: AgentExecutor | None
+    transcript: str, session_id: str, executor: AgentExecutor
 ) -> str:
     """Process transcript using LangChain orchestration."""
-    if executor is None:
-        # Fallback to simple response
-        return f"I received your message: {transcript[:100]}..."
-
     try:
         result = await executor.ainvoke({"input": transcript, "session_id": session_id})
 

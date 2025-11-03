@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from services.discord.audio import PCMFrame
-from services.discord.audio_processor_client import AudioProcessorClient
+from services.common.audio_processing_core import AudioProcessingCore
+from services.common.surfaces.types import PCMFrame
 from services.discord.audio_processor_wrapper import AudioProcessorWrapper
 from services.discord.config import STTConfig
 from services.discord.transcription import TranscriptionClient, TranscriptResult
@@ -18,30 +18,29 @@ class TestAudioPipelineStages:
     """Component tests for audio pipeline stage integration."""
 
     @pytest.fixture
-    def mock_audio_processor_client(self):
-        """Create mock AudioProcessorClient."""
-        client = AsyncMock(spec=AudioProcessorClient)
-        client.process_frame = AsyncMock()
-        client.health_check = AsyncMock(return_value=True)
-        client.close = AsyncMock()
-        return client
+    def mock_audio_processor_core(self):
+        """Create mock AudioProcessingCore."""
+        core = AsyncMock(spec=AudioProcessingCore)
+        core.process_frame = AsyncMock()
+        return core
 
     @pytest.fixture
-    def mock_audio_processor_wrapper(self, mock_audio_processor_client, mock_config):
-        """Create AudioProcessorWrapper with mocked client."""
+    def mock_audio_processor_wrapper(self, mock_audio_processor_core, mock_config):
+        """Create AudioProcessorWrapper with mocked core."""
         audio_config, telemetry_config = mock_config
         return AudioProcessorWrapper(
             audio_config=audio_config,
             telemetry_config=telemetry_config,
-            audio_processor_client=mock_audio_processor_client,
+            audio_processor_core=mock_audio_processor_core,
         )
 
     @pytest.fixture
     def mock_config(self):
         """Create mock configuration."""
         audio_config = Mock()
-        audio_config.service_url = "http://test-audio:9100"
-        audio_config.service_timeout = 20000.0
+        audio_config.enable_vad = True
+        audio_config.enable_enhancement = True
+        audio_config.vad_aggressiveness = 1
 
         telemetry_config = Mock()
         telemetry_config.waveform_debug_dir = None
@@ -67,7 +66,7 @@ class TestAudioPipelineStages:
             sequence=1,
             sample_rate=sample_rate,
         )
-        mock_audio_processor_wrapper._audio_processor_client.process_frame.return_value = processed_frame
+        mock_audio_processor_wrapper._audio_processor_core.process_frame.return_value = processed_frame
 
         # Simulate ingest_voice_packet calling register_frame_async
         segment = await mock_audio_processor_wrapper.register_frame_async(
@@ -80,14 +79,14 @@ class TestAudioPipelineStages:
 
         # Verify segment was created
         assert segment is not None
-        assert segment.user_id == user_id
+        assert segment.user_id == user_id  # user_id is int in discord AudioSegment
         assert segment.sample_rate == sample_rate
 
         # Verify processor was called
-        mock_audio_processor_wrapper._audio_processor_client.process_frame.assert_called_once()
+        mock_audio_processor_wrapper._audio_processor_core.process_frame.assert_called_once()
 
     async def test_stage_processor_to_segment(
-        self, mock_audio_processor_client, mock_config, sample_pcm_audio
+        self, mock_audio_processor_core, mock_config, sample_pcm_audio
     ):
         """Test frame processing → Segment creation and queuing."""
         audio_config, telemetry_config = mock_config
@@ -101,13 +100,13 @@ class TestAudioPipelineStages:
             sequence=1,
             sample_rate=48000,
         )
-        mock_audio_processor_client.process_frame.return_value = processed_frame
+        mock_audio_processor_core.process_frame.return_value = processed_frame
 
         # Create wrapper
         wrapper = AudioProcessorWrapper(
             audio_config=audio_config,
             telemetry_config=telemetry_config,
-            audio_processor_client=mock_audio_processor_client,
+            audio_processor_core=mock_audio_processor_core,
         )
 
         # Process frame
@@ -122,7 +121,7 @@ class TestAudioPipelineStages:
 
         # Verify segment structure
         assert segment is not None
-        assert segment.user_id == user_id
+        assert segment.user_id == user_id  # user_id is int in discord AudioSegment
         assert segment.pcm == processed_frame.pcm
         assert segment.start_timestamp == processed_frame.timestamp
         assert (
@@ -188,7 +187,7 @@ class TestAudioPipelineStages:
                 mock_resilient_client.post_with_retry.assert_called_once()
 
     async def test_stage_format_conversion_chain(
-        self, mock_audio_processor_client, mock_config, sample_pcm_audio
+        self, mock_audio_processor_core, mock_config, sample_pcm_audio
     ):
         """Test format conversion through pipeline (PCM → processed → WAV)."""
         audio_config, telemetry_config = mock_config
@@ -202,13 +201,13 @@ class TestAudioPipelineStages:
             sequence=1,
             sample_rate=48000,
         )
-        mock_audio_processor_client.process_frame.return_value = processed_frame
+        mock_audio_processor_core.process_frame.return_value = processed_frame
 
         # Create wrapper
         wrapper = AudioProcessorWrapper(
             audio_config=audio_config,
             telemetry_config=telemetry_config,
-            audio_processor_client=mock_audio_processor_client,
+            audio_processor_core=mock_audio_processor_core,
         )
 
         # Process frame (PCM → processed PCM)
@@ -267,7 +266,7 @@ class TestAudioPipelineStages:
         await wrapper.close()
 
     async def test_stage_quality_metrics_propagation(
-        self, mock_audio_processor_client, mock_config, sample_pcm_audio
+        self, mock_audio_processor_core, mock_config, sample_pcm_audio
     ):
         """Test quality metrics preservation (if added to segments)."""
         audio_config, telemetry_config = mock_config
@@ -281,13 +280,13 @@ class TestAudioPipelineStages:
             sequence=1,
             sample_rate=48000,
         )
-        mock_audio_processor_client.process_frame.return_value = processed_frame
+        mock_audio_processor_core.process_frame.return_value = processed_frame
 
         # Create wrapper
         wrapper = AudioProcessorWrapper(
             audio_config=audio_config,
             telemetry_config=telemetry_config,
-            audio_processor_client=mock_audio_processor_client,
+            audio_processor_core=mock_audio_processor_core,
         )
 
         # Process frame

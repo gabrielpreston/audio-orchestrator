@@ -18,7 +18,7 @@ def get_service_url(service_name: str) -> str:
     Service names should be uppercase (e.g., "LLM", "TTS", "STT").
 
     Args:
-        service_name: Service name (e.g., "LLM", "TTS", "STT", "AUDIO", "ORCHESTRATOR")
+        service_name: Service name (e.g., "LLM", "TTS", "STT", "ORCHESTRATOR")
 
     Returns:
         Service base URL loaded from environment or default Docker Compose URL
@@ -27,7 +27,6 @@ def get_service_url(service_name: str) -> str:
 
     # Default URLs based on Docker service names and internal ports
     defaults = {
-        "AUDIO": "http://audio:9100",
         "STT": "http://stt:9000",
         "ORCHESTRATOR": "http://orchestrator:8200",
         "LLM": "http://flan:8100",  # Service: LLM, implementation: FLAN-T5

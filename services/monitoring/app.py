@@ -30,29 +30,19 @@ configure_logging(
 )
 logger = get_logger(__name__, service_name="monitoring")
 
-# Import optional dependencies with error handling
+# Import dashboard dependencies with strict fail-fast
 try:
     import httpx
-    import pandas as pd
-    import plotly.express as px
-    import plotly.graph_objects as go
+    import pandas as pd  # noqa: F401
+    import plotly.express as px  # noqa: F401
+    import plotly.graph_objects as go  # noqa: F401
     import streamlit as st
-
-    DASHBOARD_AVAILABLE = True
-    logger.debug("monitoring.dashboard_dependencies_available")
-except Exception as exc:
-    DASHBOARD_AVAILABLE = False
-    pd = None
-    px = None
-    go = None
-    st = None
-    httpx = None
-    # Log the actual error for debugging
-    logger.warning(
-        "monitoring.dashboard_dependencies_unavailable",
-        error=str(exc),
-        error_type=type(exc).__name__,
-    )
+except ImportError as exc:
+    raise ImportError(
+        f"Required dashboard dependencies not available: {exc}. "
+        "Monitoring service requires streamlit, pandas, and plotly. "
+        "Use python-web base image or explicitly install these dependencies."
+    ) from exc
 
 
 # Health manager and observability
@@ -65,9 +55,6 @@ PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
 
 def create_monitoring_dashboard() -> None:
     """Create the Streamlit monitoring dashboard."""
-
-    if not DASHBOARD_AVAILABLE:
-        raise ImportError("Dashboard dependencies are not available")
 
     st.set_page_config(
         page_title="Audio Orchestrator Monitoring", page_icon="🎵", layout="wide"
@@ -618,7 +605,6 @@ health_endpoints = HealthEndpoints(
     service_name="monitoring",
     health_manager=health_manager,
     custom_components={
-        "dashboard_available": lambda: bool(DASHBOARD_AVAILABLE),
         # Pass async function directly so HealthEndpoints awaits it
         "prometheus_connected": _check_prometheus_health,
     },

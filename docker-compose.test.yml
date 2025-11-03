@@ -9,13 +9,6 @@ networks:
 
 services:
   # Core Services
-  audio:
-    extends:
-      file: docker-compose.yml
-      service: audio
-    networks:
-      - test-network
-
   stt:
     extends:
       file: docker-compose.yml
@@ -96,7 +89,6 @@ services:
     networks:
       - test-network
     environment:
-      - AUDIO_BASE_URL=http://audio:9100
       - STT_BASE_URL=http://stt:9000
       - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
       - TTS_BASE_URL=http://bark:7100

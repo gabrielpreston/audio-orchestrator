@@ -4,21 +4,11 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from services.discord.audio import AudioSegment, PCMFrame
-from services.discord.audio_processor_client import AudioProcessorClient
+from services.common.surfaces.types import AudioSegment, PCMFrame
 from services.common.resilient_http import ResilientHTTPClient
 
 
-@pytest.fixture
-def mock_audio_processor_client():
-    """Mock AudioProcessorClient with configurable responses."""
-    client = AsyncMock(spec=AudioProcessorClient)
-    client.process_frame = AsyncMock()
-    client.process_segment = AsyncMock()
-    client.enhance_audio = AsyncMock()
-    client.health_check = AsyncMock(return_value=True)
-    client.close = AsyncMock()
-    return client
+# AudioProcessorClient fixture removed - functionality now in AudioProcessingCore
 
 
 @pytest.fixture
@@ -56,7 +46,7 @@ def mock_transcription_response():
 
 @pytest.fixture
 def mock_audio_processor_response():
-    """Mock audio processor service response."""
+    """Mock audio processor response data structure (legacy fixture, kept for compatibility)."""
     response_data = {
         "success": True,
         "pcm": "",  # Base64 encoded PCM will be set in tests
@@ -99,7 +89,7 @@ def sample_processed_frame(sample_pcm_audio):
 def sample_audio_segment_from_frame(sample_pcm_frame):
     """Create AudioSegment from PCMFrame."""
     return AudioSegment(
-        user_id=12345,
+        user_id="12345",
         pcm=sample_pcm_frame.pcm,
         sample_rate=sample_pcm_frame.sample_rate,
         start_timestamp=sample_pcm_frame.timestamp,

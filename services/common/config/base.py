@@ -315,17 +315,10 @@ class AudioConfig(BaseConfig):
                 env_var="AUDIO_ENABLE_VAD",
             ),
             FieldDefinition(
-                name="service_url",
-                field_type=str,
-                default="http://audio:9100",
-                description="Audio processor service URL",
-                env_var="AUDIO_BASE_URL",
-            ),
-            FieldDefinition(
                 name="service_timeout",
                 field_type=int,
                 default=20,
-                description="Audio processor service timeout in milliseconds",
+                description="Audio processor service timeout in milliseconds (deprecated - kept for compatibility)",
                 env_var="AUDIO_SERVICE_TIMEOUT",
                 min_value=1,
                 max_value=1000,

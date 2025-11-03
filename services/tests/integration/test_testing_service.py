@@ -22,7 +22,6 @@ from services.tests.utils.service_helpers import docker_compose_test_context
 async def test_testing_service_dependencies():
     """Validate all dependencies are accessible from Testing service perspective."""
     # Get service URLs
-    audio_url = get_service_url("AUDIO")
     stt_url = get_service_url("STT")
     orchestrator_url = get_service_url("ORCHESTRATOR")
     tts_url = get_service_url("TTS")
@@ -30,7 +29,6 @@ async def test_testing_service_dependencies():
     # Services required for this test
     required_services = [
         "testing",
-        "audio",
         "stt",
         "orchestrator",
         "flan",
@@ -44,14 +42,9 @@ async def test_testing_service_dependencies():
     ):
         # Check that Testing service dependencies are accessible
         # (Testing service uses these URLs internally)
+        # Note: Audio processing is now handled via libraries in STT and Discord services
 
-        # 1. Audio service should be accessible
-        audio_health = await client.get(
-            f"{audio_url}/health/ready", timeout=Timeouts.HEALTH_CHECK
-        )
-        assert audio_health.status_code == 200, "Audio service should be accessible"
-
-        # 2. STT service should be accessible
+        # 1. STT service should be accessible
         stt_health = await client.get(
             f"{stt_url}/health/ready", timeout=Timeouts.HEALTH_CHECK
         )
@@ -80,18 +73,18 @@ async def test_testing_service_dependencies():
 async def test_testing_service_pipeline_components():
     """Test individual components that Testing service uses in its pipeline."""
     # Get service URLs
-    audio_url = get_service_url("AUDIO")
     stt_url = get_service_url("STT")
     orchestrator_url = get_service_url("ORCHESTRATOR")
     tts_url = get_service_url("TTS")
 
-    required_services = ["audio", "stt", "orchestrator", "flan", "tts", "guardrails"]
+    required_services = ["stt", "orchestrator", "flan", "tts", "guardrails"]
 
     async with (
         docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
-        # 1. Audio preprocessing component (Testing service uses /denoise)
+        # 1. Audio preprocessing is now handled internally by Testing service
+        # (uses AudioEnhancer library directly)
         from services.tests.utils.audio_quality_helpers import (
             create_wav_file,
             generate_test_audio,
@@ -102,20 +95,6 @@ async def test_testing_service_pipeline_components():
             sample_rate=16000,
             channels=1,
         )
-
-        # Audio preprocessing should work
-        audio_response = await client.post(
-            f"{audio_url}/denoise",
-            content=test_audio,
-            headers={"Content-Type": "audio/wav"},
-            timeout=Timeouts.STANDARD,
-        )
-        # May succeed or gracefully degrade
-        assert audio_response.status_code in [
-            200,
-            400,
-            422,
-        ], "Audio preprocessing should handle request"
 
         # 2. STT transcription component - use multipart form
         files = {"file": ("test.wav", io.BytesIO(test_audio), "audio/wav")}

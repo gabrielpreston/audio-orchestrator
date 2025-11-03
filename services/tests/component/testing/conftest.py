@@ -41,8 +41,13 @@ def mock_stt_http_response(mock_stt_response: dict):  # noqa: F811
     """Mock STT HTTP response."""
     response = Mock(spec=httpx.Response)
     response.status_code = 200
-    response.json = Mock(return_value=mock_stt_response)
-    response.raise_for_status = Mock()
+
+    # Create a callable that returns the actual dict
+    def json_impl():
+        return mock_stt_response
+
+    response.json = json_impl
+    response.raise_for_status = Mock(return_value=None)
     return response
 
 

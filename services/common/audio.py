@@ -4,6 +4,9 @@ Standardized audio processing library for all services.
 This module provides consistent audio processing capabilities across all services
 in the voice pipeline, including format conversion, resampling, normalization,
 and metadata extraction using librosa for robust audio processing.
+
+REQUIRES: Services using this module must use python-ml base image or explicitly
+install librosa and soundfile dependencies.
 """
 
 import audioop
@@ -12,9 +15,16 @@ import wave
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
-import librosa
-import numpy as np
-import soundfile as sf
+try:
+    import librosa
+    import numpy as np
+    import soundfile as sf
+except ImportError as exc:
+    raise ImportError(
+        f"Required audio processing libraries not available: {exc}. "
+        "Services using audio processing must use python-ml base image or "
+        "explicitly install librosa and soundfile."
+    ) from exc
 
 
 @dataclass(slots=True)

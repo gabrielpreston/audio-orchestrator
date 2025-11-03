@@ -547,21 +547,6 @@
           "sort": "none"
         }
       },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(audio_orchestrator_http_requests_total{service=\"audio-processor\"}[5m])",
-          "interval": "",
-          "legendFormat": "Audio-Processor - {{method}} {{route}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Audio-Processor Service Requests",
-      "type": "timeseries"
-    },
     {
       "datasource": {
         "type": "prometheus",

@@ -2,7 +2,7 @@
 title: Audio Enhancement Pipeline Architecture
 author: Audio Orchestrator Team
 status: active
-last-updated: 2025-11-02
+last-updated: 2025-01-27
 ---
 
 <!-- markdownlint-disable-next-line MD041 -->
@@ -23,11 +23,11 @@ The audio pipeline uses **two distinct enhancement stages** optimized for differ
 
 ```mermaid
 flowchart TD
-    Discord[Discord Voice Packets<br/>48kHz PCM] --> FrameProc[Frame Processing<br/>Audio Processor Service]
+    Discord[Discord Voice Packets<br/>48kHz PCM] --> FrameProc[Frame Processing<br/>AudioProcessingCore Library]
     FrameProc --> |VAD + Normalization| ProcessedFrame[Processed Frame<br/>Normalized PCM]
     ProcessedFrame --> Segment[Segment Creation<br/>Discord Service]
     Segment --> WAVEnc[WAV Encoding<br/>48kHz → 16kHz]
-    WAVEnc --> |16kHz WAV| STTEnhance[STT Enhancement<br/>Audio Processor Service]
+    WAVEnc --> |16kHz WAV| STTEnhance[STT Enhancement<br/>AudioEnhancer Library]
     STTEnhance --> |MetricGAN+ ML| EnhancedWAV[Enhanced WAV<br/>MetricGAN+ Processed]
     EnhancedWAV --> Transcription[faster-whisper<br/>STT Service]
     Transcription --> Transcript[Transcript Text]
@@ -35,18 +35,18 @@ flowchart TD
 
 ## Stage 1: Frame-Level Processing (Discord)
 
-**Location**: `services/discord/audio_processor_wrapper.py` → `services/audio` `/process/frame`
+**Location**: `services/discord/audio_processor_wrapper.py` → `services/common/audio_processing_core.py`
 
 **When**: Every voice packet received from Discord (~20ms frames)
 
 **What Happens**:
 
 ```python
-# services/audio/processor.py
+# services/common/audio_processing_core.py
 async def process_frame(frame: PCMFrame) -> PCMFrame:
     # 1. Voice Activity Detection (VAD)
-    if config.enable_vad:
-        frame = await _apply_vad(frame)
+    if self._vad_processor is not None:
+        frame = await self._vad_processor.apply_vad(frame)
 
     # 2. Basic normalization
     frame = await self._normalize_frame(frame)
@@ -73,7 +73,7 @@ async def process_frame(frame: PCMFrame) -> PCMFrame:
 
 ## Stage 2: Segment-Level Enhancement (STT)
 
-**Location**: `services/stt/app.py` → `services/audio` `/enhance/audio`
+**Location**: `services/stt/app.py` → `services/common/audio_enhancement.py`
 
 **When**: Before transcription, once per audio segment (0.5-15 seconds)
 
@@ -82,16 +82,16 @@ async def process_frame(frame: PCMFrame) -> PCMFrame:
 ```python
 # services/stt/app.py
 async def _enhance_audio_if_enabled(wav_bytes: bytes):
-    # Call remote audio processor service
-    enhanced_wav = await _audio_processor_client.enhance_audio(wav_bytes)
+    # Use local audio enhancement library
+    enhanced_wav = await _audio_enhancer.enhance_audio_bytes(wav_bytes)
 
-# services/audio/enhancement.py
-def enhance_audio(audio_array):
+# services/common/audio_enhancement.py
+async def enhance_audio_bytes(audio_bytes: bytes) -> bytes:
     # 1. High-pass filter (80Hz cutoff)
-    filtered = apply_high_pass_filter(audio_array, cutoff=80.0)
+    filtered = apply_high_pass_filter(audio_bytes, cutoff=80.0)
 
     # 2. MetricGAN+ ML model (GPU-accelerated)
-    enhanced = metricgan_model.enhance_batch(filtered)
+    enhanced = await self._model_loader.get_model().enhance_batch(filtered)
 ```
 
 **Enhancement Level**: 🔥 **Heavy ML Processing (GPU-accelerated)**
@@ -128,36 +128,35 @@ def enhance_audio(audio_array):
 -  GPU-accelerated ML: MetricGAN+ requires GPU
 -  Purpose: Transcription quality improvement
 
-### Why Remote Enhancement?
+### Why Library-Based Enhancement?
 
-**GPU Resource Isolation**:
+**GPU Resource Sharing**:
 
 ```text
 STT Service GPU (3GB):
   └─ faster-whisper model (1-2GB GPU memory)
-
-Audio Processor GPU (1.5GB):
-  └─ MetricGAN+ model (500MB-1GB GPU memory)
+  └─ MetricGAN+ model (500MB-1GB GPU memory) [shared]
 ```
 
 **Benefits**:
 
-1.  Prevents GPU memory conflicts
-2.  Independent scaling (can scale audio processor separately)
-3.  Consistent enhancement logic across services
-4.  Single point for enhancement algorithm updates
+1.  Lower latency (no HTTP overhead)
+2.  Simplified architecture (no separate service to manage)
+3.  Consistent enhancement logic across services via shared library
+4.  Easier debugging (direct function calls, no network issues)
+5.  GPU memory managed by service (can optimize based on usage)
 
 ### When Enhancement Is Skipped
 
 STT enhancement gracefully degrades if unavailable:
 
 ```python
-if _audio_processor_client is None:
+if _audio_enhancer is None:
     # Skip enhancement, use original audio
     return wav_bytes
 
 try:
-    enhanced_wav = await _audio_processor_client.enhance_audio(wav_bytes)
+    enhanced_wav = await _audio_enhancer.enhance_audio_bytes(wav_bytes)
     return enhanced_wav
 except Exception:
     # Fallback to original audio on failure
@@ -170,6 +169,7 @@ except Exception:
 -  ✅ Transcription proceeds with original audio
 -  ✅ Warning logged for monitoring
 -  ✅ No impact on service availability
+-  ✅ Model loading handled asynchronously (non-blocking startup)
 
 ---
 
@@ -201,33 +201,23 @@ except Exception:
 
 ## Configuration
 
-### Audio Processor Service
+### STT Service
 
-**Location**: `services/audio/.env.service`
+**Location**: `services/stt/.env.service`
 
 ```bash
-# Enable/disable enhancement
-ENABLE_ENHANCEMENT=true
+# Enable/disable audio enhancement
+STT_ENABLE_AUDIO_ENHANCEMENT=true
 
 # MetricGAN+ model configuration
 METRICGAN_MODEL_SOURCE=speechbrain/metricgan-plus-voicebank
 METRICGAN_MODEL_SAVEDIR=/app/models/metricgan-plus
 
 # GPU device for MetricGAN+
-DEVICE=cuda  # or cpu
-```
+STT_ENHANCEMENT_DEVICE=cuda  # or cpu
 
-### STT Service
-
-**Location**: `services/stt/.env.service`
-
-```bash
-# Audio processor service URL
-AUDIO_SERVICE_URL=http://audio:9100
-AUDIO_SERVICE_TIMEOUT=50.0
-
-# Enhancement is automatically attempted if client available
-# Falls back to original audio if service unavailable
+# Enhancement is automatically attempted if enabled
+# Falls back to original audio on failure (graceful degradation)
 ```
 
 ---
@@ -317,10 +307,10 @@ stt.enhancement_skipped
 
 **Solutions**:
 
--  Check audio processor service health: `curl http://audio:9100/health/ready`
--  Verify GPU access in audio processor container
--  Check MetricGAN+ model loading in logs
--  Verify Docker network connectivity
+-  Check STT service health: `curl http://stt:9000/health/ready`
+-  Verify GPU access in STT service container
+-  Check MetricGAN+ model loading in STT service logs
+-  Verify `STT_ENABLE_AUDIO_ENHANCEMENT` and `STT_ENHANCEMENT_DEVICE` environment variables
 
 ### High Latency
 
@@ -365,8 +355,9 @@ stt.enhancement_skipped
 
 ## Summary
 
--  **Frame Processing**: Lightweight VAD + normalization (CPU, real-time)
--  **Segment Enhancement**: Heavy MetricGAN+ ML (GPU, batch)
--  **Architecture**: Remote enhancement for GPU isolation and scalability
--  **Degradation**: Graceful fallback to original audio if unavailable
+-  **Frame Processing**: Lightweight VAD + normalization (CPU, real-time) via `AudioProcessingCore` library
+-  **Segment Enhancement**: Heavy MetricGAN+ ML (GPU, batch) via `AudioEnhancer` library
+-  **Architecture**: Library-based enhancement for lower latency and simplified architecture
+-  **Degradation**: Graceful fallback to original audio if enhancement unavailable
 -  **Trade-off**: +50ms latency for improved transcription accuracy
+-  **Libraries**: All audio processing functionality in `services/common/` for reuse across services
