@@ -71,7 +71,7 @@ services:
       resources:
         limits:
           memory: 512M # Orchestrator is lightweight coordinator (reduced from 1G)
-          cpus: "2" # Keep for concurrent request handling
+          cpus: "3" # Increased from 2 for better concurrent pipeline coordination
     restart: "unless-stopped"
     logging:
       driver: "json-file"
@@ -164,8 +164,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1.5G # Audio processing with MetricGAN+ on GPU
-          cpus: "3" # Increased for better parallel audio processing
+          memory: 2.5G # Audio processing with MetricGAN+ on GPU (+1G for concurrent enhancement)
+          cpus: "5" # Increased from 3 for better parallel audio processing and throughput
         reservations:
           devices:
             - driver: nvidia
@@ -251,8 +251,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G # STT with faster-whisper on GPU (optimized for model + GPU buffers)
-          cpus: "6" # Increased for better GPU pipeline throughput
+          memory: 5G # STT with faster-whisper on GPU (+2G for transcript caching and buffers)
+          cpus: "8" # Increased from 6 for better GPU pipeline throughput and concurrent requests
         reservations:
           devices:
             - driver: nvidia
