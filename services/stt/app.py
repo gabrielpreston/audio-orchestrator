@@ -1503,6 +1503,3 @@ async def transcribe(request: Request) -> JSONResponse:
         correlation_id=metadata_value,
         filename=filename,
     )
-
-
-# Test change
