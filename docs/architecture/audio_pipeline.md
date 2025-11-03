@@ -36,9 +36,9 @@ The `AudioProcessor` handles format conversion and audio enhancement:
 ```python
 class AudioProcessor:
     """Processes audio chunks for optimal transcription."""
-    
+
     async def process_audio_chunk(
-        self, 
+        self,
         chunk: AudioChunk
     ) -> ProcessedSegment:
         """Convert and enhance audio chunk."""
@@ -64,9 +64,9 @@ The `WakeDetector` identifies when users are speaking to the system:
 ```python
 class WakeDetector:
     """Detects wake phrases and speech activity."""
-    
+
     async def detect_wake_phrase(
-        self, 
+        self,
         audio_segment: AudioChunk
     ) -> bool:
         """Check if wake phrase is present."""
@@ -90,9 +90,9 @@ The `AudioAggregator` collects audio segments for processing:
 ```python
 class AudioAggregator:
     """Aggregates audio segments for transcription."""
-    
+
     async def aggregate_audio(
-        self, 
+        self,
         audio_chunks: List[AudioChunk]
     ) -> ProcessedSegment:
         """Combine audio chunks into complete segments."""
@@ -119,10 +119,20 @@ class AudioAggregator:
 
 ### Stage 2: Audio Processing
 
+**Frame-Level Processing** (Real-Time, Lightweight):
+
+-  Voice Activity Detection (VAD) - WebRTC-based speech detection
+-  Volume normalization - RMS-based level adjustment
+-  **NO ML enhancement** - Too expensive for real-time frame processing
+
+**Segment-Level Enhancement** (Batch, Heavy):
+
 -  Format conversion to standard format
 -  Resampling to optimal sample rate
--  Volume normalization
--  Noise reduction and enhancement
+-  MetricGAN+ ML enhancement - GPU-accelerated noise reduction
+-  High-pass filtering - Removes low-frequency noise
+
+> **See**: [Audio Enhancement Pipeline](./audio-enhancement-pipeline.md) for detailed explanation of when and why enhancement is used.
 
 ### Stage 3: Wake Detection
 

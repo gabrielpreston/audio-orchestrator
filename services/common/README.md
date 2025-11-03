@@ -381,6 +381,83 @@ _health_manager.register_dependency(
 )
 ```
 
+## PyTorch Optimization Utilities
+
+### torch.compile() Integration (`torch_compile.py`)
+
+Centralized PyTorch model compilation with consistent error handling:
+
+```python
+from services.common.torch_compile import compile_model_if_enabled
+
+# Compile model if enabled via {SERVICE}_ENABLE_TORCH_COMPILE env var
+model = AutoModelForSeq2SeqLM.from_pretrained(...)
+model = compile_model_if_enabled(model, "flan", "flan_t5", logger)
+```
+
+**Features**:
+- Automatic Docker compatibility (configures `torch._dynamo.config.suppress_errors`)
+- Configurable compile modes (default, reduce-overhead, max-autotune, max-autotune-no-cudagraphs)
+- Graceful degradation (returns original model on failure)
+- Duration logging and error handling
+
+**Configuration**: `{SERVICE}_ENABLE_TORCH_COMPILE`, `{SERVICE}_COMPILE_MODE`
+
+### Pre-warming (`prewarm.py`)
+
+Generic pre-warming pattern for triggering torch.compile() warmup during startup:
+
+```python
+from services.common.prewarm import prewarm_if_enabled
+
+async def _prewarm():
+    # Perform a dummy inference to trigger compilation
+    model.generate(...)
+
+await prewarm_if_enabled(
+    _prewarm,
+    "flan",
+    logger,
+    model_loader=_model_loader,
+    health_manager=_health_manager,
+)
+```
+
+**Features**:
+- Waits for model loading before pre-warming
+- Registers health dependency automatically
+- Non-blocking (marks complete on failure)
+- Configurable via `{SERVICE}_ENABLE_PREWARM` env var
+
+### Result Caching (`result_cache.py`)
+
+Generic LRU cache for service results:
+
+```python
+from services.common.result_cache import ResultCache, generate_cache_key
+
+# Initialize cache
+cache = ResultCache(max_entries=200, max_size_mb=1000, service_name="stt")
+
+# Check cache before inference
+cache_key = generate_cache_key(audio_bytes)
+cached = cache.get(cache_key)
+if cached:
+    return cached
+
+# Perform inference...
+result = perform_inference(...)
+
+# Cache result
+cache.put(cache_key, result)
+```
+
+**Features**:
+- LRU eviction by entry count and memory size
+- Generic type support (bytes, dict, str, etc.)
+- Statistics tracking (hits, misses, hit_rate)
+- Configurable via `{SERVICE}_ENABLE_CACHE`, `{SERVICE}_CACHE_MAX_ENTRIES`, `{SERVICE}_CACHE_MAX_SIZE_MB`
+
 ## Migration from Current Approach
 
 The new configuration library replaces the current manual environment variable parsing approach used across services. See the [Configuration Library Reference](../docs/reference/configuration-library.md) for detailed migration instructions.

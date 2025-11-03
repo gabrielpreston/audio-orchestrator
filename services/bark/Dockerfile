@@ -21,24 +21,29 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Create models directory and set environment variables in single layer
+# Create models directory
 RUN mkdir -p /app/models && \
     echo "TTS environment configured"
-
-# Set Python environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-ENV PYTHONDONTWRITEBYTECODE=1
-
-ENV PORT=7100
-ENV BARK_USE_SMALL_MODELS=false
 
 # Copy application code LAST (changes most frequently)
 COPY services/common /app/services/common
 COPY services/bark /app/services/bark
 COPY scripts/health_check.py /app/scripts/health_check.py
 
-HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
+# Extended start-period to allow for model loading, compilation, and pre-warming
+# Pre-warming can take 60-120s with torch.compile() max-autotune-no-cudagraphs mode
+HEALTHCHECK --interval=10s --timeout=5s --start-period=180s --retries=12 \
     CMD python /app/scripts/health_check.py http://localhost:7100/health/ready --ci
+
+# Create user with matching UID/GID for torch.compile() compatibility
+# This fixes getpwuid() errors in Docker containers
+ARG PUID=1000
+ARG PGID=1000
+
+RUN groupadd -g ${PGID} appuser 2>/dev/null || true && \
+    useradd -u ${PUID} -g ${PGID} -ms /bin/bash appuser 2>/dev/null || true && \
+    chown -R ${PUID}:${PGID} /app 2>/dev/null || true
+
+USER appuser
 
 CMD ["uvicorn", "services.bark.app:app", "--host", "0.0.0.0", "--port", "7100"]

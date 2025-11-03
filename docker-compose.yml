@@ -13,9 +13,12 @@ services:
     ports:
       - "9310:9300" # External: 9310, Internal: 9300
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/guardrails/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/guardrails/.env.service"
+        required: false
     environment:
       - TOXICITY_MODEL=unitary/toxic-bert
       - ENABLE_PII_DETECTION=true
@@ -29,8 +32,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Guardrails uses small BERT model (reduced from 1G)
-          cpus: "1" # Lightweight NLP
+          memory: 1G # Increased for better BERT model performance and caching
+          cpus: "3" # Increased for faster toxicity inference
     restart: "unless-stopped"
     logging:
       driver: "json-file"
@@ -51,9 +54,12 @@ services:
     ports:
       - "8220:8200" # External: 8220, Internal: 8200
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/orchestrator/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/orchestrator/.env.service"
+        required: false
     environment:
       - LLM_BASE_URL=http://flan:8100
       - GUARDRAILS_BASE_URL=http://guardrails:9300
@@ -87,13 +93,23 @@ services:
     ports:
       - "8110:8100" # External: 8110, Internal: 8100
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/flan/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/flan/.env.service"
+        required: false
     environment:
       - MODEL_NAME=${FLAN_T5_MODEL_SIZE:-google/flan-t5-large}
       - HF_HOME=/app/models
       - FORCE_MODEL_DOWNLOAD_FLAN_T5=${FORCE_MODEL_DOWNLOAD_FLAN_T5:-false}
+      # FLAN optimizations
+      - FLAN_ENABLE_TORCH_COMPILE=${FLAN_ENABLE_TORCH_COMPILE:-true}
+      - FLAN_COMPILE_MODE=${FLAN_COMPILE_MODE:-default}
+      - FLAN_ENABLE_PREWARM=${FLAN_ENABLE_PREWARM:-true}
+      - FLAN_ENABLE_CACHE=${FLAN_ENABLE_CACHE:-false}
+      - FLAN_CACHE_MAX_ENTRIES=${FLAN_CACHE_MAX_ENTRIES:-100}
+      - FLAN_CACHE_MAX_SIZE_MB=${FLAN_CACHE_MAX_SIZE_MB:-500}
     volumes:
       - ./services/models/flan-t5:/app/models
       # Mount source code for development (overrides COPY in Dockerfile)
@@ -103,8 +119,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 8G # FLAN-T5 Large on GPU (reduced from 10G - GPU offloads memory)
-          cpus: "6" # Increased for better GPU utilization
+          memory: 7G # FLAN-T5 Large on GPU (optimized - GPU offloads memory)
+          cpus: "8" # Increased for maximum GPU utilization
         reservations:
           devices:
             - driver: nvidia
@@ -129,9 +145,12 @@ services:
     ports:
       - "8010:9100"
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/audio/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/audio/.env.service"
+        required: false
     environment:
       - FORCE_MODEL_DOWNLOAD_METRICGAN=${FORCE_MODEL_DOWNLOAD_METRICGAN:-false}
       - METRICGAN_MODEL_SAVEDIR=/app/models/metricgan-plus
@@ -146,7 +165,7 @@ services:
       resources:
         limits:
           memory: 1.5G # Audio processing with MetricGAN+ on GPU
-          cpus: "2" # More CPUs for audio pipeline processing
+          cpus: "3" # Increased for better parallel audio processing
         reservations:
           devices:
             - driver: nvidia
@@ -172,9 +191,14 @@ services:
     ports:
       - "8009:8001"
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/discord/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/discord/.env.service"
+        required: false
+      - path: "./services/discord/.env.secrets"
+        required: false
     volumes:
       - "./debug:/app/debug"
       # Mount source code for development (overrides COPY in Dockerfile)
@@ -205,11 +229,19 @@ services:
     ports:
       - "8011:9000"
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/stt/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/stt/.env.service"
+        required: false
     environment:
       - FORCE_MODEL_DOWNLOAD_WHISPER_MODEL=${FORCE_MODEL_DOWNLOAD_WHISPER_MODEL:-false}
+      # STT optimizations (torch.compile() not applicable - faster-whisper uses CTranslate2)
+      - STT_ENABLE_PREWARM=${STT_ENABLE_PREWARM:-true}
+      - STT_ENABLE_CACHE=${STT_ENABLE_CACHE:-true}
+      - STT_CACHE_MAX_ENTRIES=${STT_CACHE_MAX_ENTRIES:-200}
+      - STT_CACHE_MAX_SIZE_MB=${STT_CACHE_MAX_SIZE_MB:-1000}
     volumes:
       - "./services/models/stt:/app/models"
       - "./debug:/app/debug"
@@ -219,8 +251,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3G # STT with faster-whisper on GPU (increased for model + GPU buffers)
-          cpus: "4" # More CPUs for better GPU throughput
+          memory: 3G # STT with faster-whisper on GPU (optimized for model + GPU buffers)
+          cpus: "6" # Increased for better GPU pipeline throughput
         reservations:
           devices:
             - driver: nvidia
@@ -247,14 +279,33 @@ services:
     ports:
       - "7120:7100" # External: 7120, Internal: 7100
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
-      - "./services/bark/.env.service"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
+      - path: "./services/bark/.env.service"
+        required: false
     environment:
       - FORCE_MODEL_DOWNLOAD_BARK_MODELS=${FORCE_MODEL_DOWNLOAD_BARK_MODELS:-false}
+      - BARK_USE_SMALL_MODELS=true # Enable small models for 30-50% speedup
+      - BARK_ENABLE_TORCH_COMPILE=${BARK_ENABLE_TORCH_COMPILE:-true}
+      - BARK_COMPILE_MODE=${BARK_COMPILE_MODE:-max-autotune-no-cudagraphs}
+      - BARK_ENABLE_PREWARM=${BARK_ENABLE_PREWARM:-true}
+      - BARK_ENABLE_CACHE=${BARK_ENABLE_CACHE:-true}
+      - BARK_CACHE_MAX_ENTRIES=${BARK_CACHE_MAX_ENTRIES:-100}
+      - BARK_CACHE_MAX_SIZE_MB=${BARK_CACHE_MAX_SIZE_MB:-500}
+      - BARK_ENABLE_INT8_QUANTIZATION=${BARK_ENABLE_INT8_QUANTIZATION:-false}
       - HF_HOME=/app/models
       - HOME=/app
       - XDG_CACHE_HOME=/app/models
+      # PyTorch threading optimization (match CPU count)
+      - OMP_NUM_THREADS=8
+      - MKL_NUM_THREADS=8
+      # CUDA memory optimization (enhances base image setting)
+      # Note: docker-compose environment variables override base image settings
+      # Base image sets: PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+      # This adds expandable_segments if supported (verify PyTorch version compatibility)
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128,expandable_segments:True
     volumes:
       - ./services/models/bark:/app/models
       # Mount /app/.cache so Bark can write to ~/.cache/suno/bark_v0
@@ -265,8 +316,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4G # Bark on GPU (reduced from 6G - GPU offloads model memory)
-          cpus: "4" # More CPUs for GPU utilization
+          memory: 5G # Bark on GPU (optimized for GPU buffer management)
+          cpus: "8" # Increased for maximum GPU utilization
         reservations:
           devices:
             - driver: nvidia
@@ -291,8 +342,10 @@ services:
     ports:
       - "8080:8080" # External: 8080, Internal: 8080
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
     environment:
       - GRADIO_SERVER_NAME=0.0.0.0
       - GRADIO_SERVER_PORT=8080
@@ -328,8 +381,10 @@ services:
     ports:
       - "8501:8501" # External: 8501, Internal: 8501
     env_file:
-      - "./.env.common"
-      - "./.env.docker"
+      - path: "./.env.common"
+        required: false
+      - path: "./.env.docker"
+        required: false
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
@@ -423,7 +478,8 @@ services:
   grafana:
     image: grafana/grafana:10.2.2
     env_file:
-      - "./.env.common"
+      - path: "./.env.common"
+        required: false
     entrypoint: ["/bin/sh", "/etc/grafana/entrypoint.sh"]
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin

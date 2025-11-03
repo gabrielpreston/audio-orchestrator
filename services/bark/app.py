@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel
 import uvicorn
 
@@ -41,6 +41,7 @@ _observability_manager = None
 _tts_metrics = {}
 _http_metrics = {}
 _logger = get_logger(__name__, service_name="bark")
+_prewarm_complete = False
 
 # Load configuration
 _config_preset = get_service_preset("tts")
@@ -142,6 +143,32 @@ async def _startup() -> None:
         # Register dependencies - models check already ensures synthesizer exists
         # Only need bark_models dependency (redundant to check synthesizer separately)
         _health_manager.register_dependency("bark_models", _check_models_loaded)
+        _health_manager.register_dependency("prewarm", _check_prewarm_complete)
+
+        # Pre-warm models with a synthesis to trigger torch.compile() warmup
+        # This prevents the first real request from timing out during compilation
+        await _prewarm_models()
+
+        # Check Bark library version for optimization opportunities
+        try:
+            import bark
+
+            bark_version = getattr(bark, "__version__", "unknown")
+            _logger.info(
+                "bark.library_version",
+                version=bark_version,
+                phase="startup_check",
+                note="Check PyPI for newer versions if performance issues persist",
+            )
+        except Exception as version_check_exc:
+            # Non-critical - version check failed, continue
+            _logger.debug(
+                "bark.version_check_failed",
+                error=str(version_check_exc),
+                error_type=type(version_check_exc).__name__,
+                phase="startup_check",
+                note="Version check failed, continuing without version info",
+            )
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
@@ -172,12 +199,45 @@ app = create_service_app(
 )
 
 
+def _get_bark_device_info() -> dict[str, Any]:
+    """Get current Bark service device information for health checks."""
+    import torch
+    from services.common.gpu_utils import get_full_device_info
+
+    # Detect intended device
+    intended_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Get actual device from loaded Bark models
+    loaded_model = None
+    try:
+        from bark.generation import models as bark_models
+
+        # Text model is nested: models["text"]["model"], others are direct
+        if (
+            "text" in bark_models
+            and bark_models["text"] is not None
+            and "model" in bark_models["text"]
+            and bark_models["text"]["model"] is not None
+        ):
+            loaded_model = bark_models["text"]["model"]
+        elif "coarse" in bark_models and bark_models["coarse"] is not None:
+            loaded_model = bark_models["coarse"]
+        elif "fine" in bark_models and bark_models["fine"] is not None:
+            loaded_model = bark_models["fine"]
+    except (ImportError, AttributeError, KeyError):
+        pass
+
+    # Use common utility to get full device info (mirrors FLAN pattern)
+    return get_full_device_info(model=loaded_model, intended_device=intended_device)
+
+
 # Initialize health endpoints
 health_endpoints = HealthEndpoints(
     service_name="bark",
     health_manager=_health_manager,
     custom_components={
-        "bark_synthesizer_loaded": lambda: _bark_synthesizer is not None
+        "bark_synthesizer_loaded": lambda: _bark_synthesizer is not None,
+        "device_info": _get_bark_device_info,
     },
 )
 
@@ -186,8 +246,23 @@ app.include_router(health_endpoints.get_router())
 
 
 @app.post("/synthesize")  # type: ignore[misc]
-async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
+async def synthesize(
+    request: SynthesisRequest, http_request: Request
+) -> SynthesisResponse:
     """Synthesize text to speech using Bark with Piper fallback."""
+    # Extract correlation ID from headers or context
+    correlation_id: str | None = None
+    try:
+        from services.common.middleware import get_correlation_id
+
+        correlation_id = get_correlation_id()
+    except ImportError:
+        pass
+
+    # Fallback to extracting from Request headers
+    if not correlation_id:
+        correlation_id = http_request.headers.get("X-Correlation-ID")
+
     if _bark_synthesizer is None:
         raise HTTPException(status_code=503, detail="Bark synthesizer not available")
 
@@ -209,14 +284,29 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
 
     start_time = time.time()
 
+    _logger.info(
+        "bark.synthesis_start",
+        text_length=len(request.text),
+        voice=request.voice,
+        speed=request.speed,
+        correlation_id=correlation_id,
+    )
+
     try:
         # Try Bark first
         try:
             audio_data, engine = await _bark_synthesizer.synthesize(
-                text=request.text, voice=request.voice, speed=request.speed
+                text=request.text,
+                voice=request.voice,
+                speed=request.speed,
+                correlation_id=correlation_id,
             )
         except Exception as bark_exc:
-            _logger.error("bark.synthesis_failed", error=str(bark_exc))
+            _logger.error(
+                "bark.synthesis_failed",
+                error=str(bark_exc),
+                correlation_id=correlation_id,
+            )
 
             # Record error metrics
             processing_time = (time.time() - start_time) * 1000
@@ -258,6 +348,7 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
             processing_time_ms=processing_time,
             text_length=len(request.text),
             voice=request.voice,
+            correlation_id=correlation_id,
         )
 
         # Encode audio bytes as base64 for JSON serialization
@@ -286,7 +377,11 @@ async def synthesize(request: SynthesisRequest) -> SynthesisResponse:
                     attributes={"engine": "unknown", "status": "error"},
                 )
 
-        _logger.error("tts.synthesis_failed", error=str(exc))
+        _logger.error(
+            "tts.synthesis_failed",
+            error=str(exc),
+            correlation_id=correlation_id,
+        )
         raise HTTPException(
             status_code=500, detail=f"Text synthesis failed: {str(exc)}"
         )
@@ -363,6 +458,132 @@ async def _check_models_loaded() -> bool:
         _last_model_check_state = current_state
 
     return ready
+
+
+async def _prewarm_models() -> None:
+    """Pre-warm Bark models by performing a synthesis to trigger torch.compile() warmup.
+
+    This ensures the first compilation run happens during startup rather than
+    on the first real request, preventing timeouts.
+    """
+    global _prewarm_complete
+
+    if _bark_synthesizer is None:
+        _logger.warning(
+            "bark.prewarm_skipped",
+            reason="synthesizer_not_available",
+            message="Skipping pre-warm: synthesizer not initialized",
+        )
+        return
+
+    # Check if pre-warm is enabled via environment variable
+    import os
+
+    enable_prewarm = os.getenv("BARK_ENABLE_PREWARM", "true").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
+    if not enable_prewarm:
+        _logger.info(
+            "bark.prewarm_disabled",
+            message="Pre-warm disabled via BARK_ENABLE_PREWARM environment variable",
+        )
+        _prewarm_complete = True  # Mark complete if disabled
+        return
+
+    _logger.info(
+        "bark.prewarm_start",
+        message="Starting model pre-warming to trigger torch.compile() warmup",
+    )
+
+    prewarm_start = time.time()
+
+    try:
+        # Wait for models to be loaded before pre-warming
+        # This ensures models are ready before attempting synthesis
+        model_loader = _bark_synthesizer._model_loader
+        if model_loader.is_loading():
+            _logger.info(
+                "bark.prewarm_waiting",
+                message="Waiting for models to finish loading before pre-warming",
+            )
+            # Poll until models are loaded (with timeout safety)
+            import asyncio
+
+            max_wait_seconds = 300  # 5 minutes max wait
+            poll_interval = 0.5  # Check every 500ms
+            elapsed = 0.0
+
+            while model_loader.is_loading() and elapsed < max_wait_seconds:
+                await asyncio.sleep(poll_interval)
+                elapsed += poll_interval
+
+            if model_loader.is_loading():
+                _logger.warning(
+                    "bark.prewarm_timeout",
+                    elapsed_seconds=elapsed,
+                    message="Model loading timeout exceeded, skipping pre-warm",
+                )
+                _prewarm_complete = True
+                return
+
+        # Ensure models are loaded before proceeding
+        if not await model_loader.ensure_loaded():
+            status = model_loader.get_status()
+            error_msg = status.get("error", "Unknown error")
+            raise RuntimeError(f"Bark models not available: {error_msg}")
+
+        if not model_loader.is_loaded():
+            raise RuntimeError("Bark models not available")
+
+        _logger.info(
+            "bark.prewarm_models_ready",
+            message="Models loaded, proceeding with pre-warm synthesis",
+        )
+
+        # Perform a small synthesis to trigger compilation warmup
+        # Use a short text to minimize startup time while still warming up the pipeline
+        prewarm_text = "Hello"
+        prewarm_voice = "v2/en_speaker_1"
+
+        await _bark_synthesizer.synthesize(
+            text=prewarm_text,
+            voice=prewarm_voice,
+            speed=1.0,
+            correlation_id="bark-prewarm",
+        )
+
+        prewarm_duration = (time.time() - prewarm_start) * 1000
+        _prewarm_complete = True
+
+        _logger.info(
+            "bark.prewarm_complete",
+            duration_ms=round(prewarm_duration, 2),
+            message="Model pre-warming completed successfully",
+        )
+    except Exception as exc:
+        # Log error but don't block startup - service can still work
+        prewarm_duration = (time.time() - prewarm_start) * 1000
+        _logger.error(
+            "bark.prewarm_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+            duration_ms=round(prewarm_duration, 2),
+            message="Pre-warm failed but continuing startup - first request may be slower",
+        )
+        # Mark complete anyway to allow service to start
+        # The health check will still report ready, but first request might be slow
+        _prewarm_complete = True
+
+
+async def _check_prewarm_complete() -> bool:
+    """Check if pre-warming is complete.
+
+    Returns:
+        True if pre-warming is complete or disabled, False otherwise
+    """
+    return _prewarm_complete
 
 
 if __name__ == "__main__":

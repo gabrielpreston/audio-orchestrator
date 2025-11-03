@@ -189,6 +189,9 @@ class ResilientHTTPClient:
             decision="proceeding_with_request",
         )
 
+        # Auto-inject correlation ID from context
+        request_headers = inject_correlation_id(headers)
+
         client = await self._get_client()
         url = f"{self._base_url}{endpoint}"
 
@@ -201,7 +204,7 @@ class ResilientHTTPClient:
             data=data,
             json=json,
             content=content,
-            headers=headers,
+            headers=request_headers,
             params=params,
             max_retries=max_retries,
             log_fields=log_fields,

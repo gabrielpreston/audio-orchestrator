@@ -18,6 +18,11 @@ from services.common.config import (
     LoggingConfig,
     get_service_preset,
 )
+from services.common.gpu_utils import (
+    get_full_device_info,
+    get_pytorch_cuda_info,
+    log_device_info,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.model_loader import BackgroundModelLoader
@@ -114,16 +119,32 @@ def _load_from_cache() -> tuple[Any, Any] | None:
             cached_model = cached_model.to(device)
             cached_model = cached_model.half()  # Use float16 on GPU
 
+        # Apply torch.compile() if enabled
+        from services.common.torch_compile import compile_model_if_enabled
+
+        cached_model = compile_model_if_enabled(cached_model, "flan", "flan_t5", logger)
+
+        # Get actual device information from the loaded model
+        device_info = get_full_device_info(model=cached_model, intended_device=device)
+
         logger.info(
             "flan.model_loaded_from_cache",
             model_name=MODEL_NAME,
             cache_dir=CACHE_DIR,
-            device=device,
             model_duration_ms=round(model_duration * 1000, 2),
             tokenizer_duration_ms=round(tokenizer_duration * 1000, 2),
             total_duration_ms=round(total_duration * 1000, 2),
             phase="cache_load_complete",
         )
+
+        # Log device info in standardized format
+        log_device_info(
+            logger,
+            "flan.model_loaded_from_cache",
+            device_info,
+            phase="cache_load_complete",
+        )
+
         return (cached_model, cached_tokenizer)
     except (OSError, ImportError, RuntimeError) as e:
         total_duration = time.time() - cache_start
@@ -164,10 +185,17 @@ def _load_with_download() -> tuple[Any, Any]:
 
     # Detect device (GPU if available, else CPU)
     device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Get detailed CUDA info for logging using common utility
+    cuda_info = get_pytorch_cuda_info()
+
     logger.info(
         "flan.device_detected",
         device=device,
-        cuda_available=torch.cuda.is_available(),
+        cuda_available=cuda_info["pytorch_cuda_available"],
+        cuda_device_count=cuda_info["pytorch_cuda_device_count"],
+        cuda_device_name=cuda_info["pytorch_cuda_device_name"],
+        cuda_version=cuda_info.get("cuda_version"),
         phase="device_detection",
     )
 
@@ -235,7 +263,17 @@ def _load_with_download() -> tuple[Any, Any]:
             downloaded_model = downloaded_model.to(device)
             downloaded_model = downloaded_model.half()  # Use float16 on GPU
 
+    # Apply torch.compile() if enabled
+    from services.common.torch_compile import compile_model_if_enabled
+
+    downloaded_model = compile_model_if_enabled(
+        downloaded_model, "flan", "flan_t5", logger
+    )
+
     total_duration = time.time() - download_start
+
+    # Get actual device information from the loaded model
+    device_info = get_full_device_info(model=downloaded_model, intended_device=device)
 
     logger.info(
         "flan.model_downloaded_and_loaded",
@@ -247,6 +285,15 @@ def _load_with_download() -> tuple[Any, Any]:
         total_duration_ms=round(total_duration * 1000, 2),
         phase="download_complete",
     )
+
+    # Log device info in standardized format
+    log_device_info(
+        logger,
+        "flan.model_downloaded_and_loaded",
+        device_info,
+        phase="download_complete",
+    )
+
     return (downloaded_model, downloaded_tokenizer)
 
 
@@ -303,6 +350,32 @@ async def _startup() -> None:
 
         # Mark startup complete
         _health_manager.mark_startup_complete()
+
+        # Pre-warm models using unified pattern
+        from services.common.prewarm import prewarm_if_enabled
+
+        async def _prewarm_flan() -> None:
+            """Pre-warm FLAN model by performing a generation."""
+            if not _model_loader.is_loaded():
+                return
+
+            model_tokenizer_tuple = _model_loader.get_model()
+            if model_tokenizer_tuple is None:
+                return
+
+            model, tokenizer = model_tokenizer_tuple
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            inputs = tokenizer("Hello", return_tensors="pt").to(device)
+            with torch.no_grad():
+                model.generate(**inputs, max_length=10, num_beams=1)
+
+        await prewarm_if_enabled(
+            _prewarm_flan,
+            "flan",
+            logger,
+            model_loader=_model_loader,
+            health_manager=_health_manager,
+        )
 
     except (OSError, ImportError, RuntimeError) as e:
         logger.warning(
@@ -403,11 +476,31 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         # Move to device if GPU available
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        # Get device info for logging using common utility
+        device_info = get_full_device_info(model=model, intended_device=device)
+
+        logger.info(
+            "flan.inference_started",
+            model=MODEL_NAME,
+            prompt_length=len(prompt),
+            phase="inference_start",
+        )
+
+        # Log device info in standardized format (without mismatch warning for inference)
+        log_device_info(
+            logger,
+            "flan.inference_started",
+            device_info,
+            phase="inference_start",
+            warn_on_mismatch=False,  # Don't warn on every inference
+        )
+
         # Generate response
         inputs = tokenizer(
             prompt, return_tensors="pt", truncation=True, max_length=512
         ).to(device)
 
+        inference_start = time.time()
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
@@ -420,6 +513,24 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
                 top_p=0.9,  # Nucleus sampling
                 repetition_penalty=1.1,  # Reduce repetition
             )
+        inference_duration = time.time() - inference_start
+
+        # Log successful inference with device confirmation
+        logger.info(
+            "flan.inference_completed",
+            model=MODEL_NAME,
+            inference_duration_ms=round(inference_duration * 1000, 2),
+            phase="inference_complete",
+        )
+
+        # Log device info in standardized format
+        log_device_info(
+            logger,
+            "flan.inference_completed",
+            device_info,
+            phase="inference_complete",
+            warn_on_mismatch=False,
+        )
 
         response = tokenizer.decode(outputs[0], skip_special_tokens=True)
 
@@ -492,6 +603,30 @@ async def chat_completions(request: dict[str, Any]) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
+def _get_flan_device_info() -> dict[str, Any]:
+    """Get current FLAN service device information for health checks."""
+    # Detect intended device
+    intended_device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    # Get actual device from loaded model
+    loaded_model = None
+    if _model_loader is not None and _model_loader.is_loaded():
+        try:
+            model_tokenizer_tuple = _model_loader.get_model()
+            if model_tokenizer_tuple is not None:
+                loaded_model, _ = model_tokenizer_tuple
+        except Exception as e:
+            logger.debug(
+                "flan.device_info_model_load_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                message="Failed to load model for device info, continuing",
+            )
+
+    # Use common utility to get full device info
+    return get_full_device_info(model=loaded_model, intended_device=intended_device)
+
+
 # Initialize health endpoints
 health_endpoints = HealthEndpoints(
     service_name="flan",
@@ -500,6 +635,7 @@ health_endpoints = HealthEndpoints(
         "model_loaded": lambda: _model_loader.is_loaded() if _model_loader else False,
         "model_name": lambda: MODEL_NAME,
         "model_size": lambda: MODEL_SIZE.name,
+        "device_info": _get_flan_device_info,  # Add device info component
     },
 )
 

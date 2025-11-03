@@ -24,6 +24,18 @@ def get_correlation_id() -> str | None:
     return _correlation_id.get()
 
 
+def set_correlation_id(correlation_id: str) -> None:
+    """Set correlation ID in async context.
+
+    This allows endpoints to set correlation_id from request body when
+    middleware didn't extract it from headers.
+
+    Args:
+        correlation_id: Correlation ID to set
+    """
+    _correlation_id.set(correlation_id)
+
+
 class ObservabilityMiddleware(BaseHTTPMiddleware):
     """Unified middleware for correlation IDs, request/response logging, and timing.
 
@@ -219,4 +231,4 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
             raise
 
 
-__all__ = ["ObservabilityMiddleware", "get_correlation_id"]
+__all__ = ["ObservabilityMiddleware", "get_correlation_id", "set_correlation_id"]

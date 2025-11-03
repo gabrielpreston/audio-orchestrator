@@ -10,10 +10,12 @@ This module provides the core text-to-speech functionality including:
 from __future__ import annotations
 
 import io
+import os
 import time
 from typing import Any
 
 import numpy as np
+import torch
 
 # Import Bark with error handling
 try:
@@ -29,6 +31,7 @@ from services.common.model_loader import BackgroundModelLoader
 from services.common.model_utils import force_download_bark
 from services.common.structured_logging import get_logger
 from services.common.permissions import check_directory_permissions
+from services.common.gpu_utils import get_full_device_info, log_device_info
 
 logger = get_logger(__name__)
 
@@ -43,7 +46,7 @@ class BarkSynthesizer:
             config: Audio configuration
         """
         self.config = config
-        self._logger = get_logger(__name__)
+        self._logger = get_logger(__name__, service_name="bark")
 
         # Create wrapper function for preload_models that checks force download
         def _preload_models_with_force() -> None:
@@ -206,7 +209,7 @@ class BarkSynthesizer:
                     text_use_small=use_small_models,
                     coarse_use_small=use_small_models,
                     fine_use_small=use_small_models,
-                    codec_use_gpu=False,
+                    codec_use_gpu=torch.cuda.is_available(),
                     message="Calling preload_models with these exact parameters",
                 )
 
@@ -219,6 +222,242 @@ class BarkSynthesizer:
                     codec_use_gpu=torch.cuda.is_available(),  # Use GPU if available
                 )
                 preload_duration = time.time() - preload_start
+
+                # After preload_models() completes, migrate models to GPU
+                if torch.cuda.is_available():
+                    try:
+                        # Access Bark's module-level model storage
+                        # NOTE: Bark stores models in bark.generation.models dictionary
+                        # Keys: "text", "coarse", "fine", "codec"
+                        # Text model is nested: models["text"]["model"], others are direct
+                        from bark.generation import models as bark_models
+
+                        device = torch.device("cuda")
+
+                        # Move models to GPU with FP16 quantization (matches FLAN pattern)
+                        models_moved = []
+
+                        # Text model is nested in a container
+                        if (
+                            "text" in bark_models
+                            and bark_models["text"] is not None
+                            and "model" in bark_models["text"]
+                            and bark_models["text"]["model"] is not None
+                        ):
+                            bark_models["text"]["model"] = (
+                                bark_models["text"]["model"].to(device).half()
+                            )
+                            models_moved.append("text")
+
+                        # Coarse and fine models are direct
+                        if (
+                            "coarse" in bark_models
+                            and bark_models["coarse"] is not None
+                        ):
+                            bark_models["coarse"] = (
+                                bark_models["coarse"].to(device).half()
+                            )
+                            models_moved.append("coarse")
+
+                        if "fine" in bark_models and bark_models["fine"] is not None:
+                            bark_models["fine"] = bark_models["fine"].to(device).half()
+                            models_moved.append("fine")
+
+                        # Apply torch.compile() optimization if enabled (replaces deprecated Better Transformer)
+                        # torch.compile() provides 20-40% speedup on PyTorch 2.0+
+                        enable_compile = os.getenv(
+                            "BARK_ENABLE_TORCH_COMPILE", "true"
+                        ).lower() in (
+                            "true",
+                            "1",
+                            "yes",
+                        )
+                        # Use "max-autotune-no-cudagraphs" mode for optimal performance without CUDA graphs
+                        # This mode performs extensive autotuning while explicitly avoiding CUDA graphs,
+                        # which are incompatible with Bark's in-place operations that overwrite tensors
+                        compile_mode = os.getenv(
+                            "BARK_COMPILE_MODE", "max-autotune-no-cudagraphs"
+                        )
+
+                        # Configure torch._dynamo FIRST, before any compilation or model operations
+                        # This fixes getpwuid() errors in Docker containers without /etc/passwd entries
+                        # Must be set early to affect all subsequent torch.compile() calls
+                        if enable_compile and hasattr(torch, "compile"):
+                            try:
+                                import torch._dynamo
+
+                                torch._dynamo.config.suppress_errors = True
+                                self._logger.info(
+                                    "bark.torch_dynamo_configured",
+                                    suppress_errors=True,
+                                    phase="optimization_setup",
+                                    message="torch._dynamo configured to suppress errors and fallback gracefully",
+                                )
+                            except (ImportError, AttributeError):
+                                # torch._dynamo not available, continue anyway
+                                self._logger.debug(
+                                    "bark.torch_dynamo_unavailable",
+                                    phase="optimization_setup",
+                                    message="torch._dynamo not available, compilation may fail",
+                                )
+
+                        if enable_compile and hasattr(torch, "compile"):
+                            # Base image guarantees PyTorch >= 2.0, so hasattr check is sufficient
+                            compile_start = time.time()
+                            compiled_models = []
+
+                            # Compile text model
+                            if (
+                                "text" in bark_models
+                                and bark_models["text"] is not None
+                                and "model" in bark_models["text"]
+                                and bark_models["text"]["model"] is not None
+                            ):
+                                try:
+                                    bark_models["text"]["model"] = torch.compile(
+                                        bark_models["text"]["model"],
+                                        mode=compile_mode,
+                                    )
+                                    compiled_models.append("text")
+                                except Exception as e:
+                                    self._logger.warning(
+                                        "bark.compile_failed",
+                                        model="text",
+                                        error=str(e),
+                                        error_type=type(e).__name__,
+                                    )
+
+                            # Compile coarse model
+                            if (
+                                "coarse" in bark_models
+                                and bark_models["coarse"] is not None
+                            ):
+                                try:
+                                    bark_models["coarse"] = torch.compile(
+                                        bark_models["coarse"],
+                                        mode=compile_mode,
+                                    )
+                                    compiled_models.append("coarse")
+                                except Exception as e:
+                                    self._logger.warning(
+                                        "bark.compile_failed",
+                                        model="coarse",
+                                        error=str(e),
+                                        error_type=type(e).__name__,
+                                    )
+
+                            # Compile fine model
+                            if (
+                                "fine" in bark_models
+                                and bark_models["fine"] is not None
+                            ):
+                                try:
+                                    bark_models["fine"] = torch.compile(
+                                        bark_models["fine"],
+                                        mode=compile_mode,
+                                    )
+                                    compiled_models.append("fine")
+                                except Exception as e:
+                                    self._logger.warning(
+                                        "bark.compile_failed",
+                                        model="fine",
+                                        error=str(e),
+                                        error_type=type(e).__name__,
+                                    )
+
+                            compile_duration = (time.time() - compile_start) * 1000
+                            if compiled_models:
+                                self._logger.info(
+                                    "bark.models_compiled",
+                                    models=compiled_models,
+                                    mode=compile_mode,
+                                    duration_ms=round(compile_duration, 2),
+                                    phase="optimization",
+                                    message="torch.compile() optimization applied successfully",
+                                )
+                            else:
+                                self._logger.warning(
+                                    "bark.compile_all_failed",
+                                    mode=compile_mode,
+                                    phase="optimization",
+                                    message="torch.compile() failed for all models, continuing without compilation",
+                                )
+
+                        if models_moved:
+                            self._logger.info(
+                                "bark.models_moved_to_gpu",
+                                models_moved=models_moved,
+                                device=str(device),
+                                phase="gpu_migration",
+                                message="Bark models successfully migrated to GPU with FP16 quantization",
+                            )
+
+                            # Log device info using common utilities
+                            try:
+                                # Get device info for one model (they should all be on same device)
+                                model_for_info = None
+                                if (
+                                    "text" in bark_models
+                                    and bark_models["text"] is not None
+                                    and "model" in bark_models["text"]
+                                    and bark_models["text"]["model"] is not None
+                                ):
+                                    model_for_info = bark_models["text"]["model"]
+                                elif (
+                                    "coarse" in bark_models
+                                    and bark_models["coarse"] is not None
+                                ):
+                                    model_for_info = bark_models["coarse"]
+                                elif (
+                                    "fine" in bark_models
+                                    and bark_models["fine"] is not None
+                                ):
+                                    model_for_info = bark_models["fine"]
+
+                                if model_for_info is not None:
+                                    device_info = get_full_device_info(
+                                        model=model_for_info, intended_device="cuda"
+                                    )
+                                    log_device_info(
+                                        self._logger,
+                                        "bark.models_loaded",
+                                        device_info,
+                                        phase="gpu_migration_complete",
+                                    )
+                            except Exception as device_info_exc:
+                                # Non-critical - device info logging failed, continue
+                                self._logger.debug(
+                                    "bark.device_info_logging_failed",
+                                    error=str(device_info_exc),
+                                    error_type=type(device_info_exc).__name__,
+                                    phase="gpu_migration_complete",
+                                    message="Failed to log device info, continuing",
+                                )
+                        else:
+                            self._logger.warning(
+                                "bark.no_models_found_for_gpu_migration",
+                                phase="gpu_migration",
+                                message="GPU available but no Bark models found to migrate",
+                            )
+                    except (ImportError, AttributeError, KeyError) as e:
+                        # Graceful fallback - log warning, continue with CPU
+                        self._logger.warning(
+                            "bark.gpu_migration_failed",
+                            error=str(e),
+                            error_type=type(e).__name__,
+                            phase="gpu_migration",
+                            message="Failed to migrate Bark models to GPU, continuing with CPU",
+                        )
+                    except Exception as e:
+                        # Catch-all for other GPU migration errors
+                        self._logger.exception(
+                            "bark.gpu_migration_error",
+                            error=str(e),
+                            error_type=type(e).__name__,
+                            phase="gpu_migration_error",
+                            message="Unexpected error during GPU migration, continuing with CPU",
+                        )
+
                 total_duration = time.time() - load_start
 
                 self._logger.info(
@@ -298,6 +537,37 @@ class BarkSynthesizer:
             is_side_effect=True,  # preload_models() doesn't return model
         )
 
+        # Initialize result cache if enabled
+        self._cache = None
+        enable_cache = os.getenv("BARK_ENABLE_CACHE", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        if enable_cache:
+            try:
+                from services.bark.cache import TTSCache
+
+                max_entries = int(os.getenv("BARK_CACHE_MAX_ENTRIES", "100"))
+                max_size_mb = int(os.getenv("BARK_CACHE_MAX_SIZE_MB", "500"))
+                self._cache = TTSCache(max_entries=max_entries, max_size_mb=max_size_mb)
+                self._logger.info(
+                    "bark.cache_initialized",
+                    max_entries=max_entries,
+                    max_size_mb=max_size_mb,
+                )
+            except ImportError:
+                self._logger.warning(
+                    "bark.cache_unavailable",
+                    message="TTSCache not available, continuing without caching",
+                )
+            except Exception as e:
+                self._logger.warning(
+                    "bark.cache_init_failed",
+                    error=str(e),
+                    message="Cache initialization failed, continuing without caching",
+                )
+
         # Performance tracking
         self._synthesis_stats = {
             "total_syntheses": 0,
@@ -331,8 +601,28 @@ class BarkSynthesizer:
         except Exception as exc:
             self._logger.error("bark_synthesizer.cleanup_failed", error=str(exc))
 
+    def _generate_cache_key(self, text: str, voice: str, speed: float) -> str:
+        """Generate SHA256 cache key from synthesis parameters.
+
+        Args:
+            text: Text to synthesize
+            voice: Voice preset to use
+            speed: Speech speed multiplier
+
+        Returns:
+            SHA256 hash as hexadecimal string
+        """
+        import hashlib
+
+        key_data = f"{text}|{voice}|{speed}"
+        return hashlib.sha256(key_data.encode("utf-8")).hexdigest()
+
     async def synthesize(
-        self, text: str, voice: str = "v2/en_speaker_1", speed: float = 1.0
+        self,
+        text: str,
+        voice: str = "v2/en_speaker_1",
+        speed: float = 1.0,
+        correlation_id: str | None = None,
     ) -> tuple[bytes, str]:
         """Synthesize text using Bark TTS.
 
@@ -348,6 +638,7 @@ class BarkSynthesizer:
             RuntimeError: If models are not available or loading failed
         """
         # Check if models are still loading (non-blocking check)
+        model_check_start = time.time()
         if self._model_loader.is_loading():
             raise RuntimeError(
                 "Bark models are currently loading. Please try again shortly."
@@ -363,30 +654,239 @@ class BarkSynthesizer:
         if not self._model_loader.is_loaded():
             raise RuntimeError("Bark models not available")
 
+        model_check_time = (time.time() - model_check_start) * 1000
+        stage_timings: dict[str, float] = {"model_readiness_check_ms": model_check_time}
+
+        self._logger.info(
+            "bark.models_ready",
+            check_duration_ms=model_check_time,
+            correlation_id=correlation_id,
+        )
+
+        # Check cache before synthesis
+        cache_key = self._generate_cache_key(text, voice, speed)
+        if self._cache:
+            cached_result = self._cache.get(cache_key)
+            if cached_result:
+                audio_bytes, engine = cached_result
+                cache_stats = self._cache.get_stats()
+                self._logger.info(
+                    "bark.cache_hit",
+                    cache_key=cache_key[:16],
+                    audio_size_bytes=len(audio_bytes),
+                    correlation_id=correlation_id,
+                    cache_hit_rate=round(cache_stats["hit_rate"], 3),
+                )
+                return audio_bytes, engine
+
         try:
             start_time = time.time()
 
-            # Generate audio using Bark
-            audio_array = generate_audio(text, history_prompt=voice)
+            # Verify device usage before synthesis
+            device_check_start = time.time()
+            if torch.cuda.is_available():
+                try:
+                    from bark.generation import models as bark_models
+
+                    # Text model is nested, others are direct
+                    model_to_check = None
+                    if (
+                        "text" in bark_models
+                        and bark_models["text"] is not None
+                        and "model" in bark_models["text"]
+                        and bark_models["text"]["model"] is not None
+                    ):
+                        model_to_check = bark_models["text"]["model"]
+                    elif "coarse" in bark_models and bark_models["coarse"] is not None:
+                        model_to_check = bark_models["coarse"]
+                    elif "fine" in bark_models and bark_models["fine"] is not None:
+                        model_to_check = bark_models["fine"]
+
+                    if model_to_check is not None:
+                        device_info = get_full_device_info(
+                            model=model_to_check, intended_device="cuda"
+                        )
+                        device_check_time = (time.time() - device_check_start) * 1000
+                        stage_timings["device_check_ms"] = device_check_time
+                        self._logger.info(
+                            "bark.synthesis_device_check",
+                            actual_device=device_info.get("actual_device", "unknown"),
+                            model_on_device=device_info.get("model_on_device"),
+                            check_duration_ms=device_check_time,
+                            phase="pre_synthesis",
+                            correlation_id=correlation_id,
+                        )
+                except Exception as device_check_exc:
+                    # Non-critical verification - log at info level for troubleshooting
+                    device_check_time = (time.time() - device_check_start) * 1000
+                    stage_timings["device_check_ms"] = device_check_time
+                    self._logger.info(
+                        "bark.device_check_failed",
+                        error=str(device_check_exc),
+                        error_type=type(device_check_exc).__name__,
+                        check_duration_ms=device_check_time,
+                        phase="pre_synthesis",
+                        message="Device verification failed, continuing with synthesis",
+                        correlation_id=correlation_id,
+                    )
+
+            self._logger.info(
+                "bark.synthesis_start",
+                text_length=len(text),
+                voice=voice,
+                device_check_ms=stage_timings.get("device_check_ms", 0),
+                correlation_id=correlation_id,
+            )
+
+            # Generate audio using Bark with inference mode for optimal performance
+            # torch.inference_mode() disables autograd and version tracking, faster than torch.no_grad()
+
+            # Use CUDA events for more accurate GPU timing if available
+            use_cuda_timing = torch.cuda.is_available()
+            if use_cuda_timing:
+                try:
+                    # Create CUDA events for precise GPU timing
+                    start_event = torch.cuda.Event(enable_timing=True)
+                    end_event = torch.cuda.Event(enable_timing=True)
+                    start_event.record()
+                except Exception:
+                    use_cuda_timing = False
+
+            generation_start = time.perf_counter()  # More precise than time.time()
+
+            # Monitor GPU memory before generation (if available)
+            gpu_memory_before = None
+            if torch.cuda.is_available():
+                try:
+                    # Reset peak memory tracking for this generation
+                    torch.cuda.reset_peak_memory_stats()
+                    gpu_memory_before = torch.cuda.memory_allocated() / 1024**2  # MB
+                except Exception as exc:
+                    self._logger.debug(
+                        "bark.cuda_memory_tracking_unavailable",
+                        error=str(exc),
+                        message="CUDA memory tracking not available, continuing without it",
+                    )
+
+            with torch.inference_mode():
+                self._logger.debug(
+                    "bark.using_inference_mode",
+                    note="torch.inference_mode() enabled for optimal performance",
+                )
+                # Try to pass silent=True if supported (reduces overhead from progress bars)
+                # Bark's generate_audio may not support all parameters, so we use try/except
+                try:
+                    audio_array = generate_audio(
+                        text, history_prompt=voice, silent=True
+                    )
+                except TypeError:
+                    # silent parameter not supported, use default call
+                    audio_array = generate_audio(text, history_prompt=voice)
+
+            # Synchronize CUDA operations for accurate timing
+            if torch.cuda.is_available():
+                torch.cuda.synchronize()
+
+            generation_time_cpu = (time.perf_counter() - generation_start) * 1000
+
+            # Get GPU timing if CUDA events were used
+            generation_time_gpu = None
+            if use_cuda_timing:
+                try:
+                    end_event.record()
+                    torch.cuda.synchronize()
+                    generation_time_gpu = start_event.elapsed_time(
+                        end_event
+                    )  # Already in ms
+                except Exception as exc:
+                    self._logger.debug(
+                        "bark.cuda_timing_unavailable",
+                        error=str(exc),
+                        message="CUDA timing not available, using CPU timing",
+                    )
+
+            # Use GPU timing if available (more accurate), otherwise CPU timing
+            generation_time = (
+                generation_time_gpu
+                if generation_time_gpu is not None
+                else generation_time_cpu
+            )
+
+            # Monitor GPU memory after generation
+            gpu_memory_after = None
+            gpu_memory_used = None
+            gpu_memory_peak = None
+            if torch.cuda.is_available():
+                try:
+                    gpu_memory_after = torch.cuda.memory_allocated() / 1024**2  # MB
+                    gpu_memory_peak = torch.cuda.max_memory_allocated() / 1024**2  # MB
+                    if gpu_memory_before is not None:
+                        gpu_memory_used = gpu_memory_after - gpu_memory_before
+                except Exception as exc:
+                    self._logger.debug(
+                        "bark.cuda_memory_read_unavailable",
+                        error=str(exc),
+                        message="CUDA memory read not available, continuing without it",
+                    )
+
+            stage_timings["audio_generation_ms"] = generation_time
+
+            self._logger.info(
+                "bark.audio_generated",
+                duration_ms=round(generation_time, 2),
+                duration_cpu_ms=round(generation_time_cpu, 2)
+                if generation_time_cpu
+                else None,
+                duration_gpu_ms=round(generation_time_gpu, 2)
+                if generation_time_gpu
+                else None,
+                timing_method="cuda_events" if use_cuda_timing else "perf_counter",
+                text_length=len(text),
+                gpu_memory_before_mb=round(gpu_memory_before, 2)
+                if gpu_memory_before
+                else None,
+                gpu_memory_after_mb=round(gpu_memory_after, 2)
+                if gpu_memory_after
+                else None,
+                gpu_memory_peak_mb=round(gpu_memory_peak, 2)
+                if gpu_memory_peak
+                else None,
+                gpu_memory_used_mb=round(gpu_memory_used, 2)
+                if gpu_memory_used
+                else None,
+                correlation_id=correlation_id,
+            )
 
             # Convert to WAV bytes
+            conversion_start = time.time()
             audio_bytes = self._audio_to_bytes(audio_array, SAMPLE_RATE)
+            conversion_time = (time.time() - conversion_start) * 1000
+            stage_timings["audio_conversion_ms"] = conversion_time
 
             # Update stats
             processing_time = time.time() - start_time
             self._update_stats(processing_time, len(text), "bark")
 
-            self._logger.debug(
+            self._logger.info(
                 "bark.synthesis_completed",
-                processing_time_ms=processing_time * 1000,
+                total_duration_ms=processing_time * 1000,
+                stage_timings=stage_timings,
                 text_length=len(text),
+                audio_size_bytes=len(audio_bytes),
                 voice=voice,
+                correlation_id=correlation_id,
             )
+
+            # Cache result after successful synthesis
+            if self._cache:
+                self._cache.put(cache_key, audio_bytes, "bark")
 
             return audio_bytes, "bark"
 
         except Exception as exc:
-            self._logger.error("bark.synthesis_failed", error=str(exc))
+            self._logger.error(
+                "bark.synthesis_failed", error=str(exc), correlation_id=correlation_id
+            )
             raise
 
     async def is_healthy(self) -> bool:

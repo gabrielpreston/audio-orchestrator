@@ -11,17 +11,13 @@ from typing import Any
 from fastapi import HTTPException
 
 from services.common.app_factory import create_service_app
-from services.common.config import (
-    LoggingConfig,
-    get_service_preset,
-)
 from services.common.config.loader import get_env_with_default, load_config_from_env
 from services.common.config.presets import OrchestratorConfig
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.http_client_factory import create_resilient_client
 from services.common.resilient_http import ResilientHTTPClient, ServiceUnavailableError
-from services.common.structured_logging import configure_logging, get_logger
+from services.common.structured_logging import get_logger
 from services.common.tracing import get_observability_manager
 
 # LangChain imports
@@ -51,16 +47,8 @@ try:
 except ImportError:
     AgentExecutor = Any
 
-# Load configuration using standard config classes
-_config_preset = get_service_preset("orchestrator")
-_logging_config = LoggingConfig(**_config_preset["logging"])
-
-# Configure logging using config class
-configure_logging(
-    _logging_config.level,
-    json_logs=_logging_config.json_logs,
-    service_name="orchestrator",
-)
+# Logging is configured in main.py before this module is imported
+# This ensures structured JSON logging is set up before uvicorn initializes
 logger = get_logger(__name__, service_name="orchestrator")
 
 # Health manager and observability
@@ -244,10 +232,32 @@ async def process_transcript(
     request: TranscriptProcessRequest,
 ) -> TranscriptProcessResponse:
     """Process transcript using LangChain orchestration with guardrails."""
+    # Set correlation_id in async context if provided in request body
+    # This ensures it propagates to downstream services via HTTP clients
+    # Prefer request body correlation_id (explicit) over middleware-generated UUIDs
+    if request.correlation_id:
+        try:
+            from services.common.middleware import set_correlation_id
+
+            set_correlation_id(request.correlation_id)
+        except (ImportError, AttributeError):
+            # Middleware not available, skip context setting
+            pass
+
     start_time = time.time()
+    stage_timings: dict[str, float] = {}
 
     try:
+        logger.info(
+            "orchestrator.transcript_received",
+            transcript_length=len(request.transcript),
+            correlation_id=request.correlation_id,
+            user_id=request.user_id,
+            channel_id=request.channel_id,
+        )
+
         # Input validation with guardrails
+        guardrails_start = time.time()
         guardrails_url = get_env_with_default(
             "GUARDRAILS_BASE_URL", "http://guardrails:9300", str
         )
@@ -268,10 +278,13 @@ async def process_transcript(
                 validation_data = validation_response.json()
 
                 if not validation_data.get("safe", True):
+                    guardrails_time = (time.time() - guardrails_start) * 1000
                     logger.warning(
                         "orchestrator.input_blocked",
                         reason=validation_data.get("reason"),
                         transcript=request.transcript[:100],
+                        duration_ms=guardrails_time,
+                        correlation_id=request.correlation_id,
                     )
 
                     # Record blocked request metrics
@@ -296,21 +309,48 @@ async def process_transcript(
                     "sanitized", request.transcript
                 )
                 await guardrails_client.close()
+                guardrails_time = (time.time() - guardrails_start) * 1000
+                stage_timings["input_validation_ms"] = guardrails_time
+                logger.info(
+                    "orchestrator.input_validation_completed",
+                    duration_ms=guardrails_time,
+                    correlation_id=request.correlation_id,
+                )
 
             except ServiceUnavailableError as e:
                 await guardrails_client.close()
-                logger.warning("orchestrator.guardrails_unavailable", error=str(e))
+                guardrails_time = (time.time() - guardrails_start) * 1000
+                logger.warning(
+                    "orchestrator.guardrails_unavailable",
+                    error=str(e),
+                    duration_ms=guardrails_time,
+                    correlation_id=request.correlation_id,
+                )
                 sanitized_transcript = request.transcript
 
         except Exception as e:
-            logger.warning("orchestrator.guardrails_unavailable", error=str(e))
+            guardrails_time = (time.time() - guardrails_start) * 1000
+            logger.warning(
+                "orchestrator.guardrails_unavailable",
+                error=str(e),
+                duration_ms=guardrails_time,
+                correlation_id=request.correlation_id,
+            )
             sanitized_transcript = request.transcript
 
         # Process with LangChain
+        langchain_start = time.time()
         try:
+            logger.info(
+                "orchestrator.langchain_start",
+                transcript_length=len(sanitized_transcript),
+                correlation_id=request.correlation_id,
+            )
             response = await process_with_langchain(
                 sanitized_transcript, request.user_id, _langchain_executor
             )
+            langchain_time = (time.time() - langchain_start) * 1000
+            stage_timings["langchain_processing_ms"] = langchain_time
             # Validate response is not empty or error message
             if not response or response.strip() == "":
                 logger.warning(
@@ -319,11 +359,21 @@ async def process_transcript(
                     correlation_id=request.correlation_id,
                 )
                 response = f"I received your message: {sanitized_transcript[:100]}. Let me help you with that."
+
+            logger.info(
+                "orchestrator.langchain_completed",
+                duration_ms=langchain_time,
+                response_length=len(response) if response else 0,
+                correlation_id=request.correlation_id,
+            )
         except Exception as langchain_exc:
+            langchain_time = (time.time() - langchain_start) * 1000
+            stage_timings["langchain_processing_ms"] = langchain_time
             logger.error(
                 "orchestrator.langchain_failed",
                 error=str(langchain_exc),
                 error_type=type(langchain_exc).__name__,
+                duration_ms=langchain_time,
                 transcript=sanitized_transcript[:100],
                 correlation_id=request.correlation_id,
             )
@@ -331,6 +381,7 @@ async def process_transcript(
             response = f"I understand you asked: {sanitized_transcript[:100]}. I'm here to help."
 
         # Output validation with guardrails
+        output_validation_start = time.time()
         try:
             guardrails_client = create_resilient_client(
                 service_name="guardrails",
@@ -351,6 +402,7 @@ async def process_transcript(
                     logger.warning(
                         "orchestrator.output_blocked",
                         reason=output_data.get("reason"),
+                        correlation_id=request.correlation_id,
                     )
                     response = "I'm sorry, but I can't provide that response."
                 else:
@@ -358,21 +410,41 @@ async def process_transcript(
                     response = output_data.get("filtered", response)
 
                 await guardrails_client.close()
+                output_validation_time = (time.time() - output_validation_start) * 1000
+                stage_timings["output_validation_ms"] = output_validation_time
+                logger.info(
+                    "orchestrator.output_validation_completed",
+                    duration_ms=output_validation_time,
+                    correlation_id=request.correlation_id,
+                )
 
             except ServiceUnavailableError as e:
                 await guardrails_client.close()
-                logger.warning("orchestrator.output_validation_failed", error=str(e))
+                output_validation_time = (time.time() - output_validation_start) * 1000
+                logger.warning(
+                    "orchestrator.output_validation_failed",
+                    error=str(e),
+                    duration_ms=output_validation_time,
+                    correlation_id=request.correlation_id,
+                )
 
         except Exception as e:
-            logger.warning("orchestrator.output_validation_failed", error=str(e))
+            output_validation_time = (time.time() - output_validation_start) * 1000
+            logger.warning(
+                "orchestrator.output_validation_failed",
+                error=str(e),
+                duration_ms=output_validation_time,
+                correlation_id=request.correlation_id,
+            )
 
         # Synthesize audio using TTS service if client is available and response is not empty
         audio_data: str | None = None
         audio_format: str | None = None
 
         if _tts_client and response and len(response.strip()) > 0:
+            tts_start = time.time()
             try:
-                logger.debug(
+                logger.info(
                     "orchestrator.tts_synthesis_start",
                     text_length=len(response),
                     correlation_id=request.correlation_id,
@@ -390,31 +462,44 @@ async def process_transcript(
                     # Encode audio as base64 for JSON transmission
                     import base64
 
+                    base64_start = time.time()
                     audio_data = base64.b64encode(audio_bytes).decode("utf-8")
+                    base64_time = (time.time() - base64_start) * 1000
                     audio_format = "wav"  # Bark returns WAV format
+                    tts_time = (time.time() - tts_start) * 1000
+                    stage_timings["tts_synthesis_ms"] = tts_time
+                    stage_timings["base64_encode_ms"] = base64_time
                     logger.info(
                         "orchestrator.tts_synthesis_completed",
+                        total_duration_ms=tts_time,
+                        base64_encode_ms=base64_time,
                         audio_size=len(audio_bytes),
                         correlation_id=request.correlation_id,
                     )
                 else:
+                    tts_time = (time.time() - tts_start) * 1000
                     logger.warning(
                         "orchestrator.tts_synthesis_returned_empty",
+                        duration_ms=tts_time,
                         correlation_id=request.correlation_id,
                     )
 
             except ServiceUnavailableError as e:
+                tts_time = (time.time() - tts_start) * 1000
                 logger.warning(
                     "orchestrator.tts_unavailable",
                     error=str(e),
+                    duration_ms=tts_time,
                     correlation_id=request.correlation_id,
                 )
                 # Continue without audio - text response is still valid
             except Exception as e:
+                tts_time = (time.time() - tts_start) * 1000
                 logger.error(
                     "orchestrator.tts_synthesis_failed",
                     error=str(e),
                     error_type=type(e).__name__,
+                    duration_ms=tts_time,
                     correlation_id=request.correlation_id,
                 )
                 # Continue without audio - text response is still valid
@@ -430,6 +515,15 @@ async def process_transcript(
                 _llm_metrics["llm_latency"].record(
                     processing_time, attributes={"model": "orchestrator"}
                 )
+
+        logger.info(
+            "orchestrator.transcript_processing_completed",
+            total_duration_ms=processing_time * 1000,
+            stage_timings=stage_timings,
+            correlation_id=request.correlation_id,
+            response_length=len(response) if response else 0,
+            audio_included=audio_data is not None,
+        )
 
         return TranscriptProcessResponse(
             success=True,
@@ -456,7 +550,11 @@ async def process_transcript(
         logger.error(
             "orchestrator.transcript_processing_failed",
             error=str(e),
+            error_type=type(e).__name__,
             transcript=request.transcript[:100],
+            total_duration_ms=processing_time * 1000,
+            stage_timings=stage_timings,
+            correlation_id=request.correlation_id,
         )
         raise HTTPException(
             status_code=500, detail=f"Processing failed: {str(e)}"

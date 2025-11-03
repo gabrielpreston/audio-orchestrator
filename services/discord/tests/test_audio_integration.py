@@ -129,7 +129,7 @@ class TestAudioIntegration:
         )
 
     @pytest.mark.integration
-    @pytest.mark.timeout(45)
+    @pytest.mark.timeout(120)
     async def test_real_stt_transcription(
         self, stt_config: STTConfig, sample_audio_segment: AudioSegment
     ):
@@ -137,7 +137,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Test transcription (docker_compose_test_context ensures service is ready)
@@ -153,13 +153,13 @@ class TestAudioIntegration:
             assert len(transcript.text) >= 0
 
     @pytest.mark.integration
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(120)
     async def test_real_orchestrator_processing(self, orchestrator_url: str):
         """Test real orchestrator service processing."""
         required_services = ["orchestrator", "flan", "guardrails"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=60.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             OrchestratorClient(orchestrator_url) as orchestrator_client,
         ):
             # Test orchestrator processing
@@ -180,7 +180,7 @@ class TestAudioIntegration:
             ), "Orchestrator should produce response"
 
     @pytest.mark.integration
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(120)
     async def test_circuit_breaker_recovery(
         self, stt_config: STTConfig, sample_audio_segment: AudioSegment
     ):
@@ -188,7 +188,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Get initial circuit breaker state
@@ -216,7 +216,7 @@ class TestAudioIntegration:
             assert final_stats["available"] is True
 
     @pytest.mark.integration
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(120)
     async def test_multiple_segments_sequential(
         self, stt_config: STTConfig, multiple_audio_segments: list[AudioSegment]
     ):
@@ -224,7 +224,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Process segments sequentially with timeout protection
@@ -244,7 +244,7 @@ class TestAudioIntegration:
                 assert transcript.correlation_id == f"manual-integration-test-{i}"
 
     @pytest.mark.integration
-    @pytest.mark.timeout(45)
+    @pytest.mark.timeout(120)
     async def test_pipeline_latency_metrics(
         self, stt_config: STTConfig, sample_audio_segment: AudioSegment
     ):
@@ -252,7 +252,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Measure transcription latency
@@ -275,13 +275,13 @@ class TestAudioIntegration:
             print(f"Transcription latency: {latency:.2f}s")
 
     @pytest.mark.integration
-    @pytest.mark.timeout(45)
+    @pytest.mark.timeout(120)
     async def test_service_health_checks(self, stt_config: STTConfig):
         """Test service health checks with real services."""
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Test health check
@@ -305,7 +305,7 @@ class TestAudioIntegration:
                 assert "available" in stats
 
     @pytest.mark.integration
-    @pytest.mark.timeout(45)
+    @pytest.mark.timeout(120)
     async def test_error_handling_with_real_services(
         self, stt_config: STTConfig, invalid_audio_segment: AudioSegment
     ):
@@ -313,7 +313,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Test with invalid audio data - should handle gracefully
@@ -335,7 +335,7 @@ class TestAudioIntegration:
                 )
 
     @pytest.mark.integration
-    @pytest.mark.timeout(60)
+    @pytest.mark.timeout(120)
     async def test_concurrent_requests(
         self, stt_config: STTConfig, concurrent_audio_segments: list[AudioSegment]
     ):
@@ -343,7 +343,7 @@ class TestAudioIntegration:
         required_services = ["stt", "audio"]
 
         async with (
-            docker_compose_test_context(required_services, timeout=45.0),
+            docker_compose_test_context(required_services, timeout=120.0),
             TranscriptionClient(stt_config) as stt_client,
         ):
             # Process segments concurrently with timeout protection

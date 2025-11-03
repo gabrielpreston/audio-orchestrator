@@ -21,14 +21,14 @@ from services.tests.utils.service_helpers import docker_compose_test_context
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_simple_text_input():
     """Test basic text input to orchestrator returns text response."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -54,14 +54,14 @@ async def test_orchestrator_simple_text_input():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_question_input():
     """Test orchestrator handles question format transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -82,14 +82,14 @@ async def test_orchestrator_question_input():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_command_input():
     """Test orchestrator handles command format transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -110,14 +110,14 @@ async def test_orchestrator_command_input():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_greeting_input():
     """Test orchestrator handles greeting format transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -143,14 +143,14 @@ async def test_orchestrator_greeting_input():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_response_structure():
     """Test orchestrator response contains all expected fields."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -180,14 +180,14 @@ async def test_orchestrator_response_structure():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_response_text_type():
     """Test orchestrator response_text is a non-empty string."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -216,7 +216,7 @@ async def test_orchestrator_response_text_type():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_correlation_id_propagation():
     """Test orchestrator propagates correlation ID in response."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
@@ -225,7 +225,7 @@ async def test_orchestrator_correlation_id_propagation():
     test_correlation_id = "test-correlation-abc123"
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -248,14 +248,14 @@ async def test_orchestrator_correlation_id_propagation():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_correlation_id_optional():
     """Test orchestrator handles requests without correlation ID."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -283,7 +283,7 @@ async def test_orchestrator_correlation_id_optional():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_metadata_handling():
     """Test orchestrator accepts and processes metadata field."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
@@ -292,7 +292,7 @@ async def test_orchestrator_metadata_handling():
     test_metadata = {"source": "test", "priority": "high"}
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -320,14 +320,14 @@ async def test_orchestrator_metadata_handling():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_response_time_short_text():
     """Test orchestrator responds quickly for short text inputs."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         start_time = time.time()
@@ -347,7 +347,7 @@ async def test_orchestrator_response_time_short_text():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_response_time_medium_text():
     """Test orchestrator response time for medium-length text inputs."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
@@ -356,7 +356,7 @@ async def test_orchestrator_response_time_medium_text():
     medium_text = " ".join(["This is a medium length transcript"] * 3)
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         start_time = time.time()
@@ -383,14 +383,14 @@ async def test_orchestrator_response_time_medium_text():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_short_transcript():
     """Test orchestrator handles very short transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -409,7 +409,7 @@ async def test_orchestrator_short_transcript():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_long_transcript():
     """Test orchestrator handles longer transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
@@ -418,7 +418,7 @@ async def test_orchestrator_long_transcript():
     long_text = " ".join(["This is a longer transcript"] * 20)
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -443,14 +443,14 @@ async def test_orchestrator_long_transcript():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_whitespace_handling():
     """Test orchestrator handles transcripts with extra whitespace."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -469,14 +469,14 @@ async def test_orchestrator_whitespace_handling():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_special_characters():
     """Test orchestrator handles special characters in transcripts."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         response = await client.post(
@@ -496,14 +496,14 @@ async def test_orchestrator_special_characters():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_consecutive_requests():
     """Test orchestrator handles multiple consecutive requests."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         transcripts = [
@@ -530,14 +530,14 @@ async def test_orchestrator_consecutive_requests():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_different_users():
     """Test orchestrator handles requests from different users."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         users = ["user_001", "user_002", "user_003"]
@@ -559,14 +559,14 @@ async def test_orchestrator_different_users():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_different_channels():
     """Test orchestrator handles requests from different channels."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         channels = ["channel_001", "channel_002", "channel_003"]

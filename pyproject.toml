@@ -277,6 +277,7 @@ markers = [
     "component: Component tests (with mocked external dependencies)",
     "integration: Integration tests (require Docker Compose)",
     "e2e: End-to-end tests (manual trigger only)",
+    "failure: Service failure scenario tests (optional execution)",
     "slow: Slow tests (>1 second execution time)",
     "external: Tests requiring external services or network access",
     "audio: Tests involving audio processing",

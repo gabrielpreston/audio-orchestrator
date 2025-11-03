@@ -238,6 +238,42 @@ All services use these shared utilities through the common configuration system:
 -  **Orchestrator Service**: Configuration management, correlation IDs, debug management
 -  **TTS Service**: Audio processing, correlation IDs, debug management
 
+### PyTorch Optimization Utilities (`torch_compile.py`, `prewarm.py`, `result_cache.py`)
+
+Shared utilities for optimizing PyTorch model performance across all services:
+
+-  **torch.compile() Integration**: Centralized PyTorch model compilation with consistent error handling and Docker compatibility
+-  **Pre-warming**: Generic pattern for triggering torch.compile() warmup during startup to prevent first-request timeouts
+-  **Result Caching**: Generic LRU cache for service results (transcripts, generations, classifications)
+
+**Usage Pattern**:
+
+```python
+from services.common.torch_compile import compile_model_if_enabled
+from services.common.prewarm import prewarm_if_enabled
+from services.common.result_cache import ResultCache, generate_cache_key
+
+# Compile model if enabled
+model = AutoModelForSeq2SeqLM.from_pretrained(...)
+model = compile_model_if_enabled(model, "flan", "flan_t5", logger)
+
+# Pre-warm during startup
+async def _prewarm():
+    model.generate(...)
+
+await prewarm_if_enabled(_prewarm, "flan", logger, model_loader=_model_loader)
+
+# Cache results
+cache = ResultCache(max_entries=200, max_size_mb=1000, service_name="stt")
+cache_key = generate_cache_key(audio_bytes)
+cached = cache.get(cache_key)
+if not cached:
+    result = perform_inference(...)
+    cache.put(cache_key, result)
+```
+
+**Configuration**: All optimizations controlled via `{SERVICE}_ENABLE_{FEATURE}` environment variables.
+
 ## Documentation
 
 For detailed usage examples and API reference, see the [services/common/README.md](../../services/common/README.md).

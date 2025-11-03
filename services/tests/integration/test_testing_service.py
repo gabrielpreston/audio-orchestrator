@@ -18,7 +18,7 @@ from services.tests.utils.service_helpers import docker_compose_test_context
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(90)
+@pytest.mark.timeout(120)
 async def test_testing_service_dependencies():
     """Validate all dependencies are accessible from Testing service perspective."""
     # Get service URLs
@@ -39,7 +39,7 @@ async def test_testing_service_dependencies():
     ]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         # Check that Testing service dependencies are accessible
@@ -76,7 +76,7 @@ async def test_testing_service_dependencies():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(90)
+@pytest.mark.timeout(120)
 async def test_testing_service_pipeline_components():
     """Test individual components that Testing service uses in its pipeline."""
     # Get service URLs
@@ -88,7 +88,7 @@ async def test_testing_service_pipeline_components():
     required_services = ["audio", "stt", "orchestrator", "flan", "tts", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         # 1. Audio preprocessing component (Testing service uses /denoise)

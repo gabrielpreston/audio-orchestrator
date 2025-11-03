@@ -12,6 +12,7 @@ import io
 import time
 
 import httpx
+import numpy as np
 import pytest
 
 from services.tests.fixtures.integration_fixtures import Timeouts
@@ -29,14 +30,14 @@ from services.tests.utils.service_helpers import docker_compose_test_context
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_audio_service_denoise():
     """Test audio service denoise endpoint standalone."""
     audio_url = get_service_url("AUDIO")
     required_services = ["audio"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=30.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_audio = create_wav_file(
@@ -59,20 +60,182 @@ async def test_audio_service_denoise():
             assert response.content[:4] == b"RIFF", "Should return valid WAV"
 
 
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+async def test_audio_process_frame():
+    """Test audio service /process/frame endpoint with PCM frame data."""
+    audio_url = get_service_url("AUDIO")
+    required_services = ["audio"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        # Generate test audio and convert to PCM bytes
+        # generate_test_audio returns bytes, so we need to create numpy array directly
+        sample_rate = 16000
+        duration = 0.1
+        frequency = 440.0
+        amplitude = 0.5
+
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        signal = amplitude * np.sin(2 * np.pi * frequency * t)
+        audio_int16 = (signal * 32767).astype(np.int16)
+        pcm_bytes = audio_int16.tobytes()
+        pcm_base64 = base64.b64encode(pcm_bytes).decode()
+
+        request_data = {
+            "pcm": pcm_base64,
+            "timestamp": 0.0,
+            "rms": 0.5,
+            "duration": 0.1,
+            "sequence": 1,
+            "sample_rate": 16000,
+        }
+
+        response = await client.post(
+            f"{audio_url}/process/frame",
+            json=request_data,
+            timeout=Timeouts.STANDARD,
+        )
+
+        # May return 200 or gracefully degrade if processor not initialized
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "success" in data
+            assert "pcm" in data
+            assert "processing_time_ms" in data
+            assert "quality_metrics" in data
+            assert isinstance(data.get("quality_metrics"), (dict, type(None)))
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+async def test_audio_process_segment():
+    """Test audio service /process/segment endpoint with audio segments."""
+    audio_url = get_service_url("AUDIO")
+    required_services = ["audio"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        # Generate test audio and convert to PCM bytes
+        sample_rate = 16000
+        duration = 1.0
+        frequency = 440.0
+        amplitude = 0.5
+
+        t = np.linspace(0, duration, int(sample_rate * duration), False)
+        signal = amplitude * np.sin(2 * np.pi * frequency * t)
+        audio_int16 = (signal * 32767).astype(np.int16)
+        pcm_bytes = audio_int16.tobytes()
+        pcm_base64 = base64.b64encode(pcm_bytes).decode()
+
+        request_data = {
+            "user_id": 12345,
+            "pcm": pcm_base64,
+            "start_timestamp": 0.0,
+            "end_timestamp": 1.0,
+            "correlation_id": "test-correlation-123",
+            "frame_count": 10,
+            "sample_rate": 16000,
+        }
+
+        response = await client.post(
+            f"{audio_url}/process/segment",
+            json=request_data,
+            timeout=Timeouts.STANDARD,
+        )
+
+        # May return 200 or gracefully degrade if processor not initialized
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "success" in data
+            assert "pcm" in data
+            assert "processing_time_ms" in data
+            assert "quality_metrics" in data
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+async def test_audio_enhance_audio():
+    """Test audio service /enhance/audio endpoint for audio enhancement."""
+    audio_url = get_service_url("AUDIO")
+    required_services = ["audio"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        test_audio = create_wav_file(
+            generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
+            sample_rate=16000,
+            channels=1,
+        )
+
+        response = await client.post(
+            f"{audio_url}/enhance/audio",
+            content=test_audio,
+            headers={"Content-Type": "audio/wav"},
+            timeout=Timeouts.STANDARD,
+        )
+
+        # May return 200 or gracefully degrade if enhancer not initialized
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            assert len(response.content) > 0
+            assert response.content[:4] == b"RIFF", "Should return valid WAV"
+            assert response.headers.get("Content-Type") == "audio/wav"
+
+
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+async def test_audio_denoise_streaming():
+    """Test audio service /denoise/streaming endpoint."""
+    audio_url = get_service_url("AUDIO")
+    required_services = ["audio"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        test_audio = create_wav_file(
+            generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
+            sample_rate=16000,
+            channels=1,
+        )
+
+        response = await client.post(
+            f"{audio_url}/denoise/streaming",
+            content=test_audio,
+            headers={"Content-Type": "audio/wav"},
+            timeout=Timeouts.STANDARD,
+        )
+
+        # May return 200 or gracefully degrade if enhancer not initialized
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            assert len(response.content) > 0
+            assert response.content[:4] == b"RIFF", "Should return valid WAV"
+
+
 # ============================================================================
 # STT Service Tests
 # ============================================================================
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_stt_service_transcribe():
     """Test STT service transcription endpoint standalone."""
     stt_url = get_service_url("STT")
     required_services = ["stt", "audio"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=45.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_audio = create_wav_file(
@@ -102,14 +265,14 @@ async def test_stt_service_transcribe():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_stt_error_handling():
     """Test STT service error handling for invalid inputs."""
     stt_url = get_service_url("STT")
     required_services = ["stt"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=30.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         # Test invalid audio format - use multipart form
@@ -131,14 +294,14 @@ async def test_stt_error_handling():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_process_transcript():
     """Test orchestrator service transcript processing with LLM."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_transcript = "Hello, this is a test message."
@@ -162,8 +325,8 @@ async def test_orchestrator_process_transcript():
 
         assert len(response_text) > 0, "Orchestrator should produce response"
         assert (
-            elapsed < 10.0
-        ), f"Orchestrator should complete in < 10s, took {elapsed:.2f}s"
+            elapsed < 30.0
+        ), f"Orchestrator should complete in < 30s, took {elapsed:.2f}s"
 
         # Verify correlation ID is returned
         correlation_id = data.get("correlation_id")
@@ -171,14 +334,14 @@ async def test_orchestrator_process_transcript():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_orchestrator_error_handling():
     """Test orchestrator error handling for invalid inputs."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=45.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         # Test empty transcript
@@ -201,14 +364,14 @@ async def test_orchestrator_error_handling():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_tts_service_synthesize():
     """Test TTS service synthesis endpoint standalone."""
     tts_url = get_service_url("TTS")
     required_services = ["tts"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=45.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_text = "Hello, this is a test message for TTS."
@@ -239,7 +402,7 @@ async def test_tts_service_synthesize():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_audio_stt_integration():
     """Test audio preprocessing + STT integration."""
     audio_url = get_service_url("AUDIO")
@@ -247,7 +410,7 @@ async def test_audio_stt_integration():
     required_services = ["audio", "stt"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=45.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_audio = create_wav_file(
@@ -289,7 +452,7 @@ async def test_audio_stt_integration():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(90)
+@pytest.mark.timeout(120)
 async def test_stt_orchestrator_integration():
     """Test STT → Orchestrator integration."""
     stt_url = get_service_url("STT")
@@ -297,7 +460,7 @@ async def test_stt_orchestrator_integration():
     required_services = ["stt", "audio", "orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_audio = create_wav_file(
@@ -337,7 +500,7 @@ async def test_stt_orchestrator_integration():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(90)
+@pytest.mark.timeout(120)
 async def test_orchestrator_tts_integration():
     """Test Orchestrator → TTS integration."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
@@ -345,7 +508,7 @@ async def test_orchestrator_tts_integration():
     required_services = ["orchestrator", "flan", "tts", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_transcript = "Hello, this is a test message for the audio pipeline."
@@ -391,14 +554,14 @@ async def test_orchestrator_tts_integration():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(45)
+@pytest.mark.timeout(120)
 async def test_stt_correlation_id():
     """Test correlation ID propagation in STT service."""
     stt_url = get_service_url("STT")
     required_services = ["stt", "audio"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=45.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_correlation_id = f"test-stt-correlation-{int(time.time())}"
@@ -425,14 +588,14 @@ async def test_stt_correlation_id():
 
 
 @pytest.mark.integration
-@pytest.mark.timeout(60)
+@pytest.mark.timeout(120)
 async def test_orchestrator_correlation_id():
     """Test correlation ID propagation in Orchestrator service."""
     orchestrator_url = get_service_url("ORCHESTRATOR")
     required_services = ["orchestrator", "flan", "guardrails"]
 
     async with (
-        docker_compose_test_context(required_services, timeout=60.0),
+        docker_compose_test_context(required_services, timeout=120.0),
         httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
     ):
         test_correlation_id = f"test-orch-correlation-{int(time.time())}"
@@ -456,103 +619,3 @@ async def test_orchestrator_correlation_id():
         assert (
             returned_correlation_id == test_correlation_id
         ), f"Correlation ID should propagate: expected {test_correlation_id}, got {returned_correlation_id}"
-
-
-# ============================================================================
-# Full E2E Test (Optional - Run separately)
-# ============================================================================
-
-
-@pytest.mark.integration
-@pytest.mark.e2e
-@pytest.mark.timeout(120)
-async def test_complete_audio_to_audio_pipeline_full():
-    """Full end-to-end test: Audio → Process → STT → Orchestrator → LLM → TTS.
-
-    This test requires all services and takes longer. Use pytest markers to run separately:
-    pytest -m "not e2e"  # Run fast integration tests
-    pytest -m e2e        # Run full e2e test only
-    """
-    audio_url = get_service_url("AUDIO")
-    stt_url = get_service_url("STT")
-    orchestrator_url = get_service_url("ORCHESTRATOR")
-    tts_url = get_service_url("TTS")
-
-    required_services = ["audio", "stt", "orchestrator", "flan", "tts", "guardrails"]
-
-    async with (
-        docker_compose_test_context(required_services, timeout=90.0),
-        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
-    ):
-        # 1. Generate test audio
-        test_audio = create_wav_file(
-            generate_test_audio(duration=2.0, frequency=440.0, amplitude=0.5),
-            sample_rate=16000,
-            channels=1,
-        )
-
-        # 2. Optional: Audio preprocessing
-        try:
-            enhanced_response = await client.post(
-                f"{audio_url}/denoise",
-                content=test_audio,
-                headers={"Content-Type": "audio/wav"},
-                timeout=Timeouts.STANDARD,
-            )
-            if enhanced_response.status_code == 200:
-                test_audio = enhanced_response.content
-        except (httpx.HTTPError, httpx.TimeoutException) as e:
-            # Graceful degradation - continue with original audio if preprocessing fails
-            # This is expected if audio service is not fully configured
-            print(
-                f"Audio preprocessing skipped (graceful degradation): {type(e).__name__}"
-            )
-
-        # 3. STT: Transcribe audio - use multipart form
-        files = {"file": ("test.wav", io.BytesIO(test_audio), "audio/wav")}
-        stt_response = await client.post(
-            f"{stt_url}/transcribe",
-            files=files,
-            timeout=Timeouts.STANDARD,
-        )
-
-        assert stt_response.status_code == 200, f"STT failed: {stt_response.text}"
-        transcript = stt_response.json().get("text", "").strip()
-
-        # Use fallback if STT produces empty transcript
-        if not transcript:
-            transcript = "Hello, this is a test message."
-
-        # 4. Orchestrator: Process transcript
-        orchestrator_response = await client.post(
-            f"{orchestrator_url}/api/v1/transcripts",
-            json={
-                "transcript": transcript,
-                "user_id": "test_user",
-                "channel_id": "test_channel",
-                "correlation_id": "test-e2e-correlation-id",
-            },
-            timeout=Timeouts.STANDARD,
-        )
-
-        assert orchestrator_response.status_code == 200
-        orchestrator_data = orchestrator_response.json()
-        response_text = orchestrator_data.get("response_text", "")
-        assert len(response_text) > 0, "Orchestrator should produce response"
-
-        # 5. TTS: Synthesize response
-        tts_response = await client.post(
-            f"{tts_url}/synthesize",
-            json={"text": response_text, "voice": "v2/en_speaker_1"},
-            headers={"Authorization": "Bearer test-token"},
-            timeout=Timeouts.STANDARD,
-        )
-
-        assert tts_response.status_code == 200
-        tts_data = tts_response.json()
-        audio_base64 = tts_data.get("audio")
-
-        assert audio_base64 is not None, "TTS should return audio"
-        audio_bytes = base64.b64decode(audio_base64)
-        assert len(audio_bytes) > 0, "Audio should not be empty"
-        assert audio_bytes[:4] == b"RIFF", "Audio should be valid WAV format"

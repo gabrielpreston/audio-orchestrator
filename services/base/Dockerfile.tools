@@ -67,15 +67,15 @@ RUN ln -s /workspace/requirements-base.txt /workspace/services/requirements-base
 # Install Python dependencies in separate layers for better caching
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip==24.0 && \
-    pip install -r /workspace/requirements-base.txt
+    pip install --no-cache-dir -r /workspace/requirements-base.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /workspace/requirements-dev.txt && \
-    pip install -r /workspace/requirements-test.txt
+    pip install --no-cache-dir -r /workspace/requirements-dev.txt && \
+    pip install --no-cache-dir -r /workspace/requirements-test.txt
 
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install -r /workspace/services/linter/requirements.txt && \
-    pip install -r /workspace/services/tester/requirements.txt
+    pip install --no-cache-dir -r /workspace/services/linter/requirements.txt && \
+    pip install --no-cache-dir -r /workspace/services/tester/requirements.txt
 
 # Install Node.js tools
 RUN npm install -g markdownlint-cli@0.39.0

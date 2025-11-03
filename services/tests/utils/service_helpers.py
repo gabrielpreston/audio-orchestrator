@@ -235,18 +235,34 @@ class DockerComposeManager:
         expensive validation and just check /health/ready status.
         """
         try:
-            # Generate test audio for transcription (import here to avoid circular dependencies)
+            # Use real speech audio if available, otherwise fall back to synthetic
             from io import BytesIO
-            from services.tests.utils.audio_quality_helpers import (
-                create_wav_file,
-                generate_test_audio,
-            )
+            from pathlib import Path
 
-            test_audio = create_wav_file(
-                generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
-                sample_rate=16000,
-                channels=1,
-            )
+            # Try to load real speech sample
+            fixtures_dir = Path(__file__).parent.parent.parent / "fixtures" / "audio"
+            speech_file = fixtures_dir / "spoken_english.wav"
+
+            if speech_file.exists():
+                test_audio = speech_file.read_bytes()
+                print(
+                    f"Using real speech sample for STT validation: {speech_file.name}"
+                )
+            else:
+                # Fallback to synthetic audio if speech sample not available
+                from services.tests.utils.audio_quality_helpers import (
+                    create_wav_file,
+                    generate_test_audio,
+                )
+
+                test_audio = create_wav_file(
+                    generate_test_audio(duration=1.0, frequency=440.0, amplitude=0.5),
+                    sample_rate=16000,
+                    channels=1,
+                )
+                print(
+                    "Using synthetic audio for STT validation (spoken_english.wav not found)"
+                )
 
             # STT /transcribe endpoint expects multipart form data with 'file' field
             files = {"file": ("test_validation.wav", BytesIO(test_audio), "audio/wav")}

@@ -21,18 +21,24 @@ class TTSClient:
     def __init__(
         self,
         base_url: str | None = None,
-        timeout: float = 30.0,
+        timeout: float | None = None,
     ) -> None:
         """Initialize TTS client.
 
         Args:
             base_url: Base URL for the TTS service. If not provided, will use
                      environment variable or default to http://bark:7100
-            timeout: Request timeout in seconds
+            timeout: Request timeout in seconds. If not provided, will use
+                    environment variable ORCHESTRATOR_TTS_TIMEOUT or default to 90.0
         """
         # Default to TTS service URL if not provided (agnostic service name)
         if base_url is None:
             base_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
+
+        # Get timeout from parameter, environment variable, or use default
+        # Increased default to 90s to accommodate torch.compile() max-autotune warmup
+        if timeout is None:
+            timeout = get_env_with_default("ORCHESTRATOR_TTS_TIMEOUT", 90.0, float)
 
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
@@ -93,7 +99,7 @@ class TTSClient:
             if correlation_id:
                 headers["X-Correlation-ID"] = correlation_id
 
-            self._logger.debug(
+            self._logger.info(
                 "tts_client.synthesis_request",
                 text_length=len(text),
                 voice=voice,
@@ -101,23 +107,28 @@ class TTSClient:
             )
 
             # Call TTS service
+            http_start = time.time()
             response = await self._client.post_with_retry(
                 "/synthesize",
                 json=payload,
                 headers=headers,
                 timeout=self.timeout,
             )
+            http_time = (time.time() - http_start) * 1000
 
             response.raise_for_status()
 
             # Parse response (Bark service returns JSON with audio as base64-encoded bytes)
+            parse_start = time.time()
             result = response.json()
             audio_data = result.get("audio")
+            parse_time = (time.time() - parse_start) * 1000
 
             if not audio_data:
                 self._logger.error(
                     "tts_client.synthesis_missing_audio",
                     response_keys=list(result.keys()),
+                    correlation_id=correlation_id,
                 )
                 return None
 
@@ -126,21 +137,34 @@ class TTSClient:
 
             if isinstance(audio_data, str):
                 # Decode base64 string
+                decode_start = time.time()
                 try:
                     audio_bytes = base64.b64decode(audio_data)
+                    decode_time = (time.time() - decode_start) * 1000
+                    self._logger.debug(
+                        "tts_client.base64_decode_completed",
+                        decode_time_ms=decode_time,
+                        audio_size_bytes=len(audio_bytes),
+                        correlation_id=correlation_id,
+                    )
                 except Exception as decode_exc:
+                    decode_time = (time.time() - decode_start) * 1000
                     self._logger.error(
                         "tts_client.base64_decode_failed",
                         error=str(decode_exc),
+                        decode_time_ms=decode_time,
+                        correlation_id=correlation_id,
                     )
                     return None
             elif isinstance(audio_data, bytes):
                 # Direct bytes (unlikely but handle it)
+                decode_time = 0  # No decode needed
                 audio_bytes = audio_data
             else:
                 self._logger.error(
                     "tts_client.synthesis_invalid_audio_format",
                     audio_type=type(audio_data).__name__,
+                    correlation_id=correlation_id,
                 )
                 return None
 
@@ -148,9 +172,12 @@ class TTSClient:
 
             self._logger.info(
                 "tts_client.synthesis_completed",
+                total_duration_ms=processing_time * 1000,
+                http_request_ms=http_time,
+                json_parse_ms=parse_time,
+                base64_decode_ms=decode_time,
                 text_length=len(text),
                 audio_size=len(audio_bytes),
-                processing_time_ms=processing_time * 1000,
                 voice=voice,
                 correlation_id=correlation_id,
             )

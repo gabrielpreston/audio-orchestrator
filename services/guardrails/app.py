@@ -5,11 +5,12 @@ This service provides input/output validation, toxicity detection, PII detection
 and rate limiting for the audio orchestrator system.
 """
 
+import hashlib
 import re
 import time
 from typing import Any
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from pydantic import BaseModel, Field
 
 from services.common.config import (
@@ -68,6 +69,10 @@ _toxicity_detector = None
 _limiter = None
 # Model loader for background loading
 _model_loader: BackgroundModelLoader | None = None
+
+# Toxicity result cache (simple in-memory cache for repeated inputs)
+_toxicity_cache: dict[str, dict[str, Any]] = {}
+_TOXICITY_CACHE_MAX_SIZE = 100  # Limit cache size to prevent memory issues
 
 # PII patterns
 PII_PATTERNS = {
@@ -389,8 +394,23 @@ app.include_router(health_endpoints.get_router())
 
 
 @app.post("/validate/input")  # type: ignore[misc]
-async def validate_input(request: ValidationRequest) -> ValidationResponse:
+async def validate_input(
+    request: ValidationRequest, http_request: Request
+) -> ValidationResponse:
     """Validate input text for safety and compliance."""
+    # Extract correlation ID from headers or context
+    correlation_id: str | None = None
+    try:
+        from services.common.middleware import get_correlation_id
+
+        correlation_id = get_correlation_id()
+    except ImportError:
+        pass
+
+    # Fallback to extracting from Request headers
+    if not correlation_id:
+        correlation_id = http_request.headers.get("X-Correlation-ID")
+
     start_time = time.time()
 
     try:
@@ -479,7 +499,10 @@ async def validate_input(request: ValidationRequest) -> ValidationResponse:
                 )
 
         logger.error(
-            "guardrails.input_validation_failed", error=str(e), text=request.text[:100]
+            "guardrails.input_validation_failed",
+            error=str(e),
+            text=request.text[:100],
+            correlation_id=correlation_id,
         )
         raise HTTPException(
             status_code=500, detail=f"Input validation failed: {str(e)}"
@@ -487,21 +510,44 @@ async def validate_input(request: ValidationRequest) -> ValidationResponse:
 
 
 @app.post("/validate/output")  # type: ignore[misc]
-async def validate_output(request: ValidationRequest) -> ValidationResponse:
+async def validate_output(
+    request: ValidationRequest, http_request: Request
+) -> ValidationResponse:
     """Validate output text for toxicity and PII."""
+    # Extract correlation ID from headers or context
+    correlation_id: str | None = None
+    try:
+        from services.common.middleware import get_correlation_id
+
+        correlation_id = get_correlation_id()
+    except ImportError:
+        pass
+
+    # Fallback to extracting from Request headers
+    if not correlation_id:
+        correlation_id = http_request.headers.get("X-Correlation-ID")
+
     start_time = time.time()
 
     try:
         text = request.text
 
         # Check model status and get detector (non-blocking)
+        model_check_start = time.time()
         global _toxicity_detector
         if _model_loader is None:
-            logger.debug("guardrails.model_loader_not_initialized")
+            logger.debug(
+                "guardrails.model_loader_not_initialized",
+                correlation_id=correlation_id,
+            )
             # Continue without toxicity check
             detector = None
         elif _model_loader.is_loading():
-            logger.debug("guardrails.model_loading", skipping_check=True)
+            logger.debug(
+                "guardrails.model_loading",
+                skipping_check=True,
+                correlation_id=correlation_id,
+            )
             # Continue without toxicity check
             detector = None
         elif not _model_loader.is_loaded():
@@ -514,11 +560,60 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
         else:
             detector = _model_loader.get_model()
             _toxicity_detector = detector
+        model_check_time = (time.time() - model_check_start) * 1000
+        logger.info(
+            "guardrails.model_check_completed",
+            duration_ms=round(model_check_time, 2),
+            detector_available=detector is not None,
+            correlation_id=correlation_id,
+        )
 
-        # Toxicity check
+        # Toxicity check with caching
         if detector is not None:
             try:
-                result = detector(text)[0]
+                # Create cache key from text hash
+                text_hash = hashlib.sha256(text.encode()).hexdigest()
+                cache_key = f"toxicity:{text_hash}"
+
+                # Check cache first
+                cached_result = _toxicity_cache.get(cache_key)
+                if cached_result is not None:
+                    logger.info(
+                        "guardrails.toxicity_cache_hit",
+                        duration_ms=0.0,  # Cache hit is instantaneous
+                        label=cached_result["label"],
+                        score=cached_result["score"],
+                        correlation_id=correlation_id,
+                        cache_size=len(_toxicity_cache),
+                    )
+                    result = cached_result
+                else:
+                    # Cache miss - run inference
+                    toxicity_check_start = time.time()
+                    result = detector(text)[0]
+                    toxicity_check_time = (time.time() - toxicity_check_start) * 1000
+
+                    # Cache result (with size limit)
+                    if len(_toxicity_cache) >= _TOXICITY_CACHE_MAX_SIZE:
+                        # Remove oldest entry (simple FIFO eviction)
+                        oldest_key = next(iter(_toxicity_cache))
+                        del _toxicity_cache[oldest_key]
+                        logger.debug(
+                            "guardrails.toxicity_cache_evicted",
+                            evicted_key=oldest_key,
+                            cache_size=len(_toxicity_cache),
+                        )
+                    _toxicity_cache[cache_key] = result
+
+                    logger.info(
+                        "guardrails.toxicity_inference_completed",
+                        duration_ms=round(toxicity_check_time, 2),
+                        label=result["label"],
+                        score=result["score"],
+                        correlation_id=correlation_id,
+                        cache_hit=False,
+                        cache_size=len(_toxicity_cache),
+                    )
 
                 # Record toxicity check metric
                 if _guardrails_metrics and "toxicity_checks" in _guardrails_metrics:
@@ -545,14 +640,32 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
                                 attributes={"type": "output", "status": "blocked"},
                             )
 
+                    logger.info(
+                        "guardrails.toxic_content_blocked",
+                        label=result["label"],
+                        score=result["score"],
+                        correlation_id=correlation_id,
+                    )
                     return ValidationResponse(
                         safe=False, reason="toxic_content", filtered=text
                     )
             except Exception as e:
-                logger.warning("guardrails.toxicity_check_failed", error=str(e))
+                logger.warning(
+                    "guardrails.toxicity_check_failed",
+                    error=str(e),
+                    correlation_id=correlation_id,
+                )
 
         # PII detection and redaction
+        pii_redaction_start = time.time()
         filtered_text = _redact_pii(text)
+        pii_redaction_time = (time.time() - pii_redaction_start) * 1000
+        logger.info(
+            "guardrails.pii_redaction_completed",
+            duration_ms=round(pii_redaction_time, 2),
+            text_changed=filtered_text != text,
+            correlation_id=correlation_id,
+        )
 
         # Record PII detection metrics
         original_text = text
@@ -598,7 +711,10 @@ async def validate_output(request: ValidationRequest) -> ValidationResponse:
                 )
 
         logger.error(
-            "guardrails.output_validation_failed", error=str(e), text=request.text[:100]
+            "guardrails.output_validation_failed",
+            error=str(e),
+            text=request.text[:100],
+            correlation_id=correlation_id,
         )
         raise HTTPException(
             status_code=500, detail=f"Output validation failed: {str(e)}"

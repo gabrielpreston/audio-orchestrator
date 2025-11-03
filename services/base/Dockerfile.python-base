@@ -22,4 +22,4 @@ RUN --mount=type=cache,target=/var/cache/apt \
 COPY services/requirements-base.txt /app/requirements-base.txt
 RUN --mount=type=cache,target=/root/.cache/pip \
     python -m pip install --upgrade pip setuptools wheel && \
-    pip install -r /app/requirements-base.txt
+    pip install --no-cache-dir -r /app/requirements-base.txt

@@ -366,14 +366,19 @@ docker-push-services: ## Push service images to registry (build with 'make docke
 	@$(call ensure_docker_ghcr_auth)
 	@$(DOCKER_COMPOSE) config --images | while read image; do \
 		if [ -n "$$image" ]; then \
-			if docker image inspect "$$image" >/dev/null 2>&1; then \
-				printf "$(COLOR_YELLOW)→ Pushing $$image$(COLOR_OFF)\n"; \
-				docker push "$$image" || { \
-					printf "$(COLOR_RED)→ Error: Failed to push $$image$(COLOR_OFF)\n"; \
-					exit 1; \
-				}; \
+			# Only push images from our registry, skip community images \
+			if echo "$$image" | grep -q "^$(REGISTRY)/"; then \
+				if docker image inspect "$$image" >/dev/null 2>&1; then \
+					printf "$(COLOR_YELLOW)→ Pushing $$image$(COLOR_OFF)\n"; \
+					docker push "$$image" || { \
+						printf "$(COLOR_RED)→ Error: Failed to push $$image$(COLOR_OFF)\n"; \
+						exit 1; \
+					}; \
+				else \
+					printf "$(COLOR_YELLOW)→ Warning: Image $$image not found locally. Skipping.$(COLOR_OFF)\n"; \
+				fi; \
 			else \
-				printf "$(COLOR_YELLOW)→ Warning: Image $$image not found locally. Skipping.$(COLOR_OFF)\n"; \
+				printf "$(COLOR_CYAN)→ Skipping community image: $$image$(COLOR_OFF)\n"; \
 			fi; \
 		fi; \
 	done

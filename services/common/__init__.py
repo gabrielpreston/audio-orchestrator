@@ -1,3 +1,3 @@
 """Shared utilities for audio-orchestrator services."""
 
-__all__ = ["http_client", "logging", "model_loader"]
+__all__ = ["http_client", "logging", "model_loader", "gpu_utils"]

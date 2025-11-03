@@ -16,6 +16,10 @@ from services.common.config import (
     load_config_from_env,
 )
 from services.common.app_factory import create_service_app
+from services.common.gpu_utils import (
+    get_pytorch_cuda_info,
+    validate_cuda_runtime as validate_cuda_runtime_common,
+)
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.model_loader import BackgroundModelLoader
@@ -39,8 +43,8 @@ MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
 _model: Any = None
 # Model loader for background loading
 _model_loader: BackgroundModelLoader | None = None
-# Audio enhancer for preprocessing
-_audio_enhancer: Any = None
+# Transcript result cache for caching identical audio requests
+_transcript_cache: Any | None = None  # ResultCache[dict[str, Any]] | None
 # Audio processor client for remote enhancement
 _audio_processor_client: STTAudioProcessorClient | None = None
 # Health manager for service resilience
@@ -50,17 +54,6 @@ _observability_manager = None
 _stt_metrics: dict[str, Any] = {}
 _http_metrics: dict[str, Any] = {}
 
-# Enhancement statistics
-_enhancement_stats: dict[str, int | float | str | None] = {
-    "total_processed": 0,
-    "successful": 0,
-    "failed": 0,
-    "last_error": None,
-    "last_error_time": None,
-    "total_duration_ms": 0.0,
-    "avg_duration_ms": 0.0,
-}
-
 
 configure_logging(
     _cfg.logging.level,
@@ -68,6 +61,422 @@ configure_logging(
     service_name="stt",
 )
 logger = get_logger(__name__, service_name="stt")
+
+
+def _check_cudnn_library() -> bool:
+    """Check if required CUDNN libraries (especially libcudnn_ops) are available.
+
+    Returns:
+        True if CUDNN ops library appears to be available, False otherwise
+    """
+    import ctypes.util
+    import os
+    import sysconfig
+
+    # Strategy 1: Check file system paths first (most reliable)
+    # This checks where the Dockerfile actually installs the libraries
+    # Also check PyTorch's bundled CUDNN location (PyTorch includes CUDNN)
+    site_packages_paths = [
+        sysconfig.get_path("purelib"),
+        sysconfig.get_path("platlib"),
+    ]
+    pytorch_cudnn_paths = [
+        os.path.join(sp, "nvidia", "cudnn", "lib")
+        for sp in site_packages_paths
+        if os.path.exists(os.path.join(sp, "nvidia", "cudnn", "lib"))
+    ]
+
+    library_paths = [
+        "/usr/local/cuda/lib64",
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib",
+        "/lib/x86_64-linux-gnu",
+        "/lib",
+        *pytorch_cudnn_paths,
+    ]
+
+    # Add LD_LIBRARY_PATH paths
+    ld_path = os.environ.get("LD_LIBRARY_PATH", "")
+    if ld_path:
+        for path in ld_path.split(":"):
+            if path and path not in library_paths:
+                library_paths.append(path)
+
+    # Check each path for cudnn_ops library files
+    for lib_path in library_paths:
+        if not lib_path or not os.path.exists(lib_path):
+            continue
+        try:
+            files = os.listdir(lib_path)
+            for f in files:
+                if "cudnn_ops" in f.lower() and (f.endswith(".so") or ".so." in f):
+                    logger.debug(
+                        "stt.cudnn_ops_found",
+                        library_path=lib_path,
+                        library_file=f,
+                        phase="cudnn_detection",
+                    )
+                    return True
+        except (OSError, PermissionError, Exception) as e:
+            logger.debug(
+                "stt.cudnn_path_check_failed",
+                library_path=lib_path,
+                error=str(e),
+                phase="cudnn_detection",
+            )
+            continue
+
+    # Strategy 2: Try ctypes.util.find_library (uses system library cache)
+    # This searches standard system library paths and ldconfig cache
+    try:
+        found_lib_path: str | None = ctypes.util.find_library("cudnn_ops")
+        if found_lib_path:
+            logger.debug(
+                "stt.cudnn_ops_found_via_ctypes",
+                library_path=found_lib_path,
+                phase="cudnn_detection",
+            )
+            return True
+    except Exception as e:
+        logger.debug(
+            "stt.ctypes_find_library_failed",
+            error=str(e),
+            phase="cudnn_detection",
+        )
+
+    # Strategy 3: Try direct loading from known paths with specific version names
+    # CTranslate2 looks for version 9.x, but we check both version 9 and 8 for compatibility
+    cudnn_ops_names = [
+        "libcudnn_ops.so.9",
+        "libcudnn_ops.so.9.1",
+        "libcudnn_ops.so.9.1.0",
+        "libcudnn_ops.so.8",
+        "libcudnn_ops.so.8.9",
+        "libcudnn_ops.so.8.9.0",
+        "libcudnn_ops.so",
+    ]
+
+    for lib_name in cudnn_ops_names:
+        # Try loading from each library path
+        for lib_path in library_paths:
+            if not lib_path or not os.path.exists(lib_path):
+                continue
+            try:
+                full_path = os.path.join(lib_path, lib_name)
+                if os.path.exists(full_path):
+                    # Try to actually load the library to verify it's valid
+                    try:
+                        ctypes.CDLL(full_path)
+                        logger.debug(
+                            "stt.cudnn_ops_loaded",
+                            library_path=full_path,
+                            phase="cudnn_detection",
+                        )
+                        return True
+                    except (OSError, AttributeError) as e:
+                        logger.debug(
+                            "stt.cudnn_ops_load_failed",
+                            library_path=full_path,
+                            error=str(e),
+                            phase="cudnn_detection",
+                        )
+                        continue
+            except Exception as e:
+                logger.debug(
+                    "stt.cudnn_ops_check_failed",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    phase="cudnn_detection",
+                    message="Failed to check CUDA ops library, continuing",
+                )
+                continue
+
+    logger.debug(
+        "stt.cudnn_ops_not_found",
+        checked_paths=library_paths,
+        phase="cudnn_detection",
+    )
+    return False
+
+
+def _validate_and_adjust_cuda_device(
+    device: str, compute_type: str | None
+) -> tuple[str, str | None]:
+    """Validate CUDA availability and adjust device/compute_type if needed.
+
+    Args:
+        device: Requested device ("cuda" or "cpu")
+        compute_type: Requested compute type
+
+    Returns:
+        Tuple of (adjusted_device, adjusted_compute_type)
+    """
+    original_device = device
+    original_compute_type = compute_type
+
+    if device != "cuda":
+        logger.debug(
+            "stt.device_validation_skipped",
+            device=device,
+            reason="not_cuda",
+            phase="device_validation",
+        )
+        return device, compute_type
+
+    logger.info(
+        "stt.cuda_validation_starting",
+        requested_device=device,
+        requested_compute_type=compute_type,
+        phase="device_validation",
+    )
+
+    # CRITICAL: Check for CUDNN ops library first (required by CTranslate2)
+    # This prevents segfaults during inference
+    cudnn_available = _check_cudnn_library()
+    if not cudnn_available:
+        logger.error(
+            "stt.cudnn_ops_library_missing",
+            reason="libcudnn_ops.so not found",
+            fallback="cpu",
+            fallback_reason="cudnn_ops_library_missing",
+            note="CTranslate2 (used by faster-whisper) requires CUDNN ops library for CUDA inference",
+            phase="device_validation",
+        )
+        return "cpu", "int8"
+
+    # Check if CUDA is available via PyTorch
+    try:
+        import torch
+
+        cuda_available = torch.cuda.is_available()
+
+        if not cuda_available:
+            logger.warning(
+                "stt.cuda_not_available",
+                reason="torch.cuda.is_available() returned False",
+                fallback="cpu",
+                phase="device_validation",
+            )
+            return "cpu", "int8"  # CPU-compatible compute type
+
+        # Additional check: verify CUDA runtime actually works
+        try:
+            test_tensor = torch.zeros(1).cuda()
+            del test_tensor
+            torch.cuda.empty_cache()
+            logger.info("stt.cuda_runtime_validated", phase="device_validation")
+            # CUDA appears to work via PyTorch, but faster-whisper uses CTranslate2
+            # which may have different CUDA requirements. We'll proceed with CUDA
+            # but log a warning that CTranslate2 might still fail.
+            logger.warning(
+                "stt.cuda_pytorch_works_but_ctranslate2_may_fail",
+                note="faster-whisper uses CTranslate2 which may have different CUDA requirements",
+                phase="device_validation",
+            )
+            return device, compute_type  # CUDA is working
+        except RuntimeError as e:
+            error_str = str(e).lower()
+            # Check for specific CUDA library errors
+            if (
+                "cudnn" in error_str
+                or "invalid handle" in error_str
+                or "cuda error" in error_str
+            ):
+                logger.error(
+                    "stt.cuda_library_error_detected",
+                    error=str(e),
+                    fallback="cpu",
+                    phase="device_validation",
+                )
+                return "cpu", "int8"
+            logger.warning(
+                "stt.cuda_runtime_test_failed",
+                error=str(e),
+                fallback="cpu",
+                phase="device_validation",
+            )
+            return "cpu", "int8"
+        except Exception as e:
+            # Other CUDA-related errors (e.g., out of memory, initialization issues)
+            error_str = str(e).lower()
+            if "cudnn" in error_str or "invalid handle" in error_str:
+                logger.error(
+                    "stt.cuda_library_error_during_validation",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    fallback="cpu",
+                    phase="device_validation",
+                )
+            else:
+                logger.warning(
+                    "stt.cuda_error_during_validation",
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    fallback="cpu",
+                    phase="device_validation",
+                )
+            return "cpu", "int8"
+    except ImportError:
+        logger.warning(
+            "stt.torch_not_available", fallback="cpu", phase="device_validation"
+        )
+        return "cpu", "int8"
+    except Exception as e:
+        # Unexpected error during CUDA check
+        logger.error(
+            "stt.cuda_validation_error",
+            error=str(e),
+            error_type=type(e).__name__,
+            fallback="cpu",
+            phase="device_validation",
+        )
+        return "cpu", "int8"
+    finally:
+        # Log the final decision with more detail
+        if device != original_device or compute_type != original_compute_type:
+            logger.warning(
+                "stt.device_adjusted",
+                original_device=original_device,
+                adjusted_device=device,
+                original_compute_type=original_compute_type,
+                adjusted_compute_type=compute_type,
+                phase="device_validation",
+            )
+        elif device == "cuda":
+            # Log successful CUDA validation
+            # Get additional CUDA info for successful validation
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    logger.info(
+                        "stt.cuda_validation_successful",
+                        device=device,
+                        compute_type=compute_type,
+                        cuda_device_count=torch.cuda.device_count(),
+                        cuda_device_name=torch.cuda.get_device_name(0)
+                        if torch.cuda.device_count() > 0
+                        else None,
+                        phase="device_validation",
+                    )
+                else:
+                    logger.warning(
+                        "stt.cuda_validation_uncertain",
+                        device=device,
+                        note="Device set to CUDA but torch.cuda.is_available() is False",
+                        phase="device_validation",
+                    )
+            except ImportError:
+                logger.warning(
+                    "stt.cuda_validation_without_torch",
+                    device=device,
+                    note="PyTorch not available for CUDA validation",
+                    phase="device_validation",
+                )
+            except RuntimeError:
+                logger.debug(
+                    "stt.cuda_info_unavailable",
+                    device=device,
+                    compute_type=compute_type,
+                    phase="device_validation",
+                )
+
+
+def _validate_cuda_runtime() -> bool:
+    """Validate CUDA runtime is actually usable for inference.
+
+    Uses common utility but kept here for backward compatibility.
+
+    Returns:
+        True if CUDA is available and working, False otherwise
+    """
+    return validate_cuda_runtime_common()
+
+
+def _get_model_device_info(model: Any) -> dict[str, Any]:
+    """Get device information from the loaded faster-whisper/CTranslate2 model.
+
+    This is STT-specific because faster-whisper uses CTranslate2 which has different
+    device access patterns than standard PyTorch models.
+
+    Args:
+        model: WhisperModel instance (from faster-whisper)
+
+    Returns:
+        Dict with device information compatible with get_full_device_info format
+    """
+    # Start with PyTorch CUDA info from common utility
+    cuda_info = get_pytorch_cuda_info()
+    device_info = {
+        "actual_device": "unknown",
+        "device_verified": False,
+        "model_on_device": None,
+        **cuda_info,
+    }
+
+    # Try to get device from faster-whisper/CTranslate2 model
+    # faster-whisper uses CTranslate2 which may expose device info
+    try:
+        # Check if model has a device attribute (some versions do)
+        if hasattr(model, "device"):
+            device_value = model.device
+            if device_value:
+                device_str = str(device_value).lower()
+                device_info["model_on_device"] = device_str
+                # Extract "cuda" or "cpu" from "cuda:0" or "cpu"
+                base_device = device_str.split(":")[0]
+                device_info["actual_device"] = base_device
+                device_info["device_verified"] = True
+    except Exception as e:
+        logger.debug(
+            "stt.device_info_check_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="device_info",
+            message="Failed to check model device, continuing",
+        )
+
+    # Try to access underlying CTranslate2 model
+    try:
+        if hasattr(model, "model") and hasattr(model.model, "device"):
+            device_value = model.model.device
+            if device_value:
+                device_str = str(device_value).lower()
+                device_info["model_on_device"] = device_str
+                base_device = device_str.split(":")[0]
+                device_info["actual_device"] = base_device
+                device_info["device_verified"] = True
+    except Exception as e:
+        logger.debug(
+            "stt.device_info_ctranslate2_check_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="device_info",
+            message="Failed to check CTranslate2 model device, continuing",
+        )
+
+    # Try to check CTranslate2 translator device
+    try:
+        if hasattr(model, "model") and hasattr(model.model, "translator"):
+            translator = model.model.translator
+            if hasattr(translator, "device"):
+                device_value = translator.device
+                if device_value:
+                    device_str = str(device_value).lower()
+                    device_info["model_on_device"] = device_str
+                    base_device = device_str.split(":")[0]
+                    device_info["actual_device"] = base_device
+                    device_info["device_verified"] = True
+    except Exception as e:
+        logger.debug(
+            "stt.device_info_translator_check_failed",
+            error=str(e),
+            error_type=type(e).__name__,
+            phase="device_info",
+            message="Failed to check translator device, continuing",
+        )
+
+    return device_info
 
 
 def _load_from_cache() -> Any | None:
@@ -113,6 +522,9 @@ def _load_from_cache() -> Any | None:
     device = _cfg.faster_whisper.device
     compute_type = _cfg.faster_whisper.compute_type
 
+    # Validate CUDA availability and adjust if needed
+    device, compute_type = _validate_and_adjust_cuda_device(device, compute_type)
+
     # Validate device/compute_type compatibility
     if device == "cpu" and compute_type == "float16":
         compute_type = "int8"
@@ -125,26 +537,109 @@ def _load_from_cache() -> Any | None:
 
     load_start = time.time()
     try:
-        if compute_type:
-            model = WhisperModel(
-                local_model_path, device=device, compute_type=compute_type
-            )
-        else:
-            model = WhisperModel(local_model_path, device=device)
+        # Try to create model with the validated device
+        # If CUDA fails during initialization, catch and fallback
+        try:
+            if compute_type:
+                model = WhisperModel(
+                    local_model_path, device=device, compute_type=compute_type
+                )
+            else:
+                model = WhisperModel(local_model_path, device=device)
+        except (RuntimeError, OSError, Exception) as model_init_error:
+            error_str = str(model_init_error).lower()
+            # Check for CUDA-related errors during model initialization
+            if device == "cuda" and (
+                "cuda" in error_str
+                or "cudnn" in error_str
+                or "gpu" in error_str
+                or "invalid handle" in error_str
+                or "cuda error" in error_str
+            ):
+                logger.error(
+                    "stt.cuda_model_init_failed",
+                    error=str(model_init_error),
+                    error_type=type(model_init_error).__name__,
+                    original_device=device,
+                    original_compute_type=compute_type,
+                    fallback="cpu",
+                    phase="model_initialization",
+                )
+                # Fallback to CPU
+                device = "cpu"
+                compute_type = "int8"
+                # Retry with CPU
+                if compute_type:
+                    model = WhisperModel(
+                        local_model_path, device=device, compute_type=compute_type
+                    )
+                else:
+                    model = WhisperModel(local_model_path, device=device)
+                logger.warning(
+                    "stt.model_reloaded_with_cpu",
+                    original_device="cuda",
+                    reason="cuda_init_failed",
+                    phase="model_initialization",
+                )
+            else:
+                # Not a CUDA error, re-raise
+                raise
 
         load_duration = time.time() - load_start
         total_duration = time.time() - cache_start
+
+        # Get actual device information from the loaded model (STT-specific for CTranslate2)
+        model_device_info = _get_model_device_info(model)
+        # Merge with intended device to match common format
+        device_info = {
+            "intended_device": device,
+            **model_device_info,
+        }
 
         logger.info(
             "stt.model_loaded_from_cache",
             model_name=MODEL_NAME,
             model_path=local_model_path,
-            device=device,
-            compute_type=compute_type or "default",
+            device=device,  # Intended device
+            compute_type=compute_type or "default",  # Intended compute_type
             load_duration_ms=round(load_duration * 1000, 2),
             total_duration_ms=round(total_duration * 1000, 2),
             phase="cache_load_complete",
         )
+
+        # Log device info using common utility pattern (matches FLAN)
+        # Get config device to compare with actual
+        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
+        if config_device == "cuda" and device_info.get("actual_device") != "cuda":
+            logger.warning(
+                "stt.device_mismatch_detected",
+                intended_device=config_device,
+                actual_device=device_info.get("actual_device", "unknown"),
+                model_on_device=device_info.get("model_on_device"),
+                note="Model may have fallen back to CPU despite CUDA request",
+                phase="cache_load_complete",
+            )
+        elif config_device == "cuda" and device_info.get("actual_device") == "cuda":
+            logger.info(
+                "stt.gpu_usage_confirmed",
+                device=device_info.get("actual_device"),
+                gpu_name=device_info.get("pytorch_cuda_device_name"),
+                phase="cache_load_complete",
+            )
+
+        # Log comprehensive device info in structured format
+        logger.info(
+            "stt.model_loaded_from_cache.device_info",
+            intended_device=config_device,
+            actual_device=device_info.get("actual_device", "unknown"),
+            device_verified=device_info.get("device_verified", False),
+            model_on_device=device_info.get("model_on_device"),
+            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
+            pytorch_cuda_device_count=device_info.get("pytorch_cuda_device_count", 0),
+            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
+            phase="cache_load_complete",
+        )
+
         return model
     except Exception as e:
         load_duration = time.time() - load_start
@@ -184,6 +679,9 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
 
     device = _cfg.faster_whisper.device
     compute_type = _cfg.faster_whisper.compute_type
+
+    # Validate CUDA availability and adjust if needed
+    device, compute_type = _validate_and_adjust_cuda_device(device, compute_type)
 
     # Validate device/compute_type compatibility
     if device == "cpu" and compute_type == "float16":
@@ -272,27 +770,109 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
             phase="model_init",
         )
 
-        if compute_type:
-            model = WhisperModel(
-                model_path_or_name, device=device, compute_type=compute_type
-            )
-        else:
-            model = WhisperModel(model_path_or_name, device=device)
+        # Try to create model with the validated device
+        # If CUDA fails during initialization, catch and fallback
+        try:
+            if compute_type:
+                model = WhisperModel(
+                    model_path_or_name, device=device, compute_type=compute_type
+                )
+            else:
+                model = WhisperModel(model_path_or_name, device=device)
+        except (RuntimeError, OSError, Exception) as model_init_error:
+            error_str = str(model_init_error).lower()
+            # Check for CUDA-related errors during model initialization
+            if device == "cuda" and (
+                "cuda" in error_str
+                or "cudnn" in error_str
+                or "gpu" in error_str
+                or "invalid handle" in error_str
+                or "cuda error" in error_str
+            ):
+                logger.error(
+                    "stt.cuda_model_init_failed",
+                    error=str(model_init_error),
+                    error_type=type(model_init_error).__name__,
+                    original_device=device,
+                    original_compute_type=compute_type,
+                    fallback="cpu",
+                    phase="model_initialization",
+                )
+                # Fallback to CPU
+                device = "cpu"
+                compute_type = "int8"
+                # Retry with CPU
+                if compute_type:
+                    model = WhisperModel(
+                        model_path_or_name, device=device, compute_type=compute_type
+                    )
+                else:
+                    model = WhisperModel(model_path_or_name, device=device)
+                logger.warning(
+                    "stt.model_reloaded_with_cpu",
+                    original_device="cuda",
+                    reason="cuda_init_failed",
+                    phase="model_initialization",
+                )
+            else:
+                # Not a CUDA error, re-raise
+                raise
 
         model_init_duration = time.time() - model_init_start
         total_duration = time.time() - download_start
+
+        # Get actual device information from the loaded model (STT-specific for CTranslate2)
+        model_device_info = _get_model_device_info(model)
+        # Merge with intended device to match common format
+        device_info = {
+            "intended_device": device,
+            **model_device_info,
+        }
 
         logger.info(
             "stt.model_loaded",
             model_name=model_name,
             model_path=model_path_or_name,
             is_local=os.path.exists(os.path.join(MODEL_PATH, model_name)),
-            device=device,
-            compute_type=compute_type or "default",
+            device=device,  # Intended device
+            compute_type=compute_type or "default",  # Intended compute_type
             init_duration_ms=round(model_init_duration * 1000, 2),
             total_duration_ms=round(total_duration * 1000, 2),
             phase="download_complete",
         )
+
+        # Log device mismatch warnings and confirmations
+        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
+        if config_device == "cuda" and device_info.get("actual_device") != "cuda":
+            logger.warning(
+                "stt.device_mismatch_detected",
+                intended_device=config_device,
+                actual_device=device_info.get("actual_device", "unknown"),
+                model_on_device=device_info.get("model_on_device"),
+                note="Model may have fallen back to CPU despite CUDA request",
+                phase="download_complete",
+            )
+        elif config_device == "cuda" and device_info.get("actual_device") == "cuda":
+            logger.info(
+                "stt.gpu_usage_confirmed",
+                device=device_info.get("actual_device"),
+                gpu_name=device_info.get("pytorch_cuda_device_name"),
+                phase="download_complete",
+            )
+
+        # Log comprehensive device info in structured format
+        logger.info(
+            "stt.model_loaded.device_info",
+            intended_device=config_device,
+            actual_device=device_info.get("actual_device", "unknown"),
+            device_verified=device_info.get("device_verified", False),
+            model_on_device=device_info.get("model_on_device"),
+            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
+            pytorch_cuda_device_count=device_info.get("pytorch_cuda_device_count", 0),
+            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
+            phase="download_complete",
+        )
+
         return model
     except Exception as e:
         model_init_duration = time.time() - model_init_start
@@ -322,36 +902,11 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
         raise RuntimeError(f"model load error: {e}") from e
 
 
-def _update_enhancement_stats(
-    success: bool, duration_ms: float, error: str | None = None
-) -> None:
-    """Update enhancement statistics."""
-    global _enhancement_stats  # noqa: PLW0602
-
-    _enhancement_stats["total_processed"] = (
-        int(_enhancement_stats["total_processed"] or 0) + 1
-    )
-    _enhancement_stats["total_duration_ms"] = (
-        float(_enhancement_stats["total_duration_ms"] or 0.0) + duration_ms
-    )
-    _enhancement_stats["avg_duration_ms"] = float(
-        _enhancement_stats["total_duration_ms"] or 0.0
-    ) / int(_enhancement_stats["total_processed"] or 1)
-
-    if success:
-        _enhancement_stats["successful"] = (
-            int(_enhancement_stats["successful"] or 0) + 1
-        )
-    else:
-        _enhancement_stats["failed"] = int(_enhancement_stats["failed"] or 0) + 1
-        _enhancement_stats["last_error"] = error
-        _enhancement_stats["last_error_time"] = time.time()
-
-
 async def _startup() -> None:
     """Ensure the Whisper model is loaded before serving traffic."""
     global \
         _model_loader, \
+        _transcript_cache, \
         _audio_processor_client, \
         _observability_manager, \
         _stt_metrics, \
@@ -415,47 +970,77 @@ async def _startup() -> None:
             logger.warning("stt.audio_processor_client_init_failed", error=str(exc))
             _audio_processor_client = None
 
+        # Initialize result cache if enabled
+        global _transcript_cache
+        from services.common.result_cache import ResultCache
+
+        _transcript_cache = None
+        enable_cache = os.getenv("STT_ENABLE_CACHE", "true").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        if enable_cache:
+            max_entries = int(os.getenv("STT_CACHE_MAX_ENTRIES", "200"))
+            max_size_mb = int(os.getenv("STT_CACHE_MAX_SIZE_MB", "1000"))
+            _transcript_cache = ResultCache(
+                max_entries=max_entries,
+                max_size_mb=max_size_mb,
+                service_name="stt",
+            )
+            logger.info(
+                "stt.cache_initialized",
+                max_entries=max_entries,
+                max_size_mb=max_size_mb,
+            )
+
         # Always mark startup complete (graceful degradation)
         _health_manager.mark_startup_complete()
 
-        # Optional warmup only if model loaded successfully
-        if _model and _cfg.telemetry.stt_warmup:
+        # Pre-warm models using unified pattern (replaces telemetry-specific warmup)
+        from services.common.prewarm import prewarm_if_enabled
+        from services.common.audio import AudioProcessor
+        import tempfile
+        import numpy as np
+
+        async def _prewarm_stt() -> None:
+            """Pre-warm STT model by performing a transcription."""
+            if not _model_loader.is_loaded():
+                return
+
+            model = _model_loader.get_model()
+            if model is None:
+                return
+
+            # Generate ~300ms silence at 16kHz mono int16 (matches existing pattern)
+            samples = int(16000 * 0.3)
+            pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
+
+            # Encode to WAV using AudioProcessor to match runtime path
+            processor = AudioProcessor("stt")
+            wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp.write(wav_data)
+                tmp_path = tmp.name
+
             try:
-                import tempfile
-                import time as _time
-                import numpy as np
+                default_beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
+                _ = model.transcribe(tmp_path, beam_size=default_beam_size)
+            finally:
+                from contextlib import suppress
+                import os
 
-                # Generate ~300ms silence at 16kHz mono int16
-                samples = int(16000 * 0.3)
-                pcm = (np.zeros(samples, dtype=np.int16)).tobytes()
+                with suppress(Exception):
+                    os.unlink(tmp_path)
 
-                # Encode to WAV using AudioProcessor to match runtime path
-                from services.common.audio import AudioProcessor
-
-                processor = AudioProcessor("stt")
-                wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
-                warm_start = _time.perf_counter()
-                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                    tmp.write(wav_data)
-                    tmp_path = tmp.name
-                try:
-                    model = _lazy_load_model()
-                    default_beam_size = (
-                        getattr(_cfg.faster_whisper, "beam_size", 5) or 5
-                    )
-                    _ = model.transcribe(tmp_path, beam_size=default_beam_size)
-                except Exception as _exc:  # best-effort
-                    logger.debug("stt.warmup_skipped", reason=str(_exc))
-                finally:
-                    from contextlib import suppress
-                    import os as _os
-
-                    with suppress(Exception):
-                        _os.unlink(tmp_path)
-                warm_ms = int((_time.perf_counter() - warm_start) * 1000)
-                logger.info("stt.warmup_ms", value=warm_ms)
-            except Exception as warmup_exc:
-                logger.warning("stt.warmup_failed", error=str(warmup_exc))
+        await prewarm_if_enabled(
+            _prewarm_stt,
+            "stt",
+            logger,
+            model_loader=_model_loader,
+            health_manager=_health_manager,
+        )
 
     except Exception as exc:
         logger.error("stt.startup_failed", error=str(exc))
@@ -472,6 +1057,25 @@ app = create_service_app(
 )
 
 
+def _get_stt_device_info() -> dict[str, Any]:
+    """Get current STT service device information for health checks."""
+    intended_device = _cfg.faster_whisper.device if _cfg else "unknown"
+
+    # Get actual device from loaded model (STT-specific for CTranslate2)
+    import contextlib
+
+    model_device_info = {}
+    if _model is not None:
+        with contextlib.suppress(Exception):
+            model_device_info = _get_model_device_info(_model)
+
+    # Merge to match common format
+    return {
+        "intended_device": intended_device,
+        **model_device_info,
+    }
+
+
 # Initialize health endpoints
 health_endpoints = HealthEndpoints(
     service_name="stt",
@@ -479,11 +1083,8 @@ health_endpoints = HealthEndpoints(
     custom_components={
         "model_loaded": lambda: _model_loader.is_loaded() if _model_loader else False,
         "model_name": lambda: MODEL_NAME,
-        "enhancer_loaded": lambda: _audio_enhancer is not None,
-        "enhancer_enabled": lambda: (
-            _audio_enhancer.is_enhancement_enabled if _audio_enhancer else False
-        ),
         "audio_processor_client_loaded": lambda: _audio_processor_client is not None,
+        "device_info": _get_stt_device_info,  # Add device info component
     },
     custom_dependencies={
         "audio_processor": lambda: _audio_processor_client is not None,
@@ -585,15 +1186,38 @@ async def _transcribe_request(
 
         correlation_id = generate_stt_correlation_id()
 
+    # Generate cache key before correlation_context (needed for cache.put at end)
+    # Apply audio enhancement if enabled (before cache check)
+    wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
+    # Generate cache key from audio bytes (convert to hex string for hashing)
+    import hashlib
+
+    cache_key = hashlib.sha256(wav_bytes).hexdigest()
+
+    # Check cache before transcription
+    if _transcript_cache:
+        cached_result = _transcript_cache.get(cache_key)
+        if cached_result:
+            # Add correlation_id to cached response if not present
+            if correlation_id and "correlation_id" not in cached_result:
+                cached_result["correlation_id"] = correlation_id
+            cache_stats = _transcript_cache.get_stats()
+            # Log cache hit with correlation context
+            with correlation_context(correlation_id) as request_logger:
+                request_logger.info(
+                    "stt.cache_hit",
+                    cache_key=cache_key[:16],
+                    correlation_id=correlation_id,
+                    cache_hit_rate=round(cache_stats["hit_rate"], 3),
+                )
+            return JSONResponse(cached_result)
+
     with correlation_context(correlation_id) as request_logger:
         # Top-level timing for the request (includes validation, file I/O, model work)
         req_start = time.time()
 
         if not wav_bytes:
             raise HTTPException(status_code=400, detail="empty request body")
-
-        # Apply audio enhancement if enabled (correlation_id now properly resolved)
-        wav_bytes = await _enhance_audio_if_enabled(wav_bytes, correlation_id)
 
         channels, _sampwidth, framerate = _extract_audio_metadata(wav_bytes)
 
@@ -698,17 +1322,45 @@ async def _transcribe_request(
         # implementations accept a word_timestamps=True parameter).
         # measure server-side processing time (model inference portion)
         proc_start = time.time()
+
+        # Get device info for logging (STT-specific for CTranslate2)
+        device_info = {}
+        if model:
+            try:
+                model_device_info = _get_model_device_info(model)
+                device_info = {
+                    "intended_device": device,
+                    **model_device_info,
+                }
+            except Exception:
+                device_info = {
+                    "intended_device": device,
+                    "actual_device": "unknown",
+                }
+
         request_logger.info(
             "stt.processing_started",
             correlation_id=correlation_id,
             model=MODEL_NAME,
-            device=device,
             input_bytes=input_bytes,
             beam_size=beam_size,
             language=language,
             task=task,
             include_word_timestamps=include_word_ts,
             decision="starting_transcription_inference",
+        )
+
+        # Log device info
+        request_logger.info(
+            "stt.processing_started.device_info",
+            correlation_id=correlation_id,
+            intended_device=device_info.get("intended_device"),
+            actual_device=device_info.get("actual_device", "unknown"),
+            device_verified=device_info.get("device_verified", False),
+            model_on_device=device_info.get("model_on_device"),
+            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
+            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
+            phase="inference_start",
         )
         transcribe_kwargs: dict[str, object] = {"beam_size": beam_size}
         if task == "translate":
@@ -721,7 +1373,81 @@ async def _transcribe_request(
             transcribe_kwargs["vad_filter"] = True
         if initial_prompt:
             transcribe_kwargs["initial_prompt"] = initial_prompt
-        raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
+
+        # Validate CUDA runtime before inference if using CUDA
+        if device == "cuda" and not _validate_cuda_runtime():
+            request_logger.error(
+                "stt.cuda_runtime_unavailable_at_inference",
+                correlation_id=correlation_id,
+                actual_device=device_info.get("actual_device", "unknown"),
+                decision="cuda_validation_failed",
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="CUDA runtime unavailable. Model may need to be reloaded with CPU device.",
+            )
+
+        inference_start = time.time()
+        try:
+            raw_segments, info = model.transcribe(tmp_path, **transcribe_kwargs)
+            inference_duration = time.time() - inference_start
+
+            # Log successful inference with device confirmation
+            request_logger.info(
+                "stt.inference_completed",
+                correlation_id=correlation_id,
+                inference_duration_ms=round(inference_duration * 1000, 2),
+                decision="inference_success",
+            )
+
+            # Log device info
+            request_logger.info(
+                "stt.inference_completed.device_info",
+                correlation_id=correlation_id,
+                intended_device=device_info.get("intended_device"),
+                actual_device=device_info.get("actual_device", "unknown"),
+                model_on_device=device_info.get("model_on_device"),
+                phase="inference_complete",
+            )
+        except (RuntimeError, OSError) as e:
+            inference_duration = time.time() - inference_start
+            error_str = str(e).lower()
+            # Check if this is a CUDA-related error
+            if any(
+                keyword in error_str
+                for keyword in ["cuda", "cudnn", "gpu", "cuda error", "invalid handle"]
+            ):
+                request_logger.error(
+                    "stt.cuda_inference_error",
+                    correlation_id=correlation_id,
+                    error=str(e),
+                    error_type=type(e).__name__,
+                    intended_device=device_info.get("intended_device"),
+                    actual_device=device_info.get("actual_device", "unknown"),
+                    model_on_device=device_info.get("model_on_device"),
+                    inference_duration_ms=round(inference_duration * 1000, 2),
+                    decision="cuda_inference_failed",
+                )
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"CUDA inference failed: {str(e)}. Service may need CPU device configuration.",
+                ) from e
+            # Re-raise non-CUDA errors
+            raise
+        except Exception as e:
+            inference_duration = time.time() - inference_start
+            # Log other errors but don't assume they're CUDA-related
+            request_logger.error(
+                "stt.inference_error",
+                correlation_id=correlation_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                intended_device=device_info.get("intended_device"),
+                actual_device=device_info.get("actual_device", "unknown"),
+                model_on_device=device_info.get("model_on_device"),
+                inference_duration_ms=round(inference_duration * 1000, 2),
+            )
+            raise
         # faster-whisper may return a generator/iterator for segments; convert
         # to a list so we can iterate it multiple times (build text and
         # optionally include word-level timestamps).
@@ -843,19 +1569,26 @@ async def _transcribe_request(
         headers["X-Total-Time-ms"] = str(resp["total_ms"])
     if "input_bytes" in resp:
         headers["X-Input-Bytes"] = str(resp["input_bytes"])
-    request_logger.info(
-        "stt.response_ready",
-        correlation_id=correlation_id,
-        text_length=len(resp.get("text", "")),
-        processing_ms=resp.get("processing_ms"),
-        total_ms=resp.get("total_ms"),
-    )
-    if resp.get("text"):
-        request_logger.debug(
-            "stt.transcription_text",
+
+    # Cache result after successful transcription
+    if _transcript_cache:
+        _transcript_cache.put(cache_key, resp)
+
+    # Log response ready with correlation context
+    with correlation_context(correlation_id) as request_logger:
+        request_logger.info(
+            "stt.response_ready",
             correlation_id=correlation_id,
-            text=resp["text"],
+            text_length=len(resp.get("text", "")),
+            processing_ms=resp.get("processing_ms"),
+            total_ms=resp.get("total_ms"),
         )
+        if resp.get("text"):
+            request_logger.debug(
+                "stt.transcription_text",
+                correlation_id=correlation_id,
+                text=resp["text"],
+            )
     return JSONResponse(resp, headers=headers)
 
 
@@ -880,164 +1613,89 @@ async def asr(request: Request) -> JSONResponse:
 async def _enhance_audio_if_enabled(
     wav_bytes: bytes, correlation_id: str | None = None
 ) -> bytes:
-    """Apply audio enhancement if enabled.
+    """Apply audio enhancement via remote audio processor service if available.
+
+    This function attempts to enhance audio using MetricGAN+ (GPU-accelerated ML model)
+    from the audio processor service. Enhancement is optional and gracefully degrades
+    if the service is unavailable.
+
+    Enhancement improves transcription accuracy by:
+    - Noise reduction (MetricGAN+ ML model)
+    - High-pass filtering (80Hz cutoff)
+    - Volume normalization
+
+    Architecture Note:
+    - Frame-level processing (Discord): Lightweight VAD + normalization only
+    - Segment-level enhancement (STT): Heavy MetricGAN+ ML processing
+    - GPU isolation: Audio processor has separate GPU for MetricGAN+
 
     Args:
-        wav_bytes: WAV format audio
+        wav_bytes: WAV format audio (16kHz, mono, 16-bit PCM expected)
         correlation_id: Optional correlation ID for request tracking
 
     Returns:
-        Enhanced WAV audio or original if enhancement disabled
+        Enhanced WAV audio if enhancement succeeded, original audio otherwise
     """
-    # Use context-aware logger that will auto-bind correlation_id from context if available
     from services.common.structured_logging import get_logger
 
     enhance_logger = get_logger(
         __name__, correlation_id=correlation_id, service_name="stt"
     )
 
-    # Try remote audio processor first
-    if _audio_processor_client is not None:
-        enhance_logger.info(
-            "stt.enhancement_decision",
+    # Only attempt enhancement if audio processor client is available
+    if _audio_processor_client is None:
+        enhance_logger.debug(
+            "stt.enhancement_skipped",
             correlation_id=correlation_id,
-            decision="attempt_remote_enhancement",
-            input_size=len(wav_bytes),
-            enhancement_method="remote_audio_processor",
-        )
-        try:
-            enhanced_wav: bytes = await _audio_processor_client.enhance_audio(
-                wav_bytes, correlation_id
-            )
-            if enhanced_wav != wav_bytes:  # Enhancement was applied
-                enhance_logger.info(
-                    "stt.audio_enhanced_remote",
-                    correlation_id=correlation_id,
-                    input_size=len(wav_bytes),
-                    output_size=len(enhanced_wav),
-                    decision="remote_enhancement_applied",
-                )
-                return enhanced_wav
-            else:
-                enhance_logger.info(
-                    "stt.enhancement_decision",
-                    correlation_id=correlation_id,
-                    decision="remote_returned_original",
-                    reason="no_enhancement_applied_by_service",
-                    input_size=len(wav_bytes),
-                )
-        except Exception as exc:
-            enhance_logger.warning(
-                "stt.remote_enhancement_failed",
-                correlation_id=correlation_id,
-                error=str(exc),
-                decision="remote_enhancement_failed_fallback_to_local",
-            )
-
-    # Fallback to local enhancement
-    if _audio_enhancer is None or not _audio_enhancer.is_enhancement_enabled:
-        enhance_logger.info(
-            "stt.enhancement_decision",
-            correlation_id=correlation_id,
-            decision="skip_enhancement",
-            reason="local_enhancer_not_available"
-            if _audio_enhancer is None
-            else "enhancement_disabled",
-            enhancement_enabled=_audio_enhancer.is_enhancement_enabled
-            if _audio_enhancer
-            else False,
+            reason="audio_processor_client_not_available",
+            decision="skip_enhancement_use_original",
         )
         return wav_bytes
 
-    # Attempt local enhancement
+    # Attempt remote enhancement via audio processor service
     enhance_logger.info(
-        "stt.enhancement_decision",
+        "stt.enhancement_attempting",
         correlation_id=correlation_id,
-        decision="attempt_local_enhancement",
         input_size=len(wav_bytes),
-        enhancement_method="local_metricgan",
+        enhancement_method="remote_metricgan_plus",
+        decision="attempting_remote_enhancement",
     )
 
-    start_time = time.time()
-
     try:
-        import numpy as np
-
-        from services.common.audio import AudioProcessor
-
-        # Convert WAV to numpy array
-        processor = AudioProcessor("stt")
-        pcm_data, metadata = processor.wav_to_pcm(wav_bytes)
-
-        # Convert PCM to float32 array
-        audio_np = np.frombuffer(pcm_data, dtype=np.int16).astype(np.float32)
-        audio_np = audio_np / 32768.0  # Normalize to [-1, 1]
-
-        # Apply high-pass filter
-        filtered = _audio_enhancer.apply_high_pass_filter(
-            audio_np,
-            sample_rate=metadata.sample_rate,
+        enhanced_wav: bytes = await _audio_processor_client.enhance_audio(
+            wav_bytes, correlation_id
         )
 
-        # Apply MetricGAN+ enhancement
-        enhanced = _audio_enhancer.enhance_audio(
-            filtered,
-            sample_rate=metadata.sample_rate,
-        )
-
-        # Convert back to int16 PCM
-        enhanced_int16 = (enhanced * 32768.0).astype(np.int16)
-        enhanced_pcm = enhanced_int16.tobytes()
-
-        # Convert back to WAV
-        local_enhanced_wav: bytes = processor.pcm_to_wav(
-            enhanced_pcm,
-            sample_rate=metadata.sample_rate,
-            channels=metadata.channels,
-            sample_width=metadata.sample_width,
-        )
-
-        # Calculate enhancement duration
-        enhancement_duration = (time.time() - start_time) * 1000
-
-        # Log successful enhancement with metrics
-        enhance_logger.info(
-            "stt.audio_enhanced_local",
-            correlation_id=correlation_id,
-            input_size=len(wav_bytes),
-            output_size=len(local_enhanced_wav),
-            enhancement_duration_ms=enhancement_duration,
-            sample_rate=metadata.sample_rate,
-            channels=metadata.channels,
-            decision="local_enhancement_applied",
-        )
-
-        # Update enhancement statistics
-        _update_enhancement_stats(success=True, duration_ms=enhancement_duration)
-
-        return local_enhanced_wav
+        # Check if enhancement was actually applied
+        if enhanced_wav != wav_bytes:
+            enhance_logger.info(
+                "stt.enhancement_successful",
+                correlation_id=correlation_id,
+                input_size=len(wav_bytes),
+                output_size=len(enhanced_wav),
+                decision="enhancement_applied",
+            )
+            return enhanced_wav
+        else:
+            # Audio processor returned original (enhancement not applied or disabled)
+            enhance_logger.info(
+                "stt.enhancement_not_applied",
+                correlation_id=correlation_id,
+                reason="audio_processor_returned_original",
+                decision="using_original_audio",
+            )
+            return wav_bytes
 
     except Exception as exc:
-        # Calculate error duration
-        error_duration = (time.time() - start_time) * 1000
-
-        # Log error with enhanced context
-        enhance_logger.error(
-            "stt.enhancement_error",
+        # Enhancement failed - gracefully degrade to original audio
+        enhance_logger.warning(
+            "stt.enhancement_failed",
             correlation_id=correlation_id,
             error=str(exc),
             error_type=type(exc).__name__,
-            input_size=len(wav_bytes),
-            error_duration_ms=error_duration,
-            fallback_used=True,
+            decision="enhancement_failed_using_original",
+            fallback="original_audio",
         )
-
-        # Update enhancement statistics
-        _update_enhancement_stats(
-            success=False, duration_ms=error_duration, error=str(exc)
-        )
-
-        # Fallback to original audio
         return wav_bytes
 
 

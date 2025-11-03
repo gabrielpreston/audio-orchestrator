@@ -61,7 +61,20 @@ def timeouts():
 
 @pytest.fixture
 def sample_audio_bytes() -> bytes:
-    """Generate sample audio as bytes for HTTP requests."""
+    """Generate sample audio as bytes for HTTP requests.
+
+    Tries to load real speech sample if available, otherwise uses synthetic audio.
+    """
+    from pathlib import Path
+
+    # Try to load real speech sample
+    fixtures_dir = Path(__file__).parent.parent / "fixtures" / "audio"
+    speech_file = fixtures_dir / "spoken_english.wav"
+
+    if speech_file.exists():
+        return speech_file.read_bytes()
+
+    # Fallback to synthetic audio
     pcm_data = generate_test_audio(duration=2.0, frequency=440.0, amplitude=0.5)
     return create_wav_file(pcm_data, sample_rate=16000, channels=1)
 

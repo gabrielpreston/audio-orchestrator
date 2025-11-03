@@ -9,9 +9,7 @@ WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir \
     "torchmetrics>=0.11,<1.0" \
-    "pytorch-lightning>=2.0,<3.0" && \
-    # Clean up pip cache to save disk space
-    pip cache purge || true
+    "pytorch-lightning>=2.0,<3.0"
 
 # Set environment variables for PyTorch optimization
 ENV TORCH_CUDA_ARCH_LIST=""

@@ -4,3 +4,6 @@
 # Bark TTS specific dependencies
 # NOTE: bark, scipy, numpy are now included in the python-ml base image
 # Only add service-specific dependencies here
+
+# Note: Better Transformer optimization removed - deprecated in Optimum 2.0.0+
+# Replaced with torch.compile() which provides similar performance gains (20-40% speedup)
