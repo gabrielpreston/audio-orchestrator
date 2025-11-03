@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from pydantic import BaseModel
 
 from services.common.app_factory import create_service_app
 from services.common.config import (
@@ -97,19 +96,6 @@ ORCHESTRATOR_BASE_URL = get_env_with_default(
     "ORCHESTRATOR_BASE_URL", "http://orchestrator:8200", str
 )
 TTS_BASE_URL = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
-
-
-class TranscriptRequest(BaseModel):
-    """Request model for transcript processing."""
-
-    transcript: str
-
-
-class TranscriptResponse(BaseModel):
-    """Response model for transcript processing."""
-
-    response: str
-    metadata: dict[str, Any] | None = None
 
 
 async def run_pipeline(
