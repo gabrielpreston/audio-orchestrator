@@ -71,6 +71,8 @@ class VoiceBot(discord.Client):
         wake_detector: WakeDetector,
         transcript_publisher: TranscriptPublisher,
         metrics: dict[str, Any] | None = None,
+        stt_health_check: Callable[[], Awaitable[bool]] | None = None,
+        orchestrator_health_check: Callable[[], Awaitable[bool]] | None = None,
     ) -> None:
         intents = self._build_intents(config.discord)
         super().__init__(intents=intents)
@@ -92,12 +94,17 @@ class VoiceBot(discord.Client):
         self._voice_reconnect_tasks: dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: set[int] = set()
 
-        # Health manager for service resilience
+        # Health manager for service resilience (follows project HealthManager pattern)
         self._health_manager = HealthManager("discord")
-        self._required_services = {
-            "stt": self.config.stt.base_url,
-            "orchestrator": "http://orchestrator:8200",  # Default orchestrator URL
-        }
+
+        # Register dependencies with HealthManager (standard pattern across all services)
+        # Health checks are provided as callbacks from app.py which uses ResilientHTTPClient
+        if stt_health_check is not None:
+            self._health_manager.register_dependency("stt", stt_health_check)
+        if orchestrator_health_check is not None:
+            self._health_manager.register_dependency(
+                "orchestrator", orchestrator_health_check
+            )
 
         # Initialize orchestrator client
         self._orchestrator_client = OrchestratorClient()
@@ -607,43 +614,28 @@ class VoiceBot(discord.Client):
         finally:
             self._logger.debug("voice.idle_flush_loop_stopped")
 
-    async def _wait_for_dependencies(self, timeout: float = 300.0) -> bool:
-        """Wait for critical services to be ready before processing."""
+    async def _segment_consumer(self) -> None:
+        """Consumer that checks dependencies via HealthManager (standard pattern).
+
+        Uses HealthManager.check_ready() to verify dependencies are available before processing.
+        This follows the same pattern as all other services in the project.
+        """
+        # Wait for dependencies to be ready (aligned with HealthManager pattern)
+        # HealthManager uses ResilientHTTPClient with exponential backoff and caching
+        timeout = 300.0
         start = asyncio.get_event_loop().time()
 
-        for service_name, base_url in self._required_services.items():
-            self._logger.info(
-                "service.waiting_for_dependency", dependency=service_name, url=base_url
+        while asyncio.get_event_loop().time() - start < timeout:
+            if await self._health_manager.check_ready():
+                self._logger.info("service.dependencies_ready")
+                break
+            await asyncio.sleep(2.0)
+        else:
+            self._logger.error(
+                "service.dependency_timeout",
+                timeout=timeout,
+                message="Dependencies not ready within timeout, consumer exiting",
             )
-
-            while asyncio.get_event_loop().time() - start < timeout:
-                try:
-                    async with httpx.AsyncClient() as client:
-                        response = await client.get(
-                            f"{base_url}/health/ready", timeout=5.0
-                        )
-                        if response.status_code == 200:
-                            self._logger.info(
-                                "service.dependency_ready", dependency=service_name
-                            )
-                            break
-                except Exception:
-                    await asyncio.sleep(5.0)
-            else:
-                self._logger.error(
-                    "service.dependency_timeout",
-                    dependency=service_name,
-                    timeout=timeout,
-                )
-                return False
-
-        return True
-
-    async def _segment_consumer(self) -> None:
-        """Consumer with dependency wait."""
-        # Wait for STT to be ready before processing
-        if not await self._wait_for_dependencies():
-            self._logger.error("service.startup_failed_dependencies")
             return
 
         await asyncio.sleep(0)

@@ -374,6 +374,62 @@ def _uvicorn_access_processor(
     return event_dict
 
 
+class HealthCheckFilter(logging.Filter):
+    """Filter to reduce health check spam in uvicorn access logs.
+
+    Health check endpoints are called frequently by monitoring tools and don't
+    need to be logged at INFO level. This filter:
+    - Suppresses health check logs when status is 200 (healthy)
+    - Suppresses health check logs when status is 503 (expected during startup/dependency unready)
+    - Allows other endpoints through normally
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Filter health check logs based on path and status code."""
+        # Check if structured fields are already available (from processor)
+        path = getattr(record, "path", None)
+        status_code = getattr(record, "status_code", None)
+
+        # If not available as attributes, try parsing from message
+        if path is None or status_code is None:
+            message = getattr(record, "msg", "")
+            if not isinstance(message, str):
+                # If msg is a format string with args, get the formatted message
+                try:
+                    message = record.getMessage()
+                except Exception:
+                    return True  # Can't parse, allow through
+
+            # Check if this looks like an access log and parse it
+            if '"' in message and "HTTP" in message:
+                parsed = _parse_uvicorn_access_log(message)
+                path = parsed.get("path")
+                status_code = parsed.get("status_code")
+                # Ensure status_code is an int for comparison
+                if status_code is not None:
+                    try:
+                        status_code = int(status_code)
+                    except (ValueError, TypeError):
+                        status_code = None
+            else:
+                # Not an access log format, allow through
+                return True
+
+        # Filter health check endpoints
+        if path and path.startswith("/health/"):
+            # Ensure status_code is comparable
+            if status_code is None:
+                return True  # Can't determine status, allow through
+            # Suppress successful health checks (200) - these are noise
+            if status_code == 200:
+                return False
+            # Suppress 503 during startup/degraded - expected behavior, too noisy
+            if status_code == 503:
+                return False
+
+        return True
+
+
 def _configure_uvicorn_access_logger(
     stream: IO[str], json_logs: bool, service_name: str | None
 ) -> None:
@@ -391,6 +447,9 @@ def _configure_uvicorn_access_logger(
     access_logger = logging.getLogger("uvicorn.access")
     access_logger.setLevel(logging.INFO)
     access_logger.propagate = False  # Prevent double logging through root logger
+
+    # Add filter to reduce health check spam
+    access_logger.addFilter(HealthCheckFilter())
 
     # Shared processors for access logs (process stdlib logs into structured format)
     shared_processors = [
@@ -419,6 +478,8 @@ def _configure_uvicorn_access_logger(
             processors=formatter_processors,
         )
     )
+    # Also add filter to handler (defense in depth)
+    handler.addFilter(HealthCheckFilter())
 
     # Clear existing handlers and add our structured handler
     access_logger.handlers = [handler]

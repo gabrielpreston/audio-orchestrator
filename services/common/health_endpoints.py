@@ -25,7 +25,7 @@ class HealthEndpoints:
         custom_components: dict[str, Any] | None = None,
         custom_dependencies: dict[str, Callable[[], Any]] | None = None,
         # Optimization parameters (sane defaults)
-        dependency_cache_ttl_seconds: float = 3.0,
+        dependency_cache_ttl_seconds: float = 10.0,
         dependency_check_timeout_seconds: float = 2.0,
         dependency_retry_attempts: int = 1,
         dependency_retry_backoff_seconds: float = 0.2,

@@ -32,7 +32,11 @@ class HealthCheck:
 class HealthManager:
     """Manages service health state and dependency checks."""
 
-    def __init__(self, service_name: str):
+    def __init__(
+        self,
+        service_name: str,
+        dependency_cache_ttl_seconds: float = 10.0,
+    ):
         self._service_name = service_name
         self._dependencies: dict[str, Callable[[], Any]] = {}
         self._startup_complete = False
@@ -45,6 +49,15 @@ class HealthManager:
         self._health_status_gauge: Any | None = None
         self._dependency_status_gauge: Any | None = None
         self._last_dependency_states: dict[str, bool] = {}
+
+        # Dependency check caching to prevent excessive health check calls
+        self._dep_cache_ttl = max(0.0, dependency_cache_ttl_seconds)
+        self._dep_cache: dict[
+            str, dict[str, Any]
+        ] = {}  # name -> {"result": bool, "ts": float}
+        self._dep_locks: dict[
+            str, asyncio.Lock
+        ] = {}  # per-dependency locks to avoid stampede
 
     def set_observability_manager(self, observability_manager: Any) -> None:
         """Set the observability manager for metrics."""
@@ -156,64 +169,122 @@ class HealthManager:
                 )
 
             ready = True
-            dependency_status = {}
-            failing_dependencies = []
+            dependency_status: dict[str, dict[str, Any]] = {}
+            failing_dependencies: list[str] = []
 
             for name, check in self._dependencies.items():
-                try:
-                    if asyncio.iscoroutinefunction(check):
-                        is_healthy = await check()
-                    else:
-                        is_healthy = check()
-
+                # Check cache first to avoid excessive health checks
+                now_monotonic = time.monotonic()
+                cached = self._dep_cache.get(name)
+                if (
+                    cached is not None
+                    and (now_monotonic - float(cached.get("ts", 0.0)))
+                    < self._dep_cache_ttl
+                ):
+                    # Use cached result
+                    is_healthy = bool(cached.get("result"))
                     dependency_status[name] = {
                         "available": is_healthy,
                         "checked_at": time.time(),
+                        "cached": True,
                     }
-
-                    # Update dependency metric using OpenTelemetry
-                    if self._dependency_status_gauge:
-                        self._dependency_status_gauge.add(
-                            1 if is_healthy else 0,
-                            attributes={
-                                "service": self._service_name,
-                                "dependency": name,
-                            },
-                        )
-
                     if not is_healthy:
                         failing_dependencies.append(name)
                         ready = False
-                except Exception as exc:
-                    elapsed_since_startup = time.time() - self._startup_time
-                    dependency_status[name] = {
-                        "available": False,
-                        "error": f"{type(exc).__name__}: {str(exc)}",
-                        "error_type": type(exc).__name__,
-                        "checked_at": time.time(),
-                    }
-                    failing_dependencies.append(name)
-                    ready = False
-                    if self._dependency_status_gauge:
-                        self._dependency_status_gauge.add(
-                            0,
-                            attributes={
-                                "service": self._service_name,
-                                "dependency": name,
-                            },
+                    continue
+
+                # Acquire per-dependency lock to prevent concurrent checks
+                lock = self._dep_locks.setdefault(name, asyncio.Lock())
+                async with lock:
+                    # Re-check cache inside lock (another call may have updated it)
+                    cached = self._dep_cache.get(name)
+                    now_monotonic = time.monotonic()
+                    if (
+                        cached is not None
+                        and (now_monotonic - float(cached.get("ts", 0.0)))
+                        < self._dep_cache_ttl
+                    ):
+                        is_healthy = bool(cached.get("result"))
+                        dependency_status[name] = {
+                            "available": is_healthy,
+                            "checked_at": time.time(),
+                            "cached": True,
+                        }
+                        if not is_healthy:
+                            failing_dependencies.append(name)
+                            ready = False
+                        continue
+
+                    # Perform actual dependency check
+                    try:
+                        if asyncio.iscoroutinefunction(check):
+                            is_healthy = await check()
+                        else:
+                            is_healthy = check()
+
+                        # Cache the result
+                        self._dep_cache[name] = {
+                            "result": bool(is_healthy),
+                            "ts": now_monotonic,
+                        }
+
+                        dependency_status[name] = {
+                            "available": is_healthy,
+                            "checked_at": time.time(),
+                            "cached": False,
+                        }
+
+                        # Update dependency metric using OpenTelemetry
+                        if self._dependency_status_gauge:
+                            self._dependency_status_gauge.add(
+                                1 if is_healthy else 0,
+                                attributes={
+                                    "service": self._service_name,
+                                    "dependency": name,
+                                },
+                            )
+
+                        if not is_healthy:
+                            failing_dependencies.append(name)
+                            ready = False
+                    except Exception as exc:
+                        # Cache failure result
+                        self._dep_cache[name] = {
+                            "result": False,
+                            "ts": now_monotonic,
+                        }
+                        elapsed_since_startup = time.time() - self._startup_time
+                        dependency_status[name] = {
+                            "available": False,
+                            "error": f"{type(exc).__name__}: {str(exc)}",
+                            "error_type": type(exc).__name__,
+                            "checked_at": time.time(),
+                            "cached": False,
+                        }
+                        failing_dependencies.append(name)
+                        ready = False
+                        if self._dependency_status_gauge:
+                            self._dependency_status_gauge.add(
+                                0,
+                                attributes={
+                                    "service": self._service_name,
+                                    "dependency": name,
+                                },
+                            )
+                        # Determine log level based on startup phase
+                        # Errors during first 60 seconds might be expected (services starting)
+                        is_startup_phase = elapsed_since_startup < 60.0
+                        log_level = "debug" if is_startup_phase else "warning"
+                        getattr(self._logger, log_level)(
+                            "health.dependency_error",
+                            dependency=name,
+                            error=str(exc),
+                            error_type=type(exc).__name__,
+                            elapsed_since_startup_seconds=round(
+                                elapsed_since_startup, 1
+                            ),
+                            is_startup_phase=is_startup_phase,
                         )
-                    # Determine log level based on startup phase
-                    # Errors during first 60 seconds might be expected (services starting)
-                    is_startup_phase = elapsed_since_startup < 60.0
-                    log_level = "debug" if is_startup_phase else "warning"
-                    getattr(self._logger, log_level)(
-                        "health.dependency_error",
-                        dependency=name,
-                        error=str(exc),
-                        error_type=type(exc).__name__,
-                        elapsed_since_startup_seconds=round(elapsed_since_startup, 1),
-                        is_startup_phase=is_startup_phase,
-                    )
 
             # Only log dependency warnings when status changes
             current_failing = set(failing_dependencies)
@@ -238,8 +309,8 @@ class HealthManager:
                     )
 
             # Update last known states - extract available bool for state tracking
-            current_states = {
-                name: status.get("available", False)
+            current_states: dict[str, bool] = {
+                name: bool(status.get("available", False))
                 for name, status in dependency_status.items()
             }
             self._last_dependency_states = current_states

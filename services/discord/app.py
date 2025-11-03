@@ -73,12 +73,15 @@ async def _start_discord_bot(config: Any, observability_manager: Any) -> None:
         transcript_publisher = _create_transcript_publisher()
 
         # Create VoiceBot instance
+        # Pass health check callbacks to use HealthManager pattern (aligned with all services)
         bot = VoiceBot(
             config,
             audio_processor_wrapper,
             wake_detector,
             transcript_publisher,
             metrics=_audio_metrics,
+            stt_health_check=_check_stt_health,
+            orchestrator_health_check=_check_orchestrator_health,
         )
 
         # Share the observability manager with the bot's health manager
