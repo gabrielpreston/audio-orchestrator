@@ -42,6 +42,15 @@ The STT service exposes an HTTP transcription API optimized for low-latency stre
 -  Use `make logs SERVICE=stt` to confirm model warmup and request throughput.
 -  Monitor `/metrics` for latency histograms if Prometheus scraping is enabled.
 
+## Audio Processing
+
+The STT service processes incoming WAV audio using temporary files with automatic cleanup:
+
+-  **In-Memory Buffer Approach**: Incoming WAV bytes are written to temporary files using `NamedTemporaryFile` with automatic deletion (`delete=True`)
+-  **Automatic Cleanup**: Files are automatically deleted when the context manager exits, even on exceptions, eliminating manual cleanup code
+-  **Optimized I/O**: File size is calculated from the input buffer rather than filesystem stat calls for improved performance
+-  **Model Compatibility**: faster-whisper requires file paths (not file-like objects), so temporary files are necessary but cleaned up efficiently
+
 ## Dependencies
 
 -  Receives audio from `services/discord` and returns transcripts to `services/orchestrator` via the bot.

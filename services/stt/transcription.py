@@ -255,6 +255,7 @@ async def execute_inference(
     validate_cuda_runtime_func: Any,
     get_model_device_info_func: Any,
     request_logger: Any,
+    input_bytes: int,
 ) -> tuple[list[Any], Any, dict[str, Any], float]:
     """Execute faster-whisper transcription inference.
 
@@ -268,6 +269,7 @@ async def execute_inference(
         validate_cuda_runtime_func: Function to validate CUDA (from app.py)
         get_model_device_info_func: Function to get device info (from app.py)
         request_logger: Logger instance with correlation context
+        input_bytes: Size of input audio in bytes (avoids filesystem stat call)
 
     Returns:
         Tuple of (segments_list, info, device_info, inference_duration)
@@ -276,9 +278,6 @@ async def execute_inference(
         HTTPException: 503 if CUDA validation fails or inference errors occur
         RuntimeError: For non-CUDA inference errors
     """
-    from pathlib import Path
-
-    input_bytes = Path(tmp_path).stat().st_size
 
     # Get device info for logging (STT-specific for CTranslate2)
     device_info = {}

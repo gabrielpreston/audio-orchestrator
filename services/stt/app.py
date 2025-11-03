@@ -970,19 +970,14 @@ async def _startup() -> None:
             processor = AudioProcessor("stt")
             wav_data = processor.pcm_to_wav(pcm, 16000, 1, 2)
 
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            # Create temporary file for model warmup
+            # File is automatically deleted when context manager exits (even on exceptions)
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
                 tmp.write(wav_data)
                 tmp_path = tmp.name
 
-            try:
                 default_beam_size = getattr(_cfg.faster_whisper, "beam_size", 5) or 5
                 _ = model.transcribe(tmp_path, beam_size=default_beam_size)
-            finally:
-                from contextlib import suppress
-                import os
-
-                with suppress(Exception):
-                    os.unlink(tmp_path)
 
         await prewarm_if_enabled(
             _prewarm_stt,
@@ -1166,9 +1161,7 @@ async def _transcribe_request(
 
         # Write incoming WAV bytes to a temp file and let the model handle I/O
         import tempfile
-        from contextlib import suppress
 
-        tmp_path: str | None = None
         input_bytes = len(wav_bytes)
 
         processing_ms: int | None = None
@@ -1190,30 +1183,33 @@ async def _transcribe_request(
             )
 
             # Create temporary file for faster-whisper
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
-                tmp.write(wav_bytes)
-                tmp_path = tmp.name
-
+            # File is automatically deleted when context manager exits (even on exceptions)
+            # This ensures no orphaned files are left behind on errors
             # Measure server-side processing time (model inference portion)
             proc_start = time.time()
 
-            # Execute inference
-            (
-                segments_list,
-                info,
-                device_info,
-                inference_duration,
-            ) = await execute_inference(
-                model,
-                tmp_path,
-                params,
-                device,
-                correlation_id,
-                MODEL_NAME,
-                _validate_cuda_runtime,
-                _get_model_device_info,
-                request_logger,
-            )
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as tmp:
+                tmp.write(wav_bytes)
+                tmp_path = tmp.name
+
+                # Execute inference
+                (
+                    segments_list,
+                    info,
+                    device_info,
+                    inference_duration,
+                ) = await execute_inference(
+                    model,
+                    tmp_path,
+                    params,
+                    device,
+                    correlation_id,
+                    MODEL_NAME,
+                    _validate_cuda_runtime,
+                    _get_model_device_info,
+                    request_logger,
+                    input_bytes=input_bytes,
+                )
 
             proc_end = time.time()
             processing_ms = int((proc_end - proc_start) * 1000)
@@ -1241,10 +1237,6 @@ async def _transcribe_request(
             raise HTTPException(
                 status_code=500, detail=f"transcription error: {e}"
             ) from e
-        finally:
-            if tmp_path:
-                with suppress(Exception):
-                    os.unlink(tmp_path)
 
         # Build response (only if no exception was raised)
         req_end = time.time()
