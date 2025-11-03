@@ -17,6 +17,7 @@ from services.common.config import (
 from services.common.app_factory import create_service_app
 from services.common.gpu_utils import (
     get_pytorch_cuda_info,
+    log_device_info,
     validate_cuda_runtime as validate_cuda_runtime_common,
 )
 from services.common.health import HealthManager
@@ -478,6 +479,171 @@ def _get_model_device_info(model: Any) -> dict[str, Any]:
     return device_info
 
 
+def _resolve_device_and_compute_type() -> tuple[str, str | None]:
+    """Resolve and validate device/compute_type settings.
+
+    Consolidates device validation and compute_type compatibility checking
+    that was duplicated across cache and download loader paths.
+
+    Returns:
+        Validated (device, compute_type) tuple.
+    """
+    device = _cfg.faster_whisper.device
+    compute_type = _cfg.faster_whisper.compute_type
+
+    # Validate CUDA availability and adjust if needed
+    device, compute_type = _validate_and_adjust_cuda_device(device, compute_type)
+
+    # Validate device/compute_type compatibility
+    if device == "cpu" and compute_type == "float16":
+        compute_type = "int8"
+        logger.debug(
+            "stt.compute_type_adjusted",
+            original="float16",
+            adjusted="int8",
+            reason="CPU does not support float16",
+            phase="config_validation",
+        )
+
+    return device, compute_type
+
+
+def _initialize_whisper_model(
+    model_path_or_name: str,
+    device: str,
+    compute_type: str | None,
+) -> Any:
+    """Initialize WhisperModel with CUDA fallback.
+
+    Handles the nested try/except CUDA fallback pattern that was duplicated
+    across cache and download loader paths.
+
+    Args:
+        model_path_or_name: Model path or name for WhisperModel
+        device: Target device ("cuda" or "cpu")
+        compute_type: Compute type or None for default
+
+    Returns:
+        Loaded WhisperModel instance
+
+    Raises:
+        Exception if model initialization fails (non-CUDA errors are re-raised)
+    """
+    from faster_whisper import WhisperModel
+
+    try:
+        if compute_type:
+            model = WhisperModel(
+                model_path_or_name, device=device, compute_type=compute_type
+            )
+        else:
+            model = WhisperModel(model_path_or_name, device=device)
+    except (RuntimeError, OSError, Exception) as model_init_error:
+        error_str = str(model_init_error).lower()
+        # Check for CUDA-related errors during model initialization
+        if device == "cuda" and (
+            "cuda" in error_str
+            or "cudnn" in error_str
+            or "gpu" in error_str
+            or "invalid handle" in error_str
+            or "cuda error" in error_str
+        ):
+            logger.error(
+                "stt.cuda_model_init_failed",
+                error=str(model_init_error),
+                error_type=type(model_init_error).__name__,
+                original_device=device,
+                original_compute_type=compute_type,
+                fallback="cpu",
+                phase="model_initialization",
+            )
+            # Fallback to CPU
+            device = "cpu"
+            compute_type = "int8"
+            # Retry with CPU
+            if compute_type:
+                model = WhisperModel(
+                    model_path_or_name, device=device, compute_type=compute_type
+                )
+            else:
+                model = WhisperModel(model_path_or_name, device=device)
+            logger.warning(
+                "stt.model_reloaded_with_cpu",
+                original_device="cuda",
+                reason="cuda_init_failed",
+                phase="model_initialization",
+            )
+        else:
+            # Not a CUDA error, re-raise
+            raise
+
+    return model
+
+
+def _resolve_model_path(model_name: str) -> tuple[str, bool]:
+    """Resolve model path considering force download and local cache.
+
+    Consolidates force download logic that was duplicated in download loader.
+
+    Args:
+        model_name: Model name to load
+
+    Returns:
+        Tuple of (model_path_or_name, force_download_used)
+    """
+    force_download = False
+    if _model_loader is not None:
+        force_download = _model_loader.is_force_download()
+    else:
+        # Fallback: check environment variable directly
+        force_val = os.getenv("FORCE_MODEL_DOWNLOAD_WHISPER_MODEL", "").lower()
+        global_val = os.getenv("FORCE_MODEL_DOWNLOAD", "false").lower()
+        force_download = force_val in ("true", "1", "yes") or global_val in (
+            "true",
+            "1",
+            "yes",
+        )
+
+    if force_download:
+        logger.info(
+            "stt.force_download_clearing_cache",
+            model_name=model_name,
+            model_path=MODEL_PATH,
+            phase="force_download_prep",
+        )
+        model_path_or_name = force_download_faster_whisper(
+            model_name=model_name,
+            download_root=MODEL_PATH,
+            force=True,
+        )
+        logger.info(
+            "stt.force_download_cache_cleared",
+            model_name=model_name,
+            model_path_or_name=model_path_or_name,
+            phase="force_download_ready",
+        )
+        return model_path_or_name, True
+
+    # Check local cache
+    local_model_path = os.path.join(MODEL_PATH, model_name)
+    if os.path.exists(local_model_path):
+        logger.debug(
+            "stt.using_local_model",
+            model_name=model_name,
+            model_path=local_model_path,
+            phase="download_local_found",
+        )
+        return local_model_path, False
+
+    logger.info(
+        "stt.downloading_model",
+        model_name=model_name,
+        download_root=MODEL_PATH,
+        phase="download_required",
+    )
+    return model_name, False
+
+
 def _load_from_cache() -> Any | None:
     """Try loading model from local cache."""
     import time
@@ -491,7 +657,7 @@ def _load_from_cache() -> Any | None:
     )
 
     try:
-        from faster_whisper import WhisperModel
+        from faster_whisper import WhisperModel  # noqa: F401
     except Exception as e:
         logger.error(
             "stt.model_import_failed",
@@ -517,81 +683,24 @@ def _load_from_cache() -> Any | None:
         phase="cache_found",
     )
 
-    # Try loading from local path
-    device = _cfg.faster_whisper.device
-    compute_type = _cfg.faster_whisper.compute_type
-
-    # Validate CUDA availability and adjust if needed
-    device, compute_type = _validate_and_adjust_cuda_device(device, compute_type)
-
-    # Validate device/compute_type compatibility
-    if device == "cpu" and compute_type == "float16":
-        compute_type = "int8"
-        logger.debug(
-            "stt.compute_type_adjusted",
-            original="float16",
-            adjusted="int8",
-            reason="CPU does not support float16",
-        )
+    # Resolve device and compute_type using shared utility
+    device, compute_type = _resolve_device_and_compute_type()
 
     load_start = time.time()
     try:
-        # Try to create model with the validated device
-        # If CUDA fails during initialization, catch and fallback
-        try:
-            if compute_type:
-                model = WhisperModel(
-                    local_model_path, device=device, compute_type=compute_type
-                )
-            else:
-                model = WhisperModel(local_model_path, device=device)
-        except (RuntimeError, OSError, Exception) as model_init_error:
-            error_str = str(model_init_error).lower()
-            # Check for CUDA-related errors during model initialization
-            if device == "cuda" and (
-                "cuda" in error_str
-                or "cudnn" in error_str
-                or "gpu" in error_str
-                or "invalid handle" in error_str
-                or "cuda error" in error_str
-            ):
-                logger.error(
-                    "stt.cuda_model_init_failed",
-                    error=str(model_init_error),
-                    error_type=type(model_init_error).__name__,
-                    original_device=device,
-                    original_compute_type=compute_type,
-                    fallback="cpu",
-                    phase="model_initialization",
-                )
-                # Fallback to CPU
-                device = "cpu"
-                compute_type = "int8"
-                # Retry with CPU
-                if compute_type:
-                    model = WhisperModel(
-                        local_model_path, device=device, compute_type=compute_type
-                    )
-                else:
-                    model = WhisperModel(local_model_path, device=device)
-                logger.warning(
-                    "stt.model_reloaded_with_cpu",
-                    original_device="cuda",
-                    reason="cuda_init_failed",
-                    phase="model_initialization",
-                )
-            else:
-                # Not a CUDA error, re-raise
-                raise
+        # Initialize model with CUDA fallback using shared utility
+        model = _initialize_whisper_model(local_model_path, device, compute_type)
 
         load_duration = time.time() - load_start
         total_duration = time.time() - cache_start
 
-        # Get actual device information from the loaded model (STT-specific for CTranslate2)
+        # Get device information (STT-specific for CTranslate2, then merge with PyTorch CUDA info)
+        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
         model_device_info = _get_model_device_info(model)
-        # Merge with intended device to match common format
+        cuda_info = get_pytorch_cuda_info()
         device_info = {
-            "intended_device": device,
+            "intended_device": config_device,
+            **cuda_info,
             **model_device_info,
         }
 
@@ -606,36 +715,11 @@ def _load_from_cache() -> Any | None:
             phase="cache_load_complete",
         )
 
-        # Log device info using common utility pattern (matches FLAN)
-        # Get config device to compare with actual
-        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
-        if config_device == "cuda" and device_info.get("actual_device") != "cuda":
-            logger.warning(
-                "stt.device_mismatch_detected",
-                intended_device=config_device,
-                actual_device=device_info.get("actual_device", "unknown"),
-                model_on_device=device_info.get("model_on_device"),
-                note="Model may have fallen back to CPU despite CUDA request",
-                phase="cache_load_complete",
-            )
-        elif config_device == "cuda" and device_info.get("actual_device") == "cuda":
-            logger.info(
-                "stt.gpu_usage_confirmed",
-                device=device_info.get("actual_device"),
-                gpu_name=device_info.get("pytorch_cuda_device_name"),
-                phase="cache_load_complete",
-            )
-
-        # Log comprehensive device info in structured format
-        logger.info(
-            "stt.model_loaded_from_cache.device_info",
-            intended_device=config_device,
-            actual_device=device_info.get("actual_device", "unknown"),
-            device_verified=device_info.get("device_verified", False),
-            model_on_device=device_info.get("model_on_device"),
-            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
-            pytorch_cuda_device_count=device_info.get("pytorch_cuda_device_count", 0),
-            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
+        # Log device info using standardized utility
+        log_device_info(
+            logger,
+            "stt.model_loaded_from_cache",
+            device_info,
             phase="cache_load_complete",
         )
 
@@ -666,7 +750,7 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
     )
 
     try:
-        from faster_whisper import WhisperModel
+        from faster_whisper import WhisperModel  # noqa: F401
     except Exception as e:
         logger.error(
             "stt.model_import_failed",
@@ -676,77 +760,11 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
         )
         raise RuntimeError(f"faster-whisper import error: {e}") from e
 
-    device = _cfg.faster_whisper.device
-    compute_type = _cfg.faster_whisper.compute_type
+    # Resolve device and compute_type using shared utility
+    device, compute_type = _resolve_device_and_compute_type()
 
-    # Validate CUDA availability and adjust if needed
-    device, compute_type = _validate_and_adjust_cuda_device(device, compute_type)
-
-    # Validate device/compute_type compatibility
-    if device == "cpu" and compute_type == "float16":
-        logger.warning(
-            "stt.compute_type_corrected",
-            device=device,
-            original_compute_type=compute_type,
-            corrected_compute_type="int8",
-            reason="float16 not supported on CPU",
-            phase="config_validation",
-        )
-        compute_type = "int8"
-
-    # Check if force download is enabled (check env var directly as fallback)
-    force_download = False
-    if _model_loader is not None:
-        force_download = _model_loader.is_force_download()
-    else:
-        # Fallback: check environment variable directly
-        force_val = os.getenv("FORCE_MODEL_DOWNLOAD_WHISPER_MODEL", "").lower()
-        global_val = os.getenv("FORCE_MODEL_DOWNLOAD", "false").lower()
-        force_download = force_val in ("true", "1", "yes") or global_val in (
-            "true",
-            "1",
-            "yes",
-        )
-
-    # Use force download helper if enabled
-    if force_download:
-        logger.info(
-            "stt.force_download_clearing_cache",
-            model_name=model_name,
-            model_path=MODEL_PATH,
-            phase="force_download_prep",
-        )
-        model_path_or_name = force_download_faster_whisper(
-            model_name=model_name,
-            download_root=MODEL_PATH,
-            force=True,
-        )
-        logger.info(
-            "stt.force_download_cache_cleared",
-            model_name=model_name,
-            model_path_or_name=model_path_or_name,
-            phase="force_download_ready",
-        )
-    else:
-        # Check if we have a local model directory for the specified model
-        local_model_path = os.path.join(MODEL_PATH, model_name)
-        model_path_or_name = (
-            local_model_path if os.path.exists(local_model_path) else model_name
-        )
-        if os.path.exists(local_model_path):
-            logger.debug(
-                "stt.using_local_model",
-                model_name=model_name,
-                model_path=local_model_path,
-                phase="download_local_found",
-            )
-        else:
-            logger.info(
-                "stt.downloading_model",
-                model_name=model_name,
-                download_root=MODEL_PATH,
-                phase="download_required",
-            )
+    # Resolve model path using shared utility (handles force download)
+    model_path_or_name, force_download = _resolve_model_path(model_name)
 
     model_init_start = time.time()
     try:
@@ -769,62 +787,19 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
             phase="model_init",
         )
 
-        # Try to create model with the validated device
-        # If CUDA fails during initialization, catch and fallback
-        try:
-            if compute_type:
-                model = WhisperModel(
-                    model_path_or_name, device=device, compute_type=compute_type
-                )
-            else:
-                model = WhisperModel(model_path_or_name, device=device)
-        except (RuntimeError, OSError, Exception) as model_init_error:
-            error_str = str(model_init_error).lower()
-            # Check for CUDA-related errors during model initialization
-            if device == "cuda" and (
-                "cuda" in error_str
-                or "cudnn" in error_str
-                or "gpu" in error_str
-                or "invalid handle" in error_str
-                or "cuda error" in error_str
-            ):
-                logger.error(
-                    "stt.cuda_model_init_failed",
-                    error=str(model_init_error),
-                    error_type=type(model_init_error).__name__,
-                    original_device=device,
-                    original_compute_type=compute_type,
-                    fallback="cpu",
-                    phase="model_initialization",
-                )
-                # Fallback to CPU
-                device = "cpu"
-                compute_type = "int8"
-                # Retry with CPU
-                if compute_type:
-                    model = WhisperModel(
-                        model_path_or_name, device=device, compute_type=compute_type
-                    )
-                else:
-                    model = WhisperModel(model_path_or_name, device=device)
-                logger.warning(
-                    "stt.model_reloaded_with_cpu",
-                    original_device="cuda",
-                    reason="cuda_init_failed",
-                    phase="model_initialization",
-                )
-            else:
-                # Not a CUDA error, re-raise
-                raise
+        # Initialize model with CUDA fallback using shared utility
+        model = _initialize_whisper_model(model_path_or_name, device, compute_type)
 
         model_init_duration = time.time() - model_init_start
         total_duration = time.time() - download_start
 
-        # Get actual device information from the loaded model (STT-specific for CTranslate2)
+        # Get device information (STT-specific for CTranslate2, then merge with PyTorch CUDA info)
+        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
         model_device_info = _get_model_device_info(model)
-        # Merge with intended device to match common format
+        cuda_info = get_pytorch_cuda_info()
         device_info = {
-            "intended_device": device,
+            "intended_device": config_device,
+            **cuda_info,
             **model_device_info,
         }
 
@@ -840,35 +815,11 @@ def _load_with_fallback(model_name: str = MODEL_NAME) -> Any:
             phase="download_complete",
         )
 
-        # Log device mismatch warnings and confirmations
-        config_device = _cfg.faster_whisper.device if _cfg else "unknown"
-        if config_device == "cuda" and device_info.get("actual_device") != "cuda":
-            logger.warning(
-                "stt.device_mismatch_detected",
-                intended_device=config_device,
-                actual_device=device_info.get("actual_device", "unknown"),
-                model_on_device=device_info.get("model_on_device"),
-                note="Model may have fallen back to CPU despite CUDA request",
-                phase="download_complete",
-            )
-        elif config_device == "cuda" and device_info.get("actual_device") == "cuda":
-            logger.info(
-                "stt.gpu_usage_confirmed",
-                device=device_info.get("actual_device"),
-                gpu_name=device_info.get("pytorch_cuda_device_name"),
-                phase="download_complete",
-            )
-
-        # Log comprehensive device info in structured format
-        logger.info(
-            "stt.model_loaded.device_info",
-            intended_device=config_device,
-            actual_device=device_info.get("actual_device", "unknown"),
-            device_verified=device_info.get("device_verified", False),
-            model_on_device=device_info.get("model_on_device"),
-            pytorch_cuda_available=device_info.get("pytorch_cuda_available", False),
-            pytorch_cuda_device_count=device_info.get("pytorch_cuda_device_count", 0),
-            pytorch_cuda_device_name=device_info.get("pytorch_cuda_device_name"),
+        # Log device info using standardized utility
+        log_device_info(
+            logger,
+            "stt.model_loaded",
+            device_info,
             phase="download_complete",
         )
 
