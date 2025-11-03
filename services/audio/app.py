@@ -47,6 +47,9 @@ _audio_metrics = {}
 _http_metrics = {}
 _logger = get_logger(__name__, service_name="audio")
 
+# Constants
+MAX_PAYLOAD_SIZE_WARNING = 10 * 1024 * 1024  # 10MB
+
 # Load configuration
 _config_preset = get_service_preset("audio")
 _logging_config = LoggingConfig(**_config_preset["logging"])
@@ -252,6 +255,16 @@ async def process_enhancement_request(
     # Read and cache request body once (fixes double body read bug)
     audio_data = await request.body()
     input_size = len(audio_data)
+
+    # Warn about large payloads to help detect memory issues
+    if input_size > MAX_PAYLOAD_SIZE_WARNING:
+        _logger.warning(
+            "audio.large_payload",
+            correlation_id=correlation_id,
+            size=input_size,
+            size_mb=input_size / (1024 * 1024),
+            message="Large audio payload detected - may impact memory usage",
+        )
 
     try:
         # Validate enhancer is initialized

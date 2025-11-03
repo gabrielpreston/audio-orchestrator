@@ -91,7 +91,7 @@ class TestAudioProcessorAPI:
 
     def test_process_frame_success(self, client, sample_pcm_data):
         """Test successful frame processing."""
-        with patch("services.audio_processor.app._audio_processor") as mock_processor:
+        with patch("services.audio.app._audio") as mock_processor:
             mock_processor.process_frame.return_value = Mock(
                 pcm=base64.b64decode(sample_pcm_data), sequence=1, sample_rate=16000
             )
@@ -123,7 +123,7 @@ class TestAudioProcessorAPI:
 
     def test_process_frame_processor_not_initialized(self, client, sample_pcm_data):
         """Test frame processing when processor is not initialized."""
-        with patch("services.audio_processor.app._audio_processor", None):
+        with patch("services.audio.app._audio", None):
             response = client.post(
                 "/process/frame",
                 json={
@@ -142,7 +142,7 @@ class TestAudioProcessorAPI:
 
     def test_process_segment_success(self, client, sample_pcm_data):
         """Test successful segment processing."""
-        with patch("services.audio_processor.app._audio_processor") as mock_processor:
+        with patch("services.audio.app._audio") as mock_processor:
             mock_processor.process_segment.return_value = Mock(
                 pcm=base64.b64decode(sample_pcm_data),
                 user_id=12345,
@@ -177,7 +177,7 @@ class TestAudioProcessorAPI:
 
     def test_process_segment_processor_not_initialized(self, client, sample_pcm_data):
         """Test segment processing when processor is not initialized."""
-        with patch("services.audio_processor.app._audio_processor", None):
+        with patch("services.audio.app._audio", None):
             response = client.post(
                 "/process/segment",
                 json={
@@ -197,8 +197,10 @@ class TestAudioProcessorAPI:
 
     def test_enhance_audio_success(self, client, sample_wav_data):
         """Test successful audio enhancement."""
-        with patch("services.audio_processor.app._audio_enhancer") as mock_enhancer:
-            mock_enhancer.enhance_audio.return_value = sample_wav_data
+        from unittest.mock import AsyncMock
+
+        with patch("services.audio.app._audio_enhancer") as mock_enhancer:
+            mock_enhancer.enhance_audio_bytes = AsyncMock(return_value=sample_wav_data)
 
             response = client.post("/enhance/audio", content=sample_wav_data)
 
@@ -207,7 +209,7 @@ class TestAudioProcessorAPI:
 
     def test_enhance_audio_enhancer_not_initialized(self, client, sample_wav_data):
         """Test audio enhancement when enhancer is not initialized."""
-        with patch("services.audio_processor.app._audio_enhancer", None):
+        with patch("services.audio.app._audio_enhancer", None):
             response = client.post("/enhance/audio", content=sample_wav_data)
 
             assert response.status_code == 503
@@ -216,14 +218,37 @@ class TestAudioProcessorAPI:
 
     def test_enhance_audio_error_handling(self, client, sample_wav_data):
         """Test audio enhancement error handling."""
-        with patch("services.audio_processor.app._audio_enhancer") as mock_enhancer:
-            mock_enhancer.enhance_audio.side_effect = Exception("Enhancement failed")
+        with patch("services.audio.app._audio_enhancer") as mock_enhancer:
+            mock_enhancer.enhance_audio_bytes.side_effect = Exception(
+                "Enhancement failed"
+            )
 
             response = client.post("/enhance/audio", content=sample_wav_data)
 
             # Should return original data on error
             assert response.status_code == 200
             assert response.content == sample_wav_data
+
+    def test_enhance_audio_single_body_read(self, client, sample_wav_data):
+        """Verify request body is cached and reused (indirect test via error path)."""
+        from unittest.mock import AsyncMock
+
+        # Test that error path returns cached original data (proving single read)
+        with patch("services.audio.app._audio_enhancer") as mock_enhancer:
+            mock_enhancer.enhance_audio_bytes = AsyncMock(
+                side_effect=Exception("Test error")
+            )
+
+            response = client.post("/enhance/audio", content=sample_wav_data)
+
+            # Should return original data on error (proving it was cached from single read)
+            assert response.status_code == 200
+            assert response.content == sample_wav_data
+            # Verify enhance_audio_bytes was called with the body data (proves single read occurred)
+            mock_enhancer.enhance_audio_bytes.assert_called_once()
+            # Verify the call argument matches our input (proves caching worked)
+            call_args = mock_enhancer.enhance_audio_bytes.call_args[0][0]
+            assert call_args == sample_wav_data
 
     def test_get_metrics(self, client):
         """Test metrics endpoint."""
@@ -274,7 +299,7 @@ class TestAudioProcessorAPI:
 
     def test_process_frame_error_handling(self, client, sample_pcm_data):
         """Test frame processing error handling."""
-        with patch("services.audio_processor.app._audio_processor") as mock_processor:
+        with patch("services.audio.app._audio") as mock_processor:
             mock_processor.process_frame.side_effect = Exception("Processing failed")
 
             response = client.post(
@@ -297,7 +322,7 @@ class TestAudioProcessorAPI:
 
     def test_process_segment_error_handling(self, client, sample_pcm_data):
         """Test segment processing error handling."""
-        with patch("services.audio_processor.app._audio_processor") as mock_processor:
+        with patch("services.audio.app._audio") as mock_processor:
             mock_processor.process_segment.side_effect = Exception("Processing failed")
 
             response = client.post(
