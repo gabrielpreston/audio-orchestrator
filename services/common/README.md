@@ -458,6 +458,169 @@ cache.put(cache_key, result)
 - Statistics tracking (hits, misses, hit_rate)
 - Configurable via `{SERVICE}_ENABLE_CACHE`, `{SERVICE}_CACHE_MAX_ENTRIES`, `{SERVICE}_CACHE_MAX_SIZE_MB`
 
+## Metric Registration (`audio_metrics.py`)
+
+Standardized metric registration helper to reduce boilerplate and ensure consistency across services.
+
+### Quick Start
+
+```python
+from services.common.audio_metrics import MetricKind, register_service_metrics
+from services.common.tracing import get_observability_manager
+
+async def _startup() -> None:
+    # Get observability manager (factory already setup observability)
+    _observability_manager = get_observability_manager("my_service")
+
+    # Register all required metrics in one call
+    metrics = register_service_metrics(
+        _observability_manager,
+        kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+    )
+
+    # Access metrics by group
+    _audio_metrics = metrics["audio"]
+    _system_metrics = metrics["system"]
+
+    # HTTP metrics already available from app_factory via app.state.http_metrics
+```
+
+### Metric Kinds
+
+The `MetricKind` enum provides type-safe specification of metric types:
+
+- `MetricKind.AUDIO` - Audio processing metrics (chunks, duration, quality)
+- `MetricKind.STT` - Speech-to-text metrics (transcriptions, latency)
+- `MetricKind.TTS` - Text-to-speech metrics (synthesis, duration)
+- `MetricKind.LLM` - Language model metrics (requests, tokens, latency)
+- `MetricKind.HTTP` - HTTP request metrics (requests, duration, status codes)
+- `MetricKind.SYSTEM` - System resource metrics (CPU, memory, GPU)
+- `MetricKind.GUARDRAILS` - Safety/guardrails metrics (validations, blocks)
+
+### Service Patterns
+
+#### Audio Processing Service
+```python
+metrics = register_service_metrics(
+    _observability_manager,
+    kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+)
+_audio_metrics = metrics["audio"]
+_system_metrics = metrics["system"]
+```
+
+#### STT Service
+```python
+metrics = register_service_metrics(
+    _observability_manager,
+    kinds=[MetricKind.STT, MetricKind.SYSTEM]
+)
+_stt_metrics = metrics["stt"]
+_system_metrics = metrics["system"]
+```
+
+#### Orchestrator Service
+```python
+metrics = register_service_metrics(
+    _observability_manager,
+    kinds=[MetricKind.LLM, MetricKind.SYSTEM]
+)
+_llm_metrics = metrics["llm"]
+_system_metrics = metrics["system"]
+```
+
+#### Multi-Metric Services
+```python
+# Discord service uses multiple metric types
+metrics = register_service_metrics(
+    _observability_manager,
+    kinds=[MetricKind.STT, MetricKind.AUDIO, MetricKind.SYSTEM]
+)
+_stt_metrics = metrics["stt"]
+_audio_metrics = metrics["audio"]
+_system_metrics = metrics["system"]
+```
+
+#### Services with Only HTTP Metrics
+```python
+# Monitoring/testing services - HTTP metrics already in app.state.http_metrics
+# No service-specific metrics needed
+async def _startup() -> None:
+    _observability_manager = get_observability_manager("monitoring")
+    # HTTP metrics available via app.state.http_metrics (auto-created by app_factory)
+```
+
+### HTTP Metrics Handling
+
+HTTP metrics are automatically created by `app_factory.py` and stored in `app.state.http_metrics`. Services should:
+
+1. **Reuse existing HTTP metrics** - Access via `app.state.http_metrics` in route handlers
+2. **Don't create duplicate HTTP metrics** - The factory already creates them
+3. **Use ObservabilityMiddleware** - HTTP metrics are automatically recorded by middleware
+
+```python
+# In route handlers - HTTP metrics already recorded by middleware
+@app.post("/endpoint")
+async def endpoint(request: Request):
+    # No manual HTTP metric recording needed - middleware handles it
+    # Access metrics via app.state.http_metrics if needed
+    http_metrics = request.app.state.http_metrics
+    # ...
+```
+
+### Features
+
+- **Type Safety**: `MetricKind` enum prevents typos and enables IDE autocomplete
+- **Error Handling**: Continues with other metrics if one fails to register
+- **Validation**: Validates metric kinds and provides clear error messages
+- **Consistency**: Standardized pattern across all services
+- **Backward Compatible**: Existing `create_*_metrics()` functions remain public
+
+### Error Handling
+
+The helper gracefully handles registration failures:
+
+```python
+# If one metric type fails, others still register
+metrics = register_service_metrics(
+    _observability_manager,
+    kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+)
+# If SYSTEM metrics fail, audio metrics will still be available
+_audio_metrics = metrics["audio"]  # May be empty dict if registration failed
+_system_metrics = metrics["system"]  # May be empty dict if registration failed
+```
+
+### Integration with App Factory
+
+The metric registration pattern integrates seamlessly with `create_service_app()`:
+
+```python
+from services.common.app_factory import create_service_app
+from services.common.audio_metrics import MetricKind, register_service_metrics
+from services.common.tracing import get_observability_manager
+
+async def _startup() -> None:
+    # Observability already setup by factory
+    _observability_manager = get_observability_manager("my_service")
+
+    # Register service-specific metrics
+    metrics = register_service_metrics(
+        _observability_manager,
+        kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+    )
+    _audio_metrics = metrics["audio"]
+    _system_metrics = metrics["system"]
+
+    # HTTP metrics already in app.state.http_metrics (created by factory)
+
+app = create_service_app(
+    "my_service",
+    "1.0.0",
+    startup_callback=_startup,
+)
+```
+
 ## Migration from Current Approach
 
 The new configuration library replaces the current manual environment variable parsing approach used across services. See the [Configuration Library Reference](../docs/reference/configuration-library.md) for detailed migration instructions.

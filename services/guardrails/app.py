@@ -62,7 +62,6 @@ logger = get_logger(__name__, service_name="guardrails")
 _health_manager = HealthManager("guardrails")
 _observability_manager = None
 _guardrails_metrics = {}
-_http_metrics = {}
 
 # Configuration
 _toxicity_detector = None
@@ -288,23 +287,22 @@ async def _startup() -> None:
         _toxicity_detector, \
         _model_loader, \
         _observability_manager, \
-        _guardrails_metrics, \
-        _http_metrics
+        _guardrails_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("guardrails")
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_guardrails_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _guardrails_metrics = create_guardrails_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.GUARDRAILS, MetricKind.SYSTEM]
+        )
+        _guardrails_metrics = metrics["guardrails"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

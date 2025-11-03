@@ -39,7 +39,6 @@ _bark_synthesizer: BarkSynthesizer | None = None
 _health_manager = HealthManager("bark")
 _observability_manager = None
 _tts_metrics = {}
-_http_metrics = {}
 _logger = get_logger(__name__, service_name="bark")
 _prewarm_complete = False
 
@@ -87,22 +86,22 @@ class SynthesisResponse(BaseModel):
 
 async def _startup() -> None:
     """Initialize the Bark TTS service."""
-    global _bark_synthesizer, _observability_manager, _tts_metrics, _http_metrics
+    global _bark_synthesizer, _observability_manager, _tts_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("bark")
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_tts_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _tts_metrics = create_tts_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.TTS, MetricKind.SYSTEM]
+        )
+        _tts_metrics = metrics["tts"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

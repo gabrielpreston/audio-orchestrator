@@ -52,7 +52,6 @@ _health_manager = HealthManager("stt")
 # Observability manager for metrics and tracing
 _observability_manager = None
 _stt_metrics: dict[str, Any] = {}
-_http_metrics: dict[str, Any] = {}
 
 
 configure_logging(
@@ -859,24 +858,23 @@ async def _startup() -> None:
         _transcript_cache, \
         _audio_processor_client, \
         _observability_manager, \
-        _stt_metrics, \
-        _http_metrics
+        _stt_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("stt")
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_stt_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _stt_metrics = create_stt_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.STT, MetricKind.SYSTEM]
+        )
+        _stt_metrics = metrics["stt"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Ensure model directory is writable
         if not ensure_model_directory(MODEL_PATH):

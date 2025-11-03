@@ -44,7 +44,6 @@ _audio_enhancer: AudioEnhancer | None = None
 _health_manager = HealthManager("audio")
 _observability_manager = None
 _audio_metrics = {}
-_http_metrics = {}
 _logger = get_logger(__name__, service_name="audio")
 
 # Constants
@@ -101,12 +100,7 @@ class ProcessingResponse(BaseModel):
 
 async def _startup() -> None:
     """Initialize audio processor and enhancer on startup."""
-    global \
-        _audio, \
-        _audio_enhancer, \
-        _observability_manager, \
-        _audio_metrics, \
-        _http_metrics
+    global _audio, _audio_enhancer, _observability_manager, _audio_metrics
 
     try:
         _logger.info("audio.startup_started")
@@ -114,16 +108,17 @@ async def _startup() -> None:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("audio")
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_audio_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _audio_metrics = create_audio_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+        )
+        _audio_metrics = metrics["audio"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
+        # No need to recreate - middleware uses app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
@@ -310,18 +305,8 @@ async def process_enhancement_request(
                     1, attributes={"type": "enhancement", "service": "audio"}
                 )
 
-        # Record HTTP metrics
-        if _http_metrics:
-            if "http_requests" in _http_metrics:
-                _http_metrics["http_requests"].add(
-                    1,
-                    attributes={"method": "POST", "status": "200", "service": "audio"},
-                )
-            if "http_request_duration" in _http_metrics:
-                _http_metrics["http_request_duration"].record(
-                    processing_time / 1000,
-                    attributes={"method": "POST", "service": "audio"},
-                )
+        # HTTP metrics are automatically recorded by ObservabilityMiddleware
+        # Access via app.state.http_metrics if needed for additional metrics
 
         # Log success
         _logger.info(
@@ -359,10 +344,7 @@ async def process_enhancement_request(
                 },
             )
 
-        if _http_metrics and "http_requests" in _http_metrics:
-            _http_metrics["http_requests"].add(
-                1, attributes={"method": "POST", "status": "500", "service": "audio"}
-            )
+        # HTTP metrics are automatically recorded by ObservabilityMiddleware
 
         # Log error with full context
         _logger.error(

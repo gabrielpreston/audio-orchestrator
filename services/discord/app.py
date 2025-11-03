@@ -41,7 +41,6 @@ _health_manager = HealthManager("discord")
 _observability_manager: Any = None
 _stt_metrics: dict[str, Any] = {}
 _audio_metrics: dict[str, Any] = {}
-_http_metrics: dict[str, Any] = {}
 
 _stt_health_client: ResilientHTTPClient | None = None
 _orchestrator_health_client: ResilientHTTPClient | None = None
@@ -172,7 +171,7 @@ async def _start_discord_bot(config: Any, observability_manager: Any) -> None:
 
 async def _startup() -> None:
     """Initialize Discord bot and HTTP API on startup."""
-    global _observability_manager, _stt_metrics, _audio_metrics, _http_metrics
+    global _observability_manager, _stt_metrics, _audio_metrics
 
     logger.info("discord.startup_event_called")
 
@@ -180,18 +179,18 @@ async def _startup() -> None:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("discord")
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_stt_metrics,
-            create_audio_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _stt_metrics = create_stt_metrics(_observability_manager)
-        _audio_metrics = create_audio_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager,
+            kinds=[MetricKind.STT, MetricKind.AUDIO, MetricKind.SYSTEM],
+        )
+        _stt_metrics = metrics["stt"]
+        _audio_metrics = metrics["audio"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

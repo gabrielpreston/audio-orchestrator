@@ -1,11 +1,122 @@
 """Standardized audio pipeline metrics using OpenTelemetry."""
 
+from enum import Enum
 from pathlib import Path
 from typing import Any
+from collections.abc import Callable
 
 from opentelemetry.metrics import Observation
 
 from services.common.tracing import ObservabilityManager
+
+
+class MetricKind(str, Enum):
+    """Enumeration of supported metric types for service registration."""
+
+    AUDIO = "audio"
+    STT = "stt"
+    TTS = "tts"
+    LLM = "llm"
+    HTTP = "http"
+    SYSTEM = "system"
+    GUARDRAILS = "guardrails"
+
+
+def register_service_metrics(
+    observability_manager: ObservabilityManager,
+    kinds: list[MetricKind],
+) -> dict[str, dict[str, Any]]:
+    """Register metrics for a service based on requested metric kinds.
+
+    This helper function centralizes metric registration to reduce boilerplate
+    in service startup callbacks. It wraps existing `create_*_metrics()` functions
+    and returns a structured dictionary keyed by metric group name.
+
+    Args:
+        observability_manager: ObservabilityManager instance for the service
+        kinds: List of MetricKind enum values specifying which metric groups to create
+
+    Returns:
+        Dictionary keyed by metric group name (e.g., "audio", "stt", "system")
+        containing the metric dicts returned by each creation function.
+
+    Raises:
+        ValueError: If an unknown metric kind is provided
+
+    Example:
+        ```python
+        from services.common.audio_metrics import MetricKind, register_service_metrics
+
+        metrics = register_service_metrics(
+            observability_manager,
+            kinds=[MetricKind.AUDIO, MetricKind.SYSTEM]
+        )
+        # Access metrics by group
+        audio_metrics = metrics["audio"]
+        system_metrics = metrics["system"]
+        ```
+
+    Note:
+        HTTP metrics are automatically created by `app_factory.py` and stored in
+        `app.state.http_metrics`. Services should reuse those metrics rather than
+        creating new ones unless they need local copies for specific reasons.
+    """
+    from .structured_logging import get_logger
+
+    logger = get_logger(__name__)
+
+    # Validate metric kinds
+    valid_kinds = {kind.value for kind in MetricKind}
+    provided_kinds = {
+        kind.value if isinstance(kind, MetricKind) else kind for kind in kinds
+    }
+
+    invalid_kinds = provided_kinds - valid_kinds
+    if invalid_kinds:
+        raise ValueError(
+            f"Invalid metric kinds: {invalid_kinds}. Valid kinds are: {sorted(valid_kinds)}"
+        )
+
+    # Map metric kinds to creation functions
+    metric_creators: dict[str, Callable[[ObservabilityManager], dict[str, Any]]] = {
+        MetricKind.AUDIO.value: create_audio_metrics,
+        MetricKind.STT.value: create_stt_metrics,
+        MetricKind.TTS.value: create_tts_metrics,
+        MetricKind.LLM.value: create_llm_metrics,
+        MetricKind.HTTP.value: create_http_metrics,
+        MetricKind.SYSTEM.value: create_system_metrics,
+        MetricKind.GUARDRAILS.value: create_guardrails_metrics,
+    }
+
+    # Create metrics for each requested kind
+    result: dict[str, dict[str, Any]] = {}
+    unique_kinds = {
+        kind.value if isinstance(kind, MetricKind) else kind for kind in kinds
+    }
+
+    for kind_value in unique_kinds:
+        creator = metric_creators[kind_value]
+        try:
+            metrics = creator(observability_manager)
+            result[kind_value] = metrics
+            logger.debug(
+                "metrics.registered",
+                service=observability_manager.service_name,
+                kind=kind_value,
+                metric_count=len(metrics),
+            )
+        except Exception as exc:
+            logger.warning(
+                "metrics.registration_failed",
+                service=observability_manager.service_name,
+                kind=kind_value,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            # Continue with other metrics even if one fails
+            result[kind_value] = {}
+
+    return result
 
 
 def create_audio_metrics(observability_manager: ObservabilityManager) -> dict[str, Any]:

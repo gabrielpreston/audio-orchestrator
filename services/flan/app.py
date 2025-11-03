@@ -9,11 +9,6 @@ import torch
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 from services.common.app_factory import create_service_app
-from services.common.audio_metrics import (
-    create_http_metrics,
-    create_llm_metrics,
-    create_system_metrics,
-)
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
@@ -79,7 +74,6 @@ _model_loader: BackgroundModelLoader | None = None
 _health_manager = HealthManager("flan")
 _observability_manager = None
 _llm_metrics = {}
-_http_metrics = {}
 
 
 def _load_from_cache() -> tuple[Any, Any] | None:
@@ -299,16 +293,22 @@ def _load_with_download() -> tuple[Any, Any]:
 
 async def _startup() -> None:
     """Load the FLAN-T5 model and tokenizer on startup."""
-    global _model_loader, _observability_manager, _llm_metrics, _http_metrics
+    global _model_loader, _observability_manager, _llm_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("flan")
 
-        # Create service-specific metrics
-        _llm_metrics = create_llm_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
+
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.LLM, MetricKind.SYSTEM]
+        )
+        _llm_metrics = metrics["llm"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

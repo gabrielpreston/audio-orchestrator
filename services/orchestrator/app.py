@@ -55,7 +55,6 @@ logger = get_logger(__name__, service_name="orchestrator")
 _health_manager = HealthManager("orchestrator")
 _observability_manager = None
 _llm_metrics = {}
-_http_metrics = {}
 
 # Configuration
 _cfg: OrchestratorConfig | None = None
@@ -73,28 +72,22 @@ PROMPT_VERSION = "v1.0"
 
 async def _startup() -> None:
     """Service-specific startup logic."""
-    global \
-        _cfg, \
-        _langchain_executor, \
-        _tts_client, \
-        _observability_manager, \
-        _llm_metrics, \
-        _http_metrics
+    global _cfg, _langchain_executor, _tts_client, _observability_manager, _llm_metrics
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("orchestrator")
 
-        # Create service-specific metrics
-        from services.common.audio_metrics import (
-            create_llm_metrics,
-            create_http_metrics,
-            create_system_metrics,
-        )
+        # Register service-specific metrics using centralized helper
+        from services.common.audio_metrics import MetricKind, register_service_metrics
 
-        _llm_metrics = create_llm_metrics(_observability_manager)
-        _http_metrics = create_http_metrics(_observability_manager)
-        _system_metrics = create_system_metrics(_observability_manager)
+        metrics = register_service_metrics(
+            _observability_manager, kinds=[MetricKind.LLM, MetricKind.SYSTEM]
+        )
+        _llm_metrics = metrics["llm"]
+        _system_metrics = metrics["system"]
+
+        # HTTP metrics already available from app_factory via app.state.http_metrics
 
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)

@@ -9,7 +9,6 @@ import os
 from contextlib import suppress
 
 from services.common.app_factory import create_service_app
-from services.common.audio_metrics import create_http_metrics
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
@@ -59,7 +58,6 @@ except Exception as exc:
 # Health manager and observability
 health_manager = HealthManager("monitoring")
 _observability_manager = None
-_http_metrics = {}
 
 # Prometheus connection via HTTP client
 PROMETHEUS_URL = os.getenv("PROMETHEUS_URL", "http://prometheus:9090")
@@ -579,14 +577,14 @@ async def _check_prometheus_health() -> bool:
 
 async def _startup() -> None:
     """Service startup event handler."""
-    global _observability_manager, _http_metrics
+    global _observability_manager
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("monitoring")
 
-        # Create service-specific metrics
-        _http_metrics = create_http_metrics(_observability_manager)
+        # HTTP metrics already available from app_factory via app.state.http_metrics
+        # No service-specific metrics needed for monitoring service
 
         # Set observability manager in health manager
         health_manager.set_observability_manager(_observability_manager)

@@ -14,7 +14,6 @@ import httpx
 from pydantic import BaseModel
 
 from services.common.app_factory import create_service_app
-from services.common.audio_metrics import create_http_metrics
 from services.common.config import (
     LoggingConfig,
     get_service_preset,
@@ -49,19 +48,18 @@ logger = get_logger(__name__, service_name="testing")
 # Health manager and observability
 health_manager = HealthManager("testing")
 _observability_manager = None
-_http_metrics = {}
 
 
 async def _startup() -> None:
     """Service startup event handler."""
-    global _observability_manager, _http_metrics
+    global _observability_manager
 
     try:
         # Get observability manager (factory already setup observability)
         _observability_manager = get_observability_manager("testing")
 
-        # Create service-specific metrics
-        _http_metrics = create_http_metrics(_observability_manager)
+        # HTTP metrics already available from app_factory via app.state.http_metrics
+        # No service-specific metrics needed for testing service
 
         # Set observability manager in health manager
         health_manager.set_observability_manager(_observability_manager)
