@@ -10,6 +10,7 @@ from collections.abc import Awaitable, Callable
 
 from fastapi import FastAPI
 
+from services.common.health import HealthManager
 from services.common.middleware import ObservabilityMiddleware
 from services.common.structured_logging import get_logger
 from services.common.tracing import setup_service_observability
@@ -44,6 +45,7 @@ def create_service_app(
     *,
     startup_callback: Callable[[], Any] | Callable[[], Awaitable[Any]] | None = None,
     shutdown_callback: Callable[[], Any] | Callable[[], Awaitable[Any]] | None = None,
+    health_manager: HealthManager | None = None,
 ) -> FastAPI:
     """Create a FastAPI app with standardized observability setup.
 
@@ -69,6 +71,10 @@ def create_service_app(
                          get_observability_manager(service_name).
         shutdown_callback: Optional callback for service-specific shutdown logic.
                            Can be sync or async.
+        health_manager: Optional HealthManager instance for tracking startup failures.
+                        If provided, startup callback exceptions will be recorded
+                        in the HealthManager. Services should create HealthManager at
+                        module level and pass it here.
 
     Returns:
         Configured FastAPI app with observability middleware and instrumentation
@@ -128,7 +134,14 @@ def create_service_app(
             logger.info(f"{service_name}.startup_complete")
         except Exception as exc:
             logger.error(f"{service_name}.startup_failed", error=str(exc))
-            # Continue without crashing - service will report not_ready
+            # Record failure in HealthManager if available
+            if health_manager is not None:
+                health_manager.record_startup_failure(
+                    error=exc,
+                    component="startup_callback",
+                    is_critical=True,
+                )
+            # Continue without crashing - HealthManager now controls readiness
 
         yield
 

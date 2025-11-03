@@ -129,9 +129,15 @@ async def _startup() -> None:
             "audio_enhancer", _check_audio_enhancer_health
         )
 
-        # Initialize audio processor
-        _audio = AudioProcessor(_audio_config)
-        await _audio.initialize()
+        # Initialize audio processor (critical component)
+        try:
+            _audio = AudioProcessor(_audio_config)
+            await _audio.initialize()
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="audio_processor", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
 
         # Initialize audio enhancer
         # Get model savedir from environment or use default
@@ -158,21 +164,35 @@ async def _startup() -> None:
                 message="MetricGAN model downloads may fail",
             )
 
-        _audio_enhancer = AudioEnhancer(
-            enable_metricgan=_audio_config.enable_enhancement,
-            device="cpu",
-            model_source=model_source,
-            model_savedir=model_savedir,
-        )
+        # Audio enhancer initialization (critical component)
+        try:
+            _audio_enhancer = AudioEnhancer(
+                enable_metricgan=_audio_config.enable_enhancement,
+                device="cpu",
+                model_source=model_source,
+                model_savedir=model_savedir,
+            )
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="audio_enhancer", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
 
-        # Mark startup complete
-        _health_manager.mark_startup_complete()
-
-        _logger.info("audio.startup_completed")
+        # Only mark startup complete if no critical failures occurred
+        if not _health_manager.has_startup_failure():
+            _health_manager.mark_startup_complete()
+            _logger.info("audio.startup_completed")
+        else:
+            _logger.warning(
+                "audio.startup_not_completed",
+                reason="critical_failure_detected",
+            )
 
     except Exception as exc:
         _logger.error("audio.startup_failed", error=str(exc))
-        # Continue without crashing - service will report not_ready
+        # Failure already recorded above or will be recorded by app_factory
+        # Re-raise so app_factory can also record it
+        raise
 
 
 async def _shutdown() -> None:
@@ -192,6 +212,7 @@ app = create_service_app(
     title="Audio Processor Service",
     startup_callback=_startup,
     shutdown_callback=_shutdown,
+    health_manager=_health_manager,
 )
 
 

@@ -160,12 +160,30 @@ class HealthEndpoints:
             HTTPException: 503 with error detail in JSON response body ({"detail": "message"})
                 if service is not ready. Error detail includes dependency names and error messages.
         """
-        # Check if startup is complete first
+        # Check for startup failure first (before checking if startup is complete)
+        startup_failure = self.health_manager.get_startup_failure()
+        if startup_failure and startup_failure.get("is_critical", True):
+            # Sanitize error message - truncate and avoid exposing sensitive details
+            error_msg = startup_failure.get("error", "Unknown error")
+            max_error_len = 200
+            if len(error_msg) > max_error_len:
+                error_msg = error_msg[:max_error_len] + "..."
+
+            component = startup_failure.get("component", "unknown")
+            error_type = startup_failure.get("error_type", "UnknownError")
+
+            detail = (
+                f"Service {self.service_name} not ready - startup failed: "
+                f"{component} - {error_type}"
+            )
+            raise HTTPException(status_code=503, detail=detail)
+
+        # Check if startup is complete
         # This ensures 503 is returned during startup before models finish downloading
         if not self.health_manager._startup_complete:
             raise HTTPException(
                 status_code=503,
-                detail=f"Service {self.service_name} not ready - startup not complete",
+                detail=f"Service {self.service_name} not ready - startup in progress",
             )
 
         # Get health status from health manager

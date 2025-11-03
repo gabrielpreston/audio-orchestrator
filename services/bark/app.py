@@ -135,9 +135,15 @@ async def _startup() -> None:
                 phase="startup_permissions_check",
             )
 
-        # Initialize Bark synthesizer
-        _bark_synthesizer = BarkSynthesizer(_audio_config)
-        await _bark_synthesizer.initialize()
+        # Initialize Bark synthesizer (critical component)
+        try:
+            _bark_synthesizer = BarkSynthesizer(_audio_config)
+            await _bark_synthesizer.initialize()
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="bark_synthesizer", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
 
         # Register dependencies - models check already ensures synthesizer exists
         # Only need bark_models dependency (redundant to check synthesizer separately)
@@ -146,9 +152,16 @@ async def _startup() -> None:
 
         # Pre-warm models with a synthesis to trigger torch.compile() warmup
         # This prevents the first real request from timing out during compilation
-        await _prewarm_models()
+        try:
+            await _prewarm_models()
+        except Exception as exc:
+            # Pre-warm failure is non-critical - service can still function
+            _health_manager.record_startup_failure(
+                error=exc, component="prewarm", is_critical=False
+            )
+            _logger.warning("bark.prewarm_failed", error=str(exc))
 
-        # Check Bark library version for optimization opportunities
+        # Check Bark library version for optimization opportunities (non-critical)
         try:
             import bark
 
@@ -169,13 +182,22 @@ async def _startup() -> None:
                 note="Version check failed, continuing without version info",
             )
 
-        # Mark startup complete
-        _health_manager.mark_startup_complete()
+        # Only mark startup complete if no critical failures occurred
+        if not _health_manager.has_startup_failure():
+            _health_manager.mark_startup_complete()
+            _logger.info("service.startup_complete", service="bark")
+        else:
+            _logger.warning(
+                "service.startup_not_completed",
+                service="bark",
+                reason="critical_failure_detected",
+            )
 
-        _logger.info("service.startup_complete", service="bark")
     except Exception as exc:
         _logger.error("service.startup_failed", error=str(exc))
-        # Continue without crashing - service will report not_ready
+        # Failure already recorded above or will be recorded by app_factory
+        # Re-raise so app_factory can also record it
+        raise
 
 
 async def _shutdown() -> None:
@@ -195,6 +217,7 @@ app = create_service_app(
     title="Bark TTS Service",
     startup_callback=_startup,
     shutdown_callback=_shutdown,
+    health_manager=_health_manager,
 )
 
 

@@ -884,17 +884,23 @@ async def _startup() -> None:
                 message="Model downloads may fail if directory is not writable",
             )
 
-        # Initialize model loader with cache-first + download fallback
-        _model_loader = BackgroundModelLoader(
-            cache_loader_func=_load_from_cache,
-            download_loader_func=lambda: _load_with_fallback(MODEL_NAME),
-            logger=logger,
-            loader_name="whisper_model",
-        )
+        # Initialize model loader with cache-first + download fallback (critical component)
+        try:
+            _model_loader = BackgroundModelLoader(
+                cache_loader_func=_load_from_cache,
+                download_loader_func=lambda: _load_with_fallback(MODEL_NAME),
+                logger=logger,
+                loader_name="whisper_model",
+            )
 
-        # Start background loading (non-blocking)
-        await _model_loader.initialize()
-        logger.info("stt.model_loader_initialized", model_name=MODEL_NAME)
+            # Start background loading (non-blocking)
+            await _model_loader.initialize()
+            logger.info("stt.model_loader_initialized", model_name=MODEL_NAME)
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="model_loader", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
 
         # Register model loader as dependency for health checks
         # Models must be loaded AND not currently loading for service to be ready
@@ -907,7 +913,7 @@ async def _startup() -> None:
             ),
         )
 
-        # Initialize audio processor client with fallback
+        # Initialize audio processor client with fallback (optional component)
         try:
             _audio_processor_client = STTAudioProcessorClient(
                 base_url=_cfg.faster_whisper.audio_service_url or "http://audio:9100",
@@ -915,6 +921,10 @@ async def _startup() -> None:
             )
             logger.info("stt.audio_processor_client_initialized")
         except Exception as exc:
+            # Audio processor client is optional - record as non-critical
+            _health_manager.record_startup_failure(
+                error=exc, component="audio_processor_client", is_critical=False
+            )
             logger.warning("stt.audio_processor_client_init_failed", error=str(exc))
             _audio_processor_client = None
 
@@ -942,8 +952,15 @@ async def _startup() -> None:
                 max_size_mb=max_size_mb,
             )
 
-        # Always mark startup complete (graceful degradation)
-        _health_manager.mark_startup_complete()
+        # Only mark startup complete if no critical failures occurred
+        if not _health_manager.has_startup_failure():
+            _health_manager.mark_startup_complete()
+            logger.info("stt.startup_completed")
+        else:
+            logger.warning(
+                "stt.startup_not_completed",
+                reason="critical_failure_detected",
+            )
 
         # Pre-warm models using unified pattern (replaces telemetry-specific warmup)
         from services.common.prewarm import prewarm_if_enabled
@@ -987,8 +1004,9 @@ async def _startup() -> None:
 
     except Exception as exc:
         logger.error("stt.startup_failed", error=str(exc))
-        # Still mark startup complete to avoid infinite startup loop
-        _health_manager.mark_startup_complete()
+        # Failure already recorded above or will be recorded by app_factory
+        # Re-raise so app_factory can also record it
+        raise
 
 
 # Create app using factory pattern
@@ -997,6 +1015,7 @@ app = create_service_app(
     "1.0.0",
     title="audio-orchestrator STT (faster-whisper)",
     startup_callback=_startup,
+    health_manager=_health_manager,
 )
 
 

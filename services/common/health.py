@@ -59,6 +59,9 @@ class HealthManager:
             str, asyncio.Lock
         ] = {}  # per-dependency locks to avoid stampede
 
+        # Startup failure tracking
+        self._startup_failure: dict[str, Any] | None = None
+
     def set_observability_manager(self, observability_manager: Any) -> None:
         """Set the observability manager for metrics."""
         self._observability_manager = observability_manager
@@ -122,6 +125,64 @@ class HealthManager:
         """Check if service process is alive."""
         return True  # If we can execute this, process is alive
 
+    def record_startup_failure(
+        self,
+        error: Exception,
+        component: str | None = None,
+        is_critical: bool = True,
+    ) -> None:
+        """Record a startup failure.
+
+        Args:
+            error: The exception that occurred during startup.
+            component: Optional component name where the failure occurred.
+            is_critical: If True, prevents mark_startup_complete() from succeeding.
+                        If False, failure is recorded but doesn't block readiness.
+
+        If is_critical=True, prevents startup_complete from being marked.
+        """
+        self._startup_failure = {
+            "error": str(error),
+            "error_type": type(error).__name__,
+            "component": component,
+            "is_critical": is_critical,
+            "timestamp": time.time(),
+        }
+        if is_critical:
+            self._logger.error(
+                "health.startup_failure_recorded",
+                component=component,
+                error_type=type(error).__name__,
+                error=str(error),
+                is_critical=is_critical,
+            )
+        else:
+            self._logger.warning(
+                "health.startup_failure_recorded_non_critical",
+                component=component,
+                error_type=type(error).__name__,
+                error=str(error),
+            )
+
+    def get_startup_failure(self) -> dict[str, Any] | None:
+        """Get startup failure details if any.
+
+        Returns:
+            Dict with failure details (error, error_type, component, is_critical, timestamp)
+            or None if no failure recorded.
+        """
+        return self._startup_failure
+
+    def has_startup_failure(self) -> bool:
+        """Check if critical startup failure occurred.
+
+        Returns:
+            True if a critical startup failure was recorded, False otherwise.
+        """
+        return self._startup_failure is not None and self._startup_failure.get(
+            "is_critical", True
+        )
+
     def mark_startup_complete(self) -> None:
         """Mark that startup initialization is complete.
 
@@ -133,7 +194,18 @@ class HealthManager:
 
         Dependencies should be registered before calling this method so health checks
         can properly detect when models are still downloading or caches are warming up.
+
+        If a critical startup failure was recorded, this method will not mark startup
+        complete and will log a warning instead.
         """
+        if self.has_startup_failure():
+            self._logger.warning(
+                "health.startup_complete_blocked",
+                reason="critical_startup_failure",
+                failure=self._startup_failure,
+            )
+            return  # Don't mark complete if critical failure occurred
+
         self._startup_complete = True
         self._logger.info("health.startup_complete", service=self._service_name)
         # Update startup metric using OpenTelemetry
@@ -161,6 +233,22 @@ class HealthManager:
         start_time = time.time()
 
         try:
+            # Check for startup failure first
+            startup_failure = self.get_startup_failure()
+            if startup_failure and startup_failure.get("is_critical", True):
+                return HealthCheck(
+                    status=HealthStatus.UNHEALTHY,
+                    ready=False,
+                    details={
+                        "reason": "startup_failed",
+                        "startup_failure": {
+                            "component": startup_failure.get("component"),
+                            "error_type": startup_failure.get("error_type"),
+                            "error": startup_failure.get("error"),
+                        },
+                    },
+                )
+
             if not self._startup_complete:
                 return HealthCheck(
                     status=HealthStatus.UNHEALTHY,

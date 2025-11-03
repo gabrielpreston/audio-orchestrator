@@ -95,30 +95,39 @@ async def _startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Load configuration with fallback
+        # Load configuration with fallback (optional - graceful degradation)
         try:
             _cfg = load_config_from_env(OrchestratorConfig)
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="config", is_critical=False
+            )
             logger.warning("orchestrator.config_load_failed", error=str(exc))
             _cfg = None  # Continue without config
 
-        # Initialize LangChain executor with fallback
+        # Initialize LangChain executor with fallback (optional - graceful degradation)
         try:
             _langchain_executor = create_langchain_executor()
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="langchain", is_critical=False
+            )
             logger.warning("orchestrator.langchain_init_failed", error=str(exc))
             _langchain_executor = None  # Continue without LangChain
 
-        # Initialize TTS client
+        # Initialize TTS client (optional - graceful degradation)
         try:
             tts_url = get_env_with_default("TTS_BASE_URL", "http://bark:7100", str)
             _tts_client = TTSClient(base_url=tts_url)
             logger.info("orchestrator.tts_client_initialized", tts_url=tts_url)
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="tts_client", is_critical=False
+            )
             logger.warning("orchestrator.tts_client_init_failed", error=str(exc))
             _tts_client = None  # Continue without TTS (graceful degradation)
 
-        # Initialize resilient HTTP clients for health checks using factory
+        # Initialize resilient HTTP clients for health checks (optional - graceful degradation)
         # For dependency health checks, grace period is 0.0 by default for accurate readiness
         global _llm_health_client, _tts_health_client, _guardrails_health_client
         try:
@@ -129,6 +138,9 @@ async def _startup() -> None:
                 env_prefix="LLM",
             )
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="llm_health_client", is_critical=False
+            )
             logger.warning("orchestrator.llm_health_client_init_failed", error=str(exc))
             _llm_health_client = None
 
@@ -140,6 +152,9 @@ async def _startup() -> None:
                 env_prefix="TTS",
             )
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="tts_health_client", is_critical=False
+            )
             logger.warning("orchestrator.tts_health_client_init_failed", error=str(exc))
             _tts_health_client = None
 
@@ -153,6 +168,9 @@ async def _startup() -> None:
                 env_prefix="GUARDRAILS",
             )
         except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="guardrails_health_client", is_critical=False
+            )
             logger.warning(
                 "orchestrator.guardrails_health_client_init_failed", error=str(exc)
             )
@@ -167,7 +185,7 @@ async def _startup() -> None:
         _health_manager.register_dependency("tts", _check_tts_health)
         _health_manager.register_dependency("guardrails", _check_guardrails_health)
 
-        # Always mark startup complete (graceful degradation)
+        # Mark startup complete (graceful degradation - all components are optional)
         _health_manager.mark_startup_complete()
 
         logger.info(
@@ -179,7 +197,11 @@ async def _startup() -> None:
 
     except Exception as exc:
         logger.error("orchestrator.startup_failed", error=str(exc))
-        # Continue without crashing - service will report not_ready
+        # Unexpected critical failure - record it
+        _health_manager.record_startup_failure(
+            error=exc, component="unexpected", is_critical=True
+        )
+        raise  # Re-raise so app_factory also records it
 
 
 async def _shutdown() -> None:
@@ -198,6 +220,7 @@ app = create_service_app(
     title="Enhanced Orchestrator",
     startup_callback=_startup,
     shutdown_callback=_shutdown,
+    health_manager=_health_manager,
 )
 
 

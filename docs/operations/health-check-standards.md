@@ -185,6 +185,7 @@ app.include_router(health_endpoints.get_router())
 -  **Consistent Responses**: All services return standardized response formats
 -  **Component Tracking**: Track service-specific components and dependencies
 -  **Startup Management**: Properly track startup completion state
+-  **Startup Failure Tracking**: Record and expose critical startup failures to prevent false-positive readiness
 
 ### Health Check Testing
 
@@ -218,6 +219,109 @@ def test_health_dependencies_endpoint():
     assert "dependencies" in data
     assert "startup_complete" in data
 ```
+
+## Startup Failure Handling
+
+### Critical vs. Optional Components
+
+Services must distinguish between critical and optional initialization steps:
+
+-  **Critical components**: Must succeed for service to be ready. Failures prevent `mark_startup_complete()`.
+-  **Optional components**: Can fail without blocking readiness (graceful degradation pattern).
+
+### HealthManager Startup Failure API
+
+```python
+from services.common.health import HealthManager
+
+health_manager = HealthManager("service_name")
+
+# Record a critical startup failure (prevents readiness)
+try:
+    critical_component = initialize_critical_component()
+except Exception as exc:
+    health_manager.record_startup_failure(
+        error=exc,
+        component="critical_component",
+        is_critical=True,
+    )
+    raise  # Re-raise so app_factory also records it
+
+# Record an optional component failure (doesn't block readiness)
+try:
+    optional_component = initialize_optional_component()
+except Exception as exc:
+    health_manager.record_startup_failure(
+        error=exc,
+        component="optional_component",
+        is_critical=False,  # Non-critical!
+    )
+    optional_component = None  # Graceful degradation
+
+# Only mark startup complete if no critical failures
+if not health_manager.has_startup_failure():
+    health_manager.mark_startup_complete()
+```
+
+### Service Pattern for Critical Initialization
+
+```python
+async def _startup() -> None:
+    """Service startup with failure tracking."""
+    global _health_manager, _critical_component
+
+    try:
+        # Critical initialization that must succeed
+        try:
+            _critical_component = initialize_critical_component()
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="critical_component", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
+
+        # Register dependencies
+        _health_manager.register_dependency(
+            "critical", lambda: _critical_component is not None
+        )
+
+        # Only mark complete if no failures occurred
+        if not _health_manager.has_startup_failure():
+            _health_manager.mark_startup_complete()
+    except Exception as exc:
+        # Failure already recorded above or will be recorded by app_factory
+        raise
+
+# Create app with health_manager
+app = create_service_app(
+    "service_name",
+    "1.0.0",
+    startup_callback=_startup,
+    health_manager=_health_manager,  # Pass health_manager here
+)
+```
+
+### Health Endpoint Behavior
+
+The `/health/ready` endpoint distinguishes three states:
+
+1.  **Startup failed**: Returns `503` with failure details:
+
+    ```json
+    {
+        "detail": "Service service_name not ready - startup failed: component - ErrorType"
+    }
+    ```
+
+2.  **Startup in progress**: Returns `503` with message:
+
+    ```json
+    {
+        "detail": "Service service_name not ready - startup in progress"
+    }
+    ```
+
+3.  **Startup complete**: Returns `200` with health status (may still be degraded if dependencies are unhealthy).
 
 ## Benefits of Common Module Approach
 

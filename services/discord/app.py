@@ -196,8 +196,14 @@ async def _startup() -> None:
         # Set observability manager in health manager
         _health_manager.set_observability_manager(_observability_manager)
 
-        # Load configuration
-        config = load_config()
+        # Load configuration (critical component)
+        try:
+            config = load_config()
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="config", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
 
         # Initialize resilient HTTP clients for health checks using factory
         # For dependency health checks, grace period is 0.0 by default for accurate readiness
@@ -210,6 +216,10 @@ async def _startup() -> None:
                 env_prefix="STT",
             )
         except Exception as exc:
+            # Health client is optional - record as non-critical
+            _health_manager.record_startup_failure(
+                error=exc, component="stt_health_client", is_critical=False
+            )
             logger.warning("discord.stt_health_client_init_failed", error=str(exc))
             _stt_health_client = None
 
@@ -221,6 +231,10 @@ async def _startup() -> None:
                 env_prefix="ORCHESTRATOR",
             )
         except Exception as exc:
+            # Health client is optional - record as non-critical
+            _health_manager.record_startup_failure(
+                error=exc, component="orchestrator_health_client", is_critical=False
+            )
             logger.warning(
                 "discord.orchestrator_health_client_init_failed", error=str(exc)
             )
@@ -233,18 +247,24 @@ async def _startup() -> None:
         # Start Discord bot as background task
         asyncio.create_task(_start_discord_bot(config, _observability_manager))
 
-        # Mark HTTP API as ready (bot will mark itself ready when connected)
-        _health_manager.mark_startup_complete()
-        logger.info("discord.http_api_started")
+        # Only mark startup complete if no critical failures occurred
+        if not _health_manager.has_startup_failure():
+            _health_manager.mark_startup_complete()
+            logger.info("discord.http_api_started")
+        else:
+            logger.warning(
+                "discord.http_api_not_started",
+                reason="critical_failure_detected",
+            )
 
     except Exception as exc:
         logger.error("discord.http_startup_failed", error=str(exc))
         import traceback
 
         logger.error("discord.startup_traceback", traceback=traceback.format_exc())
-        # Don't raise the exception to prevent the service from crashing
-        _bot = {"status": "error", "mode": "http", "error": str(exc)}
-        logger.info("discord.http_api_started_with_error")
+        # Failure already recorded above or will be recorded by app_factory
+        # Re-raise so app_factory can also record it
+        raise
 
 
 async def _check_stt_health() -> bool:
@@ -316,6 +336,7 @@ app = create_service_app(
     title="Discord Voice Service",
     startup_callback=_startup,
     shutdown_callback=_shutdown,
+    health_manager=_health_manager,
 )
 
 
