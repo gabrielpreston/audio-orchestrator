@@ -9,7 +9,7 @@ SHELL := /bin/bash
 .PHONY: docker-build docker-build-enhanced docker-build-service docker-build-base docker-build-wheels
 .PHONY: docker-push-base-images docker-push-services docker-push-all
 .PHONY: docker-pull-images docker-warm-cache
-.PHONY: test test-unit test-component test-integration
+.PHONY: test test-unit test-component test-integration test-unit-service test-component-service
 .PHONY: test-image test-image-force test-image-push test-image-force-push
 .PHONY: lint lint-image lint-image-force lint-image-push lint-image-force-push lint-fix
 .PHONY: security security-image security-image-force security-image-push security-image-force-push
@@ -469,6 +469,30 @@ test-integration: test-image ## Run integration tests against already-running te
 		-v "$(CURDIR)":$(TEST_WORKDIR) \
 		$(TEST_IMAGE) \
 		pytest -m integration -x $(PYTEST_ARGS)
+
+test-unit-service: test-image ## Run unit tests for specific service (set SERVICE=name)
+	@if [ -z "$(SERVICE)" ]; then \
+		printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	@if ! echo "$(ALL_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
+		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(ALL_SERVICES), common$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	@printf "$(COLOR_CYAN)→ Running unit tests for $(SERVICE) service$(COLOR_OFF)\n"
+	@$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),bash -c "test_paths=''; [ -d services/tests/unit/$(SERVICE) ] && test_paths=\"services/tests/unit/$(SERVICE)\"; [ -d services/$(SERVICE)/tests ] && test_paths=\"\$$test_paths services/$(SERVICE)/tests\"; if [ -n \"\$$test_paths\" ]; then pytest -m unit \$$test_paths $(PYTEST_ARGS); else echo 'No unit tests found for $(SERVICE) service'; fi")
+
+test-component-service: test-image ## Run component tests for specific service (set SERVICE=name)
+	@if [ -z "$(SERVICE)" ]; then \
+		printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	@if ! echo "$(ALL_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
+		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(ALL_SERVICES), common$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	@printf "$(COLOR_CYAN)→ Running component tests for $(SERVICE) service$(COLOR_OFF)\n"
+	@$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),bash -c "test_paths=''; [ -d services/tests/component/$(SERVICE) ] && test_paths=\"services/tests/component/$(SERVICE)\"; [ -d services/$(SERVICE)/tests ] && test_paths=\"\$$test_paths services/$(SERVICE)/tests\"; if [ -n \"\$$test_paths\" ]; then pytest -m component \$$test_paths $(PYTEST_ARGS); else echo 'No component tests found for $(SERVICE) service'; fi")
 
 # =============================================================================
 # LINTING & CODE QUALITY

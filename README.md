@@ -59,6 +59,7 @@ Each workflow runs independently based on detected changes, providing faster fee
 -  **Linting & Testing**: Run `make lint` and `make test` for code quality checks
 -  **Unit Tests**: `make test-unit` - Fast, isolated tests
 -  **Component Tests**: `make test-component` - Internal logic with mocks
+-  **Service-Specific Tests**: `make test-unit-service SERVICE=stt` or `make test-component-service SERVICE=orchestrator` - Run tests for a specific service
 -  **Integration Tests**: `make test-integration` - Service HTTP boundaries via Docker Compose
   -  **Voice Pipeline Tests**: Complete end-to-end voice feedback loop validation
   -  **Audio Format Chain**: Format preservation and quality validation

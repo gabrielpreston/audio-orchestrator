@@ -273,12 +273,20 @@ asyncio_default_fixture_loop_scope = "function"
 
 # Markers for test categorization
 markers = [
-    "unit: Unit tests (fast, isolated, no external dependencies)",
-    "component: Component tests (with mocked external dependencies)",
-    "integration: Integration tests (require Docker Compose)",
-    "e2e: End-to-end tests (manual trigger only)",
-    "failure: Service failure scenario tests (optional execution)",
-    "slow: Slow tests (>1 second execution time)",
+    # Industry-standard testing pyramid markers (primary)
+    "unit: Unit tests - fast, isolated, no external dependencies",
+    "component: Component tests - with mocked external dependencies",
+    "integration: Integration tests - require Docker Compose",
+    "e2e: End-to-end tests - manual trigger only",
+    # Interface-first testing markers (secondary)
+    "interface: Interface compliance tests - validate service boundaries",
+    "contract: Contract validation tests - validate API contracts",
+    "hot_swap: Hot-swap validation tests - validate interchangeability",
+    "security: Security validation tests - validate security contracts",
+    "performance: Performance benchmark tests",
+    # Legacy markers (being phased out but still in use)
+    "failure: Service failure scenario tests - optional execution",
+    "slow: Slow tests - execution time over 1 second",
     "external: Tests requiring external services or network access",
     "audio: Tests involving audio processing",
     "discord: Tests involving Discord API",
@@ -287,7 +295,9 @@ markers = [
     "llm: Tests involving language model",
     "orchestrator: Tests involving orchestration logic",
     "quality: Audio quality validation tests",
-    "timeout: Test execution timeout in seconds (requires pytest-timeout plugin)",
+    "manual: Manual tests requiring human intervention",
+    "concurrent: Concurrency and threading tests",
+    "timeout: Test execution timeout in seconds - requires pytest-timeout plugin",
 ]
 
 # Warnings configuration

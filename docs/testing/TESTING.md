@@ -638,6 +638,11 @@ pytest -m quality
 #### By Service
 
 ```bash
+# Using Makefile targets (recommended)
+make test-unit-service SERVICE=stt
+make test-component-service SERVICE=orchestrator
+
+# Using pytest directly
 # STT service tests
 pytest services/stt/tests/
 
@@ -695,7 +700,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=25",
+    "--cov-fail-under=19",
     "--junitxml=junit.xml",
     "-ra",
     "--tb=short",

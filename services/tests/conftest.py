@@ -257,48 +257,10 @@ def service_discovery_fixtures():
 
 # Pytest configuration
 def pytest_configure(config: pytest.Config) -> None:
-    """Configure pytest with custom markers."""
-    # Industry-standard testing pyramid markers (primary)
-    config.addinivalue_line(
-        "markers",
-        "unit: Unit tests (fast, isolated, no external dependencies) - 70% of tests",
-    )
-    config.addinivalue_line(
-        "markers",
-        "component: Component tests (with mocked external dependencies) - 20% of tests",
-    )
-    config.addinivalue_line(
-        "markers",
-        "integration: Integration tests (require Docker Compose) - 8% of tests",
-    )
-    config.addinivalue_line(
-        "markers", "e2e: End-to-end tests (manual trigger only) - 2% of tests"
-    )
-
-    # Interface-first testing markers (secondary)
-    config.addinivalue_line("markers", "interface: Interface compliance tests")
-    config.addinivalue_line("markers", "contract: Contract validation tests")
-    config.addinivalue_line("markers", "hot_swap: Hot-swap validation tests")
-    config.addinivalue_line("markers", "security: Security validation tests")
-    config.addinivalue_line("markers", "performance: Performance benchmark tests")
-
-    # Legacy markers (being phased out)
-    config.addinivalue_line(
-        "markers", "manual: Manual tests requiring human intervention"
-    )
-    config.addinivalue_line("markers", "slow: Slow tests (>1 second execution time)")
-    config.addinivalue_line("markers", "concurrent: Concurrency and threading tests")
-    config.addinivalue_line(
-        "markers", "external: Tests requiring external services or network access"
-    )
-    config.addinivalue_line("markers", "audio: Tests involving audio processing")
-    config.addinivalue_line("markers", "discord: Tests involving Discord API")
-    config.addinivalue_line("markers", "stt: Tests involving speech-to-text")
-    config.addinivalue_line("markers", "tts: Tests involving text-to-speech")
-    config.addinivalue_line("markers", "llm: Tests involving language model")
-    config.addinivalue_line(
-        "markers", "orchestrator: Tests involving orchestration logic"
-    )
+    """Configure pytest - markers are now defined in pyproject.toml only."""
+    # Markers are now defined in pyproject.toml - no need to register here
+    # This function is kept for any future pytest configuration needs
+    pass
 
 
 def pytest_collection_modifyitems(
