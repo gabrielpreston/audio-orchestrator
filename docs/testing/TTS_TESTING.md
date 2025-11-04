@@ -20,12 +20,13 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 **Mocking**: No external dependencies
 **Duration**: < 1 second per test
 
-**Test Files**:
+**Note**: Direct TTS unit tests are not currently implemented. TTS functionality is tested via:
 
--  `services/tts/tests/test_tts_audio_format.py`
--  `services/tts/tests/test_tts_audio_quality.py`
+-  Integration tests in `services/tests/integration/test_orchestrator_text_pipeline.py` (TTS synthesis)
+-  Service-level integration tests in `services/tests/integration/test_bark_service.py` (Bark TTS service)
+-  Audio quality helpers in `services/tests/utils/audio_quality_helpers.py`
 
-**What They Test**:
+**What They Would Test** (if implemented):
 
 -  WAV format validation functions
 -  Audio quality metrics calculation
@@ -38,12 +39,12 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 **Mocking**: MockTTSAdapter for predictable output
 **Duration**: 1-5 seconds per test
 
-**Test Files**:
+**Note**: Direct TTS component tests are not currently implemented. TTS functionality is tested via:
 
--  `services/tts/tests/test_tts_service_audio.py`
--  `services/tts/tests/test_tts_audio_pipeline.py`
+-  Integration tests using real Bark TTS service in `services/tests/integration/test_bark_service.py`
+-  Mock TTS adapter available in `services/tests/mocks/tts_adapter.py` for use in other tests
 
-**What They Test**:
+**What They Would Test** (if implemented):
 
 -  TTS service audio validation
 -  Audio processing pipeline components
@@ -53,20 +54,21 @@ TTS testing covers audio format validation, quality metrics, performance thresho
 ### Integration Tests (`@pytest.mark.integration`)
 
 **Purpose**: Test TTS with real services but controlled environment
-**Mocking**: Real TTS models, mocked external services
+**Mocking**: Real TTS models (Bark), no mocked services
 **Duration**: 5-30 seconds per test
 
 **Test Files**:
 
--  `services/tests/integration/test_tts_synthesis_integration.py`
--  `services/tests/integration/test_tts_service_integration.py`
+-  `services/tests/integration/test_bark_service.py` - Direct Bark TTS service tests
+-  `services/tests/integration/test_orchestrator_text_pipeline.py` - TTS synthesis via orchestrator
 
 **What They Test**:
 
--  Real text-to-audio conversion
--  Audio format validation on real output
--  Audio quality metrics on real output
+-  Real text-to-audio conversion using Bark TTS service
+-  Audio format validation on real output (base64-encoded WAV)
+-  Audio quality metrics on real output (via quality helpers)
 -  Performance thresholds with real models
+-  Service health and readiness endpoints
 
 ## Test Infrastructure
 
@@ -98,12 +100,12 @@ def mock_tts_audio(temp_dir: Path) -> Path:
 ```python
 class MockTTSAdapter:
     """Mock TTS adapter that generates synthetic audio for testing."""
-    
+
     async def synthesize(self, text: str, voice: Optional[str] = None, **kwargs) -> bytes:
         """Generate synthetic audio based on text."""
         # Calculate duration based on text length (0.1s per character)
         duration = max(0.1, len(text) * 0.1)
-        
+
         # Generate synthetic audio
         pcm_data = generate_test_audio(
             duration=duration,
@@ -112,7 +114,7 @@ class MockTTSAdapter:
             amplitude=amplitude,
             noise_level=noise_level,
         )
-        
+
         # Create WAV file
         wav_data = create_wav_file(pcm_data, self.sample_rate, channels=1)
         return wav_data
@@ -153,29 +155,27 @@ class MockTTSAdapter:
 ### All TTS Tests
 
 ```bash
-# Run all TTS tests
-make test TTS_MARKER=tts
+# Run all TTS integration tests
+make test-integration
 
-# Run specific test categories
-make test-unit-container
-make test-component-container
-make test-integration-container
+# Run Bark service tests specifically
+pytest services/tests/integration/test_bark_service.py
+
+# Run orchestrator tests that exercise TTS
+pytest services/tests/integration/test_orchestrator_text_pipeline.py -k tts
 ```
 
 ### Specific TTS Tests
 
 ```bash
-# Unit tests only
-pytest -m "unit and tts" services/tts/tests/
+# Bark service integration tests
+pytest services/tests/integration/test_bark_service.py -v
 
-# Component tests only
-pytest -m "component and tts" services/tts/tests/
+# Orchestrator TTS integration (indirect TTS testing)
+pytest services/tests/integration/test_orchestrator_text_pipeline.py -v
 
-# Integration tests only
-pytest -m "integration and tts" services/tests/integration/
-
-# Audio quality tests
-pytest -m "audio and tts" services/tts/tests/
+# All integration tests (includes TTS)
+pytest -m integration services/tests/integration/
 ```
 
 ### Test Artifacts
@@ -184,92 +184,84 @@ pytest -m "audio and tts" services/tts/tests/
 # Set custom artifacts directory
 export TEST_ARTIFACTS_DIR="/custom/path/to/artifacts"
 
-# Run tests with artifacts
-make test TTS_MARKER=tts
+# Run TTS integration tests
+pytest services/tests/integration/test_bark_service.py -v
 
-# Check artifacts
-ls -la test_artifacts/tts/
+# Check artifacts (if test artifacts directory exists)
+ls -la test_artifacts/tts/ 2>/dev/null || echo "No TTS artifacts directory"
 ```
 
 ## Test Examples
 
-### Unit Test Example
-
-```python
-@pytest.mark.unit
-@pytest.mark.tts
-def test_validate_tts_wav_format():
-    """Test WAV format validation for TTS audio."""
-    # Generate test audio
-    pcm_data = generate_test_audio(
-        duration=1.0,
-        sample_rate=22050,
-        frequency=440.0,
-        amplitude=0.5,
-    )
-    wav_data = create_wav_file(pcm_data, sample_rate=22050, channels=1)
-    
-    # Validate format
-    result = validate_tts_audio_format(wav_data)
-    
-    assert result["is_valid"]
-    assert result["tts_requirements"]["sample_rate_ok"]
-    assert result["tts_requirements"]["channels_ok"]
-    assert result["tts_requirements"]["bit_depth_ok"]
-    assert result["is_tts_compliant"]
-```
-
-### Component Test Example
-
-```python
-@pytest.mark.component
-@pytest.mark.tts
-@pytest.mark.audio
-def test_tts_service_returns_valid_wav(mock_tts_adapter, tts_artifacts_dir: Path):
-    """Test TTS service returns valid WAV format."""
-    # Mock the TTS service response
-    mock_audio_data = mock_tts_adapter.synthesize("Hello world")
-    
-    # Validate WAV format
-    result = validate_tts_audio_format(mock_audio_data)
-    
-    assert result["is_valid"]
-    assert result["is_tts_compliant"]
-    assert result["sample_rate"] == 22050
-    assert result["channels"] == 1
-    assert result["bit_depth"] == 16
-    
-    # Save to artifacts directory for debugging
-    output_file = tts_artifacts_dir / "test_valid_wav.wav"
-    output_file.write_bytes(mock_audio_data)
-```
-
-### Integration Test Example
+### Integration Test Example (Bark Service)
 
 ```python
 @pytest.mark.integration
-@pytest.mark.tts
-@pytest.mark.audio
-@pytest.mark.slow
-def test_real_tts_audio_quality_thresholds(tts_client, tts_artifacts_dir: Path):
-    """Test real TTS audio quality meets thresholds."""
-    # Make TTS request
-    response = tts_client.post(
-        "/synthesize",
-        json={"text": "Quality threshold test with longer text for better analysis"}
-    )
-    
-    # Validate audio quality
-    quality_result = validate_tts_audio_quality(response.content)
-    
-    assert quality_result["meets_quality_thresholds"]
-    assert quality_result["snr_db"] >= 20.0  # MIN_SNR threshold
-    assert quality_result["thd_percent"] <= 1.0  # MAX_THD threshold
-    assert quality_result["quality_checks"]["voice_range_ok"]
-    
-    # Save to artifacts directory for analysis
-    output_file = tts_artifacts_dir / "real_tts_quality.wav"
-    output_file.write_bytes(response.content)
+@pytest.mark.timeout(120)
+async def test_bark_synthesize():
+    """Test Bark TTS synthesis endpoint."""
+    from services.tests.fixtures.integration_fixtures import Timeouts
+    from services.tests.integration.conftest import get_service_url
+    from services.tests.utils.service_helpers import docker_compose_test_context
+    import httpx
+
+    tts_url = get_service_url("TTS")
+    required_services = ["bark"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.LONG_RUNNING) as client,
+    ):
+        response = await client.post(
+            f"{tts_url}/synthesize",
+            json={"text": "Hello, this is a test.", "voice": "v2/en_speaker_1", "speed": 1.0},
+            timeout=Timeouts.LONG_RUNNING,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert "audio" in data  # Base64-encoded audio
+        assert "engine" in data
+        assert "processing_time_ms" in data
+        assert "voice_used" in data
+```
+
+### Integration Test Example (Orchestrator TTS)
+
+```python
+@pytest.mark.integration
+@pytest.mark.timeout(120)
+async def test_orchestrator_tts_integration():
+    """Test orchestrator TTS synthesis via transcript processing."""
+    from services.tests.fixtures.integration_fixtures import Timeouts
+    from services.tests.integration.conftest import get_service_url
+    from services.tests.utils.service_helpers import docker_compose_test_context
+    import httpx
+
+    orchestrator_url = get_service_url("ORCHESTRATOR")
+    required_services = ["orchestrator", "flan", "guardrails", "bark"]
+
+    async with (
+        docker_compose_test_context(required_services, timeout=120.0),
+        httpx.AsyncClient(timeout=Timeouts.STANDARD) as client,
+    ):
+        response = await client.post(
+            f"{orchestrator_url}/api/v1/transcripts",
+            json={
+                "transcript": "Hello, how are you?",
+                "user_id": "test_user",
+                "channel_id": "test_channel",
+            },
+            timeout=Timeouts.STANDARD,
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get("success") is True
+        assert "response_text" in data
+        # TTS audio may be included if TTS service is available
+        if data.get("audio_data"):
+            assert data.get("audio_format") == "wav"
 ```
 
 ## Baseline Sample Generation

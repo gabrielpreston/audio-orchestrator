@@ -34,15 +34,7 @@ from services.common.permissions import ensure_model_directory
 from .synthesis import BarkSynthesizer
 
 
-# Global variables
-_bark_synthesizer: BarkSynthesizer | None = None
-_health_manager = HealthManager("bark")
-_observability_manager = None
-_tts_metrics = {}
-_logger = get_logger(__name__, service_name="bark")
-_prewarm_complete = False
-
-# Load configuration
+# Load configuration first (before creating loggers)
 _config_preset = get_service_preset("tts")
 _logging_config = LoggingConfig(**_config_preset["logging"])
 _http_config = HttpConfig(**_config_preset["http"])
@@ -50,12 +42,20 @@ _audio_config = AudioConfig(**_config_preset["audio"])
 _service_config = ServiceConfig(**_config_preset["service"])
 _telemetry_config = TelemetryConfig(**_config_preset["telemetry"])
 
-# Configure logging
+# Configure logging BEFORE creating any loggers to ensure JSON format is applied
 configure_logging(
     _logging_config.level,
     json_logs=_logging_config.json_logs,
     service_name="bark",
 )
+
+# Global variables (created after logging configuration)
+_bark_synthesizer: BarkSynthesizer | None = None
+_health_manager = HealthManager("bark")
+_observability_manager = None
+_tts_metrics = {}
+_logger = get_logger(__name__, service_name="bark")
+_prewarm_complete = False
 
 # Voice presets
 VOICE_PRESETS = [

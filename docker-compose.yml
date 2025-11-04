@@ -29,8 +29,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # Increased for better BERT model performance and caching
-          cpus: "3" # Increased for faster toxicity inference
+          memory: 1.5G # Increased for better BERT model performance and caching
+          cpus: "3.5" # Increased for faster toxicity inference
     restart: "unless-stopped"
     logging:
       driver: "json-file"
@@ -64,8 +64,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Orchestrator is lightweight coordinator (reduced from 1G)
-          cpus: "3" # Increased from 2 for better concurrent pipeline coordination
+          memory: 1G # Increased for better concurrent request handling
+          cpus: "4" # Increased for better concurrent pipeline coordination
     restart: "unless-stopped"
     logging:
       driver: "json-file"
@@ -105,8 +105,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 7G # FLAN-T5 Large on GPU (optimized - GPU offloads memory)
-          cpus: "8" # Increased for maximum GPU utilization
+          memory: 8G # FLAN-T5 Large on GPU (optimized - GPU offloads memory)
+          cpus: "9" # Increased for maximum GPU utilization
         reservations:
           devices:
             - driver: nvidia
@@ -147,8 +147,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Discord bot coordination (reduced from 1G)
-          cpus: "2" # Increased for voice I/O handling
+          memory: 768M # Increased for voice processing buffers
+          cpus: "2.5" # Increased for better I/O handling
     restart: "unless-stopped"
     logging:
       driver: "json-file"
@@ -186,8 +186,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 5G  # STT with faster-whisper on GPU
-          cpus: "8"  # Increased from 6 for better GPU pipeline throughput
+          memory: 6G  # STT with faster-whisper on GPU
+          cpus: "9"  # Increased for better GPU pipeline throughput
         reservations:
           devices:
             - driver: nvidia
@@ -232,8 +232,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 5G # Bark on GPU (optimized for GPU buffer management)
-          cpus: "8" # Increased for maximum GPU utilization
+          memory: 6G # Bark on GPU (optimized for GPU buffer management)
+          cpus: "9" # Increased for maximum GPU utilization
         reservations:
           devices:
             - driver: nvidia
@@ -281,150 +281,7 @@ services:
         max-size: "10m"
         max-file: "5"
 
-  monitoring:
-    build:
-      context: "."
-      dockerfile: "services/monitoring/Dockerfile"
-      cache_from:
-        - ghcr.io/gabrielpreston/monitoring:latest
-      args:
-        BUILDKIT_INLINE_CACHE: "1"
-    image: "ghcr.io/gabrielpreston/monitoring:latest"
-    ports:
-      - "8501:8501" # External: 8501, Internal: 8501
-    env_file:
-      - path: "./.env.common"
-        required: false
-      - path: "./.env.docker"
-        required: false
-    environment:
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      - PROMETHEUS_URL=http://prometheus:9090
-    volumes:
-      # Mount source code for development (overrides COPY in Dockerfile)
-      - "./services/common:/app/services/common"
-      - "./services/monitoring:/app/services/monitoring"
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Monitoring UI (reduced from 1G)
-          cpus: "1" # Streamlit dashboard
-    restart: "unless-stopped"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "5"
-
-  # Observability Stack - INDEPENDENT INFRASTRUCTURE
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.91.0
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - ./config/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
-    ports:
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP HTTP receiver
-      - "8889:8889" # Prometheus metrics exporter
-      - "13133:13133" # Health check
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  prometheus:
-    image: prom/prometheus:v2.48.0
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--storage.tsdb.retention.time=7d"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-    volumes:
-      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus-data:/prometheus
-    ports:
-      - "9090:9090"
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Prometheus metrics storage (reduced from 1G)
-          cpus: "1" # Metrics aggregation
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.52
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - SPAN_STORAGE_TYPE=memory
-      - LOG_LEVEL=warn
-    ports:
-      - "16686:16686" # Jaeger UI
-      - "14250:14250" # gRPC
-      - "14268:14268" # HTTP
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Jaeger tracing (reduced from 1G)
-          cpus: "1" # Trace storage and query
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
-  grafana:
-    image: grafana/grafana:10.2.2
-    env_file:
-      - path: "./.env.common"
-        required: false
-    entrypoint: ["/bin/sh", "/etc/grafana/entrypoint.sh"]
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
-      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
-      # Use project-standard logging configuration from .env.common
-      # LOG_LEVEL defaults to "info", LOG_JSON defaults to "true" in .env.common
-      # Entrypoint maps LOG_JSON to GF_LOG_FORMAT: true/True/1 → json, else → console
-      - GF_LOG_LEVEL=${LOG_LEVEL:-info}
-      # LOG_JSON from .env.common converted to GF_LOG_FORMAT by entrypoint script
-      # Override: set GF_LOG_FORMAT_OVERRIDE=json or GF_LOG_FORMAT_OVERRIDE=console
-    volumes:
-      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./config/grafana/entrypoint.sh:/etc/grafana/entrypoint.sh:ro
-      - grafana-data:/var/lib/grafana  # Grafana data persistence
-    ports:
-      - "3000:3000"
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: "0.5"
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-
 volumes:
-  prometheus-data: {}
-  grafana-data: {}
   # Shared pip cache for faster builds across services
   pip-cache:
     driver: local

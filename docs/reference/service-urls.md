@@ -28,16 +28,6 @@ Complete list of all service URLs accessible from your browser when running the 
 | Service | URL | Description |
 |---------|-----|-------------|
 | **Testing UI (Gradio)** | [http://localhost:8080](http://localhost:8080) | Interactive testing interface for the audio pipeline |
-| **Monitoring Dashboard (Streamlit)** | [http://localhost:8501](http://localhost:8501) | Real-time monitoring dashboard for service health and metrics |
-
-## Observability Stack
-
-| Service | URL | Description | Credentials |
-|---------|-----|-------------|-------------|
-| **Prometheus** | [http://localhost:9090](http://localhost:9090) | Metrics and monitoring database | No authentication required |
-| **Grafana** | [http://localhost:3000](http://localhost:3000) | Visualization dashboards and analytics | Username: `admin`, Password: `admin` |
-| **Jaeger UI** | [http://localhost:16686](http://localhost:16686) | Distributed tracing UI for request flow analysis | No authentication required |
-| **OTEL Collector Health** | [http://localhost:13133](http://localhost:13133) | OpenTelemetry collector health check endpoint | No authentication required |
 
 ## Health Check Endpoints
 
@@ -83,9 +73,6 @@ Replace `/docs` with `/openapi.json` to get the raw OpenAPI schema (e.g., [http:
 
 1.  **Testing UI**: [http://localhost:8080](http://localhost:8080) — Primary interface for testing the audio pipeline
 2.  **Orchestrator API Docs**: [http://localhost:8220/docs](http://localhost:8220/docs) — Main orchestration service API
-3.  **Monitoring Dashboard**: [http://localhost:8501](http://localhost:8501) — Real-time service monitoring
-4.  **Grafana**: [http://localhost:3000](http://localhost:3000) — Metrics visualization (login: `admin`/`admin`)
-5.  **Jaeger**: [http://localhost:16686](http://localhost:16686) — Distributed tracing visualization
 
 ### Port Mapping Reference
 
@@ -98,10 +85,6 @@ Replace `/docs` with `/openapi.json` to get the raw OpenAPI schema (e.g., [http:
 | 9310 | 9300 | Guardrails |
 | 8009 | 8001 | Discord Bot |
 | 8080 | 8080 | Testing UI (Gradio) |
-| 8501 | 8501 | Monitoring Dashboard (Streamlit) |
-| 9090 | 9090 | Prometheus |
-| 3000 | 3000 | Grafana |
-| 16686 | 16686 | Jaeger UI |
 
 > **Note**: External ports are what you use in your browser (`localhost:<external>`). Internal ports are used for service-to-service communication within the Docker network.
 

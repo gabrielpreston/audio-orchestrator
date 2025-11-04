@@ -1,8 +1,0 @@
-# Include base requirements
--r ../requirements-base.txt
-
-# Monitoring dashboard specific dependencies
-streamlit==1.40.0
-plotly>=5.22.0,<6.0.0  # Requires plotly 5.22+ for numpy 2.x compatibility
-pandas>=2.2.0,<3.0.0  # Requires pandas 2.2+ for numpy 2.x compatibility
-prometheus-api-client==0.5.0

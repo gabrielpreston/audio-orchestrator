@@ -9,7 +9,7 @@ SHELL := /bin/bash
 .PHONY: docker-build docker-build-enhanced docker-build-service docker-build-base docker-build-wheels
 .PHONY: docker-push-base-images docker-push-services docker-push-all
 .PHONY: docker-pull-images docker-warm-cache
-.PHONY: test test-unit test-component test-integration test-observability test-observability-full
+.PHONY: test test-unit test-component test-integration
 .PHONY: test-image test-image-force test-image-push test-image-force-push
 .PHONY: lint lint-image lint-image-force lint-image-push lint-image-force-push lint-fix
 .PHONY: security security-image security-image-force security-image-push security-image-force-push
@@ -85,14 +85,14 @@ PYTEST_ARGS ?=
 # Dynamic service discovery
 SERVICES := $(shell find services -maxdepth 1 -type d -not -name services | sed 's/services\///' | sort)
 
-# Development services (includes testing and monitoring, excludes observability stack)
-DEV_SERVICES := discord stt flan orchestrator bark monitoring testing guardrails
+# Development services (excludes observability stack)
+DEV_SERVICES := discord stt flan orchestrator bark testing guardrails
 
-# Production services only (excludes testing, monitoring, and observability stack)
+# Production services only (excludes testing and observability stack)
 PROD_SERVICES := discord stt flan orchestrator bark guardrails
 
-# All services including observability stack
-ALL_SERVICES := discord stt flan orchestrator bark monitoring testing guardrails otel-collector prometheus jaeger grafana
+# All services (excludes observability stack)
+ALL_SERVICES := discord stt flan orchestrator bark testing guardrails
 
 # =============================================================================
 # HELPER FUNCTIONS
@@ -412,7 +412,7 @@ docker-push-all: docker-push-base-images docker-push-services test-image-push li
 docker-pull-images: ## Pre-pull images for all compose files and toolchain (cache warmup)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@printf "$(COLOR_GREEN)→ Pulling images defined in docker-compose files$(COLOR_OFF)\n"
-	@for f in docker-compose.yml docker-compose.test.yml docker-compose.observability-test.yml docker-compose.ci.yml; do \
+	@for f in docker-compose.yml docker-compose.test.yml docker-compose.ci.yml; do \
 		if [ -f "$$f" ]; then \
 			printf "$(COLOR_CYAN)→ Pulling images from %s$(COLOR_OFF)\n" "$$f"; \
 			$(DOCKER_COMPOSE) -f "$$f" pull --ignore-pull-failures || true; \
@@ -469,56 +469,6 @@ test-integration: test-image ## Run integration tests against already-running te
 		-v "$(CURDIR)":$(TEST_WORKDIR) \
 		$(TEST_IMAGE) \
 		pytest -m integration -x $(PYTEST_ARGS)
-
-test-observability: test-image ## Run observability stack integration tests
-	@printf "$(COLOR_CYAN)→ Running observability stack tests$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ Building observability test services$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml build
-	@printf "$(COLOR_YELLOW)→ Starting observability stack$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml up -d
-	@printf "$(COLOR_YELLOW)→ Running observability tests$(COLOR_OFF)\n"
-	@docker run --rm \
-		--network audio-orchestrator-observability-test \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest services/tests/integration/observability/ $(PYTEST_ARGS) || { \
-			status=$$?; \
-			printf "$(COLOR_YELLOW)→ Stopping observability services$(COLOR_OFF)\n"; \
-			$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml down -v; \
-			exit $$status; \
-		}
-	@printf "$(COLOR_YELLOW)→ Stopping observability services$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) -f docker-compose.observability-test.yml down -v
-
-test-observability-full: test-image ## Run full observability stack with application services
-	@printf "$(COLOR_CYAN)→ Running full observability stack tests$(COLOR_OFF)\n"
-	@printf "$(COLOR_YELLOW)→ Building all services$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) build
-	@printf "$(COLOR_YELLOW)→ Starting full stack with observability$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) up -d
-	@printf "$(COLOR_YELLOW)→ Waiting for services to be ready$(COLOR_OFF)\n"
-	@sleep 30
-	@printf "$(COLOR_YELLOW)→ Running observability tests$(COLOR_OFF)\n"
-	@docker run --rm \
-		--network audio-orchestrator_default \
-		-u $$(id -u):$$(id -g) \
-		-e HOME=$(TEST_WORKDIR) \
-		-e USER=$$(id -un 2>/dev/null || echo tester) \
-		$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
-		-v "$(CURDIR)":$(TEST_WORKDIR) \
-		$(TEST_IMAGE) \
-		pytest services/tests/integration/observability/ $(PYTEST_ARGS) || { \
-			status=$$?; \
-			printf "$(COLOR_YELLOW)→ Stopping full stack$(COLOR_OFF)\n"; \
-			$(DOCKER_COMPOSE) down -v; \
-			exit $$status; \
-		}
-	@printf "$(COLOR_YELLOW)→ Stopping full stack$(COLOR_OFF)\n"
-	@$(DOCKER_COMPOSE) down -v
 
 # =============================================================================
 # LINTING & CODE QUALITY

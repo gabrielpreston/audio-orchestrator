@@ -480,7 +480,7 @@ Use shared utility functions from `services.tests.fixtures.integration_fixtures`
 
 -  `check_service_health()` - Check if service is healthy
 -  `check_service_ready()` - Check if service is ready
--  `get_service_metrics()` - Get Prometheus metrics
+-  `get_service_metrics()` - Get service metrics from /metrics endpoint (if enabled)
 -  `retry_request()` - Retry requests with backoff
 
 All utility functions accept base URLs that should be obtained via `get_service_url()` helper.

@@ -58,9 +58,6 @@ services:
     networks:
       - test-network
     environment:
-      - LLM_BASE_URL=http://flan:8100
-      - TTS_BASE_URL=http://bark:7100 # Explicit service URL (agnostic name)
-      - GUARDRAILS_BASE_URL=http://guardrails:9300
       - LLM_AUTH_TOKEN=test-token
       - TTS_AUTH_TOKEN=test-token
 
@@ -78,8 +75,6 @@ services:
       - DISCORD_FULL_BOT=false # HTTP mode by default (correct env var name)
       - DISCORD_GUILD_ID=123456789
       - DISCORD_VOICE_CHANNEL_ID=987654321
-      - STT_BASE_URL=http://stt:9000
-      - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
 
   # Testing service (Gradio UI)
   testing:
@@ -88,54 +83,3 @@ services:
       service: testing
     networks:
       - test-network
-    environment:
-      - STT_BASE_URL=http://stt:9000
-      - ORCHESTRATOR_BASE_URL=http://orchestrator:8200
-      - TTS_BASE_URL=http://bark:7100
-
-  # Monitoring service
-  monitoring:
-    extends:
-      file: docker-compose.yml
-      service: monitoring
-    networks:
-      - test-network
-    environment:
-      - PROMETHEUS_URL=http://prometheus:9090
-
-  # Observability Stack
-  otel-collector:
-    extends:
-      file: docker-compose.yml
-      service: otel-collector
-    networks:
-      - test-network
-
-  prometheus:
-    extends:
-      file: docker-compose.yml
-      service: prometheus
-    networks:
-      - test-network
-    volumes:
-      - prometheus-test-data:/prometheus
-
-  jaeger:
-    extends:
-      file: docker-compose.yml
-      service: jaeger
-    networks:
-      - test-network
-
-  grafana:
-    extends:
-      file: docker-compose.yml
-      service: grafana
-    networks:
-      - test-network
-    volumes:
-      - grafana-test-data:/var/lib/grafana
-
-volumes:
-  prometheus-test-data: {}
-  grafana-test-data: {}
