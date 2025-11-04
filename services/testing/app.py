@@ -467,14 +467,36 @@ if __name__ == "__main__":
     # Create and launch Gradio interface
     demo = create_gradio_interface()
 
-    # Launch in a separate thread
+    # Launch in a separate thread with error handling
     import threading
 
-    gradio_thread = threading.Thread(
-        target=lambda: demo.launch(
-            server_name="0.0.0.0", server_port=8080, share=False, quiet=True
-        )
-    )
+    def _launch_gradio() -> None:
+        """Launch Gradio interface with error handling."""
+        try:
+            # Configure Gradio to prevent localhost detection issues in Docker
+            import os
+
+            os.environ.setdefault("GRADIO_SERVER_NAME", "0.0.0.0")
+            os.environ.setdefault("GRADIO_SERVER_PORT", "8080")
+
+            demo.launch(
+                server_name="0.0.0.0",
+                server_port=8080,
+                share=False,
+                quiet=True,
+                inbrowser=False,  # Don't try to open browser
+                show_api=False,  # Disable API info generation to avoid schema errors
+                prevent_thread_lock=True,  # Allow thread to continue
+            )
+        except Exception as exc:
+            logger.error(
+                "gradio.launch_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                message="Gradio interface failed to launch",
+            )
+
+    gradio_thread = threading.Thread(target=_launch_gradio)
     gradio_thread.daemon = True
     gradio_thread.start()
 

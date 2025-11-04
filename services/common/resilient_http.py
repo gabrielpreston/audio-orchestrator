@@ -70,6 +70,24 @@ class ResilientHTTPClient:
             )
         return self._client
 
+    def _get_effective_check_interval(self) -> float:
+        """Get effective check interval based on startup phase.
+
+        Returns:
+            - 1.0s during startup phase (first 120s)
+            - Existing exponential backoff logic after 120s
+        """
+        elapsed = time.time() - self._service_start_time
+        if elapsed < 120.0:
+            return 1.0  # Startup: check every 1s
+        else:
+            # Use existing exponential backoff logic
+            base = self._health_check_interval
+            backoff = min(
+                2.0**self._consecutive_failures, self._max_backoff_interval / base
+            )
+            return base * backoff
+
     async def check_health(self) -> bool:
         """Check if service is healthy via /health/ready.
 
@@ -79,12 +97,8 @@ class ResilientHTTPClient:
         now = time.time()
 
         # Fast path: skip if checked recently (outside lock for performance)
-        # Calculate effective interval with exponential backoff
-        base_interval = self._health_check_interval
-        backoff_multiplier = min(
-            2.0**self._consecutive_failures, self._max_backoff_interval / base_interval
-        )
-        effective_interval = base_interval * backoff_multiplier
+        # Calculate effective interval with startup-aware logic
+        effective_interval = self._get_effective_check_interval()
 
         if now - self._last_health_check < effective_interval:
             return self._is_healthy
@@ -92,6 +106,8 @@ class ResilientHTTPClient:
         # Acquire lock to prevent concurrent health checks
         async with self._health_check_lock:
             # Re-check interval inside lock (another call may have updated it)
+            # Recalculate effective interval in case it changed
+            effective_interval = self._get_effective_check_interval()
             if now - self._last_health_check < effective_interval:
                 return self._is_healthy
 
@@ -134,6 +150,7 @@ class ResilientHTTPClient:
                     # Increment failure count for exponential backoff
                     self._consecutive_failures += 1
                     # Calculate next check interval with new failure count
+                    base_interval = self._health_check_interval
                     next_backoff = min(
                         2.0**self._consecutive_failures,
                         self._max_backoff_interval / base_interval,
@@ -164,6 +181,7 @@ class ResilientHTTPClient:
                 # Increment failure count for exponential backoff
                 self._consecutive_failures += 1
                 # Calculate next check interval with new failure count
+                base_interval = self._health_check_interval
                 next_backoff = min(
                     2.0**self._consecutive_failures,
                     self._max_backoff_interval / base_interval,

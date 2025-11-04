@@ -24,4 +24,4 @@ openwakeword==0.6.0
 rapidfuzz==3.5.1
 
 # Testing service dependencies
-gradio==4.0.0
+gradio>=5.0.0

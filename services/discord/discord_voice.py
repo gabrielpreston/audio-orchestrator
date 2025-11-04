@@ -8,6 +8,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from enum import Enum
 import random
+import time
 from typing import Any
 
 import discord
@@ -281,10 +282,12 @@ class VoiceBot(discord.Client):
             attempt = 0
             delay = 0.0
             last_exc: Exception | None = None
+            connection_start_time = time.time()
             while attempt < max_attempts:
                 if delay > 0:
                     await asyncio.sleep(delay)
                 attempt += 1
+                attempt_start_time = time.time()
                 self._logger.debug(
                     "discord.voice_connect_attempt",
                     guild_id=guild_id,
@@ -325,19 +328,28 @@ class VoiceBot(discord.Client):
                             "Voice client reported disconnected immediately"
                         )
                     self._ensure_voice_receiver(voice_client)
+                    connection_duration = time.time() - connection_start_time
+                    attempt_duration = time.time() - attempt_start_time
                     self._logger.info(
                         "discord.voice_connected",
                         guild_id=guild_id,
                         channel_id=channel_id,
                         attempt=attempt,
+                        connection_duration_ms=round(connection_duration * 1000, 2),
+                        attempt_duration_ms=round(attempt_duration * 1000, 2),
                     )
                     return {
                         "status": "connected",
                         "guild_id": guild_id,
                         "channel_id": channel_id,
                     }
-                except Exception as exc:
+                except TimeoutError as exc:
                     last_exc = exc
+                    attempt_duration = time.time() - attempt_start_time
+                    exponential = base_backoff * (2 ** (attempt - 1))
+                    delay = min(max_backoff, exponential) + random.uniform(
+                        0, base_backoff
+                    )  # noqa: S311 - jitter for retries, not cryptographic
                     self._logger.warning(
                         "discord.voice_connect_retry",
                         guild_id=guild_id,
@@ -345,22 +357,57 @@ class VoiceBot(discord.Client):
                         attempt=attempt,
                         max_attempts=max_attempts,
                         error=str(exc),
+                        error_type=type(exc).__name__,
+                        error_category="timeout",
+                        timeout_seconds=timeout,
+                        attempt_duration_ms=round(attempt_duration * 1000, 2),
+                        retry_delay_seconds=round(delay, 2),
                     )
                     await self._cleanup_failed_voice_client(guild_id)
                     if attempt >= max_attempts:
                         break
+                    continue
+                except Exception as exc:
+                    last_exc = exc
+                    attempt_duration = time.time() - attempt_start_time
+                    # Discord API error 4006 (ConnectionClosed) is common and transient
+                    # It typically indicates session invalidation during handshake
+                    # Retry logic handles this automatically
+                    is_connection_closed = "ConnectionClosed" in type(
+                        exc
+                    ).__name__ or "4006" in str(exc)
                     exponential = base_backoff * (2 ** (attempt - 1))
                     delay = min(max_backoff, exponential) + random.uniform(
                         0, base_backoff
                     )  # noqa: S311 - jitter for retries, not cryptographic
+                    self._logger.warning(
+                        "discord.voice_connect_retry",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        attempt=attempt,
+                        max_attempts=max_attempts,
+                        error=str(exc),
+                        error_type=type(exc).__name__,
+                        error_category="connection_closed"
+                        if is_connection_closed
+                        else "other",
+                        attempt_duration_ms=round(attempt_duration * 1000, 2),
+                        retry_delay_seconds=round(delay, 2),
+                    )
+                    await self._cleanup_failed_voice_client(guild_id)
+                    if attempt >= max_attempts:
+                        break
                     continue
 
+            total_duration = time.time() - connection_start_time
             self._logger.error(
                 "discord.voice_connect_failed",
                 guild_id=guild_id,
                 channel_id=channel_id,
                 attempts=max_attempts,
+                total_duration_ms=round(total_duration * 1000, 2),
                 error=str(last_exc) if last_exc else None,
+                error_type=type(last_exc).__name__ if last_exc else None,
             )
             if last_exc:
                 raise last_exc

@@ -97,9 +97,13 @@ class BaseConfig(ABC):
                 self._values[field_def.name] = kwargs[field_def.name]
 
     def _load_from_environment(self) -> None:
-        """Load values from environment variables."""
+        """Load values from environment variables.
+
+        Environment variables override preset/default values to allow runtime
+        configuration without code changes.
+        """
         for field_def in self.get_field_definitions():
-            if field_def.env_var and field_def.name not in self._values:
+            if field_def.env_var:
                 env_value = os.getenv(field_def.env_var)
                 if env_value is not None:
                     self._values[field_def.name] = self._convert_env_value(

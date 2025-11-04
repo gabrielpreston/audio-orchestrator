@@ -2,4 +2,4 @@
 -r ../requirements-base.txt
 
 # Testing UI specific dependencies
-gradio==4.0.0
+gradio>=5.0.0

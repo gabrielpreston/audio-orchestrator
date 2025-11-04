@@ -7,6 +7,7 @@ import os
 import sys
 import threading
 import time
+import warnings
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import IO, Any
@@ -124,6 +125,20 @@ def configure_logging(
     root.setLevel(numeric_level)
     logging.captureWarnings(True)
 
+    # Suppress FutureWarnings from third-party libraries (known issues, will be resolved by dependency updates)
+    warnings.filterwarnings(
+        "ignore",
+        category=FutureWarning,
+        module="bark.generation",
+        message=".*torch.load.*weights_only.*",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=FutureWarning,
+        module="torch.nn.utils.weight_norm",
+        message=".*parametrizations.weight_norm.*",
+    )
+
     # Set third-party library loggers to WARNING to reduce noise
     numba_logger = logging.getLogger("numba")
     numba_logger.setLevel(logging.WARNING)
@@ -161,6 +176,11 @@ def configure_logging(
     logging.getLogger("opentelemetry.sdk.trace").setLevel(logging.WARNING)
     # Suppress OTEL exporter connection errors (they retry automatically)
     logging.getLogger("opentelemetry.exporter.otlp").setLevel(logging.WARNING)
+    # Suppress pkg_resources warnings from OpenTelemetry instrumentation
+    # These warnings appear during import and don't require action
+    logging.getLogger("opentelemetry.instrumentation.dependencies").setLevel(
+        logging.ERROR
+    )
 
     # Suppress pkg_resources deprecation warnings (setuptools 81+ migration)
     # These warnings appear frequently during import and don't require action
