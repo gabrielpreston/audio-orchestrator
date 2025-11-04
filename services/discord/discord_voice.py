@@ -182,12 +182,16 @@ class VoiceBot(discord.Client):
         await super().close()
 
     async def on_ready(self) -> None:
+        """Called when Discord bot is ready and connected.
+
+        Note: Dependencies are already checked before Discord connection in _start_discord_bot().
+        """
         self._logger.info(
             "discord.ready",
             user=str(self.user),
             guilds=[guild.id for guild in self.guilds],
         )
-        self._health_manager.mark_startup_complete()  # ADD THIS
+        # Dependencies are already checked before Discord connection in _start_discord_bot()
         if self.config.discord.auto_join:
             try:
                 await self.join_voice_channel(

@@ -89,6 +89,33 @@ async def _start_discord_bot(
         # Store bot reference in app.state
         app_instance.state.bot = bot
 
+        # Mark bot health manager startup as complete (bot is initialized)
+        bot._health_manager.mark_startup_complete()
+
+        # Wait for dependencies to be ready before connecting to Discord
+        logger.info("discord.waiting_for_dependencies")
+        timeout = 300.0  # 5 minutes - same as _segment_consumer
+        start_time = asyncio.get_event_loop().time()
+
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            if await bot._health_manager.check_ready():
+                logger.info("discord.dependencies_ready")
+                break
+            await asyncio.sleep(2.0)  # Same polling interval as _segment_consumer
+        else:
+            logger.error(
+                "discord.dependency_timeout",
+                timeout=timeout,
+                message="Dependencies not ready within timeout, bot will not connect",
+            )
+            # Set bot to error state but don't raise - HTTP API can still work
+            app_instance.state.bot = {
+                "status": "error",
+                "mode": "bot",
+                "error": "Dependencies not ready within timeout",
+            }
+            return  # Exit early - don't start bot connection
+
         # Validate token before attempting connection
         token = config.discord.token
         # Check for placeholder/missing token values
