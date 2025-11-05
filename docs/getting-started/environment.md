@@ -74,7 +74,7 @@ Higher precedence sources override lower precedence sources. This allows for fle
 ## Best Practices
 
 -  Keep sensitive secrets out of version control; rely on deployment tooling or password managers.
--  Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys. Ensure new keys like `DISCORD_FULL_BOT`, `DISCORD_HTTP_MODE`, and `ORCH_TIMEOUT` are present where applicable.
+-  Align defaults across `.env.sample`, `.env.common`, and service `.env.service` files whenever you rename keys. Ensure new keys like `DISCORD_HTTP_MODE` and `ORCH_TIMEOUT` are present where applicable.
 -  Document any new environment variable in the [configuration catalog](../reference/configuration-catalog.md).
 -  Use the new configuration library for type-safe configuration management (see [Configuration Library Reference](../reference/configuration-library.md)).
 -  Use `.env.docker` to resolve file-permission issues by matching host UID/GID when mounting volumes.

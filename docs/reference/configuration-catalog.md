@@ -31,7 +31,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `LOG_SAMPLE_SEGMENT_READY_N` | Sample count for segment ready events. | *(empty)* |
 | `DISCORD_WARMUP_AUDIO` | Enable Discord audio warm-up. | `true` |
 | `STT_WARMUP` | Enable STT service warm-up. | `true` |
-| `DISCORD_FULL_BOT` | Enable full Discord bot mode. | `false` |
 | `DISCORD_HTTP_MODE` | Enable Discord HTTP mode. | `false` |
 | `ORCH_TIMEOUT` | Orchestrator client timeout (seconds). | `30` |
 | `LLM_MAX_TOKENS` | Maximum tokens for LLM generation. | `128` |

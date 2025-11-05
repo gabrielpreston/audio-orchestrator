@@ -324,12 +324,12 @@ make docker-build-base  # Build base images locally
 make docker-build-service SERVICE=stt  # Build specific service only
 
 # Toolchain image builds (local-only)
-make test-image        # Build test image (only if missing)
-make test-image-force  # Force rebuild test image
-make lint-image        # Build lint image (only if missing)
-make lint-image-force  # Force rebuild lint image
-make security-image    # Build security image (only if missing)
-make security-image-force  # Force rebuild security image
+make build-test-image        # Build test image (only if missing)
+make build-test-image-force  # Force rebuild test image
+make build-lint-image        # Build lint image (only if missing)
+make build-lint-image-force  # Force rebuild lint image
+make build-security-image    # Build security image (only if missing)
+make build-security-image-force  # Force rebuild security image
 ```
 
 ### Push Targets (Explicit, Requires Authentication)
@@ -344,14 +344,14 @@ make docker-push-base-images
 make docker-push-services
 
 # Push toolchain images (assumes images built first)
-make test-image-push
-make lint-image-push
-make security-image-push
+make push-test-image
+make push-lint-image
+make push-security-image
 
 # Combined push targets
-make test-image-force-push    # Force rebuild then push test image
-make lint-image-force-push    # Force rebuild then push lint image
-make security-image-force-push # Force rebuild then push security image
+make push-test-image-force    # Force rebuild then push test image
+make push-lint-image-force    # Force rebuild then push lint image
+make push-security-image-force # Force rebuild then push security image
 
 # Push all images
 make docker-push-all  # Push base, services, and toolchain images
@@ -367,8 +367,8 @@ make docker-push-all  # Push base, services, and toolchain images
 
 **CI/CD Workflows:**
 
-  -  Use `DOCKER_PUSH=1` variable for push-enabled builds: `make DOCKER_PUSH=1 test-image`
-  -  Or use explicit push targets after builds: `make test-image && make test-image-push`
+  -  Use `DOCKER_PUSH=1` variable for push-enabled builds: `make DOCKER_PUSH=1 build-test-image`
+  -  Or use explicit push targets after builds: `make build-test-image && make push-test-image`
   -  Or set `PUSH=true` in build-base-images.sh for base image builds
 
 **Pattern Consistency:**

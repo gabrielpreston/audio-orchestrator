@@ -456,8 +456,6 @@ async def send_message(request: MessageSendRequest) -> MessageSendResponse:
         )
 
         # NOTE: HTTP mode uses simulated message sending for testing/development.
-        # Full Discord.py bot mode (when DISCORD_FULL_BOT=true) handles actual
-        # message sending through the VoiceBot class.
         # For production HTTP-based message sending, implement Discord REST API client here.
 
         return MessageSendResponse(

@@ -72,7 +72,6 @@ services:
       - "8001:8001" # Discord HTTP API port
     environment:
       - DISCORD_TOKEN=${DISCORD_TOKEN:-dummy-token-for-testing}
-      - DISCORD_FULL_BOT=false # HTTP mode by default (correct env var name)
       - DISCORD_GUILD_ID=123456789
       - DISCORD_VOICE_CHANNEL_ID=987654321
 

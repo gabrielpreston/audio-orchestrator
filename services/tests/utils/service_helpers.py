@@ -231,7 +231,7 @@ class DockerComposeManager:
         """Validate STT readiness by attempting actual transcription.
 
         Note: This sends a test transcription request. For services that
-        are already known to be running (via make run-test), we can skip this
+        are already known to be running (via make run-test-env), we can skip this
         expensive validation and just check /health/ready status.
         """
         try:
@@ -363,7 +363,7 @@ _manager = DockerComposeManager()
 async def docker_compose_test_context(services: list[str], timeout: float = 60.0):
     """Context manager for Docker Compose test services.
 
-    Services are expected to already be running via 'make run-test'.
+    Services are expected to already be running via 'make run-test-env'.
     This context manager just waits for services to be ready without
     starting/stopping them, since 'docker' command is not available
     inside the test container.

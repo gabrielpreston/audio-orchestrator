@@ -83,7 +83,7 @@ The project now includes multi-layer caching for maximum build performance with 
 make docker-build  # Detects changes, rebuilds only affected services
 
 # Enhanced caching builds (maximum cache utilization - local-only)
-make docker-build-enhanced     # Multi-source caching (GitHub Actions + registry)
+make docker-build-services-parallel     # Multi-source caching (GitHub Actions + registry)
 
 # Single service builds
 make docker-build-service SERVICE=stt  # Build specific service only
@@ -99,14 +99,14 @@ make docker-push-all           # Push all images (base, services, toolchain)
 All build operations default to **local-only** (no authentication required):
 
   -  Base images: `make docker-build-base` (local-only)
-  -  Service images: `make docker-build-enhanced` (local-only)
-  -  Toolchain images: `make test-image`, `make lint-image`, `make security-image` (local-only)
+  -  Service images: `make docker-build-services-parallel` (local-only)
+  -  Toolchain images: `make build-test-image`, `make build-lint-image`, `make build-security-image` (local-only)
 
 Push operations are **explicit and separate** (requires authentication):
 
   -  `make docker-push-base-images` - Push base images
   -  `make docker-push-services` - Push service images
-  -  `make test-image-push`, `make lint-image-push`, `make security-image-push` - Push toolchain images
+  -  `make push-test-image`, `make push-lint-image`, `make push-security-image` - Push toolchain images
   -  `make docker-push-all` - Push everything
 
 This separation allows fast local iteration without authentication, while CI/CD workflows can use explicit push targets.

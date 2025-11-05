@@ -4,15 +4,15 @@ SHELL := /bin/bash
 # PHONY TARGETS
 # =============================================================================
 .PHONY: all help
-.PHONY: run stop logs logs-follow logs-dump docker-status run-with-build run-test stop-test restart docker-shell docker-config
+.PHONY: run stop logs logs-follow logs-dump docker-status run-with-build run-test-env stop-test-env restart docker-shell docker-config
 .PHONY: docker-buildx-setup docker-buildx-reset
-.PHONY: docker-build docker-build-enhanced docker-build-service docker-build-base docker-build-wheels
+.PHONY: docker-build docker-build-services-parallel docker-build-service docker-build-base docker-build-wheels
 .PHONY: docker-push-base-images docker-push-services docker-push-all
 .PHONY: docker-pull-images docker-warm-cache
 .PHONY: test test-unit test-component test-integration test-unit-service test-component-service
-.PHONY: test-image test-image-force test-image-push test-image-force-push
-.PHONY: lint lint-image lint-image-force lint-image-push lint-image-force-push lint-fix
-.PHONY: security security-image security-image-force security-image-push security-image-force-push
+.PHONY: build-test-image build-test-image-force push-test-image push-test-image-force
+.PHONY: lint build-lint-image build-lint-image-force push-lint-image push-lint-image-force lint-fix
+.PHONY: security build-security-image build-security-image-force push-security-image push-security-image-force
 .PHONY: check-syntax check-syntax-service
 .PHONY: clean docker-clean docker-clean-all
 .PHONY: docs-verify validate-changes
@@ -271,14 +271,14 @@ models-fix-permissions: ## Fix host model directory permissions (creates directo
 run: stop models-fix-permissions ## Start services (use ENV=dev or ENV=prod, default is dev)
 	$(call select_services_by_env)
 
-run-with-build: docker-build-enhanced run ## Build with enhanced caching then start containers (base images must exist)
+run-with-build: docker-build-services-parallel run ## Build with enhanced caching then start containers (base images must exist)
 
-run-test: stop-test models-fix-permissions ## Start all services for testing using docker-compose.test.yml
-	@printf "$(COLOR_GREEN)→ Starting test services with docker-compose.test.yml$(COLOR_OFF)\n"
+run-test-env: stop-test-env models-fix-permissions ## Start all services in test environment using docker-compose.test.yml
+	@printf "$(COLOR_GREEN)→ Starting test environment services with docker-compose.test.yml$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) -f docker-compose.test.yml up -d --remove-orphans
 
-stop-test: ## Stop and remove test containers (deprecated - use 'make stop' for full stack)
-	@printf "$(COLOR_BLUE)→ Bringing down test containers$(COLOR_OFF)\n"
+stop-test-env: ## Stop and remove test environment containers (deprecated - use 'make stop' for full stack)
+	@printf "$(COLOR_BLUE)→ Bringing down test environment containers$(COLOR_OFF)\n"
 	@$(DOCKER_COMPOSE) -f docker-compose.test.yml down --remove-orphans
 
 stop: ## Stop and remove containers
@@ -348,10 +348,10 @@ docker-buildx-reset: ## Reset local buildx/buildkit after Docker Desktop crash
 # =============================================================================
 
 # Main build targets
-docker-build: docker-buildx-setup docker-build-base docker-build-enhanced ## Build service images using smart incremental detection
+docker-build: docker-buildx-setup docker-build-base docker-build-services-parallel ## Build service images using smart incremental detection
 
 # Service image builds
-docker-build-enhanced: ## Build all services locally in parallel with registry caching (local-only, no push)
+docker-build-services-parallel: ## Build all services locally in parallel with registry caching (local-only, no push)
 	@printf "$(COLOR_GREEN)→ Building docker images with enhanced caching (local-only)$(COLOR_OFF)\n"
 	@DOCKER_BUILDKIT=$(DOCKER_BUILDKIT) COMPOSE_DOCKER_CLI_BUILD=$(COMPOSE_DOCKER_CLI_BUILD) $(DOCKER_COMPOSE) build --parallel
 
@@ -384,7 +384,7 @@ docker-push-base-images: ## Push base images to registry (build with 'make docke
 	@printf "$(COLOR_GREEN)→ Pushing base images to registry$(COLOR_OFF)\n"
 	@bash $(SCRIPT_DIR)/push-base-images.sh
 
-docker-push-services: ## Push service images to registry (build with 'make docker-build-enhanced' first)
+docker-push-services: ## Push service images to registry (build with 'make docker-build-services-parallel' first)
 	@printf "$(COLOR_GREEN)→ Pushing service images to registry$(COLOR_OFF)\n"
 	@$(call ensure_docker_ghcr_auth)
 	@$(DOCKER_COMPOSE) config --images | while read image; do \
@@ -406,7 +406,7 @@ docker-push-services: ## Push service images to registry (build with 'make docke
 		fi; \
 	done
 
-docker-push-all: docker-push-base-images docker-push-services test-image-push lint-image-push security-image-push ## Push all images to registry (base, services, and toolchain)
+docker-push-all: docker-push-base-images docker-push-services push-test-image push-lint-image push-security-image ## Push all images to registry (base, services, and toolchain)
 	@printf "$(COLOR_GREEN)→ All images pushed successfully$(COLOR_OFF)\n"
 
 # =============================================================================
@@ -436,32 +436,32 @@ docker-warm-cache: docker-pull-images ## Alias: warm Docker cache by downloading
 # =============================================================================
 
 # Test toolchain image management
-test-image: ## Build the test toolchain container image (only if missing)
+build-test-image: ## Build the test toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
 	$(call build_if_missing,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
-test-image-force: ## Force rebuild the test toolchain container image
+build-test-image-force: ## Force rebuild the test toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build test container images." >&2; exit 1; }
 	@printf "$(COLOR_YELLOW)→ Force rebuilding $(TEST_IMAGE)$(COLOR_OFF)\n"
 	$(call build_with_registry_cache,$(TEST_IMAGE),$(TEST_DOCKERFILE))
 
-test-image-push: ## Push test image to registry (build with 'make test-image' first)
+push-test-image: ## Push test image to registry (build with 'make build-test-image' first)
 	$(call push_image,$(TEST_IMAGE))
 
-test-image-force-push: test-image-force test-image-push ## Force rebuild and push test image
+push-test-image-force: build-test-image-force push-test-image ## Force rebuild and push test image
 
 # Test execution
 test: test-unit test-component ## Run unit and component tests (fast, reliable)
 
-test-unit: test-image ## Run unit tests (fast, isolated)
+test-unit: build-test-image ## Run unit tests (fast, isolated)
 	@printf "$(COLOR_CYAN)→ Running unit tests$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m unit $(PYTEST_ARGS))
 
-test-component: test-image ## Run component tests (with mocked external dependencies)
+test-component: build-test-image ## Run component tests (with mocked external dependencies)
 	@printf "$(COLOR_CYAN)→ Running component tests$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),pytest -m component $(PYTEST_ARGS))
 
-test-integration: test-image ## Run integration tests against already-running test services (run 'make run-test' first)
+test-integration: build-test-image ## Run integration tests against already-running test services (run 'make run-test-env' first)
 	@printf "$(COLOR_CYAN)→ Running integration tests against running test services$(COLOR_OFF)\n"
 	@printf "$(COLOR_YELLOW)→ Connecting to Docker network: audio-orchestrator-test$(COLOR_OFF)\n"
 	@docker run --rm \
@@ -474,7 +474,7 @@ test-integration: test-image ## Run integration tests against already-running te
 		$(TEST_IMAGE) \
 		pytest -m integration -x $(PYTEST_ARGS)
 
-test-unit-service: test-image ## Run unit tests for specific service (set SERVICE=name)
+test-unit-service: build-test-image ## Run unit tests for specific service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then \
 		printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n"; \
 		exit 1; \
@@ -486,7 +486,7 @@ test-unit-service: test-image ## Run unit tests for specific service (set SERVIC
 	@printf "$(COLOR_CYAN)→ Running unit tests for $(SERVICE) service$(COLOR_OFF)\n"
 	@$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),bash -c "test_paths=''; [ -d services/tests/unit/$(SERVICE) ] && test_paths=\"services/tests/unit/$(SERVICE)\"; [ -d services/$(SERVICE)/tests ] && test_paths=\"\$$test_paths services/$(SERVICE)/tests\"; if [ -n \"\$$test_paths\" ]; then pytest -m unit \$$test_paths $(PYTEST_ARGS); else echo 'No unit tests found for $(SERVICE) service'; fi")
 
-test-component-service: test-image ## Run component tests for specific service (set SERVICE=name)
+test-component-service: build-test-image ## Run component tests for specific service (set SERVICE=name)
 	@if [ -z "$(SERVICE)" ]; then \
 		printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n"; \
 		exit 1; \
@@ -503,29 +503,29 @@ test-component-service: test-image ## Run component tests for specific service (
 # =============================================================================
 
 # Lint toolchain image management
-lint-image: ## Build the lint toolchain container image (only if missing)
+build-lint-image: ## Build the lint toolchain container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	$(call build_if_missing,$(LINT_IMAGE),$(LINT_DOCKERFILE))
 
-lint-image-force: ## Force rebuild the lint toolchain container image
+build-lint-image-force: ## Force rebuild the lint toolchain container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build lint container images." >&2; exit 1; }
 	@printf "$(COLOR_YELLOW)→ Force rebuilding $(LINT_IMAGE)$(COLOR_OFF)\n"
 	$(call build_with_registry_cache,$(LINT_IMAGE),$(LINT_DOCKERFILE))
 
-lint-image-push: ## Push lint image to registry (build with 'make lint-image' first)
+push-lint-image: ## Push lint image to registry (build with 'make build-lint-image' first)
 	$(call push_image,$(LINT_IMAGE))
 
-lint-image-force-push: lint-image-force lint-image-push ## Force rebuild and push lint image
+push-lint-image-force: build-lint-image-force push-lint-image ## Force rebuild and push lint image
 
 # Lint execution
-lint: lint-image ## Run all linters (validation only)
+lint: build-lint-image ## Run all linters (validation only)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
 		-v "$(CURDIR)":$(LINT_WORKDIR) $(LINT_IMAGE) \
 		bash $(LINT_WORKDIR)/services/linter/run-lint.sh
 
-lint-fix: lint-image ## Apply all automatic fixes
+lint-fix: build-lint-image ## Apply all automatic fixes
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@docker run --rm -u $$(id -u):$$(id -g) -e HOME=$(LINT_WORKDIR) \
 		-e USER=$$(id -un 2>/dev/null || echo lint) \
@@ -537,22 +537,22 @@ lint-fix: lint-image ## Apply all automatic fixes
 # =============================================================================
 
 # Security toolchain image management
-security-image: ## Build the security scanning container image (only if missing)
+build-security-image: ## Build the security scanning container image (only if missing)
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
 	$(call build_if_missing,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
 
-security-image-force: ## Force rebuild the security scanning container image
+build-security-image-force: ## Force rebuild the security scanning container image
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build security container images." >&2; exit 1; }
 	@printf "$(COLOR_YELLOW)→ Force rebuilding $(SECURITY_IMAGE)$(COLOR_OFF)\n"
 	$(call build_with_registry_cache,$(SECURITY_IMAGE),$(SECURITY_DOCKERFILE))
 
-security-image-push: ## Push security image to registry (build with 'make security-image' first)
+push-security-image: ## Push security image to registry (build with 'make build-security-image' first)
 	$(call push_image,$(SECURITY_IMAGE))
 
-security-image-force-push: security-image-force security-image-push ## Force rebuild and push security image
+push-security-image-force: build-security-image-force push-security-image ## Force rebuild and push security image
 
 # Security execution
-security: security-image ## Run security scanning with pip-audit
+security: build-security-image ## Run security scanning with pip-audit
 	@printf "$(COLOR_CYAN)→ Running security scan$(COLOR_OFF)\n"
 	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
@@ -560,7 +560,7 @@ security: security-image ## Run security scanning with pip-audit
 # PYTHON SYNTAX CHECKING
 # =============================================================================
 
-check-syntax: test-image ## Check Python syntax by compiling all Python files in services/
+check-syntax: build-test-image ## Check Python syntax by compiling all Python files in services/
 	@printf "$(COLOR_CYAN)→ Checking Python syntax (py_compile)$(COLOR_OFF)\n"
 	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),\
 		bash -c 'errors=0; \
@@ -579,7 +579,7 @@ check-syntax: test-image ## Check Python syntax by compiling all Python files in
 			exit 1; \
 		fi')
 
-check-syntax-service: test-image ## Check Python syntax for specific service (set SERVICE=name)
+check-syntax-service: build-test-image ## Check Python syntax for specific service (set SERVICE=name)
 	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n" && exit 1) || true
 	@if ! echo "$(ALL_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
 		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(ALL_SERVICES), common$(COLOR_OFF)\n"; \
