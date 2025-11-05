@@ -171,8 +171,16 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "sample_rate": 48000,
                 "channels": 1,
                 "enable_enhancement": True,
-                "enable_vad": True,
+                "enable_vad": False,
                 "service_timeout": 20,
+                "silence_timeout_seconds": 0.75,
+                "max_segment_duration_seconds": 15.0,
+                "min_segment_duration_seconds": 0.3,
+                "aggregation_window_seconds": 1.5,
+                "input_sample_rate_hz": 48000,  # Discord input rate (different from sample_rate which is for general processing)
+                "vad_sample_rate_hz": 16000,
+                "vad_frame_duration_ms": 30,
+                "vad_aggressiveness": 1,
             },
             "service": {"port": 8001, "host": "0.0.0.0", "workers": 1},
             "telemetry": {

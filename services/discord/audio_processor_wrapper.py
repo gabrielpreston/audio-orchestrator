@@ -10,10 +10,12 @@ import time
 from typing import Any
 
 from services.common.audio_processing_core import AudioProcessingCore
+from services.common.audio_vad import VADProcessor
+from services.common.correlation import CorrelationIDGenerator
 from services.common.structured_logging import get_logger
-from services.common.surfaces.types import PCMFrame
+from services.common.surfaces.types import PCMFrame as CommonPCMFrame
 
-from .audio import AudioSegment
+from .audio import Accumulator, AudioSegment, PCMFrame as DiscordPCMFrame
 
 logger = get_logger(__name__)
 
@@ -44,8 +46,17 @@ class AudioProcessorWrapper:
         else:
             self._audio_processor_core = audio_processor_core
 
-        # Track user accumulators (simplified version of AudioPipeline logic)
-        self._accumulators: dict[int, dict[str, Any]] = {}
+        # Initialize VAD processor for speech detection
+        # Use separate instance for explicit control and independence from AudioProcessingCore
+        vad_aggressiveness = (
+            audio_config.vad_aggressiveness
+            if hasattr(audio_config, "vad_aggressiveness")
+            else 1
+        )
+        self._vad_processor = VADProcessor(aggressiveness=vad_aggressiveness)
+
+        # Track user accumulators using Accumulator class
+        self._accumulators: dict[int, Accumulator] = {}
 
         self._logger.info("audio_processor_wrapper.initialized")
 
@@ -91,6 +102,9 @@ class AudioProcessorWrapper:
     ) -> AudioSegment | None:
         """Register a frame and return segment if ready (async interface).
 
+        Uses Accumulator to collect frames and create meaningful speech segments
+        based on VAD detection and silence timeouts.
+
         Args:
             user_id: User ID
             pcm: PCM audio data
@@ -102,48 +116,150 @@ class AudioProcessorWrapper:
             AudioSegment if ready, None otherwise
         """
         try:
-            # Create PCMFrame for audio processor (using common types)
-            frame = PCMFrame(
+            # Get or create accumulator for this user
+            accumulator = self._accumulators.get(user_id)
+            if accumulator is None:
+                accumulator = Accumulator(user_id=user_id, config=self._config)
+                self._accumulators[user_id] = accumulator
+
+            # Create common PCMFrame for processing
+            current_time = time.time()
+            common_frame = CommonPCMFrame(
                 pcm=pcm,
-                timestamp=time.time(),
+                timestamp=current_time,
                 rms=rms,
                 duration=duration,
-                sequence=0,  # Will be updated by audio processor
+                sequence=accumulator.sequence,
                 sample_rate=sample_rate,
                 channels=1,  # Default for Discord mono audio
                 sample_width=2,  # 16-bit
             )
 
-            # Process frame with audio processor core
-            processed_frame = await self._audio_processor_core.process_frame(frame)
+            # Detect speech using VAD on original audio (before processing)
+            is_speech = await self._vad_processor.detect_speech(common_frame)
 
-            # For now, we don't implement the full accumulator logic
-            # This is a simplified version that processes frames individually
-            # In a full implementation, you would need to:
-            # 1. Track user accumulators
-            # 2. Implement VAD logic
-            # 3. Handle silence detection
-            # 4. Manage segment boundaries
-
-            # Create a simple segment for testing (discord AudioSegment uses int user_id)
-            segment = AudioSegment(
-                user_id=user_id,
-                pcm=processed_frame.pcm,
-                start_timestamp=processed_frame.timestamp,
-                end_timestamp=processed_frame.timestamp + processed_frame.duration,
-                correlation_id=f"frame-{user_id}-{int(processed_frame.timestamp)}",
-                frame_count=1,
-                sample_rate=processed_frame.sample_rate,
+            # Process frame with audio processor core (normalization only, VAD disabled)
+            processed_common_frame = await self._audio_processor_core.process_frame(
+                common_frame
             )
 
-            self._logger.debug(
-                "audio_processor_wrapper.frame_processed",
-                user_id=user_id,
-                sequence=processed_frame.sequence,
-                correlation_id=segment.correlation_id,
+            # Convert back to Discord PCMFrame for accumulator
+            discord_frame = DiscordPCMFrame(
+                pcm=processed_common_frame.pcm,
+                timestamp=processed_common_frame.timestamp,
+                rms=processed_common_frame.rms,
+                duration=processed_common_frame.duration,
+                sequence=accumulator.sequence,
+                sample_rate=processed_common_frame.sample_rate,
             )
+            accumulator.sequence += 1
 
-            return segment
+            # Enhanced logging for VAD decisions (rate-limited for first 20 frames, then sampled)
+            frame_count = len(accumulator.frames)
+            should_log_frame = (
+                frame_count < 20
+                or (frame_count % 50 == 0)  # Every 50th frame
+                or is_speech  # Always log speech detection
+            )
+            # Log low RMS values (potential audio level issue)
+            if rms < 100 and (frame_count < 10 or frame_count % 100 == 0):
+                self._logger.warning(
+                    "audio_processor_wrapper.low_rms",
+                    user_id=user_id,
+                    rms=rms,
+                    frame_duration=duration,
+                    is_speech=is_speech,
+                    accumulator_frames=frame_count,
+                )
+            if should_log_frame:
+                self._logger.debug(
+                    "audio_processor_wrapper.vad_decision",
+                    user_id=user_id,
+                    is_speech=is_speech,
+                    rms=rms,
+                    frame_duration=duration,
+                    accumulator_frames=frame_count,
+                    accumulator_active=accumulator.active,
+                    silence_started_at=accumulator.silence_started_at,
+                )
+
+            # Update accumulator based on speech detection
+            if is_speech:
+                accumulator.append(discord_frame)
+            else:
+                new_silence = accumulator.mark_silence(discord_frame.timestamp)
+                if new_silence and should_log_frame:
+                    self._logger.debug(
+                        "audio_processor_wrapper.silence_started",
+                        user_id=user_id,
+                        timestamp=discord_frame.timestamp,
+                        accumulator_frames=len(accumulator.frames),
+                    )
+
+            # Check if accumulator should flush
+            flush_decision = accumulator.should_flush(discord_frame.timestamp)
+            if flush_decision:
+                # Always log flush decisions
+                self._logger.info(
+                    "audio_processor_wrapper.flush_decision",
+                    user_id=user_id,
+                    action=flush_decision.action,
+                    reason=flush_decision.reason,
+                    total_duration=flush_decision.total_duration,
+                    silence_age=flush_decision.silence_age,
+                    frame_count=len(accumulator.frames),
+                    min_segment_duration=self._config.min_segment_duration_seconds,
+                    max_segment_duration=self._config.max_segment_duration_seconds,
+                    silence_timeout=self._config.silence_timeout_seconds,
+                )
+            if flush_decision and flush_decision.action == "flush":
+                # Generate correlation ID (guild_id not available in this context)
+                correlation_id = CorrelationIDGenerator.generate_discord_correlation_id(
+                    user_id=user_id, guild_id=None
+                )
+                segment = accumulator.pop_segment(correlation_id)
+                if segment:
+                    self._logger.info(
+                        "audio_processor_wrapper.segment_created",
+                        user_id=user_id,
+                        correlation_id=segment.correlation_id,
+                        duration=segment.duration,
+                        frame_count=segment.frame_count,
+                        reason=flush_decision.reason,
+                    )
+                    return segment
+                else:
+                    self._logger.warning(
+                        "audio_processor_wrapper.flush_decision_no_segment",
+                        user_id=user_id,
+                        reason=flush_decision.reason,
+                        accumulator_frames=len(accumulator.frames),
+                    )
+
+            # Log accumulator state periodically when not flushing (for debugging)
+            if should_log_frame and len(accumulator.frames) > 0:
+                current_duration = (
+                    accumulator.frames[-1].timestamp
+                    + accumulator.frames[-1].duration
+                    - accumulator.frames[0].timestamp
+                )
+                silence_age = (
+                    discord_frame.timestamp - accumulator.last_activity
+                    if accumulator.last_activity
+                    else 0.0
+                )
+                self._logger.debug(
+                    "audio_processor_wrapper.accumulator_state",
+                    user_id=user_id,
+                    frame_count=len(accumulator.frames),
+                    current_duration=current_duration,
+                    silence_age=silence_age,
+                    min_segment_duration=self._config.min_segment_duration_seconds,
+                    max_segment_duration=self._config.max_segment_duration_seconds,
+                    silence_timeout=self._config.silence_timeout_seconds,
+                )
+
+            return None
 
         except Exception as exc:
             self._logger.error(
@@ -154,24 +270,65 @@ class AudioProcessorWrapper:
             return None
 
     def flush_inactive(self) -> list[AudioSegment]:
-        """Flush inactive accumulators (simplified version).
+        """Flush inactive accumulators that should be flushed due to silence timeout.
+
+        Checks all accumulators and flushes those that have exceeded silence timeout
+        and meet minimum duration requirements.
 
         Returns:
-            List of audio segments
+            List of audio segments that were flushed
         """
-        # For now, we don't implement the full accumulator logic
-        # This is a placeholder that returns an empty list
-        return []
+        segments = []
+        current_time = time.time()  # Use time.time() to match frame timestamps
+
+        for user_id, accumulator in list(self._accumulators.items()):
+            flush_decision = accumulator.should_flush(current_time)
+            if flush_decision and flush_decision.action == "flush":
+                correlation_id = CorrelationIDGenerator.generate_discord_correlation_id(
+                    user_id=user_id, guild_id=None
+                )
+                segment = accumulator.pop_segment(correlation_id)
+                if segment:
+                    segments.append(segment)
+                    self._logger.debug(
+                        "audio_processor_wrapper.segment_flushed_inactive",
+                        user_id=user_id,
+                        correlation_id=segment.correlation_id,
+                        duration=segment.duration,
+                        frame_count=segment.frame_count,
+                        reason=flush_decision.reason,
+                    )
+
+        return segments
 
     def force_flush(self) -> list[AudioSegment]:
-        """Force flush all accumulators (simplified version).
+        """Force flush all accumulators with active frames.
+
+        Used for cleanup or shutdown scenarios where all pending audio
+        should be flushed regardless of duration or silence state.
 
         Returns:
-            List of audio segments
+            List of audio segments that were flushed
         """
-        # For now, we don't implement the full accumulator logic
-        # This is a placeholder that returns an empty list
-        return []
+        segments = []
+
+        for user_id, accumulator in list(self._accumulators.items()):
+            if accumulator.frames:
+                correlation_id = CorrelationIDGenerator.generate_discord_correlation_id(
+                    user_id=user_id, guild_id=None
+                )
+                segment = accumulator.pop_segment(correlation_id)
+                if segment:
+                    segments.append(segment)
+                    self._logger.debug(
+                        "audio_processor_wrapper.segment_force_flushed",
+                        user_id=user_id,
+                        correlation_id=segment.correlation_id,
+                        duration=segment.duration,
+                        frame_count=segment.frame_count,
+                    )
+
+        return segments
 
     async def health_check(self) -> bool:
         """Check if the audio processor is healthy.

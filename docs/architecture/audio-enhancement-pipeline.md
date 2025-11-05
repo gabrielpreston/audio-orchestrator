@@ -23,8 +23,9 @@ The audio pipeline uses **two distinct enhancement stages** optimized for differ
 
 ```mermaid
 flowchart TD
-    Discord[Discord Voice Packets<br/>48kHz PCM] --> FrameProc[Frame Processing<br/>AudioProcessingCore Library]
-    FrameProc --> |VAD + Normalization| ProcessedFrame[Processed Frame<br/>Normalized PCM]
+    Discord[Discord Voice Packets<br/>48kHz PCM] --> VAD[VAD Detection<br/>AudioProcessorWrapper]
+    VAD --> |Speech Detection| FrameProc[Frame Processing<br/>AudioProcessingCore Library]
+    FrameProc --> |Normalization Only| ProcessedFrame[Processed Frame<br/>Normalized PCM]
     ProcessedFrame --> Segment[Segment Creation<br/>Discord Service]
     Segment --> WAVEnc[WAV Encoding<br/>48kHz → 16kHz]
     WAVEnc --> |16kHz WAV| STTEnhance[STT Enhancement<br/>AudioEnhancer Library]
@@ -42,20 +43,41 @@ flowchart TD
 **What Happens**:
 
 ```python
-# services/common/audio_processing_core.py
-async def process_frame(frame: PCMFrame) -> PCMFrame:
-    # 1. Voice Activity Detection (VAD)
-    if self._vad_processor is not None:
-        frame = await self._vad_processor.apply_vad(frame)
+# services/discord/audio_processor_wrapper.py
+# 1. Voice Activity Detection (VAD) on original audio
+is_speech = await self._vad_processor.detect_speech(common_frame)
 
-    # 2. Basic normalization
-    frame = await self._normalize_frame(frame)
+# 2. Frame processing (normalization only, VAD disabled in AudioProcessingCore)
+processed_frame = await self._audio_processor_core.process_frame(common_frame)
+```
+
+**Note**: `AudioProcessingCore.process_frame()` no longer applies VAD muting (`apply_vad()`) for Discord.
+VAD detection happens separately in the wrapper before processing, and only normalization is applied to frames.
+This ensures speech detection works on original audio levels before any processing.
+
+**Frame Accumulation**:
+
+```python
+# services/discord/audio_processor_wrapper.py
+# Detect speech on original frame (before processing):
+is_speech = await self._vad_processor.detect_speech(common_frame)
+if is_speech:
+    accumulator.append(discord_frame)  # Accumulate speech frames
+else:
+    accumulator.mark_silence(timestamp)  # Track silence
+
+# Check if segment should be flushed
+flush_decision = accumulator.should_flush(timestamp)
+if flush_decision and flush_decision.action == "flush":
+    segment = accumulator.pop_segment(correlation_id)  # Create segment
 ```
 
 **Enhancement Level**: ⚡ **Lightweight (CPU-only)**
 
 -  ✅ WebRTC VAD (Voice Activity Detection)
 -  ✅ RMS-based volume normalization
+-  ✅ Frame accumulation with VAD-based speech detection
+-  ✅ Segment creation based on duration and silence timeouts
 -  ❌ NO MetricGAN+ (too expensive for real-time)
 -  ❌ NO ML-based noise reduction
 
