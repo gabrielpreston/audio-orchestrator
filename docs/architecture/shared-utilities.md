@@ -184,7 +184,7 @@ Unified FastAPI middleware for observability:
 
 -  **Correlation ID Management**: Extracts from headers, generates if missing, stores in context
 -  **Request/Response Logging**: Automatic logging of all HTTP requests with timing
--  **Health Check Filtering**: Excludes verbose logging for health endpoints
+-  **Health Check Filtering**: Excludes verbose logging for health endpoints (200 responses suppressed, 503 responses logged at WARNING level)
 -  **Error Logging**: Automatic error logging with timing and correlation IDs
 
 ### Service Factory (`app_factory.py`)

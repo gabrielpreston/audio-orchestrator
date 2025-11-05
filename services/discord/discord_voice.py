@@ -34,6 +34,19 @@ else:
     recv_client_cls = getattr(_voice_recv, "VoiceRecvClient", None)
     if isinstance(recv_client_cls, type):
         discord.VoiceClient = recv_client_cls
+        # Log at module load to verify override
+        _temp_logger = get_logger(__name__, service_name="discord")
+        _temp_logger.info(
+            "voice.recv_client_override_applied",
+            recv_client_type=recv_client_cls.__name__,
+            has_listen_method=hasattr(recv_client_cls, "listen"),
+        )
+    else:
+        _temp_logger = get_logger(__name__, service_name="discord")
+        _temp_logger.warning(
+            "voice.recv_client_not_found",
+            message="VoiceRecvClient class not found in voice_recv module",
+        )
     with suppress(OSError):
         discord.opus._load_default()
 
@@ -331,7 +344,55 @@ class VoiceBot(discord.Client):
                         raise RuntimeError(
                             "Voice client reported disconnected immediately"
                         )
+
+                    # CRITICAL: Verify client type and listen() method availability
+                    actual_type = type(voice_client).__name__
+                    has_listen = hasattr(voice_client, "listen")
+                    recv_cls = (
+                        getattr(discord_voice_recv, "VoiceRecvClient", None)
+                        if discord_voice_recv
+                        else None
+                    )
+                    is_voice_recv = (
+                        isinstance(voice_client, recv_cls) if recv_cls else False
+                    )
+
+                    self._logger.info(
+                        "voice.client_type_verification",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        actual_client_type=actual_type,
+                        desired_type=desired_cls.__name__
+                        if isinstance(desired_cls, type)
+                        else "unknown",
+                        has_listen_method=has_listen,
+                        is_voice_recv_client=is_voice_recv,
+                        endpoint=getattr(voice_client, "endpoint", None),
+                        session_id=getattr(voice_client, "session_id", None),
+                    )
+
+                    if not has_listen:
+                        self._logger.error(
+                            "voice.listen_method_missing",
+                            guild_id=guild_id,
+                            channel_id=channel_id,
+                            voice_client_type=actual_type,
+                            message="Voice client does not have listen() method - cannot receive audio",
+                        )
+                        # Continue anyway to see if _ensure_voice_receiver handles it
+
+                    # Log voice connection state before setting up receiver
+                    self._logger.debug(
+                        "voice.connection_state_before_receiver",
+                        guild_id=guild_id,
+                        channel_id=channel_id,
+                        is_connected=voice_client.is_connected(),
+                        endpoint=getattr(voice_client, "endpoint", None),
+                        session_id=getattr(voice_client, "session_id", None),
+                    )
+
                     self._ensure_voice_receiver(voice_client)
+
                     connection_duration = time.time() - connection_start_time
                     attempt_duration = time.time() - attempt_start_time
                     self._logger.info(
@@ -530,9 +591,10 @@ class VoiceBot(discord.Client):
     ) -> None:
         """Entry point for voice receivers to feed PCM data into the pipeline."""
 
-        voice_state = self._resolve_voice_state(user_id)
+        voice_state = await self._resolve_voice_state(user_id)
         if not voice_state or not voice_state.channel:
-            self._logger.debug(
+            # Promote to INFO level for visibility (was DEBUG)
+            self._logger.info(
                 "discord.voice_state_unavailable",
                 user_id=user_id,
                 pcm_bytes=len(pcm),
@@ -596,9 +658,33 @@ class VoiceBot(discord.Client):
 
         await self._segment_queue.put(segment_context)
 
-    def _resolve_voice_state(self, user_id: int) -> discord.VoiceState | None:
+    async def _resolve_voice_state(self, user_id: int) -> discord.VoiceState | None:
+        """Resolve voice state for user, fetching member if not cached."""
         for guild in self.guilds:
             member = guild.get_member(user_id)
+            if member is None:
+                # Member not cached - fetch explicitly
+                self._logger.debug(
+                    "voice.member_not_cached",
+                    guild_id=guild.id,
+                    user_id=user_id,
+                )
+                try:
+                    member = await guild.fetch_member(user_id)
+                    self._logger.debug(
+                        "voice.member_fetched",
+                        guild_id=guild.id,
+                        user_id=user_id,
+                    )
+                except (discord.NotFound, discord.HTTPException) as exc:
+                    self._logger.debug(
+                        "voice.member_fetch_failed",
+                        guild_id=guild.id,
+                        user_id=user_id,
+                        error=str(exc),
+                    )
+                    continue
+
             if member and member.voice and member.voice.channel:
                 return member.voice
         return None
@@ -1113,29 +1199,109 @@ class VoiceBot(discord.Client):
         guild_id = voice_client.guild.id if voice_client.guild else None
         channel_id = voice_client.channel.id if voice_client.channel else None
         if guild_id is None or channel_id is None:
+            self._logger.warning(
+                "voice.receiver_skip_missing_context",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                has_guild=voice_client.guild is not None,
+                has_channel=voice_client.channel is not None,
+            )
             return
         if guild_id in self._voice_receivers:
+            self._logger.debug(
+                "voice.receiver_already_registered",
+                guild_id=guild_id,
+                channel_id=channel_id,
+            )
             return
+
+        # Create receiver sink
         try:
             assert self._loop is not None
             receiver = build_sink(self._loop, self.ingest_voice_packet)
-        except Exception:
-            return
-        try:
-            voice_client.listen(receiver)
+
+            # Log receiver creation
+            self._logger.debug(
+                "voice.receiver_created",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                receiver_type=type(receiver).__name__,
+            )
         except Exception as exc:
-            self._logger.error(
+            self._logger.exception(
+                "voice.receiver_creation_failed",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                error=str(exc),
+                error_type=type(exc).__name__,
+            )
+            return
+
+        # Attach receiver to voice client
+        try:
+            # CRITICAL: Verify listen() method exists before calling
+            if not hasattr(voice_client, "listen"):
+                self._logger.error(
+                    "voice.listen_method_missing_in_attach",
+                    guild_id=guild_id,
+                    channel_id=channel_id,
+                    voice_client_type=type(voice_client).__name__,
+                    available_methods=[
+                        m
+                        for m in dir(voice_client)
+                        if not m.startswith("_")
+                        and callable(getattr(voice_client, m, None))
+                    ],
+                    message="Cannot attach receiver - listen() method does not exist",
+                )
+                return
+
+            # Log voice client state before attaching
+            self._logger.info(
+                "voice.attaching_receiver",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                voice_client_connected=voice_client.is_connected(),
+                voice_client_type=type(voice_client).__name__,
+                receiver_type=type(receiver).__name__,
+                endpoint=getattr(voice_client, "endpoint", None),
+                has_listen_method=hasattr(voice_client, "listen"),
+            )
+
+            voice_client.listen(receiver)
+
+            # Log successful attachment at INFO level for visibility
+            self._logger.info(
+                "voice.receiver_attached",
+                guild_id=guild_id,
+                channel_id=channel_id,
+                voice_client_type=type(voice_client).__name__,
+                receiver_type=type(receiver).__name__,
+            )
+        except Exception as exc:
+            self._logger.exception(
                 "voice.receiver_start_failed",
                 guild_id=guild_id,
                 channel_id=channel_id,
                 error=str(exc),
+                error_type=type(exc).__name__,
             )
             return
+
         self._voice_receivers[guild_id] = receiver
         self._logger.info(
             "voice.receiver_started",
             guild_id=guild_id,
             channel_id=channel_id,
+        )
+
+        # Log voice client state after successful attachment
+        self._logger.debug(
+            "voice.client_state_after_attachment",
+            guild_id=guild_id,
+            channel_id=channel_id,
+            is_connected=voice_client.is_connected(),
+            receiver_registered=guild_id in self._voice_receivers,
         )
 
     def _stop_voice_receiver(

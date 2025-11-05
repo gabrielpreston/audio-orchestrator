@@ -4,7 +4,7 @@ SHELL := /bin/bash
 # PHONY TARGETS
 # =============================================================================
 .PHONY: all help
-.PHONY: run stop logs logs-dump docker-status run-with-build run-test stop-test restart docker-shell docker-config
+.PHONY: run stop logs logs-follow logs-dump docker-status run-with-build run-test stop-test restart docker-shell docker-config
 .PHONY: docker-buildx-setup docker-buildx-reset
 .PHONY: docker-build docker-build-enhanced docker-build-service docker-build-base docker-build-wheels
 .PHONY: docker-push-base-images docker-push-services docker-push-all
@@ -289,8 +289,12 @@ restart: ## Restart compose services (set SERVICE=name to limit scope)
 	@printf "$(COLOR_BLUE)→ Restarting docker services$(COLOR_OFF)\n"
 	@if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) restart; else $(DOCKER_COMPOSE) restart $(SERVICE); fi
 
-logs: ## Tail logs for compose services (set SERVICE=name to filter)
-	@printf "$(COLOR_CYAN)→ Tailing logs for docker services (Ctrl+C to stop)$(COLOR_OFF)\n"; \
+logs: ## Show logs for compose services (set SERVICE=name to filter)
+	@printf "$(COLOR_CYAN)→ Showing logs for docker services$(COLOR_OFF)\n"; \
+	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs --tail=100; else $(DOCKER_COMPOSE) logs --tail=100 $(SERVICE); fi
+
+logs-follow: ## Follow logs for compose services (set SERVICE=name to filter)
+	@printf "$(COLOR_CYAN)→ Following logs for docker services (Ctrl+C to stop)$(COLOR_OFF)\n"; \
 	if [ -z "$(SERVICE)" ]; then $(DOCKER_COMPOSE) logs -f --tail=100; else $(DOCKER_COMPOSE) logs -f --tail=100 $(SERVICE); fi
 
 logs-dump: ## Capture docker logs to ./debug/docker.logs

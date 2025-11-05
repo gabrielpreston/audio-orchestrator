@@ -66,10 +66,11 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `AUDIO_MAX_SEGMENT_DURATION` | Maximum length of a single audio segment (seconds). | `15` |
 | `AUDIO_MIN_SEGMENT_DURATION` | Minimum length before a segment is considered speech (seconds). | `0.3` |
 | `AUDIO_AGGREGATION_WINDOW` | Sliding window size for VAD aggregation (seconds). | `1.5` |
-| `AUDIO_SAMPLE_RATE` | Discord capture sample rate (Hz). | `48000` |
+| `AUDIO_SAMPLE_RATE` | General audio processing sample rate (Hz). | `16000` |
+| `AUDIO_INPUT_SAMPLE_RATE` | Discord input audio sample rate (Hz). Used by accumulator logic. | `48000` |
 | `AUDIO_VAD_SAMPLE_RATE` | Sample rate used for VAD analysis (Hz). | `16000` |
 | `AUDIO_VAD_FRAME_MS` | Frame length used for VAD (milliseconds). | `30` |
-| `AUDIO_VAD_AGGRESSIVENESS` | WebRTC VAD aggressiveness level (0-3). | `2` |
+| `AUDIO_VAD_AGGRESSIVENESS` | WebRTC VAD aggressiveness level (0-3). | `1` |
 | `STT_BASE_URL` | Speech-to-text service URL. | `http://stt:9000` |
 | `STT_TIMEOUT` | Timeout for STT requests (seconds). | `45` |
 | `STT_MAX_RETRIES` | Number of retry attempts for STT calls. | `3` |

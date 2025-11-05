@@ -89,7 +89,11 @@ async def _startup() -> None:
 
         # Load configuration with fallback (optional - graceful degradation)
         try:
-            cfg = load_config_from_env(OrchestratorConfig)
+            # IMPORTANT: Pass preset to ensure defaults are used (env vars still override)
+            from services.common.config import get_service_preset
+
+            _config_preset = get_service_preset("orchestrator")
+            cfg = load_config_from_env(OrchestratorConfig, **_config_preset)
             app.state.cfg = cfg
         except Exception as exc:
             _health_manager.record_startup_failure(

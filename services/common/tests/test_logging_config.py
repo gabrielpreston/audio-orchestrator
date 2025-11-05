@@ -150,3 +150,90 @@ class TestLoggingConfiguration:
         stdlib_logger.info("stdlib message")
 
         assert stdlib_logger.isEnabledFor(logging.INFO)
+
+    @pytest.mark.unit
+    def test_health_check_503_warning_level(self, isolated_structlog):
+        """Test that 503 health check responses are logged at WARNING level."""
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
+
+        # Simulate uvicorn access log for 503 health check
+        access_logger = logging.getLogger("uvicorn.access")
+        access_logger.info('172.18.0.3:52054 - "GET /health/ready HTTP/1.1" 503')
+
+        log_output = captured_output.getvalue()
+        if log_output.strip():  # Should not be empty (503 allowed through)
+            log_data = json.loads(log_output.strip())
+            assert log_data["level"] == "warning"
+            assert log_data["status_code"] == 503
+            assert log_data["path"] == "/health/ready"
+
+    @pytest.mark.unit
+    def test_health_check_200_suppressed(self, isolated_structlog):
+        """Test that 200 health check responses are still suppressed."""
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
+
+        access_logger = logging.getLogger("uvicorn.access")
+        access_logger.info('172.18.0.3:52054 - "GET /health/ready HTTP/1.1" 200')
+
+        log_output = captured_output.getvalue()
+        # Should be empty (200 suppressed)
+        assert not log_output.strip()
+
+    @pytest.mark.unit
+    def test_health_check_503_non_health_endpoint_info(self, isolated_structlog):
+        """Test that 503 non-health-check endpoints remain at INFO level."""
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
+
+        access_logger = logging.getLogger("uvicorn.access")
+        access_logger.info('172.18.0.3:52054 - "GET /api/endpoint HTTP/1.1" 503')
+
+        log_output = captured_output.getvalue()
+        if log_output.strip():  # Should not be empty (non-health 503 allowed through)
+            log_data = json.loads(log_output.strip())
+            assert (
+                log_data["level"] == "info"
+            )  # Should remain INFO for non-health endpoints
+            assert log_data["status_code"] == 503
+            assert log_data["path"] == "/api/endpoint"
+
+    @pytest.mark.unit
+    def test_health_check_processor_non_uvicorn_logs(self, isolated_structlog):
+        """Test that processor doesn't modify non-uvicorn logs."""
+        captured_output = StringIO()
+        configure_logging(
+            level="INFO",
+            json_logs=True,
+            service_name="test_service",
+            stream=captured_output,
+        )
+
+        # Regular logger (not uvicorn.access)
+        regular_logger = logging.getLogger("test_logger")
+        regular_logger.info("test message")
+
+        log_output = captured_output.getvalue()
+        log_data = json.loads(log_output.strip())
+
+        # Should not have path or status_code fields
+        assert "path" not in log_data
+        assert "status_code" not in log_data
+        # Level should remain as INFO (not modified by processor)
+        assert log_data["level"] == "info"

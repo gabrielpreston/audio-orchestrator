@@ -10,6 +10,7 @@ from starlette.datastructures import UploadFile
 from starlette.requests import ClientDisconnect
 
 from services.common.config import (
+    LoggingConfig,
     ServiceConfig,
     get_service_preset,
     load_config_from_env,
@@ -33,24 +34,29 @@ from services.common.audio_enhancement import AudioEnhancer
 
 # Configuration classes are now handled by the new config system
 
+# Step 1: Load preset (used for both logging and full config)
+_config_preset = get_service_preset("stt")
 
-# Centralized configuration
-_cfg: ServiceConfig = load_config_from_env(ServiceConfig, **get_service_preset("stt"))
+# Step 2: Configure logging FIRST (before any other config)
+_logging_config = LoggingConfig(**_config_preset["logging"])
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="stt",
+)
+logger = get_logger(__name__, service_name="stt")
 
+# Step 3: Load full config AFTER logging is configured
+_cfg: ServiceConfig = load_config_from_env(ServiceConfig, **_config_preset)
+
+# Step 4: Extract module-level constants
 MODEL_NAME = _cfg.faster_whisper.model
 MODEL_PATH = _cfg.faster_whisper.model_path or "/app/models"
+
 # Health manager for service resilience (must remain module-level for app creation)
 _health_manager = HealthManager("stt")
 # Note: Other stateful components (_model_loader, _audio_enhancer, etc.)
 # are now stored in app.state during startup and accessed via request.app.state
-
-
-configure_logging(
-    _cfg.logging.level,
-    json_logs=_cfg.logging.json_logs,
-    service_name="stt",
-)
-logger = get_logger(__name__, service_name="stt")
 
 
 def _check_cudnn_library() -> bool:

@@ -125,6 +125,16 @@ class AudioAggregator:
 -  Volume normalization - RMS-based level adjustment
 -  **NO ML enhancement** - Too expensive for real-time frame processing
 
+**Frame Accumulation** (Discord Service):
+
+-  Accumulator tracks frames per user using VAD detection
+-  Speech frames are accumulated into segments
+-  Silence frames trigger flush decisions after timeout
+-  Segments created when:
+  -  Maximum duration reached (15 seconds default)
+  -  Silence timeout exceeded (0.75 seconds default) AND minimum duration met (0.3 seconds default)
+-  Uses `Accumulator` class in `services/discord/audio.py` for per-user state management
+
 **Segment-Level Enhancement** (Batch, Heavy):
 
 -  Format conversion to standard format

@@ -41,6 +41,14 @@ class TestAudioPipelineStages:
         audio_config.enable_vad = True
         audio_config.enable_enhancement = True
         audio_config.vad_aggressiveness = 1
+        # Add accumulator config fields
+        audio_config.silence_timeout_seconds = 0.75
+        audio_config.max_segment_duration_seconds = 15.0
+        audio_config.min_segment_duration_seconds = 0.3
+        audio_config.aggregation_window_seconds = 1.5
+        audio_config.input_sample_rate_hz = 48000
+        audio_config.vad_sample_rate_hz = 16000
+        audio_config.vad_frame_duration_ms = 30
 
         telemetry_config = Mock()
         telemetry_config.waveform_debug_dir = None
@@ -68,39 +76,34 @@ class TestAudioPipelineStages:
         )
         mock_audio_processor_wrapper._audio_processor_core.process_frame.return_value = processed_frame
 
-        # Simulate ingest_voice_packet calling register_frame_async
-        segment = await mock_audio_processor_wrapper.register_frame_async(
-            user_id=user_id,
-            pcm=sample_pcm_audio,
-            rms=rms,
-            duration=duration,
-            sample_rate=sample_rate,
-        )
+        # Mock VAD to detect speech
+        with patch(
+            "services.discord.audio_processor_wrapper.VADProcessor.detect_speech",
+            new_callable=AsyncMock,
+        ) as mock_vad:
+            mock_vad.return_value = True  # Speech detected
 
-        # Verify segment was created
-        assert segment is not None
-        assert segment.user_id == user_id  # user_id is int in discord AudioSegment
-        assert segment.sample_rate == sample_rate
+            # Simulate ingest_voice_packet calling register_frame_async
+            # Single frame will return None (not enough for segment)
+            segment = await mock_audio_processor_wrapper.register_frame_async(
+                user_id=user_id,
+                pcm=sample_pcm_audio,
+                rms=rms,
+                duration=duration,
+                sample_rate=sample_rate,
+            )
 
-        # Verify processor was called
-        mock_audio_processor_wrapper._audio_processor_core.process_frame.assert_called_once()
+            # With accumulator, single frame returns None
+            assert segment is None
+
+            # Verify processor was called
+            mock_audio_processor_wrapper._audio_processor_core.process_frame.assert_called_once()
 
     async def test_stage_processor_to_segment(
         self, mock_audio_processor_core, mock_config, sample_pcm_audio
     ):
-        """Test frame processing → Segment creation and queuing."""
+        """Test frame processing → Segment creation with accumulator logic."""
         audio_config, telemetry_config = mock_config
-
-        # Create processed frame response
-        processed_frame = PCMFrame(
-            pcm=sample_pcm_audio + b"_processed",
-            timestamp=time.time(),
-            rms=0.6,
-            duration=0.03,
-            sequence=1,
-            sample_rate=48000,
-        )
-        mock_audio_processor_core.process_frame.return_value = processed_frame
 
         # Create wrapper
         wrapper = AudioProcessorWrapper(
@@ -109,29 +112,54 @@ class TestAudioPipelineStages:
             audio_processor_core=mock_audio_processor_core,
         )
 
-        # Process frame
-        user_id = 12345
-        segment = await wrapper.register_frame_async(
-            user_id=user_id,
-            pcm=sample_pcm_audio,
-            rms=0.5,
-            duration=0.03,
-            sample_rate=48000,
-        )
+        # Mock VAD to detect speech
+        with patch(
+            "services.discord.audio_processor_wrapper.VADProcessor.detect_speech",
+            new_callable=AsyncMock,
+        ) as mock_vad:
+            mock_vad.return_value = True  # Speech detected
 
-        # Verify segment structure
-        assert segment is not None
-        assert segment.user_id == user_id  # user_id is int in discord AudioSegment
-        assert segment.pcm == processed_frame.pcm
-        assert segment.start_timestamp == processed_frame.timestamp
-        assert (
-            segment.end_timestamp
-            == processed_frame.timestamp + processed_frame.duration
-        )
-        assert segment.frame_count == 1
-        assert segment.correlation_id is not None
+            # Set max duration low to trigger segment creation
+            audio_config.max_segment_duration_seconds = 0.5
 
-        await wrapper.close()
+            # Send frames until segment is created
+            user_id = 12345
+            base_time = time.time()
+            segment = None
+
+            for i in range(12):  # 12 frames * 0.05 = 0.6 seconds > 0.5 max
+                frame_time = base_time + (i * 0.05)
+                processed_frame = PCMFrame(
+                    pcm=sample_pcm_audio + b"_processed",
+                    timestamp=frame_time,
+                    rms=0.6,
+                    duration=0.05,
+                    sequence=i + 1,
+                    sample_rate=48000,
+                )
+                mock_audio_processor_core.process_frame.return_value = processed_frame
+
+                result = await wrapper.register_frame_async(
+                    user_id=user_id,
+                    pcm=sample_pcm_audio,
+                    rms=0.5,
+                    duration=0.05,
+                    sample_rate=48000,
+                )
+
+                if result is not None:
+                    segment = result
+                    break
+
+            # Verify segment structure
+            assert segment is not None
+            assert segment.user_id == user_id
+            assert segment.frame_count > 1  # Multiple frames accumulated
+            assert segment.duration >= 0.5  # At least max duration
+            assert segment.correlation_id is not None
+            assert segment.correlation_id.startswith("discord-")
+
+            await wrapper.close()
 
     async def test_stage_segment_to_stt(self, sample_audio_segment_fixture):
         """Test segment → TranscriptionClient.transcribe() → TranscriptResult."""
@@ -192,17 +220,6 @@ class TestAudioPipelineStages:
         """Test format conversion through pipeline (PCM → processed → WAV)."""
         audio_config, telemetry_config = mock_config
 
-        # Create processed frame response
-        processed_frame = PCMFrame(
-            pcm=sample_pcm_audio + b"_processed",
-            timestamp=time.time(),
-            rms=0.6,
-            duration=0.03,
-            sequence=1,
-            sample_rate=48000,
-        )
-        mock_audio_processor_core.process_frame.return_value = processed_frame
-
         # Create wrapper
         wrapper = AudioProcessorWrapper(
             audio_config=audio_config,
@@ -210,18 +227,48 @@ class TestAudioPipelineStages:
             audio_processor_core=mock_audio_processor_core,
         )
 
-        # Process frame (PCM → processed PCM)
-        user_id = 12345
-        segment = await wrapper.register_frame_async(
-            user_id=user_id,
-            pcm=sample_pcm_audio,
-            rms=0.5,
-            duration=0.03,
-            sample_rate=48000,
-        )
+        # Mock VAD to detect speech
+        with patch(
+            "services.discord.audio_processor_wrapper.VADProcessor.detect_speech",
+            new_callable=AsyncMock,
+        ) as mock_vad:
+            mock_vad.return_value = True  # Speech detected
 
-        assert segment is not None
-        assert segment.pcm == processed_frame.pcm  # Processed PCM
+            # Set max duration low to trigger segment creation
+            audio_config.max_segment_duration_seconds = 0.5
+
+            # Send frames until segment is created
+            user_id = 12345
+            base_time = time.time()
+            segment = None
+
+            for i in range(12):
+                frame_time = base_time + (i * 0.05)
+                processed_frame = PCMFrame(
+                    pcm=sample_pcm_audio + b"_processed",
+                    timestamp=frame_time,
+                    rms=0.6,
+                    duration=0.05,
+                    sequence=i + 1,
+                    sample_rate=48000,
+                )
+                mock_audio_processor_core.process_frame.return_value = processed_frame
+
+                result = await wrapper.register_frame_async(
+                    user_id=user_id,
+                    pcm=sample_pcm_audio,
+                    rms=0.5,
+                    duration=0.05,
+                    sample_rate=48000,
+                )
+
+                if result is not None:
+                    segment = result
+                    break
+
+            assert segment is not None
+            # Processed PCM data (concatenated from frames)
+            assert len(segment.pcm) > 0
 
         # Now test PCM → WAV conversion via TranscriptionClient
         stt_config = STTConfig(
@@ -250,10 +297,12 @@ class TestAudioPipelineStages:
             async with TranscriptionClient(stt_config) as client:
                 client._http_client = mock_resilient_client
 
-                result = await client.transcribe(segment)
+                transcript_result: TranscriptResult | None = await client.transcribe(
+                    segment
+                )
 
                 # Verify conversion happened (WAV file was created)
-                assert result is not None
+                assert transcript_result is not None
                 call_args = mock_resilient_client.post_with_retry.call_args
                 assert "files" in call_args[1]
                 files = call_args[1]["files"]
@@ -268,19 +317,8 @@ class TestAudioPipelineStages:
     async def test_stage_quality_metrics_propagation(
         self, mock_audio_processor_core, mock_config, sample_pcm_audio
     ):
-        """Test quality metrics preservation (if added to segments)."""
+        """Test quality metrics preservation in accumulated segments."""
         audio_config, telemetry_config = mock_config
-
-        # Create processed frame with quality metrics
-        processed_frame = PCMFrame(
-            pcm=sample_pcm_audio + b"_processed",
-            timestamp=time.time(),
-            rms=0.7,  # Quality metric
-            duration=0.03,
-            sequence=1,
-            sample_rate=48000,
-        )
-        mock_audio_processor_core.process_frame.return_value = processed_frame
 
         # Create wrapper
         wrapper = AudioProcessorWrapper(
@@ -289,24 +327,50 @@ class TestAudioPipelineStages:
             audio_processor_core=mock_audio_processor_core,
         )
 
-        # Process frame
-        segment = await wrapper.register_frame_async(
-            user_id=12345,
-            pcm=sample_pcm_audio,
-            rms=0.5,
-            duration=0.03,
-            sample_rate=48000,
-        )
+        # Mock VAD to detect speech
+        with patch(
+            "services.discord.audio_processor_wrapper.VADProcessor.detect_speech",
+            new_callable=AsyncMock,
+        ) as mock_vad:
+            mock_vad.return_value = True  # Speech detected
 
-        # Verify segment preserves sample_rate (quality metric)
-        assert segment is not None
-        assert segment.sample_rate == processed_frame.sample_rate
+            # Set max duration low to trigger segment creation
+            audio_config.max_segment_duration_seconds = 0.5
 
-        # Verify timestamps are preserved (quality metrics)
-        assert segment.start_timestamp == processed_frame.timestamp
-        assert (
-            segment.end_timestamp
-            == processed_frame.timestamp + processed_frame.duration
-        )
+            # Send frames until segment is created
+            base_time = time.time()
+            segment = None
 
-        await wrapper.close()
+            for i in range(12):
+                frame_time = base_time + (i * 0.05)
+                processed_frame = PCMFrame(
+                    pcm=sample_pcm_audio + b"_processed",
+                    timestamp=frame_time,
+                    rms=0.7,  # Quality metric
+                    duration=0.05,
+                    sequence=i + 1,
+                    sample_rate=48000,
+                )
+                mock_audio_processor_core.process_frame.return_value = processed_frame
+
+                result = await wrapper.register_frame_async(
+                    user_id=12345,
+                    pcm=sample_pcm_audio,
+                    rms=0.5,
+                    duration=0.05,
+                    sample_rate=48000,
+                )
+
+                if result is not None:
+                    segment = result
+                    break
+
+            # Verify segment preserves quality metrics
+            assert segment is not None
+            assert segment.sample_rate == processed_frame.sample_rate
+
+            # Verify timestamps span from first to last frame
+            assert segment.start_timestamp >= base_time
+            assert segment.end_timestamp > segment.start_timestamp
+
+            await wrapper.close()

@@ -394,13 +394,40 @@ def _uvicorn_access_processor(
     return event_dict
 
 
+def _health_check_level_processor(
+    _logger: Any, _method_name: str, event_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Processor to change log level for 503 health check responses to WARNING.
+
+    This processor runs after the access log has been parsed and structured
+    fields have been added. It upgrades 503 health check responses from INFO
+    to WARNING level to make service unavailability more visible.
+
+    Args:
+        _logger: Logger instance (required by structlog processor signature, unused)
+        _method_name: Method name (required by structlog processor signature, unused)
+        event_dict: Event dictionary containing log data with structured fields
+
+    Returns:
+        Modified event_dict with level changed to "warning" for 503 health checks
+    """
+    path = event_dict.get("path", "")
+    status_code = event_dict.get("status_code")
+
+    # Change 503 health check responses from INFO to WARNING
+    if path and path.startswith("/health/") and status_code == 503:
+        event_dict["level"] = "warning"
+
+    return event_dict
+
+
 class HealthCheckFilter(logging.Filter):
     """Filter to reduce health check spam in uvicorn access logs.
 
     Health check endpoints are called frequently by monitoring tools and don't
     need to be logged at INFO level. This filter:
     - Suppresses health check logs when status is 200 (healthy)
-    - Suppresses health check logs when status is 503 (expected during startup/dependency unready)
+    - Allows 503 health check responses through (will be logged at WARNING level)
     - Allows other endpoints through normally
     """
 
@@ -443,9 +470,9 @@ class HealthCheckFilter(logging.Filter):
             # Suppress successful health checks (200) - these are noise
             if status_code == 200:
                 return False
-            # Suppress 503 during startup/degraded - expected behavior, too noisy
+            # Allow 503 through for WARNING level upgrade
             if status_code == 503:
-                return False
+                return True
 
         return True
 
@@ -478,6 +505,7 @@ def _configure_uvicorn_access_logger(
         structlog.processors.TimeStamper(fmt="iso", key="timestamp"),
         _add_service(service_name),
         _uvicorn_access_processor,  # Parse access log messages into structured fields
+        _health_check_level_processor,  # Change 503 health checks to WARNING
     ]
 
     if json_logs:

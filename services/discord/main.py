@@ -2,24 +2,32 @@
 
 from __future__ import annotations
 
-
+from services.common.config import LoggingConfig, get_service_preset
 from services.common.structured_logging import configure_logging
 
-from .config import load_config
+# Load logging configuration from preset
+_config_preset = get_service_preset("discord")
+_logging_config = LoggingConfig(**_config_preset["logging"])
+
+# Configure logging BEFORE importing app to ensure structured JSON logging
+# is set up before uvicorn initializes
+configure_logging(
+    _logging_config.level,
+    json_logs=_logging_config.json_logs,
+    service_name="discord",
+)
 
 
 def main() -> None:
-    config = load_config()
-    configure_logging(
-        config.logging.level,
-        json_logs=config.logging.json_logs,
-        service_name="discord",
-    )
-
-    # Run as HTTP API server
+    """Main entrypoint for the Discord service."""
+    # Import app AFTER logging is configured
     import uvicorn
 
     from .app import app
+
+    # Full config still loaded in app.py startup handler
+    # This import is here to ensure app module is available
+    # (app.py will load config independently in _startup())
 
     # Prevent uvicorn from resetting our logging configuration
     # We've already configured structured JSON logging in configure_logging()

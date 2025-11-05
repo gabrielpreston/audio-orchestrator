@@ -87,8 +87,60 @@ class BufferedVoiceSink:
         user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
         ssrc = getattr(data, "ssrc", None)
 
+        # Diagnostic logging: Log every packet received (rate-limited)
+        try:
+            rate_s = float(os.getenv("LOG_RATE_LIMIT_PACKET_DEBUG_S", "1.0"))
+        except Exception:
+            rate_s = 1.0
+        if should_rate_limit("discord.packet_received", rate_s):
+            pcm_status = (
+                "yes"
+                if (getattr(data, "decoded_data", None) or getattr(data, "pcm", None))
+                else "no"
+            )
+            self._logger.debug(
+                "voice.packet_received",
+                user_id=user_id,
+                ssrc=ssrc,
+                pcm_available=pcm_status,
+            )
+
         # If we have a user_id, process immediately
         if user_id is not None:
+            # Log first few packets at INFO level for debugging
+            packet_count = getattr(self, "_packet_count", 0)
+            self._packet_count = packet_count + 1
+
+            if packet_count < 5:
+                # Inspect data object attributes
+                data_attrs = (
+                    [attr for attr in dir(data) if not attr.startswith("_")]
+                    if data
+                    else []
+                )
+                pcm_attrs = [
+                    attr
+                    for attr in data_attrs
+                    if "pcm" in attr.lower()
+                    or "data" in attr.lower()
+                    or "audio" in attr.lower()
+                ]
+                self._logger.info(
+                    "voice.packet_processing",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                    ssrc=ssrc,
+                    data_type=type(data).__name__ if data else None,
+                    data_attrs_count=len(data_attrs),
+                    pcm_related_attrs=pcm_attrs[:10],  # First 10 relevant attrs
+                    has_decoded_data=hasattr(data, "decoded_data") if data else False,
+                    has_pcm=hasattr(data, "pcm") if data else False,
+                    decoded_data_value=bool(getattr(data, "decoded_data", None))
+                    if data
+                    else False,
+                    pcm_value=bool(getattr(data, "pcm", None)) if data else False,
+                )
+
             # Log SSRC mapping when we first see a user
             if ssrc and ssrc not in self._logged_unknown_ssrcs:
                 self._logger.info(
@@ -118,7 +170,19 @@ class BufferedVoiceSink:
                 self._ssrc_first_seen.pop(ssrc, None)
 
             # Process current packet
+            if packet_count < 5:
+                self._logger.info(
+                    "voice.calling_process_packet",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                )
             self._process_packet(user, data)
+            if packet_count < 5:
+                self._logger.info(
+                    "voice.process_packet_completed",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                )
             return
 
         # No user_id - buffer the packet if we have SSRC info
@@ -176,8 +240,54 @@ class BufferedVoiceSink:
 
     def _process_packet(self, user: object | None, data: Any) -> None:
         """Process a single packet through the audio pipeline."""
+        # Log first few calls at INFO level
+        process_count = getattr(self, "_process_count", 0)
+        self._process_count = process_count + 1
+
+        if process_count < 5:
+            # Inspect data object for PCM attributes
+            data_attrs = (
+                [attr for attr in dir(data) if not attr.startswith("_")] if data else []
+            )
+            pcm_attrs = [
+                attr
+                for attr in data_attrs
+                if "pcm" in attr.lower()
+                or "data" in attr.lower()
+                or "audio" in attr.lower()
+                or "decoded" in attr.lower()
+            ]
+            decoded_data_val = getattr(data, "decoded_data", None) if data else None
+            pcm_val = getattr(data, "pcm", None) if data else None
+
+            self._logger.info(
+                "voice.process_packet_entry",
+                packet_number=process_count + 1,
+                user_id=getattr(user, "id", None) if user else None,
+                data_type=type(data).__name__ if data else None,
+                decoded_data_type=type(decoded_data_val).__name__
+                if decoded_data_val is not None
+                else None,
+                decoded_data_len=len(decoded_data_val)
+                if isinstance(decoded_data_val, bytes)
+                else None,
+                pcm_type=type(pcm_val).__name__ if pcm_val is not None else None,
+                pcm_len=len(pcm_val) if isinstance(pcm_val, bytes) else None,
+                pcm_related_attrs=pcm_attrs[:10],
+            )
+
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
         if not pcm:
+            # Log PCM extraction failures with warning level
+            self._logger.warning(
+                "voice.pcm_extraction_failed",
+                user_id=getattr(user, "id", None)
+                if user
+                else getattr(data, "user_id", None),
+                ssrc=getattr(data, "ssrc", None),
+                has_decoded_data=bool(getattr(data, "decoded_data", None)),
+                has_pcm=bool(getattr(data, "pcm", None)),
+            )
             return
 
         user_id = getattr(user, "id", None) if user else getattr(data, "user_id", None)
@@ -190,22 +300,47 @@ class BufferedVoiceSink:
                 self._logger.debug("voice.receiver_unknown_user")
             return
 
-        sample_rate = (
+        sample_rate_raw = (
             getattr(data, "sample_rate", None)
             or getattr(data, "sampling_rate", None)
             or 48000
         )
+        # Ensure sample_rate is a number, not a Mock or other object
+        try:
+            sample_rate = int(float(sample_rate_raw)) if sample_rate_raw else 48000
+        except (TypeError, ValueError):
+            sample_rate = 48000
         frame_count = len(pcm) // 2  # 16-bit mono
         duration = float(frame_count) / float(sample_rate) if sample_rate else 0.0
 
         # Note: Removed excessive PCM frame logging that was creating 97% of log volume
         # RMS and sample rate are already tracked in VAD decisions with proper sampling
 
+        # Log first few successful processings
+        if process_count < 5:
+            self._logger.info(
+                "voice.process_packet_success",
+                packet_number=process_count + 1,
+                user_id=user_id,
+                pcm_length=len(pcm),
+                sample_rate=sample_rate,
+                duration=duration,
+                frame_count=frame_count,
+                about_to_call_callback=True,
+            )
+
         future: ThreadFuture[None] = asyncio.run_coroutine_threadsafe(
             self._callback(user_id, pcm, duration, int(sample_rate)),
             self._loop,
         )
         future.add_done_callback(_consume_result)
+
+        if process_count < 5:
+            self._logger.info(
+                "voice.process_packet_callback_scheduled",
+                packet_number=process_count + 1,
+                user_id=user_id,
+            )
 
     def _calculate_rms(self, pcm: bytes) -> float:
         """Calculate RMS for PCM data."""
@@ -233,13 +368,57 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
     # Create our buffered sink
     buffered_sink = BufferedVoiceSink(loop, callback)
 
+    # Track handler call count for diagnostic logging
+    _handler_call_count = 0
+
     def handler(user: object | None, data: Any) -> None:
         """Handler that delegates to our buffered sink."""
-        buffered_sink._handle_packet(user, data)
+        # Diagnostic logging at entry point - critical for debugging packet reception
+        nonlocal _handler_call_count
+        logger = _get_logger()
+        try:
+            rate_s = float(os.getenv("LOG_RATE_LIMIT_PACKET_DEBUG_S", "1.0"))
+        except Exception:
+            rate_s = 1.0
+        # Log first few calls at INFO level, then rate-limit at DEBUG
+        _handler_call_count += 1
+        call_count = _handler_call_count
+
+        if call_count < 5 or should_rate_limit("discord.handler_called", rate_s):
+            log_level = logger.info if call_count < 5 else logger.debug
+            log_level(
+                "voice.handler_called",
+                call_number=call_count + 1,
+                has_user=user is not None,
+                has_data=data is not None,
+                user_id=getattr(user, "id", None) if user else None,
+                data_type=type(data).__name__ if data else None,
+                has_ssrc=bool(getattr(data, "ssrc", None) if data else None),
+            )
+        try:
+            buffered_sink._handle_packet(user, data)
+        except Exception as exc:
+            logger.exception(
+                "voice.handler_exception",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                has_user=user is not None,
+                has_data=data is not None,
+            )
+            raise
 
     # BasicSink accepts the callback and supports decode option.
     assert voice_recv is not None
-    return voice_recv.BasicSink(handler, decode=True)
+    basic_sink = voice_recv.BasicSink(handler, decode=True)
+
+    _get_logger().info(
+        "voice.basic_sink_created",
+        sink_type=type(basic_sink).__name__,
+        decode_enabled=True,
+        has_handler=callable(handler),
+    )
+
+    return basic_sink
 
 
 def _consume_result(future: ThreadFuture[None]) -> None:
