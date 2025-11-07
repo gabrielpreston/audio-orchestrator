@@ -5,6 +5,9 @@ Discord service HTTP API for tool integration.
 import asyncio
 from contextlib import suppress
 import os
+from pathlib import Path
+import shutil
+import tempfile
 from typing import Any
 
 from fastapi import HTTPException
@@ -12,6 +15,7 @@ from fastapi import HTTPException
 from services.common.health import HealthManager
 from services.common.health_endpoints import HealthEndpoints
 from services.common.http_client_factory import create_dependency_health_client
+from services.common.model_loader import BackgroundModelLoader
 
 # Configure logging
 from services.common.structured_logging import get_logger
@@ -53,6 +57,212 @@ def _create_transcript_publisher() -> TranscriptPublisher:
     return transcript_publisher
 
 
+def _get_wake_model_directory() -> Path:
+    """Resolve wake model directory path.
+
+    Uses openwakeword's default location which is mounted via volume in containers.
+    With HOME=/app, this resolves to /app/.local/share/openwakeword/models,
+    which is mounted from ./services/models/wake on the host.
+
+    Returns:
+        Path to wake model directory
+    """
+    # Use openwakeword's default location: ~/.local/share/openwakeword/models
+    # With HOME=/app in docker-compose, this becomes /app/.local/share/openwakeword/models
+    # This matches the volume mount: ./services/models/wake -> /app/.local/share/openwakeword/models
+    home_dir = Path.home()
+    default_wake_dir = home_dir / ".local" / "share" / "openwakeword" / "models"
+    return default_wake_dir
+
+
+def _load_wake_models_from_cache() -> bool | None:
+    """Check if wake models exist in cache directory.
+
+    Returns:
+        True if models found, None if cache miss
+    """
+    wake_dir = _get_wake_model_directory()
+    if wake_dir.exists():
+        model_files = list(wake_dir.glob("*.tflite")) + list(wake_dir.glob("*.onnx"))
+        return True if model_files else None
+    return None
+
+
+def _download_wake_models() -> bool:
+    """Download openwakeword models to target directory.
+
+    This is a side-effect function that downloads files but returns None.
+    BackgroundModelLoader will use True as sentinel value for success.
+
+    Returns:
+        True if download successful, False if openwakeword unavailable
+    """
+    try:
+        from openwakeword import utils as openwakeword_utils
+    except ImportError:
+        # Graceful degradation - openwakeword not available
+        logger.warning(
+            "discord.openwakeword_unavailable",
+            message="openwakeword not available, cannot download models",
+        )
+        return False
+
+    wake_dir = _get_wake_model_directory()
+    # Ensure directory exists (mkdir will create parent directories if needed)
+    wake_dir.mkdir(parents=True, exist_ok=True)
+
+    # openwakeword.utils.download_models() signature:
+    # download_models(model_names: List[str] = [], target_directory: str = ...)
+    # Empty model_names list downloads all pre-trained models
+    openwakeword_utils.download_models(
+        model_names=[],  # Download all pre-trained models
+        target_directory=str(wake_dir),
+    )
+    return True  # Side-effect function, return success indicator
+
+
+def _get_infrastructure_models_directory() -> Path:
+    """Resolve infrastructure models directory path.
+
+    Returns the package-level infrastructure models directory where openwakeword
+    expects to find infrastructure models (melspectrogram, embedding_model, silero_vad).
+    This directory is mounted via volume in containers.
+
+    Returns:
+        Path to infrastructure models directory
+    """
+    try:
+        import openwakeword
+    except ImportError:
+        # Fallback if openwakeword not available
+        return Path(
+            "/usr/local/lib/python3.11/site-packages/openwakeword/resources/models"
+        )
+
+    # Get package directory: Path(openwakeword.__file__).parent / "resources" / "models"
+    package_dir = Path(openwakeword.__file__).parent / "resources" / "models"
+    return package_dir
+
+
+def _check_infrastructure_models() -> bool:
+    """Check if all required infrastructure models exist.
+
+    Returns:
+        True if all required infrastructure models exist, False otherwise
+    """
+    infrastructure_models = [
+        "melspectrogram.onnx",
+        "embedding_model.onnx",
+        "silero_vad.onnx",
+    ]
+    package_dir = _get_infrastructure_models_directory()
+
+    if not package_dir.exists():
+        return False
+
+    for model_name in infrastructure_models:
+        model_path = package_dir / model_name
+        if not model_path.exists():
+            return False
+
+    return True
+
+
+def _download_infrastructure_models() -> bool:
+    """Download infrastructure models to mounted package directory if missing.
+
+    Downloads all models to temporary directory, filters to extract only infrastructure
+    models, then moves them to the package directory (which is mounted via volume).
+
+    Returns:
+        True if download successful, False if openwakeword unavailable or download fails
+    """
+    try:
+        from openwakeword import utils as openwakeword_utils
+    except ImportError:
+        # Graceful degradation - openwakeword not available
+        logger.warning(
+            "discord.openwakeword_unavailable",
+            message="openwakeword not available, cannot download infrastructure models",
+        )
+        return False
+
+    infrastructure_models = [
+        "melspectrogram.onnx",
+        "embedding_model.onnx",
+        "silero_vad.onnx",
+    ]
+    package_dir = _get_infrastructure_models_directory()
+
+    # Create temporary directory for download
+    temp_dir = Path(tempfile.mkdtemp(prefix="openwakeword_infrastructure_"))
+
+    try:
+        # Download all models to temporary directory
+        # download_models with empty model_names downloads ALL models (wake + infrastructure)
+        openwakeword_utils.download_models(
+            model_names=[],  # Download all models
+            target_directory=str(temp_dir),
+        )
+
+        # Ensure package directory exists
+        package_dir.mkdir(parents=True, exist_ok=True)
+
+        # Filter to extract only infrastructure models and move to package directory
+        moved_count = 0
+        for model_name in infrastructure_models:
+            src = temp_dir / model_name
+            if src.exists():
+                dst = package_dir / model_name
+                shutil.move(str(src), str(dst))
+                moved_count += 1
+                logger.info(
+                    "discord.infrastructure_model_downloaded",
+                    model_name=model_name,
+                    destination=str(dst),
+                )
+            else:
+                logger.warning(
+                    "discord.infrastructure_model_not_found_in_download",
+                    model_name=model_name,
+                    temp_directory=str(temp_dir),
+                )
+
+        if moved_count < len(infrastructure_models):
+            logger.warning(
+                "discord.infrastructure_models_partial_download",
+                moved_count=moved_count,
+                expected_count=len(infrastructure_models),
+                message="Some infrastructure models were not found in download",
+            )
+            return False
+
+        logger.info(
+            "discord.infrastructure_models_downloaded",
+            count=moved_count,
+            directory=str(package_dir),
+        )
+        return True
+
+    except Exception as exc:
+        logger.error(
+            "discord.infrastructure_models_download_failed",
+            error=str(exc),
+            error_type=type(exc).__name__,
+        )
+        return False
+    finally:
+        # Clean up temporary directory
+        try:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+        except Exception as cleanup_exc:
+            logger.debug(
+                "discord.temp_directory_cleanup_failed",
+                error=str(cleanup_exc),
+                temp_directory=str(temp_dir),
+            )
+
+
 async def _start_discord_bot(
     config: Any, observability_manager: Any, app_instance: Any
 ) -> None:
@@ -60,12 +270,47 @@ async def _start_discord_bot(
     try:
         logger.info("discord.bot_starting")
 
+        # Wait for wake models to be loaded before initializing WakeDetector
+        wake_model_loader = getattr(app_instance.state, "wake_model_loader", None)
+        if wake_model_loader:
+            logger.info("discord.waiting_for_wake_models")
+            models_loaded = await wake_model_loader.ensure_loaded(timeout=300.0)
+            if not models_loaded:
+                logger.warning(
+                    "discord.wake_models_not_loaded",
+                    message="Wake models failed to load, will fall back to transcript-based detection",
+                )
+            else:
+                logger.info("discord.wake_models_loaded")
+
+        # Check and download infrastructure models before initializing WakeDetector
+        if not _check_infrastructure_models():
+            logger.info(
+                "discord.infrastructure_models_missing",
+                message="Infrastructure models not found, downloading...",
+            )
+            download_success = _download_infrastructure_models()
+            if not download_success:
+                logger.warning(
+                    "discord.infrastructure_models_download_failed",
+                    message="Failed to download infrastructure models, will fall back to transcript-based detection",
+                )
+            else:
+                logger.info("discord.infrastructure_models_ready")
+        else:
+            logger.info(
+                "discord.infrastructure_models_found",
+                message="Infrastructure models already present",
+            )
+
         # Get metrics from app.state
         audio_metrics = getattr(app_instance.state, "audio_metrics", {})
 
         # Create bot components
-        audio_processor_wrapper = AudioProcessorWrapper(config.audio, config.telemetry)
         wake_detector = WakeDetector(config.wake)
+        audio_processor_wrapper = AudioProcessorWrapper(
+            config.audio, config.telemetry, wake_detector=wake_detector
+        )
         transcript_publisher = _create_transcript_publisher()
 
         # Create VoiceBot instance
@@ -279,9 +524,45 @@ async def _startup() -> None:
             )
             app.state.orchestrator_health_client = None
 
+        # Initialize wake model loader with cache-first + download fallback (critical component)
+        try:
+            wake_model_loader = BackgroundModelLoader(
+                cache_loader_func=_load_wake_models_from_cache,
+                download_loader_func=_download_wake_models,
+                logger=logger,
+                loader_name="wake_models",
+                timeout_seconds=300.0,
+                is_side_effect=True,
+            )
+
+            # Start background loading (non-blocking)
+            await wake_model_loader.initialize()
+            logger.info("discord.wake_model_loader_initialized")
+
+            # Store in app.state
+            app.state.wake_model_loader = wake_model_loader
+        except Exception as exc:
+            _health_manager.record_startup_failure(
+                error=exc, component="wake_model_loader", is_critical=True
+            )
+            raise  # Re-raise so app_factory also records it
+
         # Register dependencies
         _health_manager.register_dependency("stt", _check_stt_health)
         _health_manager.register_dependency("orchestrator", _check_orchestrator_health)
+
+        # Register wake model loader as dependency for health checks
+        # Models must be loaded AND not currently loading for service to be ready
+        _health_manager.register_dependency(
+            "wake_models",
+            lambda: (
+                app.state.wake_model_loader.is_loaded()
+                and not app.state.wake_model_loader.is_loading()
+                if hasattr(app.state, "wake_model_loader")
+                and app.state.wake_model_loader
+                else False
+            ),
+        )
 
         # Start Discord bot as background task
         asyncio.create_task(_start_discord_bot(config, observability_manager, app))

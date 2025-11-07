@@ -12,6 +12,8 @@ COPY services/discord/requirements.txt /app/services/discord/requirements.txt
 # hadolint ignore=DL3013
 RUN --mount=type=cache,target=/root/.cache/pip \
     --mount=type=cache,target=/tmp/wheels \
+    set -e && \
+    # Install all requirements (openwakeword will install tflite-runtime normally)
     pip install --no-cache-dir --find-links=/tmp/wheels -r /app/services/discord/requirements.txt
 
 # Set Python environment variables

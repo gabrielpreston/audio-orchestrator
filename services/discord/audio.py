@@ -109,6 +109,31 @@ class Accumulator:
         start = self.frames[0].timestamp
         end = self.frames[-1].timestamp + self.frames[-1].duration
         pcm = b"".join(frame.pcm for frame in self.frames)
+
+        # Validate accumulated PCM before creating segment
+        if not pcm or len(pcm) == 0:
+            self.frames.clear()
+            return None
+
+        # Check minimum size (at least 1 frame: channels * sample_width)
+        # Assuming 16-bit mono (1 channel * 2 bytes)
+        min_size = 1 * 2
+        if len(pcm) < min_size:
+            self.frames.clear()
+            return None
+
+        # Validate PCM has audio content (not all zeros)
+        # NOTE: rms_from_pcm is defined in this file (line 127), no import needed
+        accumulated_rms = rms_from_pcm(pcm)
+        min_segment_rms = getattr(
+            self.config, "min_segment_rms_threshold", 5.0
+        )  # AudioConfig is passed directly
+
+        if accumulated_rms < min_segment_rms:
+            # All silence - don't create segment
+            self.frames.clear()
+            return None
+
         segment = AudioSegment(
             user_id=self.user_id,
             pcm=pcm,

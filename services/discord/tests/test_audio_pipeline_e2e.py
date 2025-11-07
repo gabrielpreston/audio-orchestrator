@@ -46,7 +46,7 @@ class TestAudioPipelineE2E:
             enabled=True,
         )
 
-        telemetry_config = TelemetryConfig(waveform_debug_dir=tmp_path / "debug_wavs")
+        telemetry_config = TelemetryConfig()
 
         config = Mock(spec=BotConfig)
         config.audio = audio_config
@@ -147,7 +147,6 @@ class TestAudioPipelineE2E:
         voice_bot = Mock(spec=VoiceBot)
         voice_bot.config = mock_config
         voice_bot._logger = mock_logger
-        voice_bot._save_debug_wav = Mock()
 
         # Simulate the pipeline flow
         with (
@@ -164,9 +163,6 @@ class TestAudioPipelineE2E:
                 return_value=mock_orchestrator_client,
             ),
         ):
-            # Simulate segment processing
-            voice_bot._save_debug_wav(sample_audio_segment, prefix="captured")
-
             # Simulate transcription
             transcript = await mock_transcription_client.transcribe(
                 sample_audio_segment
@@ -180,7 +176,6 @@ class TestAudioPipelineE2E:
             assert wake_result.phrase == "hey atlas"
 
             # Simulate orchestrator processing
-            voice_bot._save_debug_wav(sample_audio_segment, prefix="wake_detected")
             orchestrator_result = await mock_orchestrator_client.process_transcript(
                 guild_id="123456789",
                 channel_id="987654321",
@@ -188,15 +183,6 @@ class TestAudioPipelineE2E:
                 transcript=transcript.text,
             )
             assert orchestrator_result.text == "I'm doing well, thank you!"
-
-        # Verify debug WAV files were saved
-        assert voice_bot._save_debug_wav.call_count == 2
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="captured"
-        )
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="wake_detected"
-        )
 
     @pytest.mark.component
     def test_audio_pipeline_with_wake_detection(
@@ -319,55 +305,6 @@ class TestAudioPipelineE2E:
 
         wake_result = mock_wake_detector.detect(sample_audio_segment, transcript.text)
         assert wake_result is not None
-
-    @pytest.mark.component
-    async def test_audio_pipeline_debug_artifacts_generated(
-        self,
-        mock_config,
-        mock_logger,
-        sample_audio_segment,
-        mock_transcription_client,
-        mock_wake_detector,
-    ):
-        """Test that debug artifacts are generated at key points."""
-        # Mock transcription result
-        mock_transcript = Mock()
-        mock_transcript.text = "hey atlas, how are you?"
-        mock_transcript.correlation_id = "test-correlation-123"
-        mock_transcription_client.transcribe.return_value = mock_transcript
-
-        # Mock wake detection result
-        mock_wake_result = Mock()
-        mock_wake_result.phrase = "hey atlas"
-        mock_wake_result.confidence = 0.8
-        mock_wake_result.source = "transcript"
-        mock_wake_detector.detect.return_value = mock_wake_result
-
-        # Create voice bot with debug WAV method
-        voice_bot = Mock(spec=VoiceBot)
-        voice_bot.config = mock_config
-        voice_bot._logger = mock_logger
-        voice_bot._save_debug_wav = Mock()
-
-        # Simulate pipeline with debug artifacts
-        voice_bot._save_debug_wav(sample_audio_segment, prefix="captured")
-
-        transcript = await mock_transcription_client.transcribe(sample_audio_segment)
-        wake_result = mock_wake_detector.detect(sample_audio_segment, transcript.text)
-
-        if wake_result:
-            voice_bot._save_debug_wav(sample_audio_segment, prefix="wake_detected")
-
-        # Verify debug artifacts were generated
-        assert voice_bot._save_debug_wav.call_count >= 1
-        voice_bot._save_debug_wav.assert_any_call(
-            sample_audio_segment, prefix="captured"
-        )
-
-        if wake_result:
-            voice_bot._save_debug_wav.assert_any_call(
-                sample_audio_segment, prefix="wake_detected"
-            )
 
     @pytest.mark.component
     async def test_audio_pipeline_error_handling(

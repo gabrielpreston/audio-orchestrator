@@ -1,0 +1,7 @@
+# Include base requirements
+-r ../requirements-base.txt
+
+# Include medium dependencies (which includes large dependencies)
+# This maintains backward compatibility while enabling optimized caching
+-r requirements-medium.txt
+

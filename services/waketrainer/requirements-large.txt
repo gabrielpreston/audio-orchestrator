@@ -1,0 +1,18 @@
+# Large, rarely-changing dependencies for wake word training
+# These packages are large and change infrequently, so they're cached separately
+
+# Protobuf (required by TensorFlow 2.19+ - must be >=4.21 for runtime_version support)
+protobuf>=4.21.0,<5.0
+
+# TensorFlow ecosystem (large packages)
+tensorflow>=2.13.0,<3.0
+tensorflow-probability>=0.21.0,<1.0
+
+# ONNX ecosystem (large packages)
+onnx>=1.15.0,<2.0
+onnx-tf>=1.10.0,<2.0
+onnxruntime>=1.16.0,<2.0
+
+# Datasets library (can download large datasets)
+datasets>=2.14.0,<3.0
+

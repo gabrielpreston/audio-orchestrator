@@ -1,0 +1,101 @@
+# Example Wake Word Training Configuration
+# Based on openWakeWord training config structure
+# See: https://github.com/dscripka/openWakeWord
+
+# The name of the model (will be used when creating directories and when saving the final .onnx and .tflite files)
+model_name: "my_custom_wake_word"
+
+# The target word/phrase to be detected by the model.
+# Adding multiple unique words/phrases will still only train a binary detection model,
+# but it will activate on any one of the provided words/phrases.
+target_phrase:
+  - "hey atlas"
+
+# Specific phrases that you do *not* want the model to activate on, outside of those generated automatically via phoneme overlap
+# This can be a good way to reduce false positives if you notice that, in practice, certain words or phrases are problematic
+custom_negative_phrases: []
+
+# The total number of positive samples to generate for training (minimum of 20,000 recommended, often 100,000+ is best)
+n_samples: 10000
+
+# The total number of positive samples to generate for validation and early stopping of model training
+n_samples_val: 2000
+
+# The batch size to use with Piper TTS when generating synthetic training data
+# Performance: Increase to 50-100 for faster generation (requires more GPU memory)
+# Recommended: Start with 20 and increase if GPU has sufficient memory
+# Note: Higher batch sizes may cause CUDA OOM errors on GPUs with limited memory
+tts_batch_size: 20
+
+# The batch size to use when performing data augmentation on generated clips prior to training
+# It's recommended that this not be too large to ensure that there is enough variety in the augmentation
+# Performance: Increase to 32-64 for faster augmentation (balance with variety)
+augmentation_batch_size: 16
+
+# The path to the piper-sample-generator repository (cloned in container at /workspace/piper-sample-generator)
+piper_sample_generator_path: "/workspace/piper-sample-generator"
+
+# The output directory for the generated synthetic clips, openwakeword features, and trained models
+# Sub-directories will be automatically created for train and test clips for both positive and negative examples
+# Using workspace-relative path so models are automatically discovered by wake detection system
+output_dir: "/workspace/services/models/wake/detection/my_custom_wake_word"
+
+# The directories containing Room Impulse Response recordings
+# These should be downloaded and placed in ./services/models/wake/training-data/mit_rirs/
+rir_paths:
+  - "/workspace/services/models/wake/training-data/mit_rirs"
+
+# The directories containing background audio files to mix with training data
+# These should be downloaded and placed in ./services/models/wake/training-data/background_clips/
+background_paths:
+  - "/workspace/services/models/wake/training-data/background_clips"
+
+# The duplication rate for the background audio clips listed above (1 or higher)
+background_paths_duplication_rate:
+  - 1
+
+# The location of pre-computed openwakeword features for false-positive validation data
+# Should be placed in ./services/models/wake/training-data/
+false_positive_validation_data_path: "/workspace/services/models/wake/training-data/validation_set_features.npy"
+
+# The number of times to apply augmentations to the generated training data
+# Values greater than 1 reuse each generation that many times, producing overall unique
+# clips for training due to the randomness intrinsic to the augmentation
+augmentation_rounds: 1
+
+# Paths to pre-computed openwakeword features for positive and negative data
+# These should be downloaded and placed in ./services/models/wake/training-data/
+feature_data_files:
+  "ACAV100M_sample": "/workspace/services/models/wake/training-data/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
+
+# Define the number of examples from each data file per batch
+# The sum of the values for each key define the total batch size for training
+# Initial testing indicates that batch sizes of 1024-4096 work well in practice
+# Performance: Increase ACAV100M_sample to 2048-4096 for faster training (requires more GPU memory)
+batch_n_per_class:
+  "ACAV100M_sample": 1024
+  "adversarial_negative": 50
+  "positive": 50
+
+# Define the type and size of the openwakeword model to train
+# Increasing the layer size may result in a more capable model, at the cost of decreased inference speed
+# The default value (32) seems to work well in practice for most wake words/phrases
+model_type: "dnn"
+layer_size: 32
+
+# Training parameters
+# The maximum number of steps to train the model
+steps: 50000
+
+# The maximum negative weight and target false positives per hour, used to control the auto training process
+max_negative_weight: 1500
+target_false_positives_per_hour: 0.5
+
+# Learning rate and optimizer settings
+learning_rate: 0.001
+optimizer: "adam"
+
+# Early stopping configuration
+early_stopping_patience: 5000
+early_stopping_min_delta: 0.001
+

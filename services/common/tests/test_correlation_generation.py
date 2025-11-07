@@ -51,8 +51,7 @@ class TestCorrelationIDGeneration:
         """Test STT correlation ID generation with source ID."""
         source_id = "discord-123456-789012-1704067200000-12345678"
         result = generate_stt_correlation_id(source_id)
-        expected = f"stt-{source_id}"
-        assert result == expected
+        assert result == source_id  # Should return unchanged
 
     @pytest.mark.unit
     def test_tts_correlation_id_standalone(self):
@@ -66,8 +65,7 @@ class TestCorrelationIDGeneration:
         """Test TTS correlation ID generation with source ID."""
         source_id = "orchestrator-123456-1704067200000-12345678"
         result = generate_tts_correlation_id(source_id)
-        expected = f"tts-{source_id}"
-        assert result == expected
+        assert result == source_id  # Should return unchanged
 
     @pytest.mark.unit
     def test_orchestrator_correlation_id_standalone(self):
@@ -85,8 +83,7 @@ class TestCorrelationIDGeneration:
         """Test orchestrator correlation ID generation with source ID."""
         source_id = "stt-discord-123456-789012-1704067200000-12345678"
         result = generate_orchestrator_correlation_id(source_id)
-        expected = f"orchestrator-{source_id}"
-        assert result == expected
+        assert result == source_id  # Should return unchanged
 
     # External tool correlation tests removed - using REST API now
 
@@ -170,7 +167,7 @@ class TestCorrelationIDGeneration:
 
         long_source = "a" * 400
         stt_id = generate_stt_correlation_id(long_source)
-        assert stt_id == f"stt-{long_source}"
+        assert stt_id == long_source  # Should return unchanged
 
         # Test manual correlation ID with source
         manual_id = generate_manual_correlation_id("service", "context")
@@ -198,14 +195,15 @@ class TestCorrelationIDGeneration:
         discord_id = generate_discord_correlation_id(123456, 789012)
         assert discord_id.startswith("discord-")
 
+        # IDs should remain unchanged through the chain
         stt_id = generate_stt_correlation_id(discord_id)
-        assert stt_id == f"stt-{discord_id}"
+        assert stt_id == discord_id  # Unchanged
 
         orchestrator_id = generate_orchestrator_correlation_id(stt_id)
-        assert orchestrator_id == f"orchestrator-{stt_id}"
+        assert orchestrator_id == discord_id  # Still unchanged through chain
 
         tts_id = generate_tts_correlation_id(orchestrator_id)
-        assert tts_id == f"tts-{orchestrator_id}"
+        assert tts_id == discord_id  # Still unchanged through entire chain
 
         # Test manual correlation ID chaining
         manual_id = generate_manual_correlation_id("test", "context")
@@ -217,10 +215,10 @@ class TestCorrelationIDGeneration:
         original_id = "discord-123456-789012-1704067200000-12345678"
 
         stt_id = generate_stt_correlation_id(original_id)
-        assert stt_id.endswith(original_id)
+        assert stt_id == original_id  # Should be unchanged
 
         tts_id = generate_tts_correlation_id(original_id)
-        assert tts_id.endswith(original_id)
+        assert tts_id == original_id  # Should be unchanged
 
         orchestrator_id = generate_orchestrator_correlation_id(original_id)
-        assert orchestrator_id.endswith(original_id)
+        assert orchestrator_id == original_id  # Should be unchanged

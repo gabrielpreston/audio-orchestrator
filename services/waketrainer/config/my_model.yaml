@@ -1,0 +1,118 @@
+# Example Wake Word Training Configuration
+# Based on openWakeWord training config structure
+# See: https://github.com/dscripka/openWakeWord
+
+# Model name (directory / filename prefix)
+model_name: "hey_ao"
+
+# Target wake phrase variants for A-O / “Hey-oh!”
+# Multiple phrases still train a single binary detector.
+target_phrase:
+  - "hey oh"
+  - "hey-oh"
+  - "heyo"
+  - "hey o"
+  - "hey a o"
+  - "hey ao"
+  - "a o"
+  - "ay oh"
+  - "ayo"
+  - "ay-o"
+  - "a oh"
+  - "hey-ohh"
+  - "heeeey oh"
+  - "ayooo"
+
+# Hard negatives to reduce common near-phonetic false triggers
+custom_negative_phrases:
+  - "hello"
+  - "halo"
+  - "haloed"
+  - "hey ho"
+  - "hey all"
+  - "hey y'all"
+  - "hey owl"
+  - "hey owen"
+  - "hey oh no"
+  - "a hole"
+  - "a home"
+  - "a oath"
+  - "a hope"
+  - "ayo bro"
+  - "ay old"
+  - "hey old"
+  - "hey hold"
+  - "ok google"
+  - "hey google"
+  - "hey alexa"
+  - "hey siri"
+  - "ok atlas"
+  - "hey atlas"
+  - "hey audio"
+  - "aol"
+  - "a ok"
+  - "a okay"
+  - "aye oh"
+  - "i owe"
+  - "ayo tech"
+  - "ayo dude"
+
+# Positive sample counts (TTS + augment)
+n_samples: 120000
+n_samples_val: 4000
+
+# TTS / augmentation settings
+tts_batch_size: 65
+augmentation_batch_size: 16
+
+# Path to Piper TTS sample generator
+piper_sample_generator_path: "/workspace/piper-sample-generator"
+
+# Output directory for generated data, features, and trained models
+output_dir: "/workspace/services/models/wake/detection/hey_ao"
+
+# Room Impulse Responses (RIRs) for realistic reverb
+rir_paths:
+  - "/workspace/services/models/wake/training-data/mit_rirs"
+
+# Background audio directories
+# WAV files extracted from Parquet dataset using: make extract-background-audio
+background_paths:
+  - "/workspace/services/models/wake/training-data/background_clips/wav"
+
+# Duplication rate for background audio (>=1)
+background_paths_duplication_rate:
+  - 1
+
+# Precomputed features for false-positive validation
+false_positive_validation_data_path: "/workspace/services/models/wake/training-data/validation_set_features.npy"
+
+# Number of augmentation passes per generated clip
+augmentation_rounds: 1
+
+# Precomputed feature files for large negative dataset(s)
+feature_data_files:
+  "ACAV100M_sample": "/workspace/services/models/wake/training-data/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
+
+# Batch composition (sum == total batch size)
+batch_n_per_class:
+  "ACAV100M_sample": 1024
+  "adversarial_negative": 50
+  "positive": 60
+
+# Model architecture
+model_type: "dnn"
+layer_size: 32
+
+# Training parameters
+steps: 60000
+max_negative_weight: 1500
+target_false_positives_per_hour: 0.2
+
+# Optimizer settings
+learning_rate: 0.001
+optimizer: "adam"
+
+# Early stopping
+early_stopping_patience: 5000
+early_stopping_min_delta: 0.001

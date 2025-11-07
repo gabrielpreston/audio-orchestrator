@@ -51,6 +51,62 @@ stack.
   -  `LOG_RATE_LIMIT_PACKET_WARN_S` (default 10s)
 -  Correlation IDs propagate across services (`X-Correlation-ID`) to trace a segment from Discord → STT → Orchestrator → LLM.
 
+## Logging Level Expectations
+
+The Discord service follows the [Logging Level Guidelines](../../reference/logging-guidelines.md) for consistent observability:
+
+### INFO Level (Operational Milestones)
+
+Operators should see these events in production:
+
+-  `discord.service_ready` - Service startup complete
+-  `discord.voice_connected` - Voice channel connection established
+-  `discord.voice_disconnected` - Voice channel disconnected
+-  `voice.ssrc_mapping_received` - User identified and mapped to SSRC
+-  `voice.buffered_packets_flushed` - Buffered packets processed for new user
+-  `wake.detection_result` (detected=True) - Wake phrase detected
+-  `stt.request_initiated` - STT request started
+-  `stt.response_received` - STT transcription received
+
+### DEBUG Level (Diagnostic Details)
+
+These events are available when `LOG_LEVEL=DEBUG`:
+
+-  `voice.packet_received` - Individual packet reception (rate-limited)
+-  `voice.packet_processing` - Packet processing details (first-N pattern)
+-  `voice.process_packet_entry` - Internal packet processing (first-N pattern)
+-  `voice.process_packet_success` - Successful packet processing (first-N pattern)
+-  `voice.handler_called` - Handler invocation (first-N pattern)
+-  `stt.request_sending` - HTTP request implementation details
+-  `audio.encode_warmup_ms` - Audio encoding warmup timing
+-  `discord.gateway_session_validated` - Gateway session validation
+-  `wake.detection_result` (detected=False) - Non-detection events
+
+### WARNING Level (Degraded Functionality)
+
+-  `stt.circuit_open` - STT service unavailable, circuit breaker open
+-  `voice.corrupted_packet_skipped` - Corrupted packet detected and skipped
+-  `discord.stt_health_client_init_failed` - Health client initialization failed (non-critical)
+
+### ERROR Level (Operation Failures)
+
+-  `stt.request_failed` - STT request failed after retries
+-  `voice.receiver_callback_failed` - Audio callback execution failed
+-  `discord.voice_connection_failed` - Voice connection attempt failed
+
+### First-N Pattern
+
+For high-frequency diagnostic events, the first 5 occurrences are logged at INFO level for initial debugging, with subsequent events at DEBUG level:
+
+```python
+if call_count < 5:
+    logger.info("voice.packet_processing", packet_number=call_count, ...)
+else:
+    logger.debug("voice.packet_processing", packet_number=call_count, ...)
+```
+
+This pattern provides visibility into initial behavior while keeping ongoing operations at DEBUG level to reduce log noise.
+
 ## API Surface
 
 -  `POST /api/v1/messages` — Send text message to Discord channel.

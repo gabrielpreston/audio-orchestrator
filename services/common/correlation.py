@@ -86,19 +86,19 @@ class CorrelationIDGenerator:
         """
         Generate a correlation ID for STT service.
 
-        If source_correlation_id is provided, it will be used as the base.
+        If source_correlation_id is provided, it is returned unchanged.
         Otherwise, generates a new STT-specific ID.
 
-        Format: stt-{source_id} or stt-{timestamp_ms}
+        Format: stt-{timestamp_ms}-{suffix} or unchanged source ID
 
         Args:
             source_correlation_id: Optional source correlation ID from upstream service
 
         Returns:
-            Standardized correlation ID
+            Correlation ID (unchanged if source provided, otherwise new STT-specific ID)
         """
         if source_correlation_id:
-            return f"stt-{source_correlation_id}"
+            return source_correlation_id  # Return unchanged
 
         timestamp_ms = int(time.time() * 1000)
         unique_suffix = _generate_unique_suffix()
@@ -109,19 +109,19 @@ class CorrelationIDGenerator:
         """
         Generate a correlation ID for TTS service.
 
-        If source_correlation_id is provided, it will be used as the base.
+        If source_correlation_id is provided, it is returned unchanged.
         Otherwise, generates a new TTS-specific ID.
 
-        Format: tts-{source_id} or tts-{timestamp_ms}
+        Format: tts-{timestamp_ms}-{suffix} or unchanged source ID
 
         Args:
             source_correlation_id: Optional source correlation ID from upstream service
 
         Returns:
-            Standardized correlation ID
+            Correlation ID (unchanged if source provided, otherwise new TTS-specific ID)
         """
         if source_correlation_id:
-            return f"tts-{source_correlation_id}"
+            return source_correlation_id  # Return unchanged
 
         timestamp_ms = int(time.time() * 1000)
         unique_suffix = _generate_unique_suffix()
@@ -134,20 +134,20 @@ class CorrelationIDGenerator:
         """
         Generate a correlation ID for orchestrator service.
 
-        If source_correlation_id is provided, it will be used as the base.
+        If source_correlation_id is provided, it is returned unchanged.
         Otherwise, generates a new orchestrator-specific ID.
 
-        Format: orchestrator-{source_id} or orchestrator-{user_id}-{timestamp_ms}
+        Format: orchestrator-{user_id}-{timestamp_ms}-{suffix} or unchanged source ID
 
         Args:
             source_correlation_id: Optional source correlation ID from upstream service
             user_id: Optional user ID for context
 
         Returns:
-            Standardized correlation ID
+            Correlation ID (unchanged if source provided, otherwise new orchestrator-specific ID)
         """
         if source_correlation_id:
-            return f"orchestrator-{source_correlation_id}"
+            return source_correlation_id  # Return unchanged
 
         timestamp_ms = int(time.time() * 1000)
         unique_suffix = _generate_unique_suffix()

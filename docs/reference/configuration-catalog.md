@@ -16,6 +16,10 @@ Update this file whenever you add, rename, or remove configuration keys.
 > **Note**: The project now uses a type-safe configuration library (`services.common.config`) for
 > configuration management. See the [Configuration Library Reference](configuration-library.md) for
 > details on the new `ConfigBuilder` approach.
+>
+> **Environment Variable Overrides**: Environment variables override preset defaults when set. If an
+> environment variable is not set, the system uses preset values from `services/common/config/presets.py`.
+> This allows runtime configuration without code changes.
 
 ## Shared Defaults (`.env.common`)
 
@@ -60,6 +64,8 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `DISCORD_VOICE_CONNECT_ATTEMPTS` | Number of voice connection retries. | `3` |
 | `DISCORD_VOICE_RECONNECT_BASE_DELAY` | Base delay before voice reconnect attempts. | `5` |
 | `DISCORD_VOICE_RECONNECT_MAX_DELAY` | Maximum delay for exponential backoff. | `60` |
+| `DISCORD_VOICE_GATEWAY_VALIDATION_TIMEOUT` | Max wait for Gateway heartbeat ACK before voice connection (seconds). | `5.0` |
+| `DISCORD_VOICE_GATEWAY_MIN_DELAY` | Minimum delay fallback if heartbeat validation times out (seconds). | `1.0` |
 | `AUDIO_ALLOWLIST` | Optional list of user IDs permitted to trigger wake phrases. | *(empty)* |
 | `AUDIO_SILENCE_TIMEOUT` | Seconds of silence before finalizing a segment. | `0.75` |
 | `AUDIO_MAX_SEGMENT_DURATION` | Maximum length of a single audio segment (seconds). | `15` |
@@ -79,8 +85,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `WAKE_THRESHOLD` | Wake detection confidence threshold (0-1). | `0.5` |
 | `WAKE_SAMPLE_RATE` | Sample rate for wake model (Hz). | `16000` |
 | `METRICS_PORT` | Optional port for Prometheus metrics. | *(empty)* |
-| `WAVEFORM_DEBUG_DIR` | Directory for debugging waveform artifacts. | *(empty)* |
-| `ORCHESTRATOR_WAKE_PHRASES` | Orchestrator-specific wake phrases. | *(empty)* |
 | `ORCHESTRATOR_URL` | Orchestrator service URL. | `http://orchestrator:8000` |
 
 ## Force Model Download (`.env.common` or service-specific)
@@ -139,22 +143,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `TTS_BASE_URL` | TTS service URL (agnostic service name, implementation: Bark). | `http://bark:7100` |
 | `TTS_AUTH_TOKEN` | Bearer token for TTS service authentication. | `changeme` |
 | `ORCHESTRATOR_DEBUG_SAVE` | Enable debug data collection. | `false` |
-
-## TTS Service (`services/tts/.env.service`)
-
-| Variable | Description | Default |
-| --- | --- | --- |
-| `PORT` | HTTP listen port. | `7000` |
-| `TTS_MODEL_PATH` | Piper model path. | `/app/models/piper/en_US-amy-medium.onnx` |
-| `TTS_MODEL_CONFIG_PATH` | Piper model config path. | `/app/models/piper/en_US-amy-medium.onnx.json` |
-| `TTS_DEFAULT_VOICE` | Voice preset override. | *(empty)* |
-| `TTS_MAX_TEXT_LENGTH` | Maximum characters per synthesis request. | `1000` |
-| `TTS_MAX_CONCURRENCY` | Maximum concurrent synthesis operations. | `4` |
-| `TTS_RATE_LIMIT_PER_MINUTE` | Requests allowed per minute. | `60` |
-| `TTS_AUTH_TOKEN` | Bearer token required for synthesis calls. | `changeme` |
-| `TTS_LENGTH_SCALE` | Speech tempo modifier. | `1.0` |
-| `TTS_NOISE_SCALE` | Controls noise added during synthesis. | `0.667` |
-| `TTS_NOISE_W` | Controls breathiness of speech. | `0.8` |
 
 ## Guardrails Service (`services/guardrails/.env.service`)
 

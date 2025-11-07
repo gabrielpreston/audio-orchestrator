@@ -94,10 +94,36 @@ class TranscriptionClient:
         # Pre-STT preprocessing: convert PCM -> WAV exactly once off the event loop thread
         pre_start = time.monotonic()
         encode_start = pre_start
-        wav_bytes = await asyncio.to_thread(
-            _pcm_to_wav, segment.pcm, sample_rate=segment.sample_rate
-        )
-        encode_ms = int((time.monotonic() - encode_start) * 1000)
+        try:
+            wav_bytes = await asyncio.to_thread(
+                _pcm_to_wav, segment.pcm, sample_rate=segment.sample_rate
+            )
+            encode_ms = int((time.monotonic() - encode_start) * 1000)
+
+            # Validate WAV file before sending to STT
+            from services.common.audio import AudioProcessor
+
+            processor = AudioProcessor("discord")
+            if not processor.validate_audio_data(wav_bytes, expected_format="wav"):
+                logger.error(
+                    "stt.wav_validation_failed",
+                    correlation_id=segment.correlation_id,
+                    wav_size=len(wav_bytes),
+                    pcm_size=len(segment.pcm),
+                    sample_rate=segment.sample_rate,
+                )
+                return None  # Don't send invalid WAV to STT
+        except Exception as encode_exc:
+            encode_ms = int((time.monotonic() - encode_start) * 1000)
+            logger.exception(
+                "stt.wav_encoding_failed",
+                correlation_id=segment.correlation_id,
+                error=str(encode_exc),
+                encode_time_ms=encode_ms,
+                pcm_size=len(segment.pcm),
+                sample_rate=segment.sample_rate,
+            )
+            return None
 
         # Record pre-STT encoding metrics
         if "pre_stt_encode" in self._metrics:
@@ -192,8 +218,9 @@ class TranscriptionClient:
             # Pass correlation ID in headers
             headers = {"X-Correlation-ID": segment.correlation_id}
 
-            # Log request initiation with decision context
-            logger.info(
+            # Log request sending details at DEBUG (implementation detail)
+            # Request initiation and response are logged at INFO level
+            logger.debug(
                 "stt.request_sending",
                 correlation_id=segment.correlation_id,
                 url=f"{self._config.base_url}/transcribe",
@@ -224,7 +251,7 @@ class TranscriptionClient:
             )
             return None
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "stt.request_failed",
                 error=str(exc),
                 correlation_id=segment.correlation_id,

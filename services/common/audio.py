@@ -198,7 +198,28 @@ class AudioProcessor:
 
         Returns:
             WAV-formatted audio data
+
+        Raises:
+            ValueError: If input validation fails or WAV encoding produces invalid file
         """
+        # Input validation
+        if not pcm_data or len(pcm_data) == 0:
+            raise ValueError("Cannot encode empty PCM data")
+
+        # Validate minimum size
+        min_size = channels * sample_width
+        if len(pcm_data) < min_size:
+            raise ValueError(
+                f"PCM too small: {len(pcm_data)} bytes (minimum: {min_size})"
+            )
+
+        # Validate alignment (PCM length must be multiple of frame size)
+        frame_size = channels * sample_width
+        if len(pcm_data) % frame_size != 0:
+            raise ValueError(
+                f"PCM length {len(pcm_data)} not multiple of frame size {frame_size}"
+            )
+
         try:
             # Convert bytes to numpy array
             if sample_width == 2:
@@ -221,12 +242,34 @@ class AudioProcessor:
             elif sample_width == 4:
                 audio_float = audio_float / 2147483648.0  # Normalize from int32
 
-            # Use soundfile to write WAV
+            # Use soundfile with proper buffer setup
             buffer = io.BytesIO()
+            buffer.name = "file.wav"  # Help format detection (from soundfile docs)
+
             sf.write(buffer, audio_float, sample_rate, format="WAV", subtype="PCM_16")
-            return buffer.getvalue()
+            buffer.seek(0)  # Ensure position is at start (best practice)
+
+            wav_bytes = buffer.getvalue()
+
+            # Validate WAV file was created properly
+            if len(wav_bytes) < 44:  # Minimum WAV header size
+                raise ValueError("Generated WAV file too small (invalid header)")
+
+            # Verify WAV can be read back (using existing validate_audio_data)
+            if not self.validate_audio_data(wav_bytes, expected_format="wav"):
+                raise ValueError("Generated WAV file failed validation")
+
+            return wav_bytes
         except Exception as exc:
-            self._log("error", "audio.pcm_to_wav_failed", error=str(exc))
+            self._log(
+                "error",
+                "audio.pcm_to_wav_failed",
+                error=str(exc),
+                pcm_size=len(pcm_data),
+                sample_rate=sample_rate,
+                channels=channels,
+                sample_width=sample_width,
+            )
             raise
 
     def wav_to_pcm(self, wav_data: bytes) -> tuple[bytes, AudioMetadata]:
@@ -490,18 +533,35 @@ class AudioProcessor:
         Returns:
             AudioProcessingResult with converted data and metadata
         """
-        try:
-            processing_info = {
-                "from_format": from_format,
-                "to_format": to_format,
-                "from_sample_rate": from_sample_rate,
-                "to_sample_rate": to_sample_rate,
-                "from_channels": from_channels,
-                "to_channels": to_channels,
-                "from_sample_width": from_sample_width,
-                "to_sample_width": to_sample_width,
-            }
+        # Initialize processing_info early for error returns
+        processing_info: dict[str, Any] = {
+            "from_format": from_format,
+            "to_format": to_format,
+            "from_sample_rate": from_sample_rate,
+            "to_sample_rate": to_sample_rate,
+            "from_channels": from_channels,
+            "to_channels": to_channels,
+            "from_sample_width": from_sample_width,
+            "to_sample_width": to_sample_width,
+        }
 
+        # Validate input before processing
+        if not audio_data or len(audio_data) == 0:
+            error_msg = "Cannot convert empty audio data"
+            self._log("error", "audio.format_conversion_failed", error=error_msg)
+            return AudioProcessingResult(
+                audio_data=audio_data,
+                metadata=self.extract_metadata(audio_data, from_format),
+                processing_info={
+                    **processing_info,
+                    "success": False,
+                    "error": error_msg,
+                },
+                success=False,
+                error=error_msg,
+            )
+
+        try:
             # Extract PCM data if input is WAV
             if from_format.lower() == "wav":
                 pcm_data, input_metadata = self.wav_to_pcm(audio_data)
@@ -570,11 +630,23 @@ class AudioProcessor:
             )
 
         except Exception as exc:
-            self._log("error", "audio.format_conversion_failed", error=str(exc))
+            # Enhanced error logging
+            self._log(
+                "error",
+                "audio.format_conversion_failed",
+                error=str(exc),
+                input_size=len(audio_data),
+                from_format=from_format,
+                to_format=to_format,
+            )
             return AudioProcessingResult(
                 audio_data=audio_data,
                 metadata=self.extract_metadata(audio_data, from_format),
-                processing_info=processing_info,
+                processing_info={
+                    **processing_info,
+                    "success": False,
+                    "error": str(exc),
+                },
                 success=False,
                 error=str(exc),
             )

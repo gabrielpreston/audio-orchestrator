@@ -135,10 +135,52 @@ def validate_request(
     Raises:
         HTTPException: 400 if request is empty or invalid
     """
+    import io
+    import wave
+
     if not wav_bytes:
         raise HTTPException(status_code=400, detail="empty request body")
 
-    channels, sampwidth, framerate = extract_audio_metadata_func(wav_bytes)
+    # Validate WAV header
+    if not wav_bytes.startswith(b"RIFF"):
+        raise HTTPException(
+            status_code=400, detail="Invalid WAV file: missing RIFF header"
+        )
+
+    # Extract metadata (this may already perform some validation)
+    try:
+        channels, sampwidth, framerate = extract_audio_metadata_func(wav_bytes)
+    except Exception as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to extract WAV metadata: {e}"
+        ) from e
+
+    # Additional defense-in-depth: Verify WAV can be opened and has frames
+    # NOTE: This may duplicate validation in extract_audio_metadata_func, but provides
+    # explicit check for zero frames which is a known issue
+    try:
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wav:
+            frames = wav.getnframes()
+            if frames == 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail="WAV file contains zero frames (silent audio)",
+                )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # If wave.open fails, log but don't fail if extract_audio_metadata_func succeeded
+        # This handles edge cases where wave.open is stricter than extract_audio_metadata_func
+        logger.warning(
+            "stt.wav_validation_warning",
+            error=str(e),
+            note="WAV metadata extraction succeeded but wave.open validation failed",
+        )
+        # Still raise exception as this indicates a potential issue
+        raise HTTPException(
+            status_code=400, detail=f"Invalid WAV file structure: {e}"
+        ) from e
+
     return channels, sampwidth, framerate
 
 

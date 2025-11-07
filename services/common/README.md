@@ -68,20 +68,6 @@ config = (
 )
 ```
 
-### TTS Service
-
-```python
-from services.common.service_configs import TTSConfig
-
-config = (
-    ConfigBuilder.for_service("tts", Environment.DOCKER)
-    .add_config("logging", LoggingConfig)
-    .add_config("http", HttpConfig)
-    .add_config("tts", TTSConfig)
-    .load()
-)
-```
-
 ### Orchestrator Service
 
 ```python
@@ -620,6 +606,100 @@ app = create_service_app(
     startup_callback=_startup,
 )
 ```
+
+## Wake Detection (`wake_detection.py`)
+
+The `WakeDetector` class provides service-agnostic wake phrase detection for any audio I/O surface. It supports both audio-based detection (primary) and transcript-based detection (fallback).
+
+### Features
+
+- **Audio-Based Detection**: Uses openwakeword models for real-time wake phrase detection from PCM audio
+- **Transcript Fallback**: Falls back to transcript-based pattern matching if audio models unavailable
+- **Three-Tier Model Loading**: User-provided paths → Auto-discovery → Built-in defaults
+- **Resampling Support**: Automatically resamples audio to target sample rate (default 16kHz)
+- **Graceful Degradation**: Continues operation even if models fail to load
+
+### Basic Usage
+
+```python
+from services.common.wake_detection import WakeDetector, WakeDetectionResult
+from services.common.config.presets import WakeConfig
+
+# Create wake config
+wake_config = WakeConfig(
+    wake_phrases=["hey atlas", "ok atlas"],
+    model_paths=[],  # Empty = auto-discover in ./services/models/wake/
+    activation_threshold=0.5,
+    target_sample_rate_hz=16000,
+    enabled=True,
+)
+
+# Initialize detector
+wake_detector = WakeDetector(wake_config, service_name="discord")
+
+# Detect from audio PCM bytes
+pcm_bytes = b"..."
+sample_rate = 48000
+result = wake_detector.detect_audio(pcm_bytes, sample_rate)
+if result:
+    print(f"Wake phrase '{result.phrase}' detected with confidence {result.confidence}")
+
+# Detect from transcript (fallback)
+transcript = "hey atlas, what's the weather?"
+result = wake_detector.detect_transcript(transcript)
+if result:
+    print(f"Wake phrase '{result.phrase}' detected in transcript")
+```
+
+### Model Loading Strategy
+
+The detector uses a three-tier fallback strategy:
+
+1. **Tier 1**: User-provided paths via `WAKE_MODEL_PATHS` environment variable
+2. **Tier 2**: Auto-discovery in `./services/models/wake/` directory (`.tflite` or `.onnx` files)
+3. **Tier 3**: Built-in default models (if available from openwakeword)
+
+**Model Filtering**:
+
+All model paths (user-provided and auto-discovered) are automatically filtered to ensure only wake word models are loaded:
+
+-  **Infrastructure models excluded**: Models with names containing `embedding_model`, `melspectrogram`, or `silero_vad` are automatically filtered out (these are infrastructure models, not wake word models)
+-  **ONNX format preferred**: ONNX format is preferred over TFLite. On Linux x86_64, ONNX is required (TFLite runtime unavailable)
+-  **Format deduplication**: When both `.onnx` and `.tflite` versions of the same model exist, only the ONNX version is used
+-  **Filtering applies universally**: Both user-provided paths and auto-discovered models are filtered using the same logic
+
+**Why filtering is needed**:
+
+The `openwakeword.utils.download_models()` function downloads all model files including infrastructure models. Passing these infrastructure models to `WakeWordModel()` causes TensorFlow Lite errors. The automatic filtering ensures only compatible wake word models are loaded, preventing initialization failures.
+
+### Early Detection Integration
+
+For early wake detection in audio frame processing loops:
+
+```python
+# In AudioProcessorWrapper.register_frame_async()
+if self._wake_detector and self._wake_detector._model:
+    # Check every 5 frames after minimum threshold
+    if frame_count >= 10 and frame_count % 5 == 0:
+        accumulated_pcm = b"".join(f.pcm for f in accumulator.frames)
+        wake_result = self._wake_detector.detect_audio(
+            accumulated_pcm, accumulator.sample_rate
+        )
+        if wake_result and total_duration >= min_segment_duration:
+            # Early flush on wake detection
+            return segment
+```
+
+### Configuration
+
+Wake detection is configured via environment variables:
+
+- `WAKE_PHRASES`: Comma-separated list of wake phrases (default: "hey atlas,ok atlas")
+- `WAKE_MODEL_PATHS`: Comma-separated list of model file paths (default: empty = auto-discover)
+- `WAKE_THRESHOLD`: Activation threshold 0.0-1.0 (default: 0.5)
+- `WAKE_SAMPLE_RATE`: Target sample rate in Hz (default: 16000)
+- `WAKE_DETECTION_ENABLED`: Enable/disable wake detection (default: true)
+- `WAKE_INFERENCE_FRAMEWORK`: Inference framework to use - 'onnx' (default, required on Linux) or 'tflite' (default: "onnx")
 
 ## Migration from Current Approach
 

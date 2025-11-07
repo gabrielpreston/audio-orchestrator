@@ -139,8 +139,12 @@ services:
         required: false
       - path: "./services/discord/.env.secrets"
         required: false
+    environment:
+      - HOME=/app # Ensure ~ resolves to /app for openwakeword default download location
     volumes:
       - "./debug:/app/debug"
+      - "./services/models/wake/detection:/app/.local/share/openwakeword/models" # Persist wake detection models
+      - "./services/models/wake/infrastructure:/usr/local/lib/python3.11/site-packages/openwakeword/resources/models" # Persist infrastructure models
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
       - "./services/discord:/app/services/discord"
@@ -186,8 +190,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6G  # STT with faster-whisper on GPU
-          cpus: "9"  # Increased for better GPU pipeline throughput
+          memory: 6G # STT with faster-whisper on GPU
+          cpus: "9" # Increased for better GPU pipeline throughput
         reservations:
           devices:
             - driver: nvidia

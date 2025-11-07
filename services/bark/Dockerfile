@@ -41,7 +41,7 @@ ARG PUID=1000
 ARG PGID=1000
 
 RUN groupadd -g ${PGID} appuser 2>/dev/null || true && \
-    useradd -u ${PUID} -g ${PGID} -ms /bin/bash appuser 2>/dev/null || true && \
+    useradd -l -u ${PUID} -g ${PGID} -ms /bin/bash appuser 2>/dev/null || true && \
     chown -R ${PUID}:${PGID} /app 2>/dev/null || true
 
 USER appuser

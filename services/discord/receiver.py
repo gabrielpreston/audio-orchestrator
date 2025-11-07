@@ -13,6 +13,8 @@ from typing import Any
 
 from structlog.stdlib import BoundLogger
 
+from discord.opus import OpusError
+
 from services.common.structured_logging import (
     get_logger,
     should_rate_limit,
@@ -111,6 +113,7 @@ class BufferedVoiceSink:
             packet_count = getattr(self, "_packet_count", 0)
             self._packet_count = packet_count + 1
 
+            # Log first-N packets at INFO, then DEBUG for ongoing operations
             if packet_count < 5:
                 # Inspect data object attributes
                 data_attrs = (
@@ -139,6 +142,14 @@ class BufferedVoiceSink:
                     if data
                     else False,
                     pcm_value=bool(getattr(data, "pcm", None)) if data else False,
+                )
+            else:
+                # After first 5, use DEBUG for ongoing diagnostic details
+                self._logger.debug(
+                    "voice.packet_processing",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                    ssrc=ssrc,
                 )
 
             # Log SSRC mapping when we first see a user
@@ -170,8 +181,15 @@ class BufferedVoiceSink:
                 self._ssrc_first_seen.pop(ssrc, None)
 
             # Process current packet
+            # Log first-N calls at INFO, then DEBUG for ongoing operations
             if packet_count < 5:
                 self._logger.info(
+                    "voice.calling_process_packet",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                )
+            else:
+                self._logger.debug(
                     "voice.calling_process_packet",
                     packet_number=packet_count + 1,
                     user_id=user_id,
@@ -179,6 +197,12 @@ class BufferedVoiceSink:
             self._process_packet(user, data)
             if packet_count < 5:
                 self._logger.info(
+                    "voice.process_packet_completed",
+                    packet_number=packet_count + 1,
+                    user_id=user_id,
+                )
+            else:
+                self._logger.debug(
                     "voice.process_packet_completed",
                     packet_number=packet_count + 1,
                     user_id=user_id,
@@ -244,6 +268,7 @@ class BufferedVoiceSink:
         process_count = getattr(self, "_process_count", 0)
         self._process_count = process_count + 1
 
+        # Log first-N calls at INFO, then DEBUG for ongoing operations
         if process_count < 5:
             # Inspect data object for PCM attributes
             data_attrs = (
@@ -274,6 +299,13 @@ class BufferedVoiceSink:
                 pcm_type=type(pcm_val).__name__ if pcm_val is not None else None,
                 pcm_len=len(pcm_val) if isinstance(pcm_val, bytes) else None,
                 pcm_related_attrs=pcm_attrs[:10],
+            )
+        else:
+            # After first 5, use DEBUG for ongoing diagnostic details
+            self._logger.debug(
+                "voice.process_packet_entry",
+                packet_number=process_count + 1,
+                user_id=getattr(user, "id", None) if user else None,
             )
 
         pcm = getattr(data, "decoded_data", None) or getattr(data, "pcm", None)
@@ -316,7 +348,7 @@ class BufferedVoiceSink:
         # Note: Removed excessive PCM frame logging that was creating 97% of log volume
         # RMS and sample rate are already tracked in VAD decisions with proper sampling
 
-        # Log first few successful processings
+        # Log first-N successful processings at INFO, then DEBUG for ongoing operations
         if process_count < 5:
             self._logger.info(
                 "voice.process_packet_success",
@@ -328,6 +360,15 @@ class BufferedVoiceSink:
                 frame_count=frame_count,
                 about_to_call_callback=True,
             )
+        else:
+            self._logger.debug(
+                "voice.process_packet_success",
+                packet_number=process_count + 1,
+                user_id=user_id,
+                pcm_length=len(pcm),
+                sample_rate=sample_rate,
+                duration=duration,
+            )
 
         future: ThreadFuture[None] = asyncio.run_coroutine_threadsafe(
             self._callback(user_id, pcm, duration, int(sample_rate)),
@@ -337,6 +378,12 @@ class BufferedVoiceSink:
 
         if process_count < 5:
             self._logger.info(
+                "voice.process_packet_callback_scheduled",
+                packet_number=process_count + 1,
+                user_id=user_id,
+            )
+        else:
+            self._logger.debug(
                 "voice.process_packet_callback_scheduled",
                 packet_number=process_count + 1,
                 user_id=user_id,
@@ -372,7 +419,12 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
     _handler_call_count = 0
 
     def handler(user: object | None, data: Any) -> None:
-        """Handler that delegates to our buffered sink."""
+        """Handler that delegates to our buffered sink.
+
+        Handles OpusError exceptions gracefully by logging and skipping corrupted packets,
+        allowing audio processing to continue. Other exceptions are re-raised to maintain
+        existing error handling behavior.
+        """
         # Diagnostic logging at entry point - critical for debugging packet reception
         nonlocal _handler_call_count
         logger = _get_logger()
@@ -397,6 +449,15 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
             )
         try:
             buffered_sink._handle_packet(user, data)
+        except OpusError as exc:
+            # Log corrupted packet but don't stop processing
+            logger.warning(
+                "voice.corrupted_packet_skipped",
+                error=str(exc),
+                user_id=getattr(user, "id", None) if user else None,
+                ssrc=getattr(data, "ssrc", None) if data else None,
+            )
+            # Don't re-raise - skip this packet and continue
         except Exception as exc:
             logger.exception(
                 "voice.handler_exception",
@@ -405,6 +466,7 @@ def build_sink(loop: asyncio.AbstractEventLoop, callback: FrameCallback) -> Any:
                 has_user=user is not None,
                 has_data=data is not None,
             )
+            # For other errors, we still want to raise
             raise
 
     # BasicSink accepts the callback and supports decode option.

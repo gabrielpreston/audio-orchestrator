@@ -41,16 +41,24 @@ Unified correlation ID generation system providing:
 
 -  **End-to-End Tracing**: Complete visibility through the voice pipeline
 -  **Service Identification**: Easy identification of originating service
--  **Hierarchical Organization**: Natural grouping in debug directories
+-  **Immutability**: Correlation IDs remain unchanged when passed between services
 -  **Timestamp Tracking**: Chronological ordering of operations
 
 **Correlation ID Formats**:
 
--  **Discord**: `discord-{user_id}-{guild_id}-{timestamp_ms}`
--  **STT**: `stt-{source_id}` or `stt-{timestamp_ms}`
--  **TTS**: `tts-{source_id}` or `tts-{timestamp_ms}`
--  **Orchestrator**: `orchestrator-{source_id}` or `orchestrator-{user_id}-{timestamp_ms}`
--  **Manual**: `manual-{service}-{context}-{timestamp_ms}`
+-  **Discord**: `discord-{user_id}-{guild_id}-{timestamp_ms}-{suffix}`
+-  **STT**: `stt-{timestamp_ms}-{suffix}` (when generated standalone) or unchanged source ID
+-  **TTS**: `tts-{timestamp_ms}-{suffix}` (when generated standalone) or unchanged source ID
+-  **Orchestrator**: `orchestrator-{user_id}-{timestamp_ms}-{suffix}` (when generated standalone) or unchanged source ID
+-  **Manual**: `manual-{service}-{context}-{timestamp_ms}-{suffix}`
+
+**Immutability Behavior**:
+
+When a correlation ID is passed between services (via `source_correlation_id` parameter), it is returned unchanged.
+
+This ensures end-to-end traceability - a single correlation ID can track the full pipeline from Discord through STT, Orchestrator, and TTS without modification.
+
+Only when a service generates a new correlation ID (no source provided) does it create a service-prefixed ID.
 
 ### Debug Management
 
@@ -253,10 +261,21 @@ processed_audio = processor.convert_to_wav(raw_pcm_data)
 ### Correlation IDs
 
 ```python
-from services.common.correlation import generate_correlation_id
+from services.common.correlation import (
+    generate_discord_correlation_id,
+    generate_stt_correlation_id,
+    generate_orchestrator_correlation_id,
+)
 
 # Generate correlation ID for Discord service
-correlation_id = generate_correlation_id("discord", user_id="123", guild_id="456")
+discord_id = generate_discord_correlation_id(user_id=123, guild_id=456)
+
+# Pass through pipeline - IDs remain unchanged
+stt_id = generate_stt_correlation_id(source_correlation_id=discord_id)  # Returns discord_id unchanged
+orchestrator_id = generate_orchestrator_correlation_id(source_correlation_id=stt_id)  # Returns discord_id unchanged
+
+# Generate standalone ID when no source provided
+standalone_id = generate_stt_correlation_id()  # Generates new stt-{timestamp}-{suffix}
 ```
 
 ### Debug Management

@@ -49,9 +49,11 @@ class TestAudioPipelineStages:
         audio_config.input_sample_rate_hz = 48000
         audio_config.vad_sample_rate_hz = 16000
         audio_config.vad_frame_duration_ms = 30
+        # Add RMS threshold fields (set to low values for tests to pass)
+        audio_config.min_audio_rms_threshold = 0.0  # Allow all frames in tests
+        audio_config.min_segment_rms_threshold = 0.0  # Allow all segments in tests
 
         telemetry_config = Mock()
-        telemetry_config.waveform_debug_dir = None
 
         return audio_config, telemetry_config
 

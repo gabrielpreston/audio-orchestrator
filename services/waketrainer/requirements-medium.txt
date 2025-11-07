@@ -1,0 +1,34 @@
+# Medium dependencies for wake word training
+# Includes large dependencies and adds medium-sized packages
+
+# Include large dependencies first
+-r requirements-large.txt
+
+# Wake word training core
+openwakeword==0.6.0
+mutagen>=1.47.0,<2.0  # Required by openwakeword.data for audio metadata handling
+acoustics>=0.2.2,<1.0  # Required by openwakeword.data for acoustic signal processing
+
+# PyTorch utilities
+torchinfo>=1.8.0,<2.0
+torchmetrics>=0.11.0,<1.0
+
+# Audio augmentation
+audiomentations>=0.40.0,<1.0
+torch-audiomentations>=0.11.0,<1.0
+
+# Phonemization
+deep-phonemizer>=0.0.15,<1.0
+pronouncing>=0.2.0,<1.0
+
+# Piper TTS dependencies (for synthetic data generation)
+piper-phonemize>=1.0.0,<2.0
+webrtcvad>=2.0.10,<3.0
+espeak-phonemizer>=1.0.0,<2.0  # Required by piper-sample-generator/generate_samples.py
+
+# Configuration
+pyyaml>=6.0,<7.0
+
+# HuggingFace Hub for downloading training data
+huggingface_hub>=0.20.0,<1.0
+

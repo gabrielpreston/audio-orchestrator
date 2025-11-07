@@ -75,14 +75,6 @@ def mock_orchestrator_client():
 
 
 @pytest.fixture
-def temp_debug_dir(tmp_path):
-    """Create temporary debug directory."""
-    debug_dir = tmp_path / "debug_wavs"
-    debug_dir.mkdir()
-    return debug_dir
-
-
-@pytest.fixture
 def generate_test_audio() -> Callable[[int, float, float], bytes]:
     """Generate test audio data."""
 
@@ -147,7 +139,7 @@ def mock_config(tmp_path):
         enabled=True,
     )
 
-    telemetry_config = TelemetryConfig(waveform_debug_dir=tmp_path / "debug_wavs")
+    telemetry_config = TelemetryConfig()
 
     config = Mock(spec=BotConfig)
     config.audio = audio_config

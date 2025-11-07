@@ -156,7 +156,7 @@ class VoiceBot(discord.Client):
                     # Offload encode to thread pool
                     await asyncio.to_thread(_pcm_to_wav, pcm, sample_rate=sample_rate)
                     elapsed_ms = int((time.perf_counter() - start) * 1000)
-                    self._logger.info("audio.encode_warmup_ms", value=elapsed_ms)
+                    self._logger.debug("audio.encode_warmup_ms", value=elapsed_ms)
                 except Exception as exc:
                     self._logger.debug("audio.encode_warmup_failed", error=str(exc))
 
@@ -194,6 +194,65 @@ class VoiceBot(discord.Client):
             await self._http_session.aclose()
         await super().close()
 
+    async def _validate_gateway_session(
+        self, max_wait_seconds: float = 5.0, min_delay_seconds: float = 1.0
+    ) -> bool:
+        """Validate Gateway session is stable before voice connection.
+
+        Waits for at least one heartbeat ACK (latency becomes finite),
+        confirming the Gateway session is actively responding.
+
+        Args:
+            max_wait_seconds: Maximum time to wait for heartbeat validation
+            min_delay_seconds: Minimum delay if validation times out
+
+        Returns:
+            True if session appears stable (heartbeat ACK received or min delay elapsed)
+        """
+        if not self.is_ready:
+            return False
+
+        start_time = asyncio.get_event_loop().time()
+        check_interval = 0.1  # Check every 100ms
+
+        # Wait for heartbeat ACK (latency becomes finite)
+        while asyncio.get_event_loop().time() - start_time < max_wait_seconds:
+            # Heartbeat ACK received - session is active
+            # Additional check: ensure latency is reasonable (Discord Gateway typically < 60s)
+            if (
+                self.latency != float("inf")
+                and self.latency > 0
+                and self.latency < 60.0
+            ):
+                elapsed = asyncio.get_event_loop().time() - start_time
+                self._logger.debug(
+                    "discord.gateway_session_validated",
+                    latency=self.latency,
+                    elapsed_seconds=round(elapsed, 2),
+                )
+                return True
+
+            await asyncio.sleep(check_interval)
+
+        # Fallback: ensure minimum delay has elapsed
+        elapsed = asyncio.get_event_loop().time() - start_time
+        if elapsed < min_delay_seconds:
+            remaining = min_delay_seconds - elapsed
+            self._logger.debug(
+                "discord.gateway_session_min_delay",
+                remaining_seconds=round(remaining, 2),
+                message="Waiting for minimum delay before voice connection",
+            )
+            await asyncio.sleep(remaining)
+
+        self._logger.warning(
+            "discord.gateway_session_validation_timeout",
+            elapsed_seconds=round(elapsed, 2),
+            latency=self.latency,
+            message="Proceeding with voice connection despite heartbeat validation timeout",
+        )
+        return True
+
     async def on_ready(self) -> None:
         """Called when Discord bot is ready and connected.
 
@@ -206,13 +265,38 @@ class VoiceBot(discord.Client):
         )
         # Dependencies are already checked before Discord connection in _start_discord_bot()
         if self.config.discord.auto_join:
+            # Validate Gateway session is stable before attempting voice connection
+            # This prevents 4006 errors from session invalidation
+            max_wait = getattr(
+                self.config.discord,
+                "voice_gateway_validation_timeout_seconds",
+                5.0,
+            )
+            min_delay = getattr(
+                self.config.discord,
+                "voice_gateway_min_delay_seconds",
+                1.0,
+            )
+
+            session_valid = await self._validate_gateway_session(
+                max_wait_seconds=max_wait,
+                min_delay_seconds=min_delay,
+            )
+
+            if not session_valid:
+                self._logger.warning(
+                    "discord.gateway_session_validation_failed",
+                    latency=self.latency,
+                    message="Gateway session validation failed, proceeding with voice connection anyway",
+                )
+
             try:
                 await self.join_voice_channel(
                     self.config.discord.guild_id,
                     self.config.discord.voice_channel_id,
                 )
             except Exception as exc:
-                self._logger.error(
+                self._logger.exception(
                     "discord.voice_auto_join_failed",
                     guild_id=self.config.discord.guild_id,
                     channel_id=self.config.discord.voice_channel_id,
@@ -378,6 +462,7 @@ class VoiceBot(discord.Client):
                             channel_id=channel_id,
                             voice_client_type=actual_type,
                             message="Voice client does not have listen() method - cannot receive audio",
+                            exc_info=True,
                         )
                         # Continue anyway to see if _ensure_voice_receiver handles it
 
@@ -473,6 +558,8 @@ class VoiceBot(discord.Client):
                 total_duration_ms=round(total_duration * 1000, 2),
                 error=str(last_exc) if last_exc else None,
                 error_type=type(last_exc).__name__ if last_exc else None,
+                exc_info=last_exc
+                is not None,  # Only set exc_info if we have an exception
             )
             if last_exc:
                 raise last_exc
@@ -608,16 +695,52 @@ class VoiceBot(discord.Client):
         self._voice_contexts[user_id] = (guild_id, channel_id)
 
         # Use int16-domain RMS to align with normalization target units
+        frame_start_time = time.perf_counter()
         try:
             import audioop
 
             rms = float(audioop.rms(pcm, 2))
         except Exception:
             rms = rms_from_pcm(pcm)
+
+        # Early PCM validation: Skip silent/zero-amplitude frames
+        min_rms_threshold = getattr(self.config.audio, "min_audio_rms_threshold", 10.0)
+        if rms < min_rms_threshold:
+            # Sample logging to avoid verbosity (1% sample rate)
+            import random
+
+            if random.random() < 0.01:
+                self._logger.debug(
+                    "voice.silent_frame_skipped",
+                    user_id=user_id,
+                    rms=rms,
+                    threshold=min_rms_threshold,
+                )
+            return  # Skip processing silent frame
+
         # Process frame with audio processor wrapper
-        segment = await self.audio_processor_wrapper.register_frame_async(
-            user_id, pcm, rms, frame_duration, sample_rate
-        )
+        try:
+            segment = await self.audio_processor_wrapper.register_frame_async(
+                user_id, pcm, rms, frame_duration, sample_rate
+            )
+            frame_processing_time = time.perf_counter() - frame_start_time
+            if frame_processing_time > 0.050:  # Log if processing takes > 50ms
+                self._logger.debug(
+                    "voice.frame_processing_slow",
+                    user_id=user_id,
+                    processing_time_ms=round(frame_processing_time * 1000, 2),
+                    frame_duration=frame_duration,
+                    sample_rate=sample_rate,
+                )
+        except Exception as exc:
+            frame_processing_time = time.perf_counter() - frame_start_time
+            self._logger.exception(
+                "voice.frame_processing_failed",
+                user_id=user_id,
+                error=str(exc),
+                processing_time_ms=round(frame_processing_time * 1000, 2),
+            )
+            return
         if not segment:
             return
         await self._enqueue_segment(segment, context=(guild_id, channel_id))
@@ -643,6 +766,9 @@ class VoiceBot(discord.Client):
             channel_id=channel_id,
         )
         pending_segments = self._segment_queue.qsize()
+        queue_depth_after = pending_segments + 1
+        queue_threshold = 10  # Log warning if queue depth exceeds this
+
         self._logger.debug(
             "voice.segment_enqueued",
             correlation_id=segment.correlation_id,
@@ -651,8 +777,18 @@ class VoiceBot(discord.Client):
             channel_id=segment_context.channel_id,
             frames=segment.frame_count,
             duration=segment.duration,
-            queue_depth=pending_segments + 1,
+            queue_depth=queue_depth_after,
         )
+
+        # Log warning if queue depth exceeds threshold
+        if queue_depth_after > queue_threshold:
+            self._logger.warning(
+                "voice.queue_depth_high",
+                correlation_id=segment.correlation_id,
+                queue_depth=queue_depth_after,
+                threshold=queue_threshold,
+                message=f"Queue depth ({queue_depth_after}) exceeds threshold ({queue_threshold})",
+            )
 
         # Save debug audio segment
 
@@ -689,41 +825,6 @@ class VoiceBot(discord.Client):
                 return member.voice
         return None
 
-    def _save_debug_wav(self, segment: AudioSegment, prefix: str = "segment") -> None:
-        """Save segment as WAV file for debugging."""
-        if not self.config.telemetry.waveform_debug_dir:
-            return
-
-        try:
-            import time
-            import wave
-
-            debug_dir = self.config.telemetry.waveform_debug_dir
-            debug_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = int(time.time() * 1000)
-            filename = f"{prefix}_{segment.correlation_id}_{timestamp}.wav"
-            filepath = debug_dir / filename
-
-            with wave.open(str(filepath), "wb") as wav_file:
-                wav_file.setnchannels(1)
-                wav_file.setsampwidth(2)
-                wav_file.setframerate(segment.sample_rate)
-                wav_file.writeframes(segment.pcm)
-
-            self._logger.debug(
-                "voice.debug_wav_saved",
-                correlation_id=segment.correlation_id,
-                filepath=str(filepath),
-                size_bytes=len(segment.pcm),
-            )
-        except Exception as exc:
-            self._logger.warning(
-                "voice.debug_wav_save_failed",
-                correlation_id=segment.correlation_id,
-                error=str(exc),
-            )
-
     async def _idle_flush_loop(self) -> None:
         """Periodically flush stale accumulators so silence gaps emit segments."""
 
@@ -756,6 +857,10 @@ class VoiceBot(discord.Client):
         Uses HealthManager.check_ready() to verify dependencies are available before processing.
         This follows the same pattern as all other services in the project.
         """
+        self._logger.info(
+            "voice.segment_consumer_starting",
+            message="Segment consumer task starting",
+        )
         # Wait for dependencies to be ready (aligned with HealthManager pattern)
         # HealthManager uses ResilientHTTPClient with exponential backoff and caching
         timeout = 300.0
@@ -771,72 +876,121 @@ class VoiceBot(discord.Client):
                 "service.dependency_timeout",
                 timeout=timeout,
                 message="Dependencies not ready within timeout, consumer exiting",
+                exc_info=True,
             )
             return
 
+        self._logger.info(
+            "voice.segment_consumer_entering_loop",
+            message="Dependencies ready, entering segment processing loop",
+        )
         await asyncio.sleep(0)
-        async with TranscriptionClient(
-            self.config.stt, metrics=self._metrics
-        ) as stt_client:
-            while not self._shutdown.is_set():
-                context = await self._segment_queue.get()
-                try:
-                    self._save_debug_wav(context.segment, prefix="captured")
+        try:
+            async with TranscriptionClient(
+                self.config.stt, metrics=self._metrics
+            ) as stt_client:
+                self._logger.debug(
+                    "voice.segment_consumer_stt_client_ready",
+                    message="STT client context manager entered successfully",
+                )
+                last_heartbeat = asyncio.get_event_loop().time()
+                heartbeat_interval = 60.0  # Log heartbeat every 60 seconds
 
-                    # Bind correlation ID to logger for this segment
+                while not self._shutdown.is_set():
+                    queue_depth = self._segment_queue.qsize()
+                    self._logger.debug(
+                        "voice.segment_consumer_waiting_for_segment",
+                        queue_depth=queue_depth,
+                        message="Waiting for segment from queue",
+                    )
+                    context = await self._segment_queue.get()
+                    self._logger.debug(
+                        "voice.segment_consumer_segment_received",
+                        correlation_id=context.segment.correlation_id,
+                        queue_depth_remaining=self._segment_queue.qsize(),
+                        message="Segment received from queue",
+                    )
+
+                    # Periodic heartbeat logging
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_heartbeat >= heartbeat_interval:
+                        self._logger.info(
+                            "voice.segment_consumer_heartbeat",
+                            queue_depth=self._segment_queue.qsize(),
+                            message="Segment consumer heartbeat - still running",
+                        )
+                        last_heartbeat = current_time
+
+                    # Bind correlation ID to logger for this segment before try block
+                    # This ensures logger is available for all error paths
                     segment_logger = self._logger.bind(
                         correlation_id=context.segment.correlation_id
                     )
 
-                    # Get circuit breaker stats for logging
-                    circuit_stats = stt_client.get_circuit_stats()
-                    segment_logger.debug(
-                        "voice.segment_processing_start",
-                        guild_id=context.guild_id,
-                        channel_id=context.channel_id,
-                        frames=context.segment.frame_count,
-                        stt_circuit_state=circuit_stats.get("state", "unknown"),
-                        stt_circuit_available=circuit_stats.get("available", True),
-                        stt_circuit_failure_count=circuit_stats.get("failure_count", 0),
-                        stt_circuit_success_count=circuit_stats.get("success_count", 0),
-                        queue_depth_at_start=self._segment_queue.qsize(),
-                    )
-                    transcript = await stt_client.transcribe(context.segment)
-
-                    if transcript is None:
-                        # STT unavailable - drop segment
-                        segment_logger.info(
-                            "voice.segment_dropped_stt_unavailable",
+                    try:
+                        # Get circuit breaker stats for logging
+                        circuit_stats = stt_client.get_circuit_stats()
+                        segment_logger.debug(
+                            "voice.segment_processing_start",
                             guild_id=context.guild_id,
                             channel_id=context.channel_id,
+                            frames=context.segment.frame_count,
+                            stt_circuit_state=circuit_stats.get("state", "unknown"),
+                            stt_circuit_available=circuit_stats.get("available", True),
+                            stt_circuit_failure_count=circuit_stats.get(
+                                "failure_count", 0
+                            ),
+                            stt_circuit_success_count=circuit_stats.get(
+                                "success_count", 0
+                            ),
+                            queue_depth_at_start=self._segment_queue.qsize(),
                         )
-                        # NOTE: Future enhancement - send pre-canned text response when orchestrator unavailable
-                        # Requires implementing text message sending capability in Discord bot
-                        # await self._send_fallback_response(context, "Voice processing unavailable")
-                        continue
+                        transcript = await stt_client.transcribe(context.segment)
 
-                    # Process transcript normally
-                    segment_logger.info(
-                        "voice.segment_processing_complete",
-                        guild_id=context.guild_id,
-                        channel_id=context.channel_id,
-                        text_length=len(transcript.text),
-                        confidence=transcript.confidence,
-                        pre_stt_ms=transcript.pre_stt_encode_ms,
-                        stt_ms=transcript.stt_latency_ms,
-                    )
-                    await self._handle_transcript(context, transcript)
-                except asyncio.CancelledError:
-                    raise
-                except Exception as exc:
-                    segment_logger.error(
-                        "voice.segment_processing_failed",
-                        guild_id=context.guild_id,
-                        channel_id=context.channel_id,
-                        error=str(exc),
-                    )
-                finally:
-                    self._segment_queue.task_done()
+                        if transcript is None:
+                            # STT unavailable - drop segment
+                            segment_logger.info(
+                                "voice.segment_dropped_stt_unavailable",
+                                guild_id=context.guild_id,
+                                channel_id=context.channel_id,
+                            )
+                            # NOTE: Future enhancement - send pre-canned text response when orchestrator unavailable
+                            # Requires implementing text message sending capability in Discord bot
+                            # await self._send_fallback_response(context, "Voice processing unavailable")
+                            continue
+
+                        # Process transcript normally
+                        segment_logger.info(
+                            "voice.segment_processing_complete",
+                            guild_id=context.guild_id,
+                            channel_id=context.channel_id,
+                            text_length=len(transcript.text),
+                            confidence=transcript.confidence,
+                            pre_stt_ms=transcript.pre_stt_encode_ms,
+                            stt_ms=transcript.stt_latency_ms,
+                        )
+                        await self._handle_transcript(context, transcript)
+                    except asyncio.CancelledError:
+                        self._logger.info(
+                            "voice.segment_consumer_cancelled",
+                            message="Segment consumer task cancelled",
+                        )
+                        raise
+                    except Exception as exc:
+                        segment_logger.exception(
+                            "voice.segment_processing_failed",
+                            guild_id=context.guild_id,
+                            channel_id=context.channel_id,
+                            error=str(exc),
+                        )
+                    finally:
+                        self._segment_queue.task_done()
+        except Exception as exc:
+            self._logger.exception(
+                "voice.segment_consumer_stt_context_failed",
+                error=str(exc),
+                message="Failed to enter or exit STT client context manager",
+            )
 
     async def _handle_transcript(
         self,
@@ -848,7 +1002,24 @@ class VoiceBot(discord.Client):
 
         transcript_logger = bind_correlation_id(self._logger, transcript.correlation_id)
 
-        detection = self._wake_detector.detect(context.segment, transcript.text)
+        # Log wake detection attempt with latency
+        # Offload wake detection to thread pool to prevent blocking event loop
+        wake_detection_start = time.perf_counter()
+        try:
+            detection = await asyncio.to_thread(
+                self._wake_detector.detect, context.segment, transcript.text
+            )
+            wake_detection_latency = time.perf_counter() - wake_detection_start
+        except Exception as exc:
+            wake_detection_latency = time.perf_counter() - wake_detection_start
+            transcript_logger.warning(
+                "voice.wake_detection_failed",
+                error=str(exc),
+                latency_ms=round(wake_detection_latency * 1000, 2),
+                exc_info=True,
+                message="Wake detection failed, continuing without wake phrase",
+            )
+            detection = None
 
         transcript_logger.debug(
             "voice.wake_detection_result",
@@ -858,6 +1029,9 @@ class VoiceBot(discord.Client):
             wake_source=detection.source if detection else None,
             transcript_preview=_truncate_text(transcript.text),
             wake_enabled=self._wake_detector._config.enabled,
+            latency_ms=round(wake_detection_latency * 1000, 2)
+            if detection or wake_detection_latency > 0
+            else None,
         )
 
         if not detection:
@@ -896,10 +1070,9 @@ class VoiceBot(discord.Client):
             channel_id=context.channel_id,
         )
 
-        self._save_debug_wav(context.segment, prefix="wake_detected")
-
         # Save debug data for wake detection
         # Send transcript to orchestrator for processing
+        orchestrator_start = time.perf_counter()
         try:
             orchestrator_result = await self._orchestrator_client.process_transcript(
                 guild_id=str(context.guild_id),
@@ -908,12 +1081,14 @@ class VoiceBot(discord.Client):
                 transcript=transcript.text,
                 correlation_id=transcript.correlation_id,
             )
+            orchestrator_latency = time.perf_counter() - orchestrator_start
 
             transcript_logger.info(
                 "voice.transcript_sent_to_orchestrator",
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
                 orchestrator_result=orchestrator_result,
+                latency_ms=round(orchestrator_latency * 1000, 2),
             )
 
             # Save debug data for orchestrator communication
@@ -930,12 +1105,15 @@ class VoiceBot(discord.Client):
                     import base64
 
                     try:
+                        audio_decode_start = time.perf_counter()
                         audio_bytes = base64.b64decode(audio_data_b64)
+                        audio_decode_time = time.perf_counter() - audio_decode_start
                         transcript_logger.info(
                             "voice.audio_received_from_orchestrator",
                             audio_size=len(audio_bytes),
                             audio_format=audio_format,
                             correlation_id=transcript.correlation_id,
+                            decode_time_ms=round(audio_decode_time * 1000, 2),
                         )
 
                         # Play audio to Discord voice channel
@@ -959,7 +1137,7 @@ class VoiceBot(discord.Client):
                                 )
 
                     except Exception as audio_exc:
-                        transcript_logger.error(
+                        transcript_logger.exception(
                             "voice.audio_playback_failed",
                             error=str(audio_exc),
                             correlation_id=transcript.correlation_id,
@@ -981,7 +1159,7 @@ class VoiceBot(discord.Client):
                     )
 
         except Exception as exc:
-            transcript_logger.error(
+            transcript_logger.exception(
                 "voice.orchestrator_communication_failed",
                 guild_id=context.guild_id,
                 channel_id=context.channel_id,
@@ -1046,7 +1224,7 @@ class VoiceBot(discord.Client):
             )
 
         except Exception as exc:
-            self._logger.error(
+            self._logger.exception(
                 "voice.audio_playback_failed",
                 error=str(exc),
                 error_type=type(exc).__name__,
@@ -1069,6 +1247,7 @@ class VoiceBot(discord.Client):
                 error=str(error),
                 error_type=type(error).__name__,
                 correlation_id=correlation_id,
+                exc_info=True,
             )
         else:
             self._logger.debug(
@@ -1099,7 +1278,7 @@ class VoiceBot(discord.Client):
                 correlation_id=correlation_id,
             )
         except Exception as exc:
-            self._logger.error(
+            self._logger.exception(
                 "voice.fallback_text_failed",
                 error=str(exc),
                 channel_id=context.channel_id,
@@ -1253,6 +1432,7 @@ class VoiceBot(discord.Client):
                         and callable(getattr(voice_client, m, None))
                     ],
                     message="Cannot attach receiver - listen() method does not exist",
+                    exc_info=True,
                 )
                 return
 
@@ -1369,8 +1549,10 @@ class VoiceBot(discord.Client):
 async def run_bot(config: BotConfig) -> None:
     """Entrypoint that wires together all components."""
 
-    audio_processor_wrapper = AudioProcessorWrapper(config.audio, config.telemetry)
     wake_detector = WakeDetector(config.wake)
+    audio_processor_wrapper = AudioProcessorWrapper(
+        config.audio, config.telemetry, wake_detector=wake_detector
+    )
 
     # Create dummy transcript publisher for standalone bot mode
     async def dummy_transcript_publisher(transcript_data: dict[str, Any]) -> None:

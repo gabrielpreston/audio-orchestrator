@@ -7,6 +7,7 @@ from typing import Any, TypeVar
 
 from services.common.structured_logging import get_logger
 
+
 T = TypeVar("T")
 
 logger = get_logger(__name__)
@@ -100,6 +101,66 @@ def _get_env_overrides() -> dict[str, Any]:
         else:
             # Empty string or invalid values are treated as false
             overrides.setdefault("wake", {})["enabled"] = False
+
+    # Wake phrases (comma-separated list)
+    wake_phrases = os.getenv("WAKE_PHRASES")
+    if wake_phrases is not None:
+        overrides.setdefault("wake", {})["wake_phrases"] = [
+            phrase.strip() for phrase in wake_phrases.split(",") if phrase.strip()
+        ]
+
+    # Wake threshold (float validation)
+    wake_threshold = os.getenv("WAKE_THRESHOLD")
+    if wake_threshold is not None:
+        try:
+            threshold = float(wake_threshold)
+            if 0.0 <= threshold <= 1.0:
+                overrides.setdefault("wake", {})["activation_threshold"] = threshold
+            else:
+                logger.warning(
+                    "config.wake_threshold_invalid",
+                    value=wake_threshold,
+                    message="Must be between 0.0 and 1.0",
+                )
+        except ValueError:
+            logger.warning(
+                "config.wake_threshold_invalid",
+                value=wake_threshold,
+            )
+
+    # Wake sample rate (int validation)
+    wake_sample_rate = os.getenv("WAKE_SAMPLE_RATE")
+    if wake_sample_rate is not None:
+        try:
+            overrides.setdefault("wake", {})["target_sample_rate_hz"] = int(
+                wake_sample_rate
+            )
+        except ValueError:
+            logger.warning(
+                "config.wake_sample_rate_invalid",
+                value=wake_sample_rate,
+            )
+
+    # Wake model paths (comma-separated list, empty string means empty list)
+    wake_model_paths = os.getenv("WAKE_MODEL_PATHS")
+    if wake_model_paths is not None:
+        overrides.setdefault("wake", {})["model_paths"] = [
+            path.strip() for path in wake_model_paths.split(",") if path.strip()
+        ]
+
+    # Wake inference framework (onnx or tflite)
+    wake_inference_framework = os.getenv("WAKE_INFERENCE_FRAMEWORK")
+    if wake_inference_framework is not None:
+        framework = wake_inference_framework.lower().strip()
+        if framework in ("onnx", "tflite"):
+            overrides.setdefault("wake", {})["inference_framework"] = framework
+        else:
+            logger.warning(
+                "config.wake_inference_framework_invalid",
+                value=wake_inference_framework,
+                message="Must be 'onnx' or 'tflite', defaulting to 'onnx'",
+            )
+            overrides.setdefault("wake", {})["inference_framework"] = "onnx"
 
     # Discord configuration
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
@@ -195,6 +256,33 @@ def _get_env_overrides() -> dict[str, Any]:
             logger.warning(
                 "config.discord_reconnect_max_invalid",
                 value=discord_reconnect_max,
+            )
+
+    # Gateway session validation configuration
+    discord_gateway_validation_timeout = os.getenv(
+        "DISCORD_VOICE_GATEWAY_VALIDATION_TIMEOUT"
+    )
+    if discord_gateway_validation_timeout is not None:
+        try:
+            overrides.setdefault("discord", {})[
+                "voice_gateway_validation_timeout_seconds"
+            ] = float(discord_gateway_validation_timeout)
+        except ValueError:
+            logger.warning(
+                "config.discord_gateway_validation_timeout_invalid",
+                value=discord_gateway_validation_timeout,
+            )
+
+    discord_gateway_min_delay = os.getenv("DISCORD_VOICE_GATEWAY_MIN_DELAY")
+    if discord_gateway_min_delay is not None:
+        try:
+            overrides.setdefault("discord", {})["voice_gateway_min_delay_seconds"] = (
+                float(discord_gateway_min_delay)
+            )
+        except ValueError:
+            logger.warning(
+                "config.discord_gateway_min_delay_invalid",
+                value=discord_gateway_min_delay,
             )
 
     # Discord warm-up configuration

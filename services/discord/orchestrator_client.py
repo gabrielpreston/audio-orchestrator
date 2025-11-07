@@ -90,7 +90,7 @@ class OrchestratorClient:
             return result
 
         except ServiceUnavailableError as exc:
-            logger.error(
+            logger.exception(
                 "discord.orchestrator_unavailable",
                 error=str(exc),
                 guild_id=guild_id,
@@ -100,7 +100,7 @@ class OrchestratorClient:
             )
             return {"error": "Orchestrator service is currently unavailable"}
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "discord.orchestrator_communication_failed",
                 error=str(exc),
                 guild_id=guild_id,
@@ -139,7 +139,7 @@ class OrchestratorClient:
             return result
 
         except ServiceUnavailableError as exc:
-            logger.error(
+            logger.exception(
                 "discord.orchestrator_unavailable",
                 error=str(exc),
                 guild_id=guild_id,
@@ -147,7 +147,7 @@ class OrchestratorClient:
             )
             return {"error": "Orchestrator service is currently unavailable"}
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "discord.message_send_failed",
                 error=str(exc),
                 guild_id=guild_id,

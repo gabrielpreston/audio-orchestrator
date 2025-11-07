@@ -1,8 +1,7 @@
-"""Bark TTS synthesis implementation with Piper fallback.
+"""Bark TTS synthesis implementation.
 
 This module provides the core text-to-speech functionality including:
 - Bark TTS generation with multiple voice presets
-- Piper fallback for reliability
 - Voice selection and configuration
 - Performance monitoring
 """
@@ -637,7 +636,6 @@ class BarkSynthesizer:
         self._synthesis_stats = {
             "total_syntheses": 0,
             "bark_syntheses": 0,
-            "piper_fallbacks": 0,
             "total_processing_time": 0.0,
             "avg_processing_time": 0.0,
             "total_text_length": 0,
@@ -654,7 +652,6 @@ class BarkSynthesizer:
             self._logger.info("bark_synthesizer.initialized")
         except Exception as exc:
             self._logger.error("bark_synthesizer.initialization_failed", error=str(exc))
-            # Continue without Bark - will use Piper fallback
 
     async def cleanup(self) -> None:
         """Cleanup resources."""
@@ -991,8 +988,6 @@ class BarkSynthesizer:
 
         if engine == "bark":
             self._synthesis_stats["bark_syntheses"] += 1
-        elif engine == "piper":
-            self._synthesis_stats["piper_fallbacks"] += 1
 
         # Update averages
         self._synthesis_stats["avg_processing_time"] = (

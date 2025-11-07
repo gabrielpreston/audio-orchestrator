@@ -67,27 +67,6 @@ class STTConfig:
         self.telemetry = TelemetryConfig(**kwargs.get("telemetry", {}))
 
 
-class TTSConfig:
-    """TTS service configuration."""
-
-    def __init__(
-        self,
-        model_path: str = "/app/models/piper",
-        voice: str = "en_US-lessac-medium",
-        **kwargs: Any,
-    ) -> None:
-        """Initialize TTS configuration."""
-        self.model_path = model_path
-        self.voice = voice
-
-        # Initialize sub-configurations
-        self.logging = LoggingConfig(**kwargs.get("logging", {}))
-        self.http = HttpConfig(**kwargs.get("http", {}))
-        self.audio = AudioConfig(**kwargs.get("audio", {}))
-        self.service = ServiceConfig(**kwargs.get("service", {}))
-        self.telemetry = TelemetryConfig(**kwargs.get("telemetry", {}))
-
-
 class WakeConfig:
     """Wake detection configuration."""
 
@@ -98,6 +77,7 @@ class WakeConfig:
         activation_threshold: float = 0.5,
         target_sample_rate_hz: int = 16000,
         enabled: bool = True,
+        inference_framework: str = "onnx",
         **kwargs: Any,
     ) -> None:
         """Initialize Wake configuration."""
@@ -106,6 +86,7 @@ class WakeConfig:
         self.activation_threshold = activation_threshold
         self.target_sample_rate_hz = target_sample_rate_hz
         self.enabled = enabled
+        self.inference_framework = inference_framework
 
 
 class OrchestratorConfig:
@@ -164,6 +145,8 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "voice_connect_max_attempts": 3,
                 "voice_reconnect_initial_backoff_seconds": 2.0,
                 "voice_reconnect_max_backoff_seconds": 60.0,
+                "voice_gateway_validation_timeout_seconds": 5.0,  # Max wait for heartbeat ACK
+                "voice_gateway_min_delay_seconds": 1.0,  # Minimum delay fallback
             },
             "logging": {"level": "INFO", "json_logs": True, "service_name": "discord"},
             "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
@@ -195,6 +178,7 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "model_paths": [],
                 "activation_threshold": 0.5,
                 "target_sample_rate_hz": 16000,
+                "inference_framework": "onnx",
             },
             "stt": {
                 "base_url": "http://stt:9000",
@@ -235,8 +219,8 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "enable_enhancement": True,
             },
         },
-        "tts": {
-            "logging": {"level": "INFO", "json_logs": True, "service_name": "tts"},
+        "bark": {
+            "logging": {"level": "INFO", "json_logs": True, "service_name": "bark"},
             "http": {"timeout": 30.0, "max_retries": 3, "retry_delay": 1.0},
             "audio": {
                 "sample_rate": 22050,
@@ -245,20 +229,8 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "enable_vad": False,
                 "service_timeout": 100,
             },
-            "service": {"port": 8000, "host": "0.0.0.0", "workers": 1},
-            "telemetry": {"enabled": True, "metrics_port": 9093, "jaeger_endpoint": ""},
-            "tts": {
-                "model_path": "/app/models/piper",
-                "model_config_path": "/app/models/piper/config.json",
-                "default_voice": "en_US-lessac-medium",
-                "max_text_length": 1000,
-                "max_concurrency": 4,
-                "rate_limit_per_minute": 60,
-                "auth_token": "",
-                "length_scale": 1.0,
-                "noise_scale": 0.667,
-                "noise_w": 0.8,
-            },
+            "service": {"port": 7100, "host": "0.0.0.0", "workers": 1},
+            "telemetry": {"enabled": True, "metrics_port": 9095, "jaeger_endpoint": ""},
         },
         "orchestrator": {
             "logging": {

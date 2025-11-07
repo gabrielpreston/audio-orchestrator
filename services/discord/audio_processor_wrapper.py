@@ -6,6 +6,7 @@ audio processing library directly (no HTTP calls).
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -14,6 +15,7 @@ from services.common.audio_vad import VADProcessor
 from services.common.correlation import CorrelationIDGenerator
 from services.common.structured_logging import get_logger
 from services.common.surfaces.types import PCMFrame as CommonPCMFrame
+from services.common.wake_detection import WakeDetector
 
 from .audio import Accumulator, AudioSegment, PCMFrame as DiscordPCMFrame
 
@@ -28,6 +30,7 @@ class AudioProcessorWrapper:
         audio_config: Any,
         telemetry_config: Any,
         audio_processor_core: AudioProcessingCore | None = None,
+        wake_detector: WakeDetector | None = None,
     ) -> None:
         """Initialize audio processor wrapper.
 
@@ -35,6 +38,7 @@ class AudioProcessorWrapper:
             audio_config: Audio configuration
             telemetry_config: Telemetry configuration
             audio_processor_core: Optional audio processor core (for testing)
+            wake_detector: Optional wake detector for early wake phrase detection
         """
         self._config = audio_config
         self._telemetry_config = telemetry_config
@@ -54,6 +58,9 @@ class AudioProcessorWrapper:
             else 1
         )
         self._vad_processor = VADProcessor(aggressiveness=vad_aggressiveness)
+
+        # Store wake detector for early wake detection
+        self._wake_detector = wake_detector
 
         # Track user accumulators using Accumulator class
         self._accumulators: dict[int, Accumulator] = {}
@@ -186,6 +193,76 @@ class AudioProcessorWrapper:
             # Update accumulator based on speech detection
             if is_speech:
                 accumulator.append(discord_frame)
+
+                # NEW: Check for wake phrase on accumulated frames (periodic check)
+                # Check every 5 frames once we have minimum audio (10 frames = ~200ms)
+                frame_count = len(accumulator.frames)
+                should_check_wake = (
+                    self._wake_detector
+                    and self._wake_detector._model
+                    and frame_count >= 10  # Minimum frames for wake detection
+                    and frame_count % 5
+                    == 0  # Check every 5 frames to balance latency vs CPU
+                )
+
+                if should_check_wake and self._wake_detector is not None:
+                    try:
+                        # Concatenate accumulated PCM frames
+                        accumulated_pcm = b"".join(f.pcm for f in accumulator.frames)
+                        # Offload wake detection to thread pool to prevent blocking event loop
+                        wake_result = await asyncio.to_thread(
+                            self._wake_detector.detect_audio,
+                            accumulated_pcm,
+                            accumulator.sample_rate,
+                        )
+                    except Exception as exc:
+                        self._logger.warning(
+                            "audio_processor_wrapper.wake_detection_failed",
+                            user_id=user_id,
+                            frame_count=frame_count,
+                            error=str(exc),
+                            exc_info=True,
+                            message="Wake detection failed, continuing frame processing",
+                        )
+                        wake_result = None
+                    if wake_result:
+                        # Verify minimum duration before early flush
+                        start = accumulator.frames[0].timestamp
+                        end = (
+                            accumulator.frames[-1].timestamp
+                            + accumulator.frames[-1].duration
+                        )
+                        total_duration = end - start
+
+                        if total_duration >= self._config.min_segment_duration_seconds:
+                            # Early flush on wake detection
+                            correlation_id = (
+                                CorrelationIDGenerator.generate_discord_correlation_id(
+                                    user_id=user_id, guild_id=None
+                                )
+                            )
+                            segment = accumulator.pop_segment(correlation_id)
+                            if segment:
+                                self._logger.info(
+                                    "audio_processor_wrapper.wake_detected_early",
+                                    user_id=user_id,
+                                    wake_phrase=wake_result.phrase,
+                                    confidence=wake_result.confidence,
+                                    frame_count=frame_count,
+                                    duration=total_duration,
+                                )
+                                return segment  # Return immediately, bypassing silence timeout
+                        else:
+                            # Log that wake detected but waiting for minimum duration
+                            self._logger.debug(
+                                "audio_processor_wrapper.wake_detected_insufficient_duration",
+                                user_id=user_id,
+                                wake_phrase=wake_result.phrase,
+                                confidence=wake_result.confidence,
+                                frame_count=frame_count,
+                                current_duration=total_duration,
+                                min_duration=self._config.min_segment_duration_seconds,
+                            )
             else:
                 new_silence = accumulator.mark_silence(discord_frame.timestamp)
                 if new_silence and should_log_frame:
@@ -262,7 +339,7 @@ class AudioProcessorWrapper:
             return None
 
         except Exception as exc:
-            self._logger.error(
+            self._logger.exception(
                 "audio_processor_wrapper.frame_processing_error",
                 user_id=user_id,
                 error=str(exc),

@@ -2,7 +2,6 @@
 
 This service provides HTTP API endpoints for text-to-speech synthesis including:
 - Bark TTS generation with multiple voice presets
-- Piper fallback for reliability
 - Voice selection and configuration
 - Performance monitoring
 """
@@ -35,7 +34,7 @@ from .synthesis import BarkSynthesizer
 
 
 # Load configuration first (before creating loggers)
-_config_preset = get_service_preset("tts")
+_config_preset = get_service_preset("bark")
 _logging_config = LoggingConfig(**_config_preset["logging"])
 _http_config = HttpConfig(**_config_preset["http"])
 _audio_config = AudioConfig(**_config_preset["audio"])
@@ -271,7 +270,7 @@ app.include_router(health_endpoints.get_router())
 async def synthesize(
     request: SynthesisRequest, http_request: Request
 ) -> SynthesisResponse:
-    """Synthesize text to speech using Bark with Piper fallback."""
+    """Synthesize text to speech using Bark."""
     # Extract correlation ID from headers or context
     correlation_id: str | None = None
     try:
@@ -412,7 +411,7 @@ async def synthesize(
 @app.get("/voices")  # type: ignore[misc]
 async def list_voices() -> dict[str, list[str]]:
     """List available voice presets."""
-    return {"bark": VOICE_PRESETS, "piper": ["default"]}
+    return {"bark": VOICE_PRESETS}
 
 
 # Track last known state to only log on changes

@@ -25,9 +25,7 @@ coverage.xml
 junit.xml
 .wavs
 
-# Model / data files (treat large model dirs as large)
-models
-models/*
+# Data files (treat large data dirs as large)
 data
 data/*
 

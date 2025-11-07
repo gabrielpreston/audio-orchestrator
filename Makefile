@@ -13,11 +13,11 @@ SHELL := /bin/bash
 .PHONY: build-test-image build-test-image-force push-test-image push-test-image-force
 .PHONY: lint build-lint-image build-lint-image-force push-lint-image push-lint-image-force lint-fix
 .PHONY: security build-security-image build-security-image-force push-security-image push-security-image-force
-.PHONY: check-syntax check-syntax-service
+.PHONY: check-syntax
 .PHONY: clean docker-clean docker-clean-all
 .PHONY: docs-verify validate-changes
 .PHONY: rotate-tokens rotate-tokens-dry-run validate-tokens
-.PHONY: models-download models-clean models-force-download models-force-download-service models-fix-permissions
+.PHONY: models-clean models-force-download models-force-download-service models-fix-permissions
 
 # =============================================================================
 # CONFIGURATION & VARIABLES
@@ -78,6 +78,9 @@ TEST_WORKDIR := /workspace
 SECURITY_IMAGE ?= $(REGISTRY)/security:latest
 SECURITY_DOCKERFILE := services/security/Dockerfile
 SECURITY_WORKDIR := /workspace
+WAKE_TRAINER_IMAGE ?= $(REGISTRY)/waketrainer:latest
+WAKE_TRAINER_DOCKERFILE := services/waketrainer/Dockerfile
+WAKE_TRAINER_WORKDIR := /workspace
 
 # Test configuration
 PYTEST_ARGS ?=
@@ -198,6 +201,33 @@ define run_docker_container
 	$(3)
 endef
 
+# Custom function for wake trainer with additional volume mounts for models
+# Optimized for GPU training with increased CPU, memory, and shared memory limits
+define run_wake_trainer_container
+@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+@mkdir -p "$(CURDIR)/services/models/wake/piper-models"
+@mkdir -p "$(CURDIR)/services/models/wake/infrastructure"
+@docker run --rm \
+	--gpus all \
+	--cpus="9" \
+	--memory="8G" \
+	--shm-size="2g" \
+	--ipc=host \
+	-u $$(id -u):$$(id -g) \
+	-e HOME=$(2) \
+	-e USER=$$(id -un 2>/dev/null || echo user) \
+	-e PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:64,expandable_segments:True,roundup_power2_divisions:2" \
+	-e OMP_NUM_THREADS=8 \
+	-e MKL_NUM_THREADS=8 \
+	-e CUDA_LAUNCH_BLOCKING=0 \
+	$(if $(strip $(PYTEST_ARGS)),-e PYTEST_ARGS="$(PYTEST_ARGS)",) \
+	-v "$(CURDIR)":$(2) \
+	-v "$(CURDIR)/services/models/wake/piper-models:/workspace/piper-sample-generator/models" \
+	-v "$(CURDIR)/services/models/wake/infrastructure:/usr/local/lib/python3.11/site-packages/openwakeword/resources/models" \
+	$(1) \
+	$(3)
+endef
+
 # Helper function to select services based on ENV
 define select_services_by_env
 @ENV=$${ENV:-dev}; \
@@ -238,7 +268,7 @@ models-fix-permissions: ## Fix host model directory permissions (creates directo
 	@printf "$(COLOR_CYAN)→ Ensuring model directories exist with correct permissions$(COLOR_OFF)\n"
 	@PUID=$${PUID:-$$(id -u)}; \
 	PGID=$${PGID:-$$(id -g)}; \
-	for dir in stt flan-t5 guardrails bark; do \
+	for dir in stt flan-t5 guardrails bark wake/detection wake/infrastructure; do \
 		full_path="./services/models/$$dir"; \
 		if [ ! -d "$$full_path" ]; then \
 			printf "$(COLOR_YELLOW)  Creating $$full_path$(COLOR_OFF)\n"; \
@@ -423,7 +453,7 @@ docker-pull-images: ## Pre-pull images for all compose files and toolchain (cach
 		fi; \
 	 done
 	@printf "$(COLOR_GREEN)→ Pulling toolchain images$(COLOR_OFF)\n"
-	@for img in $(LINT_IMAGE) $(TEST_IMAGE) $(SECURITY_IMAGE); do \
+	@for img in $(LINT_IMAGE) $(TEST_IMAGE) $(SECURITY_IMAGE) $(WAKE_TRAINER_IMAGE); do \
 		printf "Pulling %s\n" "$$img"; \
 		docker pull "$$img" || true; \
 	 done
@@ -557,59 +587,75 @@ security: build-security-image ## Run security scanning with pip-audit
 	$(call run_docker_container,$(SECURITY_IMAGE),$(SECURITY_WORKDIR),)
 
 # =============================================================================
+# WAKE WORD TRAINING
+# =============================================================================
+
+# Wake trainer toolchain image management
+build-wake-trainer-image: ## Build the wake trainer toolchain container image (only if missing)
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build wake trainer container images." >&2; exit 1; }
+	$(call build_if_missing,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_DOCKERFILE))
+
+build-wake-trainer-image-force: ## Force rebuild the wake trainer toolchain container image
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker to build wake trainer container images." >&2; exit 1; }
+	@printf "$(COLOR_YELLOW)→ Force rebuilding $(WAKE_TRAINER_IMAGE)$(COLOR_OFF)\n"
+	$(call build_with_registry_cache,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_DOCKERFILE))
+
+push-wake-trainer-image: ## Push wake trainer image to registry (build with 'make build-wake-trainer-image' first)
+	$(call push_image,$(WAKE_TRAINER_IMAGE))
+
+push-wake-trainer-image-force: build-wake-trainer-image-force push-wake-trainer-image ## Force rebuild and push wake trainer image
+
+# Wake trainer execution
+wake-train: build-wake-trainer-image ## Run full wake word training (all 3 stages) - requires CONFIG=path/to/config.yaml
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if [ -z "$(CONFIG)" ]; then \
+		printf "$(COLOR_RED)→ Error: CONFIG is required. Example: make wake-train CONFIG=services/waketrainer/config/example_config.yaml$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=all && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
+
+wake-train-generate: build-wake-trainer-image ## Run wake word training stage 1 (generate clips) - requires CONFIG=path/to/config.yaml
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if [ -z "$(CONFIG)" ]; then \
+		printf "$(COLOR_RED)→ Error: CONFIG is required. Example: make wake-train-generate CONFIG=services/waketrainer/config/example_config.yaml$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=generate && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
+
+wake-train-augment: build-wake-trainer-image ## Run wake word training stage 2 (augment clips) - requires CONFIG=path/to/config.yaml
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if [ -z "$(CONFIG)" ]; then \
+		printf "$(COLOR_RED)→ Error: CONFIG is required. Example: make wake-train-augment CONFIG=services/waketrainer/config/example_config.yaml$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=augment && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
+
+wake-train-train: build-wake-trainer-image ## Run wake word training stage 3 (train model) - requires CONFIG=path/to/config.yaml
+	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
+	@if [ -z "$(CONFIG)" ]; then \
+		printf "$(COLOR_RED)→ Error: CONFIG is required. Example: make wake-train-train CONFIG=services/waketrainer/config/example_config.yaml$(COLOR_OFF)\n"; \
+		exit 1; \
+	fi
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=train && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
+
+extract-background-audio: build-wake-trainer-image ## Extract background audio from Parquet to WAV files
+	@mkdir -p "$(CURDIR)/services/models/wake/training-data/background_clips/wav"
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),\
+		python services/waketrainer/extract-background-audio.py \
+			--dataset-dir /workspace/services/models/wake/training-data/background_clips \
+			--output-dir /workspace/services/models/wake/training-data/background_clips/wav)
+
+# =============================================================================
 # PYTHON SYNTAX CHECKING
 # =============================================================================
 
-check-syntax: build-test-image ## Check Python syntax by compiling all Python files in services/
-	@printf "$(COLOR_CYAN)→ Checking Python syntax (py_compile)$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),\
-		bash -c 'errors=0; \
-		for pyfile in $$(find services -type f -name "*.py" ! -path "*/__pycache__/*" ! -path "*/.venv/*"); do \
-			if ! python3 -m py_compile "$$pyfile" 2>/dev/null; then \
-				echo "→ Syntax error in: $$pyfile"; \
-				python3 -m py_compile "$$pyfile" 2>&1 | head -5 | sed "s/^/  /"; \
-				errors=$$((errors + 1)); \
-			fi; \
-		done; \
-		if [ $$errors -eq 0 ]; then \
-			echo "→ All Python files compile successfully"; \
-			exit 0; \
-		else \
-			echo "→ Found $$errors file(s) with syntax errors"; \
-			exit 1; \
-		fi')
-
-check-syntax-service: build-test-image ## Check Python syntax for specific service (set SERVICE=name)
-	@[ -z "$(SERVICE)" ] && (printf "$(COLOR_RED)Error: Set SERVICE=<service-name> ($(ALL_SERVICES))$(COLOR_OFF)\n" && exit 1) || true
-	@if ! echo "$(ALL_SERVICES) common" | grep -q "\b$(SERVICE)\b"; then \
-		printf "$(COLOR_RED)Error: Unknown service $(SERVICE). Valid: $(ALL_SERVICES), common$(COLOR_OFF)\n"; \
-		exit 1; \
-	fi
-	@printf "$(COLOR_CYAN)→ Checking Python syntax for $(SERVICE) service$(COLOR_OFF)\n"
-	$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),\
-		bash -c 'errors=0; \
-		for pyfile in $$(find services/$(SERVICE) -type f -name "*.py" ! -path "*/__pycache__/*" 2>/dev/null || true); do \
-			if ! python3 -m py_compile "$$pyfile" 2>/dev/null; then \
-				echo "→ Syntax error in: $$pyfile"; \
-				python3 -m py_compile "$$pyfile" 2>&1 | head -5 | sed "s/^/  /"; \
-				errors=$$((errors + 1)); \
-			fi; \
-		done; \
-		if [ $$errors -eq 0 ]; then \
-			echo "→ All Python files in $(SERVICE) compile successfully"; \
-			exit 0; \
-		else \
-			echo "→ Found $$errors file(s) with syntax errors in $(SERVICE)"; \
-			exit 1; \
-		fi')
+check-syntax: build-test-image ## Check Python syntax by compiling Python files (use TARGET=dir or file, default: all services/)
+	@printf "$(COLOR_CYAN)→ Checking Python syntax$(COLOR_OFF)\n"
+	@$(call run_docker_container,$(TEST_IMAGE),$(TEST_WORKDIR),bash $(TEST_WORKDIR)/scripts/check-syntax.sh $(TARGET))
 
 # =============================================================================
 # MODEL MANAGEMENT
 # =============================================================================
-
-models-download: ## Download required models to ./services/models/ subdirectories
-	@printf "$(COLOR_GREEN)→ Downloading models to ./services/models/$(COLOR_OFF)\n"
-	@bash $(SCRIPT_DIR)/download-models.sh
 
 models-clean: ## Remove downloaded models from ./services/models/
 	@printf "$(COLOR_RED)→ Cleaning downloaded models$(COLOR_OFF)\n"

@@ -18,13 +18,16 @@ The audio pipeline is the core processing engine that transforms raw audio input
 flowchart TD
     RawAudio[Raw Audio Input] --> AudioProcessor[Audio Processor]
     AudioProcessor --> AudioChunk[Audio Chunk]
-    AudioChunk --> WakeDetector[Wake Detector]
-    WakeDetector -->|Wake detected| AudioAggregator[Audio Aggregator]
-    WakeDetector -->|No wake| RawAudio
-    AudioAggregator --> ProcessedSegment[Processed Segment]
+    AudioChunk --> FrameAccumulator[Frame Accumulator]
+    FrameAccumulator --> WakeDetector[Wake Detector<br/>Early Detection]
+    WakeDetector -->|Wake detected early| EarlyFlush[Early Segment Flush]
+    WakeDetector -->|No wake| AudioAggregator[Audio Aggregator]
+    EarlyFlush --> ProcessedSegment[Processed Segment]
+    AudioAggregator --> ProcessedSegment
     ProcessedSegment --> STT[STT Service]
     STT --> Transcript[Transcript]
-    Transcript --> AgentManager[Agent Manager]
+    Transcript --> TranscriptWake[Wake Detector<br/>Transcript Fallback]
+    TranscriptWake --> AgentManager[Agent Manager]
 ```
 
 ## Core Components
@@ -146,9 +149,13 @@ class AudioAggregator:
 
 ### Stage 3: Wake Detection
 
--  Continuous monitoring for wake phrases
--  Speech activity detection
--  Confidence scoring and validation
+Wake detection now happens **early** in the audio frame processing loop to enable latency reduction:
+
+-  **Early Detection**: Wake phrases detected in accumulated audio frames (every 5 frames after 10 frame minimum)
+-  **Periodic Checking**: Balanced latency vs CPU usage (checks every 5 frames after minimum threshold)
+-  **Minimum Duration Validation**: Ensures segment meets minimum duration before early flush
+-  **Dual-Mode Detection**: Audio-based detection (primary) with transcript-based fallback (secondary)
+-  **Graceful Degradation**: Falls back to transcript-based detection if audio models unavailable
 
 ### Stage 4: Audio Aggregation
 

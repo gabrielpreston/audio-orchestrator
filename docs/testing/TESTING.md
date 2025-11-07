@@ -838,7 +838,6 @@ TTS (Text-to-Speech) testing covers audio format validation, quality metrics, pe
 #### Debugging
 
 -  **Enable Debug Logging**: Set `LOG_LEVEL=DEBUG`
--  **Save Debug Audio**: Enable debug WAV generation
 -  **Check Service Logs**: Use `make logs` to view service logs
 -  **Monitor Resources**: Check CPU, memory, and disk usage
 

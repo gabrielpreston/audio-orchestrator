@@ -395,6 +395,24 @@ class AudioConfig(BaseConfig):
                 env_var="AUDIO_VAD_AGGRESSIVENESS",
                 choices=[0, 1, 2, 3],
             ),
+            FieldDefinition(
+                name="min_audio_rms_threshold",
+                field_type=float,
+                default=10.0,
+                description="Minimum RMS value for frame processing (filters silent frames)",
+                env_var="AUDIO_MIN_RMS_THRESHOLD",
+                min_value=0.0,
+                max_value=1000.0,
+            ),
+            FieldDefinition(
+                name="min_segment_rms_threshold",
+                field_type=float,
+                default=5.0,
+                description="Minimum RMS value for segment creation (filters silent segments)",
+                env_var="AUDIO_MIN_SEGMENT_RMS_THRESHOLD",
+                min_value=0.0,
+                max_value=1000.0,
+            ),
         ]
 
 

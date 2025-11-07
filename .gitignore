@@ -58,6 +58,8 @@ cache/
 *.onnx
 *.onnx.json
 services/models/
+# Training data directory (large datasets, user-managed)
+services/models/wake/training-data/
 
 # Audio Files (runtime generated, not test fixtures)
 .wavs/
@@ -84,3 +86,5 @@ Desktop.ini
 !constraints.txt
 .pip-audit-cache/
 .cursor/plans/
+.keras/
+piper-sample-generator/

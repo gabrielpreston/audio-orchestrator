@@ -31,7 +31,6 @@ from .presets import (
     DiscordConfig,
     OrchestratorConfig,
     STTConfig,
-    TTSConfig,
     WakeConfig,
     get_service_preset,
 )
@@ -69,7 +68,6 @@ __all__ = [
     # Service configurations
     "DiscordConfig",
     "STTConfig",
-    "TTSConfig",
     "OrchestratorConfig",
     "WakeConfig",
     # Utilities

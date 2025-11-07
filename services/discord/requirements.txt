@@ -9,3 +9,7 @@ PyNaCl==1.5.0
 openwakeword==0.6.0
 rapidfuzz==3.5.1
 webrtcvad==2.0.10
+
+# Openwakeword dependencies (onnxruntime required for ONNX inference on Linux)
+# Note: tflite-runtime is unavailable on Linux, so openwakeword is installed with --no-deps in Dockerfile
+onnxruntime>=1.16.0,<2.0

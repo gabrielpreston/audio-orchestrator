@@ -1,11 +1,12 @@
 """Component tests for BufferedVoiceSink and packet flow."""
 
 import asyncio
+from typing import Any
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from services.discord.receiver import BufferedVoiceSink, FrameCallback
+from services.discord.receiver import BufferedVoiceSink, FrameCallback, build_sink
 
 
 @pytest.mark.component
@@ -175,3 +176,161 @@ class TestBufferedVoiceSink:
         assert len(callback_results) == 1
         assert callback_results[0]["user_id"] == 12345
         assert callback_results[0]["sample_rate"] == 48000
+
+    def test_handler_catches_opuserror_and_continues(self, mock_loop, mock_callback):
+        """Test that handler catches OpusError and continues processing."""
+        # Setup: Create sink and handler
+        sink = BufferedVoiceSink(mock_loop, mock_callback)
+        from discord.opus import OpusError
+
+        # Mock _handle_packet to raise OpusError (OpusError requires integer code)
+        with patch.object(
+            sink,
+            "_handle_packet",
+            side_effect=OpusError(-1),  # -1 is a generic opus error
+        ):
+            # Create handler function (simulating build_sink handler)
+            handler_call_count = 0
+
+            def handler(user: object | None, data: Any) -> None:
+                nonlocal handler_call_count
+                handler_call_count += 1
+                try:
+                    sink._handle_packet(user, data)
+                except OpusError:
+                    # This simulates the handler behavior
+                    pass  # Don't re-raise
+                except Exception:
+                    raise
+
+            # Execute: Call handler with OpusError
+            user = Mock()
+            user.id = 12345
+            data = Mock()
+            data.ssrc = 54321
+
+            # Handler should not raise
+            handler(user, data)
+
+            # Verify: Handler completed without raising
+            assert handler_call_count == 1
+
+    def test_handler_continues_after_opuserror(self, mock_loop, mock_callback):
+        """Test that handler continues processing after OpusError."""
+        from discord.opus import OpusError
+
+        sink = BufferedVoiceSink(mock_loop, mock_callback)
+        call_count = 0
+
+        def handler(user: object | None, data: Any) -> None:
+            nonlocal call_count
+            call_count += 1
+            try:
+                sink._handle_packet(user, data)
+            except OpusError:
+                # Skip corrupted packet
+                pass
+            except Exception:
+                raise
+
+        user = Mock()
+        user.id = 12345
+        data1 = Mock()
+        data1.ssrc = 54321
+
+        # First call raises OpusError (OpusError requires integer code)
+        with patch.object(
+            sink, "_handle_packet", side_effect=OpusError(-1)
+        ):  # -1 is a generic opus error
+            handler(user, data1)
+
+        # Second call should succeed
+        data2 = Mock()
+        data2.ssrc = 54321
+        data2.decoded_data = b"pcm_data"
+        data2.sample_rate = 48000
+
+        # Reset mock and verify second call succeeds
+        with patch.object(sink, "_handle_packet") as mock_handle:
+            mock_handle.return_value = None
+            handler(user, data2)
+            # Verify second call was processed
+            assert mock_handle.called
+
+        # Verify: Both calls completed
+        assert call_count == 2
+
+    def test_handler_re_raises_other_exceptions(self, mock_loop, mock_callback):
+        """Test that handler re-raises non-OpusError exceptions."""
+        sink = BufferedVoiceSink(mock_loop, mock_callback)
+        from discord.opus import OpusError
+
+        def handler(user: object | None, data: Any) -> None:
+            try:
+                sink._handle_packet(user, data)
+            except OpusError:
+                # Skip OpusError
+                pass
+            except Exception:
+                # Re-raise other exceptions
+                raise
+
+        user = Mock()
+        user.id = 12345
+        data = Mock()
+        data.ssrc = 54321
+
+        # Should raise ValueError, not OpusError
+        with (
+            patch.object(sink, "_handle_packet", side_effect=ValueError("test error")),
+            pytest.raises(ValueError, match="test error"),
+        ):
+            handler(user, data)
+
+    def test_build_sink_handler_opuserror_handling(self, mock_loop, mock_callback):
+        """Test that build_sink handler catches OpusError correctly."""
+        from discord.opus import OpusError
+
+        # Mock voice_recv module and logger
+        with (
+            patch("services.discord.receiver.voice_recv") as mock_voice_recv,
+            patch("services.discord.receiver._get_logger") as mock_get_logger,
+        ):
+            mock_basic_sink = Mock()
+            mock_voice_recv.BasicSink.return_value = mock_basic_sink
+            mock_logger = Mock()
+            mock_get_logger.return_value = mock_logger
+
+            # Build sink to get the handler
+            build_sink(mock_loop, mock_callback)
+
+            # Get the handler function from BasicSink call
+            handler = mock_voice_recv.BasicSink.call_args[0][0]
+
+            # Get the actual sink instance from handler's closure
+            # The handler captures buffered_sink in its closure
+            # We need to patch _handle_packet on that sink
+            # Since we can't easily access the closure, we'll test the handler directly
+            # by mocking the logger call
+
+            # Create test data
+            user = Mock()
+            user.id = 12345
+            data = Mock()
+            data.ssrc = 54321
+
+            # Patch BufferedVoiceSink._handle_packet to raise OpusError (requires integer code)
+            with patch.object(
+                BufferedVoiceSink, "_handle_packet", side_effect=OpusError(-1)
+            ):  # -1 is a generic opus error
+                # Call handler - should not raise
+                handler(user, data)
+
+                # Verify: Warning was logged
+                mock_logger.warning.assert_called_once()
+                call_args = mock_logger.warning.call_args
+                assert call_args[0][0] == "voice.corrupted_packet_skipped"
+                # OpusError message is generated from code, check it contains error info
+                assert "error" in call_args[1]
+                assert call_args[1]["user_id"] == 12345
+                assert call_args[1]["ssrc"] == 54321

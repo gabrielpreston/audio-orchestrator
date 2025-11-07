@@ -43,14 +43,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install CUDNN for CUDA 12.1 (required by CTranslate2 for CUDA inference)
 # CTranslate2 4.5.0+ requires cuDNN 9.2+ (looking for libcudnn_ops.so.9.x)
 # Download and install cuDNN 9.x from NVIDIA redistributable repository (no login required)
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     ca-certificates \
     tar \
     xz-utils \
     && mkdir -p /tmp/cudnn /usr/local/cuda/lib64 /usr/local/cuda/include \
-    && cd /tmp/cudnn \
-    && wget -q --progress=dot:giga \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp/cudnn
+
+RUN wget -q --progress=dot:giga \
         https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/linux-x86_64/cudnn-linux-x86_64-9.2.1.26_cuda12-archive.tar.xz \
         -O cudnn.tar.xz \
     && tar -xf cudnn.tar.xz \
@@ -58,11 +62,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && cp -r cudnn-linux-x86_64-9.2.1.26_cuda12-archive/include/* /usr/local/cuda/include/ \
     && cp -P /usr/local/cuda/lib64/libcudnn* /usr/lib/x86_64-linux-gnu/ \
     && ldconfig \
-    && cd / \
     && rm -rf /tmp/cudnn \
-    && rm -rf /var/lib/apt/lists/* \
     && echo "cuDNN installation complete - verifying..." \
     && ldconfig -p | grep cudnn || echo "Warning: cuDNN libraries not found in ldconfig cache"
+
+WORKDIR /app
 
 # Copy Python packages from builder stage
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
@@ -95,7 +99,7 @@ ARG PUID=1000
 ARG PGID=1000
 
 RUN groupadd -g ${PGID} appuser 2>/dev/null || true && \
-    useradd -u ${PUID} -g ${PGID} -ms /bin/bash appuser 2>/dev/null || true && \
+    useradd -l -u ${PUID} -g ${PGID} -ms /bin/bash appuser 2>/dev/null || true && \
     chown -R ${PUID}:${PGID} /app 2>/dev/null || true
 
 USER appuser
