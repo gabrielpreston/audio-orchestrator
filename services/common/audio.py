@@ -281,20 +281,53 @@ class AudioProcessor:
 
         Returns:
             Tuple of (PCM data, metadata)
+
+        Raises:
+            ValueError: If input data is invalid or empty
+            TypeError: If input is not bytes
         """
+        # Input validation
+        if not isinstance(wav_data, bytes):
+            raise TypeError(f"wav_data must be bytes, got {type(wav_data).__name__}")
+        if not wav_data:
+            raise ValueError("wav_data cannot be empty")
+        if len(wav_data) < 44:  # Minimum WAV header size
+            raise ValueError(
+                f"wav_data too small (minimum 44 bytes for WAV header, got {len(wav_data)} bytes)"
+            )
+
         try:
             # Use librosa to load audio
             audio_array, sample_rate = librosa.load(
                 io.BytesIO(wav_data), sr=None, mono=False
             )
 
+            # Validate loaded audio
+            if audio_array.size == 0:
+                raise ValueError("Loaded audio array is empty")
+            if not isinstance(sample_rate, (int, float)) or sample_rate <= 0:
+                raise ValueError(
+                    f"Invalid sample rate: {sample_rate} (must be positive number)"
+                )
+
             # Convert to mono if stereo
             if audio_array.ndim > 1:
                 audio_array = librosa.to_mono(audio_array)
 
+            # Validate after mono conversion
+            if audio_array.size == 0:
+                raise ValueError("Audio array is empty after mono conversion")
+
             # Convert back to int16 PCM
-            audio_int16 = (audio_array * 32767).astype(np.int16)
+            # Use 32768.0 for symmetric conversion (matches normalization factor)
+            # Clamp to prevent overflow when converting back to int16
+            audio_float = audio_array * 32768.0
+            audio_int16 = np.clip(audio_float, -32768.0, 32767.0).astype(np.int16)
             pcm_data = audio_int16.tobytes()
+
+            # Validate output
+            if not pcm_data:
+                raise ValueError("Generated PCM data is empty")
 
             # Create metadata
             metadata = AudioMetadata(
@@ -308,8 +341,35 @@ class AudioProcessor:
             )
 
             return pcm_data, metadata
+        except (ValueError, TypeError) as exc:
+            # Specific exception types with context
+            self._log(
+                "error",
+                "audio.wav_to_pcm_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                wav_data_size=len(wav_data),
+            )
+            raise
+        except MemoryError as exc:
+            # Memory errors with context
+            self._log(
+                "error",
+                "audio.wav_to_pcm_memory_error",
+                error=str(exc),
+                error_type="MemoryError",
+                wav_data_size=len(wav_data),
+            )
+            raise
         except Exception as exc:
-            self._log("error", "audio.wav_to_pcm_failed", error=str(exc))
+            # Catch-all for unexpected errors
+            self._log(
+                "error",
+                "audio.wav_to_pcm_unexpected_error",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                wav_data_size=len(wav_data),
+            )
             raise
 
     def resample_audio(
@@ -330,7 +390,41 @@ class AudioProcessor:
 
         Returns:
             Resampled audio data
+
+        Raises:
+            ValueError: If input data is invalid, empty, or misaligned
+            TypeError: If input types are incorrect
         """
+        # Input validation
+        if not isinstance(audio_data, bytes):
+            raise TypeError(
+                f"audio_data must be bytes, got {type(audio_data).__name__}"
+            )
+        if not isinstance(from_rate, int) or from_rate <= 0:
+            raise ValueError(f"from_rate must be positive integer, got {from_rate}")
+        if not isinstance(to_rate, int) or to_rate <= 0:
+            raise ValueError(f"to_rate must be positive integer, got {to_rate}")
+        if not isinstance(sample_width, int):
+            raise TypeError(
+                f"sample_width must be int, got {type(sample_width).__name__}"
+            )
+
+        # Validate empty data
+        if not audio_data:
+            raise ValueError("audio_data cannot be empty")
+
+        # Validate minimum size (at least one sample)
+        if len(audio_data) < sample_width:
+            raise ValueError(
+                f"audio_data too small (minimum {sample_width} bytes for one sample, got {len(audio_data)} bytes)"
+            )
+
+        # Validate alignment (data length must be multiple of sample_width)
+        if len(audio_data) % sample_width != 0:
+            raise ValueError(
+                f"audio_data length ({len(audio_data)} bytes) must be multiple of sample_width ({sample_width} bytes)"
+            )
+
         try:
             if from_rate == to_rate:
                 return audio_data
@@ -341,7 +435,9 @@ class AudioProcessor:
             elif sample_width == 4:
                 dtype = np.int32
             else:
-                raise ValueError(f"Unsupported sample width: {sample_width}")
+                raise ValueError(
+                    f"Unsupported sample width: {sample_width}. Must be 2 (int16) or 4 (int32)"
+                )
 
             audio_array = np.frombuffer(audio_data, dtype=dtype)
 
@@ -358,16 +454,23 @@ class AudioProcessor:
             )
 
             # Convert back to original format
+            # Clamp after multiplication to prevent overflow when converting back
             if sample_width == 2:
                 resampled_float = resampled_float * 32768.0
-                resampled_array = resampled_float.astype(np.int16)
+                resampled_array = np.clip(resampled_float, -32768.0, 32767.0).astype(
+                    np.int16
+                )
             elif sample_width == 4:
                 resampled_float = resampled_float * 2147483648.0
-                resampled_array = resampled_float.astype(np.int32)
+                resampled_array = np.clip(
+                    resampled_float, -2147483648.0, 2147483647.0
+                ).astype(np.int32)
             else:
                 # Fallback to int16 for unsupported sample widths
                 resampled_float = resampled_float * 32768.0
-                resampled_array = resampled_float.astype(np.int16)
+                resampled_array = np.clip(resampled_float, -32768.0, 32767.0).astype(
+                    np.int16
+                )
 
             resampled_data = resampled_array.tobytes()
 
@@ -381,8 +484,44 @@ class AudioProcessor:
             )
 
             return bytes(resampled_data)
+        except (ValueError, TypeError) as exc:
+            # Specific exception types with context
+            self._log(
+                "error",
+                "audio.resample_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                audio_data_length=len(audio_data),
+                from_rate=from_rate,
+                to_rate=to_rate,
+                sample_width=sample_width,
+            )
+            raise
+        except MemoryError as exc:
+            # Memory errors with context
+            self._log(
+                "error",
+                "audio.resample_memory_error",
+                error=str(exc),
+                error_type="MemoryError",
+                audio_data_length=len(audio_data),
+                from_rate=from_rate,
+                to_rate=to_rate,
+                sample_width=sample_width,
+            )
+            raise
         except Exception as exc:
-            self._log("error", "audio.resample_failed", error=str(exc))
+            # Catch-all for unexpected errors
+            self._log(
+                "error",
+                "audio.resample_unexpected_error",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                audio_data_length=len(audio_data),
+                from_rate=from_rate,
+                to_rate=to_rate,
+                sample_width=sample_width,
+            )
             raise
 
     def normalize_audio(
@@ -474,9 +613,9 @@ class AudioProcessor:
                     )
                 scaling_factor = max_boost
             normalized_float = array.astype(np.float64) * scaling_factor
-            normalized_array = np.clip(
-                normalized_float, -max_val + 1, max_val - 1
-            ).astype(dtype)
+            normalized_array = np.clip(normalized_float, -max_val, max_val - 1).astype(
+                dtype
+            )
 
             # Verify new RMS
             new_rms = np.sqrt(np.mean(np.square(normalized_array.astype(np.float64))))
@@ -500,9 +639,55 @@ class AudioProcessor:
                 self._log("debug", "audio.normalized", **log_data)
 
             return normalized_array.tobytes(), float(new_rms)
+        except (ValueError, TypeError) as exc:
+            # Specific exception types with context
+            self._log(
+                "error",
+                "audio.normalize_failed",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                pcm_length=len(pcm_data) if pcm_data else 0,
+                sample_width=sample_width,
+                target_rms=target_rms,
+            )
+            # Try to calculate RMS for graceful degradation
+            try:
+                fallback_rms = self.calculate_rms(pcm_data, sample_width)
+                return pcm_data, fallback_rms
+            except Exception:
+                # If RMS calculation also fails, return 0.0
+                return pcm_data, 0.0
+        except MemoryError as exc:
+            # Memory errors with context
+            self._log(
+                "error",
+                "audio.normalize_memory_error",
+                error=str(exc),
+                error_type="MemoryError",
+                pcm_length=len(pcm_data) if pcm_data else 0,
+                sample_width=sample_width,
+                target_rms=target_rms,
+            )
+            # Return original data with 0.0 RMS on memory error
+            return pcm_data, 0.0
         except Exception as exc:
-            self._log("error", "audio.normalize_failed", error=str(exc))
-            return pcm_data, self.calculate_rms(pcm_data, sample_width)
+            # Catch-all for unexpected errors
+            self._log(
+                "error",
+                "audio.normalize_unexpected_error",
+                error=str(exc),
+                error_type=type(exc).__name__,
+                pcm_length=len(pcm_data) if pcm_data else 0,
+                sample_width=sample_width,
+                target_rms=target_rms,
+            )
+            # Try to calculate RMS for graceful degradation
+            try:
+                fallback_rms = self.calculate_rms(pcm_data, sample_width)
+                return pcm_data, fallback_rms
+            except Exception:
+                # If RMS calculation also fails, return 0.0
+                return pcm_data, 0.0
 
     def convert_audio_format(
         self,
@@ -809,6 +994,159 @@ def normalize_audio(
 
 
 def calculate_rms(pcm_data: bytes, sample_width: int = 2) -> float:
-    """Calculate RMS of PCM audio data."""
+    """Calculate RMS of PCM audio data (normalized 0-1).
+
+    Note: This function returns normalized RMS (0-1) for backward compatibility.
+    For threshold comparisons, use calculate_rms_int16() instead.
+
+    Args:
+        pcm_data: PCM audio data bytes
+        sample_width: Bytes per sample (2 for int16, 4 for int32)
+
+    Returns:
+        Normalized RMS value (0-1)
+    """
     processor = AudioProcessor()
     return processor.calculate_rms(pcm_data, sample_width)
+
+
+def calculate_rms_int16(pcm_data: bytes, sample_width: int = 2) -> float:
+    """Calculate RMS in int16 domain (0-32767 for 16-bit audio).
+
+    This is the primary function for threshold comparisons and filtering.
+    Returns RMS in the native PCM format domain, making threshold values
+    intuitive (e.g., 10-1000 range for typical audio levels).
+
+    Args:
+        pcm_data: PCM audio data bytes
+        sample_width: Bytes per sample (2 for int16, 4 for int32)
+
+    Returns:
+        RMS value in int16 domain (0-32767 for 16-bit, 0-2147483647 for 32-bit)
+
+    Example:
+        >>> pcm = b"\\x00\\x01\\x02\\x03"
+        >>> rms = calculate_rms_int16(pcm, sample_width=2)
+        >>> # rms will be in range 0-32767
+    """
+    # Type validation
+    if not isinstance(pcm_data, bytes):
+        raise TypeError(f"pcm_data must be bytes, got {type(pcm_data).__name__}")
+    if not isinstance(sample_width, int):
+        raise TypeError(f"sample_width must be int, got {type(sample_width).__name__}")
+
+    # Sample width validation
+    if sample_width not in (2, 4):
+        raise ValueError(
+            f"Unsupported sample_width: {sample_width}. Must be 2 (int16) or 4 (int32)"
+        )
+
+    try:
+        if not pcm_data:
+            return 0.0
+
+        # Use audioop.rms() as primary method (fast, standard library)
+        try:
+            rms = audioop.rms(pcm_data, sample_width)
+            return float(rms)
+        except (audioop.error, OSError) as exc:
+            # Fallback to numpy if audioop fails
+            # Log fallback for debugging
+            import logging
+
+            logger = logging.getLogger(__name__)
+            logger.debug(
+                "audioop.rms failed, using numpy fallback",
+                extra={
+                    "error": str(exc),
+                    "error_type": type(exc).__name__,
+                    "pcm_length": len(pcm_data),
+                    "sample_width": sample_width,
+                },
+            )
+
+            if sample_width == 2:
+                array = np.frombuffer(pcm_data, dtype=np.int16)
+            elif sample_width == 4:
+                array = np.frombuffer(pcm_data, dtype=np.int32)
+            else:
+                # This should not happen due to validation above, but keep for safety
+                return 0.0
+
+            if array.size == 0:
+                return 0.0
+
+            # Calculate RMS directly in int domain
+            rms = np.sqrt(np.mean(array.astype(np.float64) ** 2))
+            return float(rms)
+
+    except (ValueError, TypeError, MemoryError) as exc:
+        # Log specific error types with context
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "calculate_rms_int16 failed",
+            extra={
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "pcm_length": len(pcm_data) if pcm_data else 0,
+                "sample_width": sample_width,
+            },
+        )
+        return 0.0
+    except Exception as exc:
+        # Catch-all for unexpected errors
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(
+            "calculate_rms_int16 unexpected error",
+            extra={
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "pcm_length": len(pcm_data) if pcm_data else 0,
+                "sample_width": sample_width,
+            },
+        )
+        return 0.0
+
+
+def int16_to_normalized(rms_int16: float) -> float:
+    """Convert RMS from int16 domain to normalized (0-1).
+
+    Args:
+        rms_int16: RMS value in int16 domain (0-32767)
+
+    Returns:
+        Normalized RMS value (0-1)
+
+    Example:
+        >>> rms_int16 = 16384.0  # Half of max int16
+        >>> rms_norm = int16_to_normalized(rms_int16)
+        >>> # rms_norm ≈ 0.5
+    """
+    if rms_int16 <= 0.0:
+        return 0.0
+    # Normalize by max int16 value (32768.0, not 32767.0, for symmetric range)
+    return rms_int16 / 32768.0
+
+
+def normalized_to_int16(rms_normalized: float) -> float:
+    """Convert RMS from normalized (0-1) to int16 domain.
+
+    Args:
+        rms_normalized: Normalized RMS value (0-1)
+
+    Returns:
+        RMS value in int16 domain (0-32767)
+
+    Example:
+        >>> rms_norm = 0.5
+        >>> rms_int16 = normalized_to_int16(rms_norm)
+        >>> # rms_int16 ≈ 16384.0
+    """
+    if rms_normalized <= 0.0:
+        return 0.0
+    # Convert to int16 domain (32768.0 for symmetric range)
+    return rms_normalized * 32768.0

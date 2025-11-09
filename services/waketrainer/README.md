@@ -77,6 +77,7 @@ make wake-train-train CONFIG=services/waketrainer/config/my_model.yaml
 
 ### Stage 3: Train Model
 - Trains a PyTorch model using the augmented features
+- Uses default openwakeword training implementation
 - Exports trained models in ONNX and TFLite formats
 - Models are saved to `{output_dir}/{model_name}/{model_name}.onnx` and `.tflite`
 
@@ -152,6 +153,14 @@ Training is resource-intensive:
 - Ensure models are in `./services/models/wake/detection/{model_name}/`
 - Verify `.onnx` or `.tflite` files exist
 - Check that model name matches directory name
+
+### CUDA Out of Memory (OOM) Errors
+- If OOM errors occur during training, try:
+  - Reducing `batch_n_per_class` values in config
+  - Reducing `steps` in config
+  - Reducing `n_samples_val` (validation samples) - try 25, 50, or 100
+  - Check GPU memory usage logs during training
+  - Consider using a smaller model architecture (`layer_size` in config)
 
 ## Make Targets
 

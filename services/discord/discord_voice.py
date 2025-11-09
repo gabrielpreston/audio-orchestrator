@@ -106,6 +106,9 @@ class VoiceBot(discord.Client):
         self._voice_join_locks: dict[int, asyncio.Lock] = {}
         self._voice_reconnect_tasks: dict[int, asyncio.Task[None]] = {}
         self._suppress_reconnect: set[int] = set()
+        # Track last packet received timestamp per guild for health monitoring
+        self._last_packet_timestamps: dict[int, float] = {}
+        self._health_monitor_task: asyncio.Task[None] | None = None
 
         # Health manager for service resilience (follows project HealthManager pattern)
         self._health_manager = HealthManager("discord")
@@ -164,6 +167,8 @@ class VoiceBot(discord.Client):
             asyncio.create_task(_do_warmup())
         self._segment_task = asyncio.create_task(self._segment_consumer())
         self._idle_flush_task = asyncio.create_task(self._idle_flush_loop())
+        # Start health monitoring task
+        self._health_monitor_task = asyncio.create_task(self._health_monitor_loop())
 
     async def close(self) -> None:
         self._shutdown.set()
@@ -182,6 +187,10 @@ class VoiceBot(discord.Client):
             self._idle_flush_task.cancel()
             with suppress(asyncio.CancelledError):
                 await self._idle_flush_task
+        if self._health_monitor_task:
+            self._health_monitor_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._health_monitor_task
         disconnect_coros: list[Awaitable[None]] = []
         for voice_client in list(self.voice_clients):
             guild_id = voice_client.guild.id if voice_client.guild else None
@@ -693,6 +702,9 @@ class VoiceBot(discord.Client):
         guild_id = voice_state.channel.guild.id
         channel_id = voice_state.channel.id
         self._voice_contexts[user_id] = (guild_id, channel_id)
+
+        # Update packet timestamp for health monitoring
+        self.update_packet_timestamp(guild_id)
 
         # Use int16-domain RMS to align with normalization target units
         frame_start_time = time.perf_counter()
@@ -1368,6 +1380,87 @@ class VoiceBot(discord.Client):
                 )
                 return
 
+    def update_packet_timestamp(self, guild_id: int) -> None:
+        """Update the last packet received timestamp for a guild.
+
+        Called by receiver when packets are successfully processed.
+        Used by health monitoring to detect PacketRouter crashes.
+
+        Args:
+            guild_id: Discord guild ID
+        """
+        self._last_packet_timestamps[guild_id] = time.time()
+
+    async def _health_monitor_loop(self) -> None:
+        """Periodic health check to detect PacketRouter crashes.
+
+        Monitors packet reception timestamps and triggers reconnection
+        when no packets are received for the configured timeout duration.
+        """
+        check_interval = 1.0  # Check every 1 second
+        while not self._shutdown.is_set():
+            try:
+                await asyncio.sleep(check_interval)
+
+                if self._shutdown.is_set():
+                    break
+
+                current_time = time.time()
+                timeout = self.config.discord.voice_health_monitor_timeout_s
+
+                # Check each guild for stale connections
+                for guild_id, last_packet_time in list(
+                    self._last_packet_timestamps.items()
+                ):
+                    time_since_last_packet = current_time - last_packet_time
+
+                    if time_since_last_packet > timeout:
+                        # Check if voice client is still connected (indicates PacketRouter crash)
+                        voice_client = self._voice_client_for_guild(guild_id)
+                        if voice_client and voice_client.is_connected():
+                            # Voice client is connected but no packets received = PacketRouter crash
+                            channel_id = (
+                                voice_client.channel.id
+                                if voice_client.channel
+                                else None
+                            )
+                            self._logger.warning(
+                                "discord.voice_health_monitor_timeout",
+                                guild_id=guild_id,
+                                channel_id=channel_id,
+                                time_since_last_packet=time_since_last_packet,
+                                timeout=timeout,
+                                reason="packet_router_crashed",
+                            )
+
+                            # Trigger existing reconnection logic
+                            if channel_id and guild_id not in self._suppress_reconnect:
+                                self._schedule_voice_reconnect(
+                                    guild_id,
+                                    channel_id,
+                                    reason="packet_router_crashed",
+                                )
+
+                            # Clear timestamp to avoid repeated triggers
+                            self._last_packet_timestamps.pop(guild_id, None)
+
+                # Clean up timestamps for disconnected guilds
+                for guild_id in list(self._last_packet_timestamps.keys()):
+                    voice_client = self._voice_client_for_guild(guild_id)
+                    if not voice_client or not voice_client.is_connected():
+                        self._last_packet_timestamps.pop(guild_id, None)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                self._logger.exception(
+                    "discord.health_monitor_error",
+                    error=str(exc),
+                    error_type=type(exc).__name__,
+                )
+                # Continue monitoring despite errors
+                await asyncio.sleep(check_interval)
+
     def _ensure_voice_receiver(self, voice_client: discord.VoiceClient) -> None:
         if self._loop is None:
             self._logger.warning(
@@ -1449,6 +1542,9 @@ class VoiceBot(discord.Client):
             )
 
             voice_client.listen(receiver)
+
+            # Initialize packet timestamp for health monitoring
+            self.update_packet_timestamp(guild_id)
 
             # Log successful attachment at INFO level for visibility
             self._logger.info(

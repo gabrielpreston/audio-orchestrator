@@ -17,6 +17,7 @@ class DiscordConfig:
         voice_channel_id: int = 0,
         auto_join: bool = False,
         intents: Any = None,
+        voice_health_monitor_timeout_s: float = 5.0,
         **kwargs: Any,
     ) -> None:
         """Initialize Discord configuration."""
@@ -25,6 +26,7 @@ class DiscordConfig:
         self.voice_channel_id = voice_channel_id
         self.auto_join = auto_join
         self.intents = intents
+        self.voice_health_monitor_timeout_s = voice_health_monitor_timeout_s
 
         # Initialize sub-configurations
         self.logging = LoggingConfig(**kwargs.get("logging", {}))
@@ -72,7 +74,6 @@ class WakeConfig:
 
     def __init__(
         self,
-        wake_phrases: list[str] | None = None,
         model_paths: list[str] | None = None,
         activation_threshold: float = 0.5,
         target_sample_rate_hz: int = 16000,
@@ -81,7 +82,6 @@ class WakeConfig:
         **kwargs: Any,
     ) -> None:
         """Initialize Wake configuration."""
-        self.wake_phrases = wake_phrases or ["hey atlas", "ok atlas"]
         self.model_paths = model_paths or []
         self.activation_threshold = activation_threshold
         self.target_sample_rate_hz = target_sample_rate_hz
@@ -145,6 +145,7 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
                 "voice_connect_max_attempts": 3,
                 "voice_reconnect_initial_backoff_seconds": 2.0,
                 "voice_reconnect_max_backoff_seconds": 60.0,
+                "voice_health_monitor_timeout_s": 5.0,  # Timeout for detecting PacketRouter crashes (no packets received)
                 "voice_gateway_validation_timeout_seconds": 5.0,  # Max wait for heartbeat ACK
                 "voice_gateway_min_delay_seconds": 1.0,  # Minimum delay fallback
             },
@@ -174,7 +175,6 @@ def get_service_preset(service_name: str) -> dict[str, Any]:
             },
             "wake": {
                 "enabled": True,
-                "wake_phrases": ["hey atlas", "ok atlas"],
                 "model_paths": [],
                 "activation_threshold": 0.5,
                 "target_sample_rate_hz": 16000,

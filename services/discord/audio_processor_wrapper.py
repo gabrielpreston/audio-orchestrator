@@ -13,11 +13,11 @@ from typing import Any
 from services.common.audio_processing_core import AudioProcessingCore
 from services.common.audio_vad import VADProcessor
 from services.common.correlation import CorrelationIDGenerator
-from services.common.structured_logging import get_logger
+from services.common.structured_logging import get_logger, should_sample
 from services.common.surfaces.types import PCMFrame as CommonPCMFrame
 from services.common.wake_detection import WakeDetector
 
-from .audio import Accumulator, AudioSegment, PCMFrame as DiscordPCMFrame
+from .audio import Accumulator, AudioSegment, PCMFrame as DiscordPCMFrame, rms_from_pcm
 
 logger = get_logger(__name__)
 
@@ -145,19 +145,15 @@ class AudioProcessorWrapper:
             # Detect speech using VAD on original audio (before processing)
             is_speech = await self._vad_processor.detect_speech(common_frame)
 
-            # Process frame with audio processor core (normalization only, VAD disabled)
-            processed_common_frame = await self._audio_processor_core.process_frame(
-                common_frame
-            )
-
-            # Convert back to Discord PCMFrame for accumulator
+            # Store original PCM in accumulator (skip normalization for wake detection)
+            # Normalization can be applied later when creating segments for STT if needed
             discord_frame = DiscordPCMFrame(
-                pcm=processed_common_frame.pcm,
-                timestamp=processed_common_frame.timestamp,
-                rms=processed_common_frame.rms,
-                duration=processed_common_frame.duration,
+                pcm=pcm,  # Use original PCM, not normalized
+                timestamp=current_time,
+                rms=rms,
+                duration=duration,
                 sequence=accumulator.sequence,
-                sample_rate=processed_common_frame.sample_rate,
+                sample_rate=sample_rate,
             )
             accumulator.sequence += 1
 
@@ -194,21 +190,117 @@ class AudioProcessorWrapper:
             if is_speech:
                 accumulator.append(discord_frame)
 
-                # NEW: Check for wake phrase on accumulated frames (periodic check)
-                # Check every 5 frames once we have minimum audio (10 frames = ~200ms)
+                # Log when accumulator starts for a user
+                if len(accumulator.frames) == 1:
+                    self._logger.debug(
+                        "audio_processor_wrapper.accumulator_started",
+                        user_id=user_id,
+                        sample_rate=discord_frame.sample_rate,
+                        frame_duration=duration,
+                    )
+
+                # Check for wake phrase on accumulated frames (periodic check)
+                # Only check once minimum duration is met to avoid wasted CPU cycles
                 frame_count = len(accumulator.frames)
+
+                # Calculate current duration to check if we've reached minimum threshold
+                current_duration = 0.0
+                if frame_count > 0:
+                    start = accumulator.frames[0].timestamp
+                    end = (
+                        accumulator.frames[-1].timestamp
+                        + accumulator.frames[-1].duration
+                    )
+                    current_duration = end - start
+
+                # Only check for wake words if:
+                # 1. Wake detector is available and model is loaded
+                # 2. We have minimum frames for wake detection (10 frames = ~200ms)
+                # 3. Current duration has reached minimum segment duration threshold
+                # 4. Check every 5 frames to balance latency vs CPU
                 should_check_wake = (
                     self._wake_detector
                     and self._wake_detector._model
                     and frame_count >= 10  # Minimum frames for wake detection
+                    and current_duration
+                    >= self._config.min_segment_duration_seconds  # Only check after minimum duration met
                     and frame_count % 5
                     == 0  # Check every 5 frames to balance latency vs CPU
                 )
 
+                # Log why wake check is being skipped (sampled to avoid spam)
+                if not should_check_wake and should_sample(
+                    "wake_check_skip", every_n=25
+                ):
+                    skip_reasons = []
+                    if not self._wake_detector:
+                        skip_reasons.append("detector_unavailable")
+                    elif not self._wake_detector._model:
+                        skip_reasons.append("model_not_loaded")
+                    elif frame_count < 10:
+                        skip_reasons.append("insufficient_frames")
+                    elif current_duration < self._config.min_segment_duration_seconds:
+                        skip_reasons.append("insufficient_duration")
+                    elif frame_count % 5 != 0:
+                        skip_reasons.append("not_check_interval")
+
+                    self._logger.debug(
+                        "audio_processor_wrapper.wake_check_skipped",
+                        user_id=user_id,
+                        frame_count=frame_count,
+                        current_duration=current_duration,
+                        min_duration=self._config.min_segment_duration_seconds,
+                        skip_reasons=skip_reasons,
+                        model_loaded=self._wake_detector._model is not None
+                        if self._wake_detector
+                        else False,
+                    )
+
                 if should_check_wake and self._wake_detector is not None:
+                    # Concatenate accumulated PCM frames before try block for logging
+                    accumulated_pcm = b"".join(f.pcm for f in accumulator.frames)
+
+                    # Calculate quality metrics before wake detection
+                    accumulated_rms = rms_from_pcm(accumulated_pcm)
+                    temp_pcm_frame = CommonPCMFrame(
+                        pcm=accumulated_pcm,
+                        sample_rate=accumulator.sample_rate,
+                        timestamp=accumulator.frames[0].timestamp
+                        if accumulator.frames
+                        else time.time(),
+                        duration=current_duration,
+                        rms=accumulated_rms,
+                        sequence=frame_count,
+                        channels=1,
+                        sample_width=2,
+                    )
+                    quality_metrics = (
+                        await self._audio_processor_core.calculate_quality_metrics(
+                            temp_pcm_frame
+                        )
+                    )
+
+                    # Log wake detection invocation with quality metrics
+                    # Include both RMS scales: rms_int16 for threshold comparisons, rms for normalized (SNR calculations)
+                    self._logger.debug(
+                        "audio_processor_wrapper.wake_detection_invoked",
+                        user_id=user_id,
+                        frame_count=frame_count,
+                        current_duration=current_duration,
+                        pcm_length=len(accumulated_pcm),
+                        sample_rate=accumulator.sample_rate,
+                        min_duration=self._config.min_segment_duration_seconds,
+                        rms_int16=quality_metrics.get(
+                            "rms_int16", accumulated_rms
+                        ),  # Int16 domain for threshold comparisons
+                        rms=quality_metrics.get(
+                            "rms", 0.0
+                        ),  # Normalized (0-1) for SNR calculations
+                        snr_db=quality_metrics.get("snr_db", 0.0),
+                        clarity_score=quality_metrics.get("clarity_score", 0.0),
+                    )
+
                     try:
-                        # Concatenate accumulated PCM frames
-                        accumulated_pcm = b"".join(f.pcm for f in accumulator.frames)
                         # Offload wake detection to thread pool to prevent blocking event loop
                         wake_result = await asyncio.to_thread(
                             self._wake_detector.detect_audio,
@@ -225,43 +317,46 @@ class AudioProcessorWrapper:
                             message="Wake detection failed, continuing frame processing",
                         )
                         wake_result = None
-                    if wake_result:
-                        # Verify minimum duration before early flush
-                        start = accumulator.frames[0].timestamp
-                        end = (
-                            accumulator.frames[-1].timestamp
-                            + accumulator.frames[-1].duration
-                        )
-                        total_duration = end - start
 
-                        if total_duration >= self._config.min_segment_duration_seconds:
-                            # Early flush on wake detection
-                            correlation_id = (
-                                CorrelationIDGenerator.generate_discord_correlation_id(
-                                    user_id=user_id, guild_id=None
-                                )
+                    # Log when detection runs but finds nothing (sampled)
+                    if wake_result is None and should_sample(
+                        "wake_detection_no_result", every_n=15
+                    ):
+                        self._logger.debug(
+                            "audio_processor_wrapper.wake_detection_no_result",
+                            user_id=user_id,
+                            frame_count=frame_count,
+                            current_duration=current_duration,
+                            pcm_length=len(accumulated_pcm),
+                            rms_int16=quality_metrics.get(
+                                "rms_int16", accumulated_rms
+                            ),  # Int16 domain for threshold comparisons
+                            rms=quality_metrics.get(
+                                "rms", 0.0
+                            ),  # Normalized (0-1) for SNR calculations
+                            snr_db=quality_metrics.get("snr_db", 0.0),
+                            clarity_score=quality_metrics.get("clarity_score", 0.0),
+                        )
+
+                    if wake_result:
+                        # Early flush on wake detection (duration already verified above)
+                        correlation_id = (
+                            CorrelationIDGenerator.generate_discord_correlation_id(
+                                user_id=user_id, guild_id=None
                             )
-                            segment = accumulator.pop_segment(correlation_id)
-                            if segment:
-                                self._logger.info(
-                                    "audio_processor_wrapper.wake_detected_early",
-                                    user_id=user_id,
-                                    wake_phrase=wake_result.phrase,
-                                    confidence=wake_result.confidence,
-                                    frame_count=frame_count,
-                                    duration=total_duration,
-                                )
-                                return segment  # Return immediately, bypassing silence timeout
-                        else:
-                            # Log that wake detected but waiting for minimum duration
-                            self._logger.debug(
-                                "audio_processor_wrapper.wake_detected_insufficient_duration",
+                        )
+                        segment = accumulator.pop_segment(correlation_id)
+                        if segment:
+                            self._logger.info(
+                                "audio_processor_wrapper.wake_detected_early",
                                 user_id=user_id,
                                 wake_phrase=wake_result.phrase,
                                 confidence=wake_result.confidence,
                                 frame_count=frame_count,
-                                current_duration=total_duration,
-                                min_duration=self._config.min_segment_duration_seconds,
+                                duration=current_duration,
+                            )
+                            return (
+                                segment  # Return immediately, bypassing silence timeout
                             )
             else:
                 new_silence = accumulator.mark_silence(discord_frame.timestamp)

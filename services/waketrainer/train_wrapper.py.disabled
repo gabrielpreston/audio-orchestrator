@@ -1,0 +1,445 @@
+#!/usr/bin/env python3
+"""Wrapper script for openwakeword training with CUDA memory management.
+
+This script monkey-patches the openwakeword.train.Model class to add:
+- Checkpoint limit enforcement (max 2 checkpoints, CPU offloading)
+- Proactive CPU device fallback for validation (prevents CUDA OOM)
+- Memory cleanup during validation and training loops
+- Optional GPU memory monitoring
+
+The wrapper is transparent - it passes through all command-line arguments
+to the original openwakeword.train.py script.
+"""
+
+from __future__ import annotations
+
+import sys
+import warnings
+from typing import Any
+
+# Suppress warnings during patching
+warnings.filterwarnings("ignore", category=UserWarning)
+
+
+def patch_model_class() -> None:
+    """Patch openwakeword.train.Model class to add memory management.
+
+    Patches:
+    1. train_model() - Add checkpoint management and memory cleanup
+    2. Periodic monitoring of best_models list
+    3. Memory cleanup hooks
+    """
+    try:
+        import openwakeword.train as oww_train
+
+        if not hasattr(oww_train, "Model"):
+            print(
+                "Warning: openwakeword.train.Model not found. Patches may not work.",
+                file=sys.stderr,
+            )
+            return
+
+        model_class = oww_train.Model
+        original_train_model = model_class.train_model
+
+        # Patch configuration - more aggressive settings
+        _patch_state = {
+            "max_checkpoints": 2,  # Reduced from 3 to 2 for more aggressive memory management
+            "checkpoint_cpu_offload": True,
+            "memory_monitoring": True,
+            "monitoring_interval": 500,  # Log every 500 steps (more frequent)
+            "memory_warn_threshold": 0.75,  # Warn at 75% usage (more aggressive)
+        }
+
+        def manage_checkpoints(model_instance: Any) -> None:
+            """Manage checkpoint list to enforce limits and CPU offloading.
+
+            Args:
+                model_instance: The Model instance with best_models attribute
+            """
+            if not hasattr(model_instance, "best_models"):
+                return
+
+            best_models = model_instance.best_models
+            if not isinstance(best_models, list):
+                return
+
+            max_checkpoints = _patch_state["max_checkpoints"]
+
+            # Enforce checkpoint limit aggressively
+            while len(best_models) > max_checkpoints:
+                # Move oldest checkpoint to CPU if enabled
+                if _patch_state["checkpoint_cpu_offload"] and len(best_models) > 0:
+                    try:
+                        oldest_checkpoint = best_models[0]
+                        if hasattr(oldest_checkpoint, "to"):
+                            best_models[0] = oldest_checkpoint.to("cpu")
+                            import torch
+
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                    except Exception as e:
+                        print(
+                            f"Warning: Failed to move checkpoint to CPU: {e}",
+                            file=sys.stderr,
+                        )
+
+                # Remove oldest checkpoint
+                removed = best_models.pop(0)
+
+                # Explicitly delete and clear cache
+                try:
+                    del removed
+                    import torch
+
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                except Exception as cleanup_error:
+                    # Ignore cleanup errors - not critical
+                    print(
+                        f"Warning: Checkpoint cleanup failed: {cleanup_error}",
+                        file=sys.stderr,
+                    )
+
+        def patched_train_model(self: Any, *args: Any, **kwargs: Any) -> Any:
+            """Patched train_model method with memory cleanup.
+
+            Args:
+                self: Model instance
+                *args: Positional arguments
+                **kwargs: Keyword arguments
+
+            Returns:
+                Result from original train_model method
+            """
+            import torch
+            import threading
+            import time
+
+            # Initialize best_models if it doesn't exist
+            if not hasattr(self, "best_models"):
+                self.best_models = []
+
+            # Patch best_models.append to intercept checkpoints
+            original_append = self.best_models.append
+
+            def patched_append(item: Any) -> None:
+                """Patched append that manages checkpoints."""
+                # Call original append
+                original_append(item)
+                # Manage checkpoints after append - enforce limit immediately
+                manage_checkpoints(self)
+
+            # Replace append method
+            self.best_models.append = patched_append
+
+            # More aggressive checkpoint management - enforce limit immediately
+            manage_checkpoints(self)
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+            # Set up periodic checkpoint management during training
+            # This runs in a background thread to periodically clean up
+            stop_monitoring = threading.Event()
+            monitoring_active = [True]
+
+            def periodic_checkpoint_manager() -> None:
+                """Background thread that periodically manages checkpoints."""
+                while monitoring_active[0] and not stop_monitoring.is_set():
+                    try:
+                        time.sleep(15)  # Check every 15 seconds (more aggressive)
+                        if not stop_monitoring.is_set():
+                            manage_checkpoints(self)
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                    except Exception as bg_error:
+                        # Log but don't crash background thread
+                        print(
+                            f"Warning: Background checkpoint manager error: {bg_error}",
+                            file=sys.stderr,
+                        )
+
+            # Start background monitoring
+            monitor_thread = threading.Thread(
+                target=periodic_checkpoint_manager, daemon=True
+            )
+            monitor_thread.start()
+
+            # Patch torch.Tensor.to() to catch validation data loading
+            original_tensor_to = torch.Tensor.to
+            tensor_to_count = [0]
+
+            def patched_tensor_to(
+                tensor_self: Any, *to_args: Any, **to_kwargs: Any
+            ) -> Any:
+                """Patched tensor.to() that adds memory cleanup."""
+                tensor_to_count[0] += 1
+
+                # Aggressive cleanup every 3 calls (catches validation batches)
+                if tensor_to_count[0] % 3 == 0:
+                    manage_checkpoints(self)
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+
+                # Call original to() method
+                return original_tensor_to(tensor_self, *to_args, **to_kwargs)
+
+            # Apply tensor.to() patch
+            torch.Tensor.to = patched_tensor_to
+
+            # Memory monitoring function
+            def log_memory_stats(step: int | None = None) -> None:
+                """Log memory statistics."""
+                if (
+                    not torch.cuda.is_available()
+                    or not _patch_state["memory_monitoring"]
+                ):
+                    return
+
+                try:
+                    allocated = torch.cuda.memory_allocated() / 1024**3  # GB
+                    reserved = torch.cuda.memory_reserved() / 1024**3  # GB
+                    max_allocated = torch.cuda.max_memory_allocated() / 1024**3  # GB
+
+                    usage_pct = allocated / reserved if reserved > 0 else 0.0
+
+                    checkpoint_count = (
+                        len(self.best_models) if hasattr(self, "best_models") else 0
+                    )
+
+                    step_str = f"step {step}: " if step is not None else ""
+                    print(
+                        f"Memory {step_str}allocated={allocated:.2f}GB, "
+                        f"reserved={reserved:.2f}GB, max={max_allocated:.2f}GB, "
+                        f"usage={usage_pct:.1%}, checkpoints={checkpoint_count}",
+                        file=sys.stderr,
+                    )
+
+                    if usage_pct > _patch_state["memory_warn_threshold"]:
+                        print(
+                            f"Warning: GPU memory usage ({usage_pct:.1%}) "
+                            f"exceeds threshold ({_patch_state['memory_warn_threshold']:.1%})",
+                            file=sys.stderr,
+                        )
+                except Exception as monitor_error:
+                    # Log but continue monitoring
+                    print(
+                        f"Warning: Memory monitoring error: {monitor_error}",
+                        file=sys.stderr,
+                    )
+
+            # Proactive validation device override implementation
+            # Store original device value
+            original_device_value = self.device
+
+            # Create validation tracking flag (thread-safe, instance-level)
+            # Define outside try block so it's accessible in finally
+            _in_validation_context: list[bool] = [
+                False
+            ]  # Use list for mutability in nested scopes
+            original_device_attr: Any = None
+
+            # Wrap val_steps to detect validation entry
+            val_steps = kwargs.get("val_steps", [])
+            if val_steps:
+
+                class ValidationTrackingContainer:
+                    """Container that tracks when validation is detected."""
+
+                    def __init__(
+                        self,
+                        original_steps: Any,
+                        validation_flag: list[bool],
+                        model_instance: Any,
+                    ) -> None:
+                        self._original = original_steps
+                        self._flag = validation_flag
+                        self._model_instance = (
+                            model_instance  # Need model instance for manage_checkpoints
+                        )
+
+                    def __contains__(self, item: Any) -> bool:
+                        """When step_ndx in val_steps is checked, set validation flag."""
+                        result = item in self._original
+                        if result and item > 1:  # Match the condition: step_ndx > 1
+                            if not self._flag[
+                                0
+                            ]:  # Only log on first validation detection
+                                print(
+                                    f"Validation detected at step {item}: "
+                                    "switching to CPU device and cleaning memory",
+                                    file=sys.stderr,
+                                )
+                            self._flag[0] = True
+                            # Proactive cleanup before validation
+                            if self._model_instance:
+                                manage_checkpoints(self._model_instance)
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                        return result
+
+                    def __iter__(self) -> Any:
+                        """Delegate iteration to original container."""
+                        return iter(self._original)
+
+                    def __len__(self) -> int:
+                        """Delegate length to original container."""
+                        return len(self._original)
+
+                # Replace val_steps with tracking container
+                kwargs["val_steps"] = ValidationTrackingContainer(
+                    val_steps, _in_validation_context, self
+                )
+
+            # Convert self.device to a property that checks validation flag
+            class DeviceProperty:
+                """Property descriptor that returns CPU during validation."""
+
+                def __init__(
+                    self, original_device: Any, validation_flag: list[bool]
+                ) -> None:
+                    self._original = original_device
+                    self._flag = validation_flag
+
+                def __get__(self, obj: Any, objtype: Any = None) -> Any:
+                    """Return CPU device during validation, original device otherwise."""
+                    if self._flag[0]:
+                        return torch.device("cpu")
+                    return self._original
+
+                def __set__(self, obj: Any, value: Any) -> None:
+                    """Allow setting, but store original."""
+                    self._original = value
+
+            # Store original device attribute (if it exists as a class attribute/descriptor)
+            original_device_attr = getattr(type(self), "device", None)
+
+            # Delete instance attribute if it exists (so class descriptor takes precedence)
+            # Instance attributes take precedence over class descriptors in Python
+            if hasattr(self, "device"):
+                delattr(self, "device")
+
+            # Replace device attribute with property descriptor on the class
+            type(self).device = DeviceProperty(
+                original_device_value, _in_validation_context
+            )
+
+            # Call original train_model with aggressive memory management
+            try:
+                # Pre-emptive checkpoint management before training starts
+                manage_checkpoints(self)
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    log_memory_stats()
+
+                # Call original train_model (it will use our wrapped val_steps and device property)
+                result = original_train_model(self, *args, **kwargs)
+
+                # Final cleanup after training
+                manage_checkpoints(self)
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    log_memory_stats()
+
+                return result
+
+            except Exception:
+                # Cleanup on error
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                raise
+            finally:
+                # Stop background monitoring
+                monitoring_active[0] = False
+                stop_monitoring.set()
+
+                # Clear validation flag after training
+                _in_validation_context[0] = False
+
+                # Restore original device attribute
+                # Remove our property descriptor from class
+                if hasattr(type(self), "device"):
+                    delattr(type(self), "device")
+
+                # Restore as instance attribute (original was an instance attribute)
+                self.device = original_device_value
+
+                # If device was originally a class-level descriptor, restore it
+                # (This is unlikely but handle it for completeness)
+                if original_device_attr is not None:
+                    type(self).device = original_device_attr
+                    # If we restored a class descriptor, remove instance attribute
+                    if hasattr(self, "device"):
+                        delattr(self, "device")
+
+                # Restore original methods
+                torch.Tensor.to = original_tensor_to
+                if hasattr(self, "best_models"):
+                    self.best_models.append = original_append
+
+                # Final memory cleanup
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+        # Apply patches
+        model_class.train_model = patched_train_model
+
+        print(
+            "Applied memory management patches to openwakeword.train.Model",
+            file=sys.stderr,
+        )
+
+    except ImportError as e:
+        print(
+            f"Warning: Could not import openwakeword.train: {e}. "
+            "Continuing without patches.",
+            file=sys.stderr,
+        )
+    except Exception as e:
+        print(
+            f"Warning: Failed to apply patches: {e}. "
+            "Training will continue without memory management.",
+            file=sys.stderr,
+        )
+
+
+def main() -> int:
+    """Main entry point - patches Model class then calls original train.py.
+
+    Returns:
+        Exit code from original training script
+    """
+    # Apply patches before importing/executing training script
+    patch_model_class()
+
+    # Locate and execute original train.py
+    try:
+        import openwakeword
+        from pathlib import Path
+        import subprocess
+
+        train_py_path = Path(openwakeword.__file__).parent / "train.py"
+        train_py = str(train_py_path)
+
+        if not train_py_path.exists():
+            print(f"Error: Could not locate train.py at {train_py}", file=sys.stderr)
+            return 1
+
+        # Pass through all command-line arguments
+        result = subprocess.run(
+            [sys.executable, train_py] + sys.argv[1:],
+            check=False,
+        )
+
+        return result.returncode
+
+    except ImportError:
+        print("Error: openwakeword package not found", file=sys.stderr)
+        return 1
+    except Exception as e:
+        print(f"Error: Failed to execute training script: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -394,7 +394,9 @@ class AudioEnhancer:
             )
 
             # Convert back to int16 and bytes
-            enhanced_int16 = (enhanced_array * 32768.0).astype(np.int16)
+            # Clamp after multiplication to prevent overflow when converting back
+            enhanced_float = enhanced_array * 32768.0
+            enhanced_int16 = np.clip(enhanced_float, -32768.0, 32767.0).astype(np.int16)
             enhanced_bytes = bytes(enhanced_int16.tobytes())
 
             processing_time = (time.time() - start_time) * 1000

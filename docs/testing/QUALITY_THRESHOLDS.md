@@ -175,6 +175,52 @@ These values are used in test assertions to validate quality:
 -  **CPU Usage**: < 30% per request
 -  **Threshold**: `MAX_ORCHESTRATOR_RESPONSE_TIME=0.5`, `MAX_ORCHESTRATOR_MEMORY=30`, `MAX_ORCHESTRATOR_CPU=30`
 
+### Wake Detection Quality Validation
+
+Wake detection quality validation is now integrated into the audio pipeline to diagnose detection failures.
+
+**Runtime Configuration** (via environment variables):
+
+-  `AUDIO_QUALITY_MIN_SNR_DB`: Minimum SNR in dB for general audio quality (default: 10.0)
+-  `AUDIO_QUALITY_MIN_RMS`: Minimum RMS value for general audio quality (default: 100.0)
+-  `AUDIO_QUALITY_MIN_CLARITY`: Minimum clarity score 0-1 for general audio quality (default: 0.3)
+-  `AUDIO_QUALITY_WAKE_MIN_SNR_DB`: Minimum SNR in dB for wake detection (default: 10.0)
+-  `AUDIO_QUALITY_WAKE_MIN_RMS`: Minimum RMS value for wake detection (default: 100.0)
+
+**Quality Metrics Logged**:
+
+-  `rms`: Root mean square (volume level)
+-  `snr_db`: Signal-to-noise ratio in dB (may be `-Infinity` for silent audio)
+-  `clarity_score`: Clarity score (0-1)
+
+**Note on Silent Audio**: When audio is silent (all zeros or constant value), `snr_db` will be `-Infinity`. This is expected behavior and indicates no signal power. The `clarity_score` will be `0.0` for silent audio.
+
+**Usage**:
+
+Quality metrics are automatically logged with every wake detection attempt in the `audio_processor_wrapper.wake_detection_invoked` and `audio_processor_wrapper.wake_detection_no_result` log events.
+
+**Analysis Tool**:
+
+Use `make analyze-audio-quality` to generate quality reports from logs:
+
+```bash
+# Analyze default log file
+make analyze-audio-quality
+
+# Analyze specific log file
+make analyze-audio-quality LOG_FILE=path/to/logs
+```
+
+**Threshold Guidelines**:
+
+-  **Clean Audio**: SNR > 20dB, RMS > 200 (int16 domain), Clarity > 0.7
+-  **Acceptable Audio**: SNR > 10dB, RMS > 100 (int16 domain), Clarity > 0.3
+-  **Poor Audio**: SNR < 10dB, RMS < 100 (int16 domain), Clarity < 0.3 (likely to cause detection failures)
+
+**Note**: RMS thresholds are specified in **int16 domain** (0-32767 range), not normalized (0-1).
+For normalized RMS values, multiply by 32768.0 to convert to int16 domain.
+Example: Normalized RMS 0.003 ≈ int16 RMS 98.3
+
 ## Monitoring and Alerting
 
 ### Quality Alerts
@@ -252,7 +298,7 @@ export MAX_MEMORY_REGRESSION=50
 def test_quality_thresholds():
     snr = calculate_snr(audio_data, noise_floor=0.01)
     thd = calculate_thd(audio_data, fundamental_freq=440.0, sample_rate=16000)
-    
+
     assert snr >= MIN_SNR
     assert thd <= MAX_THD
     assert latency <= MAX_E2E_LATENCY
@@ -266,7 +312,7 @@ def test_quality_thresholds():
 def monitor_quality():
     current_snr = calculate_snr(audio_data, noise_floor=0.01)
     baseline_snr = get_baseline_snr()
-    
+
     if current_snr < baseline_snr - MAX_SNR_REGRESSION:
         alert_quality_regression("SNR", current_snr, baseline_snr)
 ```

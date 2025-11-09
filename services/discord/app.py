@@ -308,6 +308,14 @@ async def _start_discord_bot(
 
         # Create bot components
         wake_detector = WakeDetector(config.wake)
+        logger.info(
+            "discord.wake_detector_initialized",
+            model_loaded=wake_detector._model is not None,
+            enabled=config.wake.enabled,
+            threshold=config.wake.activation_threshold,
+            target_sample_rate=config.wake.target_sample_rate_hz,
+            model_paths=config.wake.model_paths,
+        )
         audio_processor_wrapper = AudioProcessorWrapper(
             config.audio, config.telemetry, wake_detector=wake_detector
         )

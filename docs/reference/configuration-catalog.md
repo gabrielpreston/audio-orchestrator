@@ -81,7 +81,6 @@ Update this file whenever you add, rename, or remove configuration keys.
 | `STT_MAX_RETRIES` | Number of retry attempts for STT calls. | `3` |
 | `STT_FORCED_LANGUAGE` | Optional language code override. | `en` |
 | `WAKE_MODEL_PATHS` | Additional wake model files. | *(empty)* |
-| `WAKE_PHRASES` | Comma-separated list of wake phrases. | `hey atlas,ok atlas` |
 | `WAKE_THRESHOLD` | Wake detection confidence threshold (0-1). | `0.5` |
 | `WAKE_SAMPLE_RATE` | Sample rate for wake model (Hz). | `16000` |
 | `METRICS_PORT` | Optional port for Prometheus metrics. | *(empty)* |

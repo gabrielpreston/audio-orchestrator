@@ -102,13 +102,6 @@ def _get_env_overrides() -> dict[str, Any]:
             # Empty string or invalid values are treated as false
             overrides.setdefault("wake", {})["enabled"] = False
 
-    # Wake phrases (comma-separated list)
-    wake_phrases = os.getenv("WAKE_PHRASES")
-    if wake_phrases is not None:
-        overrides.setdefault("wake", {})["wake_phrases"] = [
-            phrase.strip() for phrase in wake_phrases.split(",") if phrase.strip()
-        ]
-
     # Wake threshold (float validation)
     wake_threshold = os.getenv("WAKE_THRESHOLD")
     if wake_threshold is not None:
@@ -256,6 +249,18 @@ def _get_env_overrides() -> dict[str, Any]:
             logger.warning(
                 "config.discord_reconnect_max_invalid",
                 value=discord_reconnect_max,
+            )
+
+    discord_health_monitor_timeout = os.getenv("DISCORD_VOICE_HEALTH_MONITOR_TIMEOUT_S")
+    if discord_health_monitor_timeout is not None:
+        try:
+            overrides.setdefault("discord", {})["voice_health_monitor_timeout_s"] = (
+                float(discord_health_monitor_timeout)
+            )
+        except ValueError:
+            logger.warning(
+                "config.discord_health_monitor_timeout_invalid",
+                value=discord_health_monitor_timeout,
             )
 
     # Gateway session validation configuration

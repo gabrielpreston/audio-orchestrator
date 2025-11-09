@@ -273,6 +273,8 @@ services:
       # Mount source code for development (overrides COPY in Dockerfile)
       - "./services/common:/app/services/common"
       - "./services/testing:/app/services/testing"
+      # Mount WAV file storage
+      - "./test_artifacts/testing/wavs:/app/wavs"
     deploy:
       resources:
         limits:

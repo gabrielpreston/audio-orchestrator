@@ -39,6 +39,9 @@ fi
 # Determine which stage to run (default: all stages)
 STAGE="${STAGE:-all}"
 
+# Check if overwrite flag should be passed (for regenerating features)
+OVERWRITE="${OVERWRITE:-false}"
+
 echo "=========================================="
 echo "Wake Word Training Tool"
 echo "=========================================="
@@ -211,8 +214,11 @@ if [[ ! -d "$TRAINING_DATA_DIR/background_clips" ]]; then
     MISSING_DATA=true
 fi
 
-if [[ ! -f "$TRAINING_DATA_DIR/validation_set_features.npy" ]]; then
+# Check for validation features (full or subset)
+if [[ ! -f "$TRAINING_DATA_DIR/validation_set_features.npy" ]] && \
+   [[ ! -f "$TRAINING_DATA_DIR/validation_set_features_small.npy" ]]; then
     echo "Warning: Validation features file not found: $TRAINING_DATA_DIR/validation_set_features.npy"
+    echo "         Subset also not found: $TRAINING_DATA_DIR/validation_set_features_small.npy"
     MISSING_DATA=true
 fi
 
@@ -250,19 +256,90 @@ if [[ "$MISSING_DATA" == "true" ]]; then
     echo ""
 fi
 
-# Create openwakeword resources directory if it doesn't exist
-# This is needed for adversarial text generation during training
-# This is a runtime fallback in case the directory wasn't created during build
+# Create validation subset if full dataset exists but subset doesn't
+if [[ -f "$TRAINING_DATA_DIR/validation_set_features.npy" ]] && \
+   [[ ! -f "$TRAINING_DATA_DIR/validation_set_features_small.npy" ]]; then
+    echo "=========================================="
+    echo "Creating validation subset (10,000 samples) for memory efficiency..."
+    echo "=========================================="
+    echo ""
+
+    if python /workspace/services/waketrainer/create_validation_subset.py \
+        --input "$TRAINING_DATA_DIR/validation_set_features.npy" \
+        --output "$TRAINING_DATA_DIR/validation_set_features_small.npy" \
+        --size 10000 2>&1; then
+        echo ""
+        echo "Validation subset created successfully!"
+        echo ""
+    else
+        echo ""
+        echo "Warning: Failed to create validation subset. Training will continue,"
+        echo "         but you may need to disable validation in your config if OOM occurs."
+        echo ""
+    fi
+fi
+
+# Create openwakeword resources directory and verify/download infrastructure models
+# Models should be available via volume mount (configured in Makefile), but download if missing
+# This follows the same pattern as the discord service
 python -c "
 import openwakeword
 import os
+import shutil
+import tempfile
+from pathlib import Path
+
 resources_dir = os.path.join(os.path.dirname(openwakeword.__file__), 'resources')
+models_dir = os.path.join(resources_dir, 'models')
+
 try:
-    os.makedirs(resources_dir, exist_ok=True)
-    print(f'Ensured openwakeword resources directory exists: {resources_dir}')
+    os.makedirs(models_dir, exist_ok=True)
+    print(f'Ensured openwakeword resources directory exists: {models_dir}')
+
+    # Check if infrastructure models exist (should be there via volume mount)
+    infrastructure_models = ['melspectrogram.onnx', 'embedding_model.onnx', 'silero_vad.onnx']
+    missing_models = [m for m in infrastructure_models if not os.path.exists(os.path.join(models_dir, m))]
+
+    if missing_models:
+        print(f'Warning: Missing infrastructure models: {missing_models}')
+        print('These should be available via volume mount. Downloading missing models...')
+        try:
+            from openwakeword import utils as oww_utils
+
+            # Download all models to temporary directory
+            temp_dir = tempfile.mkdtemp(prefix='openwakeword_infrastructure_')
+            oww_utils.download_models(model_names=[], target_directory=temp_dir)
+
+            # Move infrastructure models to resources directory (mounted, so persists to host)
+            downloaded_count = 0
+            for model_name in missing_models:
+                src = os.path.join(temp_dir, model_name)
+                dst = os.path.join(models_dir, model_name)
+                if os.path.exists(src):
+                    shutil.move(src, dst)
+                    downloaded_count += 1
+                    print(f'Downloaded {model_name} to {dst}')
+                else:
+                    print(f'Warning: {model_name} not found in download')
+
+            # Clean up temporary directory
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+            if downloaded_count > 0:
+                print(f'Successfully downloaded {downloaded_count} infrastructure model(s)')
+            else:
+                print('Warning: No infrastructure models were downloaded')
+        except Exception as e:
+            print(f'Error: Could not download infrastructure models: {e}')
+            print('Training will likely fail without these models')
+    else:
+        print('All infrastructure models are present (via volume mount)')
+
 except PermissionError as e:
     print(f'Warning: Could not create openwakeword resources directory: {e}')
     print('This may cause training to fail during adversarial text generation.')
+except Exception as e:
+    print(f'Warning: Error setting up openwakeword resources: {e}')
 " || echo "Warning: Could not verify openwakeword resources directory"
 
 # Stage 1: Generate synthetic clips
@@ -282,7 +359,12 @@ if [[ "$STAGE" == "all" || "$STAGE" == "augment" ]]; then
     echo "=========================================="
     echo "Stage 2: Augmenting clips"
     echo "=========================================="
-    python "$TRAIN_PY" --training_config "$CONFIG_PATH" --augment_clips || {
+    OVERWRITE_FLAG=""
+    if [[ "$OVERWRITE" == "true" || "$OVERWRITE" == "1" ]]; then
+        OVERWRITE_FLAG="--overwrite"
+        echo "Overwrite mode enabled - will regenerate existing features"
+    fi
+    python "$TRAIN_PY" --training_config "$CONFIG_PATH" --augment_clips $OVERWRITE_FLAG || {
         echo "Error: Stage 2 (augment_clips) failed"
         exit 1
     }
@@ -294,10 +376,21 @@ if [[ "$STAGE" == "all" || "$STAGE" == "train" ]]; then
     echo "=========================================="
     echo "Stage 3: Training model"
     echo "=========================================="
-    python "$TRAIN_PY" --training_config "$CONFIG_PATH" --train_model || {
-        echo "Error: Stage 3 (train_model) failed"
-        exit 1
-    }
+    # Use minimal wrapper to fix memory-intensive validation reshape
+    WRAPPER_SCRIPT="/workspace/services/waketrainer/train_wrapper_minimal.py"
+    if [[ -f "$WRAPPER_SCRIPT" ]]; then
+        echo "Using memory-efficient validation reshape wrapper..."
+        python "$WRAPPER_SCRIPT" --training_config "$CONFIG_PATH" --train_model || {
+            echo "Error: Stage 3 (train_model) failed"
+            exit 1
+        }
+    else
+        echo "Warning: train_wrapper_minimal.py not found, using original train.py"
+        python "$TRAIN_PY" --training_config "$CONFIG_PATH" --train_model || {
+            echo "Error: Stage 3 (train_model) failed"
+            exit 1
+        }
+    fi
     echo ""
 fi
 

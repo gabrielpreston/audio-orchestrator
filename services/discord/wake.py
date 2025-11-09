@@ -57,7 +57,6 @@ class WakeDetector(CommonWakeDetector):
             correlation_id=segment.correlation_id,
             user_id=segment.user_id,
             transcript_preview=transcript[:120] if transcript else None,
-            wake_phrases=self._phrases,
             enabled=self._config.enabled,
         )
 

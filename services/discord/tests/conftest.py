@@ -132,7 +132,6 @@ def mock_config(tmp_path):
     )
 
     wake_config = WakeConfig(
-        wake_phrases=["hey atlas", "ok atlas"],
         model_paths=[],
         activation_threshold=0.5,
         target_sample_rate_hz=16000,

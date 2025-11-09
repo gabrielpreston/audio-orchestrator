@@ -150,11 +150,21 @@ class Accumulator:
 
 
 def rms_from_pcm(pcm: bytes) -> float:
-    """Compute RMS value for PCM audio using standardized audio processing."""
-    from services.common.audio import AudioProcessor
+    """Compute RMS value for PCM audio in int16 domain (0-32767).
 
-    processor = AudioProcessor("discord")
-    return float(processor.calculate_rms(pcm, 2))
+    Returns RMS in int16 domain for threshold comparisons.
+    This fixes the bug where normalized RMS (0-1) was compared against
+    int16 domain thresholds (e.g., 5.0, 10.0).
+
+    Args:
+        pcm: PCM audio data bytes (16-bit)
+
+    Returns:
+        RMS value in int16 domain (0-32767)
+    """
+    from services.common.audio import calculate_rms_int16
+
+    return calculate_rms_int16(pcm, sample_width=2)
 
 
 __all__ = ["Accumulator", "AudioSegment", "PCMFrame", "rms_from_pcm"]

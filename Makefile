@@ -210,8 +210,8 @@ define run_wake_trainer_container
 @docker run --rm \
 	--gpus all \
 	--cpus="9" \
-	--memory="8G" \
-	--shm-size="2g" \
+	--memory="24G" \
+	--shm-size="16g" \
 	--ipc=host \
 	-u $$(id -u):$$(id -g) \
 	-e HOME=$(2) \
@@ -622,13 +622,13 @@ wake-train-generate: build-wake-trainer-image ## Run wake word training stage 1 
 	fi
 	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=generate && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
 
-wake-train-augment: build-wake-trainer-image ## Run wake word training stage 2 (augment clips) - requires CONFIG=path/to/config.yaml
+wake-train-augment: build-wake-trainer-image ## Run wake word training stage 2 (augment clips) - requires CONFIG=path/to/config.yaml. Use OVERWRITE=true to regenerate existing features.
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
 	@if [ -z "$(CONFIG)" ]; then \
 		printf "$(COLOR_RED)→ Error: CONFIG is required. Example: make wake-train-augment CONFIG=services/waketrainer/config/example_config.yaml$(COLOR_OFF)\n"; \
 		exit 1; \
 	fi
-	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=augment && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),bash -c "export CONFIG=\"$(CONFIG)\" && export STAGE=augment && export OVERWRITE=\"$(OVERWRITE)\" && bash $(WAKE_TRAINER_WORKDIR)/services/waketrainer/run-train.sh")
 
 wake-train-train: build-wake-trainer-image ## Run wake word training stage 3 (train model) - requires CONFIG=path/to/config.yaml
 	@command -v docker >/dev/null 2>&1 || { echo "docker not found; install Docker." >&2; exit 1; }
@@ -644,6 +644,21 @@ extract-background-audio: build-wake-trainer-image ## Extract background audio f
 		python services/waketrainer/extract-background-audio.py \
 			--dataset-dir /workspace/services/models/wake/training-data/background_clips \
 			--output-dir /workspace/services/models/wake/training-data/background_clips/wav)
+
+wake-train-diagnose: build-wake-trainer-image ## Diagnose validation OOM issue - inspect validation data and openwakeword code
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),\
+		python $(WAKE_TRAINER_WORKDIR)/services/waketrainer/diagnose_oom.py)
+
+wake-train-create-validation-subset: build-wake-trainer-image ## Create smaller validation dataset subset (use SIZE=10000 to set subset size)
+	@if [ -z "$(SIZE)" ]; then \
+		printf "$(COLOR_YELLOW)→ Using default subset size: 10000 samples$(COLOR_OFF)\n"; \
+		SIZE=10000; \
+	fi
+	$(call run_wake_trainer_container,$(WAKE_TRAINER_IMAGE),$(WAKE_TRAINER_WORKDIR),\
+		python $(WAKE_TRAINER_WORKDIR)/services/waketrainer/create_validation_subset.py \
+			--input /workspace/services/models/wake/training-data/validation_set_features.npy \
+			--output /workspace/services/models/wake/training-data/validation_set_features_small.npy \
+			--size $(SIZE))
 
 # =============================================================================
 # PYTHON SYNTAX CHECKING
@@ -724,6 +739,17 @@ docs-verify: ## Validate documentation last-updated metadata and indexes
 
 validate-changes: ## Validate uncommitted changes (lint, tests); use ARGS='--verbose' to customize
 	@bash $(SCRIPT_DIR)/validate-changes.sh $(ARGS)
+
+analyze-audio-quality: ## Analyze audio quality from logs (set LOG_FILE=path, default: debug/docker.logs)
+	@printf "$(COLOR_CYAN)→ Analyzing audio quality from logs$(COLOR_OFF)\n"
+	@LOG_FILE=$${LOG_FILE:-debug/docker.logs}; \
+	if [ -f "$$LOG_FILE" ]; then \
+		python3 $(SCRIPT_DIR)/analyze_audio_quality.py "$$LOG_FILE"; \
+	else \
+		printf "$(COLOR_YELLOW)Warning: Log file not found: $$LOG_FILE$(COLOR_OFF)\n"; \
+		printf "$(COLOR_YELLOW)Reading from stdin...$(COLOR_OFF)\n"; \
+		python3 $(SCRIPT_DIR)/analyze_audio_quality.py; \
+	fi
 
 # =============================================================================
 # TOKEN MANAGEMENT

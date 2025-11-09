@@ -13,10 +13,9 @@ import audioop
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal
 
 import numpy as np
-from rapidfuzz import fuzz, process, utils
 
 from services.common.structured_logging import get_logger
 
@@ -46,8 +45,6 @@ class WakeDetector:
     in real-time audio streams or transcribed text.
     """
 
-    _TRANSCRIPT_SCORE_CUTOFF = 90.0  # RapidFuzz scores range from 0 to 100.
-
     def __init__(self, config: WakeConfig, service_name: str = "common") -> None:
         """Initialize wake detector.
 
@@ -57,14 +54,6 @@ class WakeDetector:
         """
         self._config = config
         self._logger = get_logger(__name__, service_name=service_name)
-        self._phrases: list[str] = [
-            phrase.strip()
-            for phrase in config.wake_phrases
-            if phrase and phrase.strip()
-        ]
-        self._normalized_phrases: list[str] = [
-            self._normalize_phrase(phrase) for phrase in self._phrases
-        ]
         self._target_sample_rate = config.target_sample_rate_hz
         self._threshold = config.activation_threshold
         self._model = self._load_model([Path(p) for p in config.model_paths])
@@ -235,28 +224,108 @@ class WakeDetector:
             WakeDetectionResult if wake phrase detected, None otherwise
         """
         if not pcm or self._model is None:
+            self._logger.debug(
+                "wake.detect_audio_skipped",
+                reason="no_pcm" if not pcm else "model_unavailable",
+                pcm_length=len(pcm) if pcm else 0,
+                model_loaded=self._model is not None,
+            )
             return None
         converted = self._resample(pcm, sample_rate)
         if not converted:
+            self._logger.debug(
+                "wake.resample_failed_for_detection",
+                source_rate=sample_rate,
+                target_rate=self._target_sample_rate,
+                pcm_length=len(pcm),
+            )
             return None
         normalized = (
             np.frombuffer(converted, dtype=np.int16).astype(np.float32) / 32768.0
         )
+
+        # Ensure consistent input dimensions for ONNX model
+        # NOTE: The ONNX error suggests melspectrogram frame mismatch, but openwakeword
+        # converts raw audio to melspectrogram internally. The model may have been trained
+        # with a specific audio length. We'll pad/truncate to a standard length that typically
+        # produces the expected melspectrogram frame count.
+        #
+        # Based on openwakeword's typical processing: ~320ms of audio at 16kHz produces
+        # approximately 16 melspectrogram frames (20ms hop, 16 frames = 320ms)
+        # 16 frames * 320 samples/frame = 5120 samples at 16kHz
+        expected_samples = 16 * 320  # 5120 samples at 16kHz
+
+        if len(normalized) < expected_samples:
+            # Pad with zeros (silence at end)
+            original_length = len(normalized)
+            normalized = np.pad(
+                normalized,
+                (0, expected_samples - len(normalized)),
+                mode="constant",
+            )
+            self._logger.debug(
+                "wake.audio_padded",
+                original_length=original_length,
+                padded_length=expected_samples,
+                padding_samples=expected_samples - original_length,
+            )
+        elif len(normalized) > expected_samples:
+            # Truncate to expected length (take last N samples to preserve recent audio)
+            original_length = len(normalized)
+            normalized = normalized[-expected_samples:]
+            self._logger.debug(
+                "wake.audio_truncated",
+                original_length=original_length,
+                truncated_length=expected_samples,
+                discarded_samples=original_length - expected_samples,
+            )
+
+        # Convert back to int16 for OpenWakeWord (requires 16-bit PCM)
+        # Clamp to [-1, 1] range to prevent overflow when converting back
+        normalized_clamped = np.clip(normalized, -1.0, 1.0)
+        # Convert to int16: multiply by 32768.0 (symmetric with normalization) and cast
+        # Using 32768.0 instead of 32767.0 for symmetric conversion (eliminates amplitude loss)
+        # Clamp after multiplication to prevent overflow (32768.0 * 1.0 = 32768 overflows int16)
+        audio_float = normalized_clamped * 32768.0
+        audio_int16 = np.clip(audio_float, -32768.0, 32767.0).astype(np.int16)
+
+        self._logger.debug(
+            "wake.format_conversion",
+            original_dtype="float32",
+            converted_dtype="int16",
+            sample_count=len(audio_int16),
+        )
+
         # openwakeword.Model.predict() requires numpy array, not list
         try:
-            scores = self._model.predict(normalized)
+            scores = self._model.predict(audio_int16)
         except TypeError:
             # Fallback for models that require sample_rate parameter
             scores = self._model.predict(
-                normalized,
+                audio_int16,
                 sample_rate=self._target_sample_rate,
             )
         except Exception as exc:
             self._logger.error("wake.audio_inference_failed", error=str(exc))
             return None
         if not isinstance(scores, dict) or not scores:
+            self._logger.debug(
+                "wake.invalid_scores",
+                scores_type=type(scores).__name__,
+                scores_empty=not scores if isinstance(scores, dict) else True,
+            )
             return None
         phrase, score = max(scores.items(), key=lambda item: item[1])
+        self._logger.debug(
+            "wake.detection_scores",
+            all_scores=scores,  # Log all scores for debugging
+            max_phrase=phrase,
+            max_score=score,
+            threshold=self._threshold,
+            above_threshold=score is not None and score >= self._threshold
+            if score is not None
+            else False,
+        )
         if score is None or score < self._threshold:
             return None
         return WakeDetectionResult(str(phrase), float(score), "audio")
@@ -264,32 +333,17 @@ class WakeDetector:
     def detect_transcript(self, transcript: str | None) -> WakeDetectionResult | None:
         """Detect wake phrase from transcribed text.
 
+        Note: Transcript-based detection is disabled as wake phrases are determined
+        by the model itself, not by configuration.
+
         Args:
             transcript: Transcribed text to search
 
         Returns:
-            WakeDetectionResult if wake phrase detected, None otherwise
+            None (transcript detection disabled)
         """
-        if not transcript or not self._normalized_phrases:
-            return None
-        normalized_transcript = cast("str", utils.default_process(transcript) or "")
-        if not normalized_transcript:
-            return None
-        match: Any = process.extractOne(
-            normalized_transcript,
-            self._normalized_phrases,
-            scorer=fuzz.partial_ratio,
-            score_cutoff=self._TRANSCRIPT_SCORE_CUTOFF,
-        )
-        if not match:
-            return None
-        phrase_match = cast("tuple[Any, float, int]", match)
-        _, score, index = phrase_match
-        if index < 0 or index >= len(self._phrases):
-            return None
-        phrase = self._phrases[index]
-        confidence = float(score) / 100.0
-        return WakeDetectionResult(phrase.lower(), confidence, "transcript")
+        # Transcript-based detection disabled - model determines wake phrases
+        return None
 
     def detect(
         self,
@@ -342,7 +396,13 @@ class WakeDetector:
         return None
 
     def _resample(self, pcm: bytes, sample_rate: int) -> bytes:
-        """Resample audio to target sample rate."""
+        """Resample audio to target sample rate using audioop.ratecv().
+
+        Uses audioop.ratecv() (fast, lower quality) instead of librosa.resample()
+        because wake detection is performance-critical and runs on every audio frame.
+        For quality-critical paths (e.g., STT preprocessing), use librosa.resample()
+        instead (see services/common/audio.py:resample_audio()).
+        """
         if sample_rate == self._target_sample_rate:
             return pcm
         try:
@@ -371,11 +431,6 @@ class WakeDetector:
     def filter_segments(self, transcripts: Iterable[str]) -> list[str]:
         """Filter transcripts to only those containing wake phrases."""
         return [segment for segment in transcripts if self.matches(segment)]
-
-    @staticmethod
-    def _normalize_phrase(value: str) -> str:
-        """Normalize phrases the same way RapidFuzz normalizes inputs."""
-        return cast("str", utils.default_process(value) or "")
 
 
 __all__ = ["WakeDetectionResult", "WakeDetector"]

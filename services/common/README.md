@@ -617,7 +617,17 @@ The `WakeDetector` class provides service-agnostic wake phrase detection for any
 - **Transcript Fallback**: Falls back to transcript-based pattern matching if audio models unavailable
 - **Three-Tier Model Loading**: User-provided paths → Auto-discovery → Built-in defaults
 - **Resampling Support**: Automatically resamples audio to target sample rate (default 16kHz)
+- **Format Conversion**: Automatically converts normalized float32 audio to int16 PCM format required by OpenWakeWord
 - **Graceful Degradation**: Continues operation even if models fail to load
+
+### Audio Format Requirements
+
+**Important**: OpenWakeWord requires 16-bit PCM audio (`np.int16`). The `WakeDetector` automatically:
+- Normalizes audio to float32 for processing (padding/truncation)
+- Converts back to int16 before passing to the model
+- Clamps values to prevent overflow during conversion
+
+The conversion is logged at DEBUG level with event `wake.format_conversion` for troubleshooting.
 
 ### Basic Usage
 
@@ -627,7 +637,6 @@ from services.common.config.presets import WakeConfig
 
 # Create wake config
 wake_config = WakeConfig(
-    wake_phrases=["hey atlas", "ok atlas"],
     model_paths=[],  # Empty = auto-discover in ./services/models/wake/
     activation_threshold=0.5,
     target_sample_rate_hz=16000,
@@ -644,11 +653,7 @@ result = wake_detector.detect_audio(pcm_bytes, sample_rate)
 if result:
     print(f"Wake phrase '{result.phrase}' detected with confidence {result.confidence}")
 
-# Detect from transcript (fallback)
-transcript = "hey atlas, what's the weather?"
-result = wake_detector.detect_transcript(transcript)
-if result:
-    print(f"Wake phrase '{result.phrase}' detected in transcript")
+# Note: Transcript-based detection is disabled as wake phrases are determined by the model itself
 ```
 
 ### Model Loading Strategy
@@ -694,7 +699,6 @@ if self._wake_detector and self._wake_detector._model:
 
 Wake detection is configured via environment variables:
 
-- `WAKE_PHRASES`: Comma-separated list of wake phrases (default: "hey atlas,ok atlas")
 - `WAKE_MODEL_PATHS`: Comma-separated list of model file paths (default: empty = auto-discover)
 - `WAKE_THRESHOLD`: Activation threshold 0.0-1.0 (default: 0.5)
 - `WAKE_SAMPLE_RATE`: Target sample rate in Hz (default: 16000)

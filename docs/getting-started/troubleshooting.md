@@ -25,7 +25,7 @@ Use this checklist to resolve the most common setup issues when running the stac
 | Symptom | Resolution |
 | --- | --- |
 | Bot fails to join a voice channel | Verify `DISCORD_VOICE_CHANNEL_ID` and guild permissions; check for stale voice connections in Discord. |
-| Wake phrase never triggers | Confirm `WAKE_PHRASES` and `WAKE_THRESHOLD`; inspect logs for `transcript_preview` values. |
+| Wake phrase never triggers | Confirm `WAKE_THRESHOLD` and model configuration; inspect logs for detection scores. |
 | STT requests time out | Ensure `STT_BASE_URL` points to the Compose service (`http://stt:9000`) and that the STT container is healthy. |
 
 ## Tooling & Credentials

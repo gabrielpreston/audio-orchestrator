@@ -58,12 +58,15 @@ custom_negative_phrases:
   - "ayo dude"
 
 # Positive sample counts (TTS + augment)
-n_samples: 120000
-n_samples_val: 4000
+# Reduced for testing/validation - sufficient for model testing while fitting in GPU memory
+n_samples: 25000  # Reduced from 120000 - minimum recommended is 20000, 25000 is sufficient for testing
+n_samples_val: 200  # Increased from 25 to 200 for better validation (still small enough to avoid OOM)
 
 # TTS / augmentation settings
-tts_batch_size: 65
-augmentation_batch_size: 16
+# Reduced batch sizes to prevent CUDA OOM during generation
+# Smaller batches = more batches but less GPU memory per batch
+tts_batch_size: 10  # Reduced from 20 to 10 - prevents OOM during TTS generation (25k samples = 2500 batches)
+augmentation_batch_size: 16  # Keep at 16 for variety in augmentation
 
 # Path to Piper TTS sample generator
 piper_sample_generator_path: "/workspace/piper-sample-generator"
@@ -72,8 +75,9 @@ piper_sample_generator_path: "/workspace/piper-sample-generator"
 output_dir: "/workspace/services/models/wake/detection/hey_ao"
 
 # Room Impulse Responses (RIRs) for realistic reverb
+# Point to the 16khz subdirectory containing WAV files directly (not the parent directory)
 rir_paths:
-  - "/workspace/services/models/wake/training-data/mit_rirs"
+  - "/workspace/services/models/wake/training-data/mit_rirs/16khz"
 
 # Background audio directories
 # WAV files extracted from Parquet dataset using: make extract-background-audio
@@ -85,7 +89,11 @@ background_paths_duplication_rate:
   - 1
 
 # Precomputed features for false-positive validation
-false_positive_validation_data_path: "/workspace/services/models/wake/training-data/validation_set_features.npy"
+# Using a smaller subset (10,000 samples) to avoid OOM while still providing validation
+# The full validation set (481,345 samples) causes OOM due to memory-intensive reshape operations
+# To use the full dataset, change path to: /workspace/services/models/wake/training-data/validation_set_features.npy
+# To create a custom subset: make wake-train-create-validation-subset SIZE=10000
+false_positive_validation_data_path: "/workspace/services/models/wake/training-data/validation_set_features_small.npy"
 
 # Number of augmentation passes per generated clip
 augmentation_rounds: 1
@@ -95,17 +103,24 @@ feature_data_files:
   "ACAV100M_sample": "/workspace/services/models/wake/training-data/openwakeword_features_ACAV100M_2000_hrs_16bit.npy"
 
 # Batch composition (sum == total batch size)
+# Aggressively reduced batch sizes to fit within 8GB Docker memory limit and GPU memory
+# Original: 1024 + 50 + 60 = 1134 (caused OOM at 75% training)
+# First reduction: 512 + 25 + 30 = 567 (caused CUDA OOM at 79% training)
+# Second reduction: 256 + 12 + 15 = 283 (still CUDA OOM at 79% during validation)
+# Current: 128 + 6 + 8 = 142 (approximately 87% reduction from original)
 batch_n_per_class:
-  "ACAV100M_sample": 1024
-  "adversarial_negative": 50
-  "positive": 60
+  "ACAV100M_sample": 128
+  "adversarial_negative": 6
+  "positive": 8
 
 # Model architecture
 model_type: "dnn"
 layer_size: 32
 
 # Training parameters
-steps: 60000
+# Reduced for testing - 15000 steps is sufficient for validation/testing purposes
+# Validation will start at 75% (11250 steps) with early stopping to prevent overfitting
+steps: 15000
 max_negative_weight: 1500
 target_false_positives_per_hour: 0.2
 
